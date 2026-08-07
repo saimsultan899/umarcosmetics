@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/layout/app-shell";
+import { ShellSkeleton } from "@/components/ui/page-skeleton";
 import { getMemberships } from "@/lib/auth";
 import { Suspense } from "react";
 
@@ -21,14 +22,7 @@ export default async function AppLayout({
 
   // Allow select-company / super-admin without forcing company in layout
   return (
-    <Suspense
-      fallback={
-        <div className="flex h-screen overflow-hidden">
-          <div className="hidden w-[280px] bg-[var(--sidebar)] lg:block" />
-          <div className="flex-1 bg-[var(--background)]" />
-        </div>
-      }
-    >
+    <Suspense fallback={<ShellSkeleton />}>
       <AppShell
         company={company}
         userName={profile?.full_name || user.email || "User"}

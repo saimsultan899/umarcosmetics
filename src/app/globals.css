@@ -215,6 +215,91 @@ a {
   animation: rise-in 0.35s ease-out both;
 }
 
+/* Page enter after navigation */
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-page-in {
+  animation: page-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Shimmer skeleton blocks */
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+.skeleton {
+  border-radius: 8px;
+  background: linear-gradient(
+    90deg,
+    var(--surface-2) 0%,
+    #e4ebe7 45%,
+    var(--surface-2) 90%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.15s ease-in-out infinite;
+}
+
+/* Top route progress */
+@keyframes nav-progress-run {
+  0% {
+    width: 0%;
+    opacity: 1;
+  }
+  15% {
+    width: 28%;
+  }
+  50% {
+    width: 62%;
+  }
+  100% {
+    width: 85%;
+  }
+}
+
+@keyframes nav-progress-done {
+  from {
+    width: 85%;
+    opacity: 1;
+  }
+  to {
+    width: 100%;
+    opacity: 0;
+  }
+}
+
+.nav-progress-bar {
+  background: linear-gradient(
+    90deg,
+    var(--brand) 0%,
+    #14b8a6 55%,
+    var(--brand-strong) 100%
+  );
+  box-shadow: 0 0 12px rgba(15, 118, 110, 0.45);
+  border-radius: 0 2px 2px 0;
+}
+
+.nav-progress-bar--run {
+  animation: nav-progress-run 1.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.nav-progress-bar--done {
+  animation: nav-progress-done 0.28s ease-out forwards;
+}
+
 @keyframes dialog-fade {
   from {
     opacity: 0;

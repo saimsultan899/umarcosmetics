@@ -1,5 +1,7 @@
 "use client";
 
+import { NavigationProgress } from "@/components/layout/navigation-progress";
+import { PageTransition } from "@/components/layout/page-transition";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { SyncProvider } from "@/components/offline/sync-provider";
@@ -41,8 +43,8 @@ export function AppShell({
   if (bareShell) {
     return (
       <div className="min-h-screen overflow-y-auto bg-[var(--background)]">
-        {/* Full-bleed company picker — page owns its own padding */}
-        {children}
+        <NavigationProgress />
+        <PageTransition>{children}</PageTransition>
       </div>
     );
   }
@@ -53,6 +55,7 @@ export function AppShell({
       organizationId={company?.organization_id}
     >
       <div className="flex h-screen overflow-hidden">
+        <NavigationProgress />
         {mobileNavOpen ? (
           <button
             type="button"
@@ -75,7 +78,9 @@ export function AppShell({
             userName={userName}
             onMenuClick={() => setMobileNavOpen(true)}
           />
-          <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
+          <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+            <PageTransition>{children}</PageTransition>
+          </main>
         </div>
       </div>
     </SyncProvider>
