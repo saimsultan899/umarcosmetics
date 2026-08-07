@@ -33,20 +33,23 @@ export function WarehouseForm({
     setLoading(true);
     setError(null);
     const supabase = createClient();
-    const payload = {
-      organization_id: organizationId,
-      company_id: companyId,
-      name: name.trim(),
-      code: code.trim() || null,
-      address: address.trim() || null,
-      is_active: true,
-    };
-
-    const query = initial
-      ? supabase.from("warehouses").update(payload).eq("id", initial.id)
-      : supabase.from("warehouses").insert(payload);
-
-    const { error: saveError } = await query;
+    const { error: saveError } = initial
+      ? await supabase
+          .from("warehouses")
+          .update({
+            name: name.trim(),
+            code: code.trim() || null,
+            address: address.trim() || null,
+          })
+          .eq("id", initial.id)
+      : await supabase.from("warehouses").insert({
+          organization_id: organizationId,
+          company_id: companyId,
+          name: name.trim(),
+          code: code.trim() || null,
+          address: address.trim() || null,
+          is_active: true,
+        });
     setLoading(false);
     if (saveError) {
       setError(saveError.message);

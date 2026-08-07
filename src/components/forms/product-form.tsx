@@ -91,6 +91,14 @@ export function ProductForm({
       setForm((f) => ({ ...f, code }));
     }
 
+    const openingQty = Number(form.opening_qty || 0);
+    if (openingQty !== 0 && !form.default_warehouse_id) {
+      setLoading(false);
+      setError("Select a warehouse when opening quantity is not zero.");
+      return;
+    }
+
+    // Persist via RPC so opening_qty also seeds/adjusts stock_balances
     const payload = {
       organization_id: organizationId,
       company_id: companyId,
@@ -108,18 +116,20 @@ export function ProductForm({
       // If sale rate left blank, inherit retail so invoices auto-fill correctly
       sale_rate:
         Number(form.sale_rate || 0) || Number(form.retail_rate || 0),
-      opening_qty: Number(form.opening_qty || 0),
+      opening_qty: openingQty,
       opening_rate: Number(form.opening_rate || 0),
       reorder_level: Number(form.reorder_level || 0),
       packing: Number(form.packing || 1),
       scheme: form.scheme.trim() || null,
     };
 
-    const query = initial
-      ? supabase.from("products").update(payload).eq("id", initial.id)
-      : supabase.from("products").insert(payload);
+    const { error: saveError } = initial
+      ? await supabase.rpc("update_product", {
+          p_id: initial.id,
+          p_payload: payload,
+        })
+      : await supabase.rpc("create_product", { p_payload: payload });
 
-    const { error: saveError } = await query;
     setLoading(false);
     if (saveError) {
       setError(saveError.message);
