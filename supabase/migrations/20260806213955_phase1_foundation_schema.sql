@@ -1,0 +1,4 @@
+-- Applied remotely to project hrupolfaycvjakcvwkcr via MCP apply_migration
+-- Name: phase1_foundation_schema
+-- See Supabase dashboard migration history for full SQL.
+-- Re-pull with: npx supabase db pull --linked

@@ -1,26 +1,261 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f3f6f4;
+  --foreground: #14201c;
+  --ink: #14201c;
+  --muted: #5f6f68;
+  --border: #d7e0db;
+  --surface: #ffffff;
+  --surface-2: #eef3f0;
+  --brand: #0f766e;
+  --brand-strong: #0b5f59;
+  --brand-soft: rgba(15, 118, 110, 0.16);
+  --sidebar: #10241f;
+  --sidebar-ink: #b7c7c1;
+  --accent: #c45c26;
+  --ok: #15803d;
+  --warn: #b45309;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-body);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
 }
 
 body {
-  background: var(--background);
+  margin: 0;
+  background:
+    radial-gradient(1200px 500px at 10% -10%, rgba(15, 118, 110, 0.12), transparent 55%),
+    radial-gradient(900px 420px at 100% 0%, rgba(196, 92, 38, 0.08), transparent 50%),
+    var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-body), "Segoe UI", sans-serif;
+}
+
+a {
+  text-decoration: none;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c5d2cc;
+  border-radius: 999px;
+}
+
+/* Tables: shell stays full-width; only .table-scroll pans sideways */
+.table-shell {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: white;
+  overflow: hidden;
+}
+
+/*
+ * Legacy shells that only wrap a bare table (no pagination footer).
+ */
+.table-shell:has(> table:only-child) {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  background:
+    linear-gradient(var(--surface-2), var(--surface-2)) top left / 100% 2.875rem no-repeat,
+    white;
+}
+
+.table-shell table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+  border-spacing: 0;
+  table-layout: auto;
+}
+
+.table-shell thead,
+.table-shell thead tr {
+  background: var(--surface-2);
+}
+
+.table-shell th {
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.table-shell td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #edf2ef;
+  font-size: 14px;
+  vertical-align: middle;
+  background: white;
+  white-space: nowrap;
+}
+
+.table-shell tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Horizontal scroll for table body only — pagination stays full-width below */
+.table-shell > .table-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  background:
+    linear-gradient(var(--surface-2), var(--surface-2)) top left / 100% 2.875rem no-repeat,
+    white;
+}
+
+.table-shell > .table-pagination,
+.table-shell > .no-print > .table-pagination {
+  width: 100%;
+}
+
+@media (min-width: 1024px) {
+  .table-shell table {
+    min-width: 0;
+  }
+
+  .table-shell td {
+    white-space: normal;
+  }
+}
+
+/* Form/editor tables (same right-edge fix) */
+.table-grid {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  background:
+    linear-gradient(var(--surface-2), var(--surface-2)) top left / 100% 2.625rem no-repeat,
+    white;
+}
+
+.table-grid table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table-grid thead,
+.table-grid thead tr {
+  background: var(--surface-2);
+}
+
+.table-grid th {
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+  padding: 10px 12px;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+
+.table-grid td {
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  background: white;
+  vertical-align: middle;
+}
+
+.panel {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 10px 30px rgba(20, 32, 28, 0.04);
+}
+
+.stat-tile {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7faf8 100%);
+  padding: 18px;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-rise {
+  animation: rise-in 0.35s ease-out both;
+}
+
+@keyframes dialog-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes dialog-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+
+  .print-sheet,
+  .print-sheet * {
+    visibility: visible !important;
+  }
+
+  .print-sheet {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: white !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
 }

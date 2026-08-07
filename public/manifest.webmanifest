@@ -1,0 +1,24 @@
+{
+  "name": "Umar Distribution Software",
+  "short_name": "Umar Dist",
+  "description": "Multi-company distribution, accounts, inventory, salesman & recovery for Pakistan distributors.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#f4f7f6",
+  "theme_color": "#0f766e",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

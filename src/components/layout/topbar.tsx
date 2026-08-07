@@ -1,0 +1,120 @@
+"use client";
+
+import { AlertsMenu } from "@/components/layout/alerts-menu";
+import { useSyncStatus } from "@/components/offline/sync-provider";
+import { CommandPalette } from "@/components/search/command-palette";
+import { Button } from "@/components/ui/button";
+import { createClient } from "@/lib/supabase/client";
+import type { Company } from "@/lib/types/database";
+import {
+  Building2,
+  Cloud,
+  CloudOff,
+  LogOut,
+  Menu,
+  RefreshCw,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+
+export function Topbar({
+  company,
+  userName,
+  onMenuClick,
+}: {
+  company?: Company | null;
+  userName?: string | null;
+  onMenuClick?: () => void;
+}) {
+  const router = useRouter();
+  const supabase = createClient();
+  const { online, pending, syncing, runSync } = useSyncStatus();
+
+  async function signOut() {
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  }
+
+  return (
+    <header className="flex h-14 items-center justify-between gap-3 border-b border-[var(--border)] bg-white/80 px-3 backdrop-blur sm:h-16 sm:px-6">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+        <button
+          type="button"
+          onClick={onMenuClick}
+          className="rounded-lg p-2 text-[var(--ink)] hover:bg-[var(--surface-2)] lg:hidden"
+          aria-label="Open menu"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+        <div className="min-w-0">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)] sm:text-xs">
+            Working company
+          </p>
+          <div className="mt-0.5 flex items-center gap-2">
+            <Building2 className="hidden h-4 w-4 shrink-0 text-[var(--brand)] sm:block" />
+            <h1 className="truncate font-[family-name:var(--font-display)] text-base font-semibold text-[var(--ink)] sm:text-lg">
+              {company?.name || "No company selected"}
+            </h1>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
+        <CommandPalette companyId={company?.id} />
+        <AlertsMenu companyId={company?.id} />
+
+        <button
+          type="button"
+          onClick={() => void runSync()}
+          className={`hidden items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium sm:flex ${
+            online
+              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+              : "border-amber-200 bg-amber-50 text-amber-800"
+          }`}
+          title={syncing ? "Syncing..." : "Sync offline queue"}
+        >
+          {online ? (
+            <Cloud className="h-3.5 w-3.5" />
+          ) : (
+            <CloudOff className="h-3.5 w-3.5" />
+          )}
+          {syncing
+            ? "Syncing..."
+            : online
+              ? pending
+                ? `${pending} pending`
+                : "Online"
+              : "Offline"}
+        </button>
+
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={async () => {
+            await supabase.rpc("clear_active_company");
+            router.push("/select-company");
+            router.refresh();
+          }}
+          className="px-2 sm:px-3"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Switch company</span>
+        </Button>
+        <div className="hidden text-right md:block">
+          <p className="text-sm font-medium text-[var(--ink)]">
+            {userName || "User"}
+          </p>
+          <p className="text-xs text-[var(--muted)]">Signed in</p>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={signOut}
+          aria-label="Log out"
+        >
+          <LogOut className="h-4 w-4" />
+        </Button>
+      </div>
+    </header>
+  );
+}

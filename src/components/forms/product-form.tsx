@@ -1,0 +1,241 @@
+"use client";
+
+import { Button } from "@/components/ui/button";
+import { useCreateDialogClose } from "@/components/ui/create-dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import { createClient } from "@/lib/supabase/client";
+import type { Product, Warehouse } from "@/lib/types/database";
+import { useRouter } from "next/navigation";
+import { FormEvent, useEffect, useState } from "react";
+
+export function ProductForm({
+  companyId,
+  organizationId,
+  warehouses,
+  initial,
+  onDone,
+}: {
+  companyId: string;
+  organizationId: string;
+  warehouses: Warehouse[];
+  initial?: Product | null;
+  onDone?: () => void;
+}) {
+  const router = useRouter();
+  const closeDialog = useCreateDialogClose();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [autoCode, setAutoCode] = useState(!initial);
+  const [form, setForm] = useState({
+    code: initial?.code || "",
+    name_en: initial?.name_en || "",
+    name_ur: initial?.name_ur || "",
+    product_type: initial?.product_type || "",
+    manufacturer: initial?.manufacturer || "",
+    category_group: initial?.category_group || "",
+    barcode: initial?.barcode || "",
+    default_warehouse_id: initial?.default_warehouse_id || "",
+    retail_rate: String(initial?.retail_rate ?? 0),
+    purchase_rate: String(initial?.purchase_rate ?? 0),
+    wholesale_rate: String(initial?.wholesale_rate ?? 0),
+    sale_rate: String(initial?.sale_rate ?? 0),
+    opening_qty: String(initial?.opening_qty ?? 0),
+    opening_rate: String(initial?.opening_rate ?? 0),
+    reorder_level: String(initial?.reorder_level ?? 0),
+    packing: String(initial?.packing ?? 1),
+    scheme: initial?.scheme || "",
+  });
+
+  function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
+    setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  useEffect(() => {
+    if (initial) return;
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const { data } = await supabase.rpc("peek_next_product_code", {
+        p_company_id: companyId,
+      });
+      if (!cancelled && data) {
+        setForm((f) => ({ ...f, code: String(data) }));
+        setAutoCode(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId, initial]);
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    const supabase = createClient();
+
+    let code = form.code.trim();
+    if (!initial && autoCode) {
+      const { data: allocated, error: allocError } = await supabase.rpc(
+        "next_product_code",
+        { p_company_id: companyId },
+      );
+      if (allocError) {
+        setLoading(false);
+        setError(allocError.message);
+        return;
+      }
+      code = String(allocated);
+      setForm((f) => ({ ...f, code }));
+    }
+
+    const payload = {
+      organization_id: organizationId,
+      company_id: companyId,
+      code,
+      name_en: form.name_en.trim(),
+      name_ur: form.name_ur.trim() || null,
+      product_type: form.product_type.trim() || null,
+      manufacturer: form.manufacturer.trim() || null,
+      category_group: form.category_group.trim() || null,
+      barcode: form.barcode.trim() || null,
+      default_warehouse_id: form.default_warehouse_id || null,
+      retail_rate: Number(form.retail_rate || 0),
+      purchase_rate: Number(form.purchase_rate || 0),
+      wholesale_rate: Number(form.wholesale_rate || 0),
+      // If sale rate left blank, inherit retail so invoices auto-fill correctly
+      sale_rate:
+        Number(form.sale_rate || 0) || Number(form.retail_rate || 0),
+      opening_qty: Number(form.opening_qty || 0),
+      opening_rate: Number(form.opening_rate || 0),
+      reorder_level: Number(form.reorder_level || 0),
+      packing: Number(form.packing || 1),
+      scheme: form.scheme.trim() || null,
+    };
+
+    const query = initial
+      ? supabase.from("products").update(payload).eq("id", initial.id)
+      : supabase.from("products").insert(payload);
+
+    const { error: saveError } = await query;
+    setLoading(false);
+    if (saveError) {
+      setError(saveError.message);
+      return;
+    }
+    onDone?.();
+    closeDialog?.();
+    router.refresh();
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div>
+        <Label>Code (auto serial)</Label>
+        <Input
+          value={form.code}
+          onChange={(e) => {
+            setAutoCode(false);
+            set("code", e.target.value);
+          }}
+          required
+          readOnly={!!initial}
+          className={initial ? "bg-[var(--surface-2)]" : undefined}
+        />
+        {!initial ? (
+          <p className="mt-1 text-[11px] text-[var(--muted)]">
+            {autoCode
+              ? "Next serial reserved on save. Edit to override."
+              : "Manual code — auto serial off for this entry."}
+          </p>
+        ) : null}
+      </div>
+      <div className="sm:col-span-2">
+        <Label>Name (English)</Label>
+        <Input value={form.name_en} onChange={(e) => set("name_en", e.target.value)} required />
+      </div>
+      <div>
+        <Label>Urdu name</Label>
+        <Input value={form.name_ur} onChange={(e) => set("name_ur", e.target.value)} dir="rtl" />
+      </div>
+      <div>
+        <Label>Type</Label>
+        <Input value={form.product_type} onChange={(e) => set("product_type", e.target.value)} placeholder="HAIR COLOUR" />
+      </div>
+      <div>
+        <Label>Manufacturer</Label>
+        <Input value={form.manufacturer} onChange={(e) => set("manufacturer", e.target.value)} placeholder="KEUNE" />
+      </div>
+      <div>
+        <Label>Group / Category</Label>
+        <Input value={form.category_group} onChange={(e) => set("category_group", e.target.value)} />
+      </div>
+      <div>
+        <Label>Warehouse</Label>
+        <Select
+          value={form.default_warehouse_id}
+          onChange={(e) => set("default_warehouse_id", e.target.value)}
+        >
+          <option value="">Select warehouse</option>
+          {warehouses.map((w) => (
+            <option key={w.id} value={w.id}>{w.name}</option>
+          ))}
+        </Select>
+      </div>
+      <div>
+        <Label>Barcode</Label>
+        <Input value={form.barcode} onChange={(e) => set("barcode", e.target.value)} />
+      </div>
+      <div>
+        <Label>Retail rate</Label>
+        <Input type="number" step="0.01" value={form.retail_rate} onChange={(e) => set("retail_rate", e.target.value)} />
+      </div>
+      <div>
+        <Label>Purchase rate</Label>
+        <Input type="number" step="0.01" value={form.purchase_rate} onChange={(e) => set("purchase_rate", e.target.value)} />
+      </div>
+      <div>
+        <Label>Wholesale rate</Label>
+        <Input type="number" step="0.01" value={form.wholesale_rate} onChange={(e) => set("wholesale_rate", e.target.value)} />
+      </div>
+      <div>
+        <Label>Sale rate</Label>
+        <Input type="number" step="0.01" value={form.sale_rate} onChange={(e) => set("sale_rate", e.target.value)} />
+      </div>
+      <div>
+        <Label>Opening qty</Label>
+        <Input type="number" step="0.1" value={form.opening_qty} onChange={(e) => set("opening_qty", e.target.value)} />
+      </div>
+      <div>
+        <Label>Opening rate</Label>
+        <Input type="number" step="0.01" value={form.opening_rate} onChange={(e) => set("opening_rate", e.target.value)} />
+      </div>
+      <div>
+        <Label>Reorder level</Label>
+        <Input type="number" step="0.1" value={form.reorder_level} onChange={(e) => set("reorder_level", e.target.value)} />
+      </div>
+      <div>
+        <Label>Packing</Label>
+        <Input type="number" step="0.1" value={form.packing} onChange={(e) => set("packing", e.target.value)} />
+      </div>
+      <div>
+        <Label>Scheme</Label>
+        <Input value={form.scheme} onChange={(e) => set("scheme", e.target.value)} />
+      </div>
+
+      {error ? (
+        <p className="sm:col-span-2 lg:col-span-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+          {error}
+        </p>
+      ) : null}
+
+      <div className="sm:col-span-2 lg:col-span-3">
+        <Button type="submit" disabled={loading}>
+          {loading ? "Saving..." : initial ? "Update product" : "Save product"}
+        </Button>
+      </div>
+    </form>
+  );
+}
