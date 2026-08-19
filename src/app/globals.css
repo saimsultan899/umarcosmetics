@@ -320,7 +320,158 @@ a {
   }
 }
 
+/* Classic ERP print layout (party-wise sales, etc.) */
+.classic-report {
+  background: #fff;
+  color: #000;
+  font-family: Arial, Helvetica, sans-serif;
+  padding: 12px 0 24px;
+  border: none;
+  border-radius: 0;
+}
+
+.classic-report-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.classic-report-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 400;
+}
+
+.classic-report-dates {
+  margin: 0;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.classic-report-party-block + .classic-report-party-block {
+  margin-top: 28px;
+}
+
+.classic-report-party {
+  margin: 0 0 2px;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.classic-report-party-line {
+  margin: 0 0 10px;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.classic-report table {
+  width: 100%;
+  min-width: 0;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 12px;
+}
+
+.classic-report thead th {
+  border-top: 1px solid #111;
+  border-bottom: 1px solid #111;
+  border-left: 1px solid #111;
+  padding: 4px 8px;
+  background: #fff;
+  color: #000;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.classic-report thead th:last-child {
+  border-right: 1px solid #111;
+}
+
+.classic-report tbody td {
+  border-left: 1px solid #111;
+  border-top: none;
+  border-bottom: none;
+  padding: 3px 8px;
+  background: #fff;
+  color: #000;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.classic-report tbody td:last-child {
+  border-right: 1px solid #111;
+}
+
+.classic-report-last-data td {
+  border-bottom: 1px solid #111;
+}
+
+.classic-report td:nth-child(4),
+.classic-report th:nth-child(4) {
+  white-space: normal;
+}
+
+.classic-report th:nth-child(2),
+.classic-report th:nth-child(3),
+.classic-report td:nth-child(2),
+.classic-report td:nth-child(3) {
+  text-align: right;
+}
+
+.classic-report-num {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.classic-report-total-label {
+  border: none !important;
+  text-align: right !important;
+  font-weight: 400;
+  padding-top: 10px !important;
+  padding-right: 12px !important;
+}
+
+.classic-report-party-total td,
+.classic-report-grand td {
+  border: none !important;
+  background: transparent;
+  padding-top: 6px;
+  padding-bottom: 2px;
+}
+
+.classic-report-box {
+  display: inline-block;
+  min-width: 92px;
+  border: 1px solid #111;
+  padding: 1px 6px;
+  text-align: right;
+  font-weight: 400;
+}
+
+.classic-report-double {
+  display: inline-block;
+  min-width: 92px;
+  border-top: 3px double #111;
+  border-bottom: 3px double #111;
+  padding: 1px 4px;
+  text-align: right;
+  font-weight: 400;
+}
+
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 12mm;
+  }
+
   body * {
     visibility: hidden !important;
   }
@@ -338,6 +489,20 @@ a {
     border: none !important;
     box-shadow: none !important;
     background: white !important;
+  }
+
+  .classic-report {
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+  }
+
+  .classic-report table {
+    page-break-inside: auto;
+  }
+
+  .classic-report tr {
+    page-break-inside: avoid;
   }
 
   .no-print {

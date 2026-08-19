@@ -20,8 +20,8 @@ type BalanceRow = {
 
 function signedText(balance: number) {
   if (Math.abs(balance) < 0.005) return "Nil";
-  if (balance > 0) return `${balance} Dr`;
-  return `${Math.abs(balance)} Cr`;
+  if (balance > 0) return `${formatPkr(balance)} Dr`;
+  return `${formatPkr(Math.abs(balance))} Cr`;
 }
 
 export default async function AccountsReportPage({

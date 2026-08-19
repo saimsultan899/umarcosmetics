@@ -1,6 +1,7 @@
 import { ChartCard } from "@/components/analytics/chart-card";
 import { CompareBarChart } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
+import { PartyWiseSalesPrint } from "@/components/reports/party-wise-sales-print";
 import { FilterSelect, ReportFilters } from "@/components/reports/report-filters";
 import { ReportTable } from "@/components/reports/report-table";
 import { requireCompanyContext } from "@/lib/auth";
@@ -76,48 +77,34 @@ export default async function SaleReportsPage({
   const activeLabel =
     SALE_REPORT_TYPES.find((t) => t.key === type)?.label || "Sale report";
 
-  const moneyKeys = [
-    "Amount",
-    "Total",
-    "Grand total",
-    "grand_total",
-    "Cash",
-    "Credit",
-    "Profit",
-    "Sale",
-  ];
-  const numericTotal = rows.reduce((sum, row) => {
-    for (const key of Object.keys(row)) {
-      if (
-        moneyKeys.some((k) => key.toLowerCase().includes(k.toLowerCase())) &&
-        typeof row[key] === "number"
-      ) {
-        return sum + Number(row[key] || 0);
-      }
+  const primaryMoneyKey = (() => {
+    if (!rows.length) return null;
+    const keys = Object.keys(rows[0]);
+    const priority = ["Amount", "Total", "Grand total", "Profit", "Invoice total"];
+    for (const p of priority) {
+      const found = keys.find(
+        (k) => k.toLowerCase() === p.toLowerCase() && typeof rows[0][k] === "number",
+      );
+      if (found) return found;
     }
-    return sum;
-  }, 0);
+    return null;
+  })();
+  const numericTotal = primaryMoneyKey
+    ? rows.reduce((sum, row) => sum + Number(row[primaryMoneyKey] || 0), 0)
+    : 0;
   const chartSample = rows.slice(0, 8).map((row, idx) => {
     const label =
       String(
         row.Date ||
           row.Party ||
+          row.Salesman ||
           row.City ||
           row.Route ||
           row.Product ||
           row.Invoice ||
           `Row ${idx + 1}`,
       ).slice(0, 18);
-    let value = 0;
-    for (const key of Object.keys(row)) {
-      if (
-        moneyKeys.some((k) => key.toLowerCase().includes(k.toLowerCase())) &&
-        typeof row[key] === "number"
-      ) {
-        value = Number(row[key] || 0);
-        break;
-      }
-    }
+    const value = primaryMoneyKey ? Number(row[primaryMoneyKey] || 0) : 0;
     return { name: label, value };
   });
 
@@ -246,12 +233,22 @@ export default async function SaleReportsPage({
         </p>
       ) : null}
 
-      <ReportTable
-        title={`${activeLabel} — ${company.name}`}
-        subtitle={`${from} to ${to} · ${rows.length} rows`}
-        rows={rows}
-        filename={`sale-${type}-${from}-${to}`}
-      />
+      {type === "party_wise" ? (
+        <PartyWiseSalesPrint
+          companyName={company.name}
+          from={from}
+          to={to}
+          rows={rows}
+          filename={`sale-${type}-${from}-${to}`}
+        />
+      ) : (
+        <ReportTable
+          title={`${activeLabel} — ${company.name}`}
+          subtitle={`${from} to ${to} · ${rows.length} rows`}
+          rows={rows}
+          filename={`sale-${type}-${from}-${to}`}
+        />
+      )}
     </div>
   );
 }

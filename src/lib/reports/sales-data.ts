@@ -1,4 +1,4 @@
-import { one } from "@/lib/reports/helpers";
+import { formatReportDate, formatReportInvNo, one } from "@/lib/reports/helpers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type SaleReportType =
@@ -20,7 +20,7 @@ export const SALE_REPORT_TYPES: { key: SaleReportType; label: string }[] = [
   { key: "cash_sales", label: "Date wise counter/cash sales" },
   { key: "credit_sales", label: "Date wise credit sales" },
   { key: "bill_range", label: "Bill # range" },
-  { key: "party_wise", label: "Party wise sale detail" },
+  { key: "party_wise", label: "Item, Party Wise Sales Detail" },
   { key: "item_wise", label: "Item wise sale detail" },
   { key: "manufacturer_wise", label: "Manufacturer / category wise" },
   { key: "city_wise", label: "Head / City sales" },
@@ -48,7 +48,7 @@ export async function buildSaleReport(
   let query = supabase
     .from("sale_invoices")
     .select(
-      "id, invoice_no, invoice_date, payment_type, grand_total, amount_paid, discount_total, subtotal, city, route, created_by, party_id, warehouse_id, parties(party_code, name_en), warehouses(name)",
+      "id, invoice_no, invoice_date, payment_type, grand_total, amount_paid, discount_total, subtotal, city, route, created_by, salesman_id, party_id, warehouse_id, parties(party_code, name_en, address, city, route, head), warehouses(name), salesman:profiles!sale_invoices_salesman_id_fkey(id, full_name)",
     )
     .eq("company_id", filters.companyId)
     .eq("status", "posted")
@@ -77,7 +77,9 @@ export async function buildSaleReport(
   }
 
   if (
-    ["item_wise", "manufacturer_wise", "sale_profit"].includes(filters.type) &&
+    ["item_wise", "manufacturer_wise", "sale_profit", "party_wise"].includes(
+      filters.type,
+    ) &&
     list.length
   ) {
     const ids = list.map((i) => i.id);
@@ -89,6 +91,45 @@ export async function buildSaleReport(
       .in("sale_invoice_id", ids);
 
     const invMap = new Map(list.map((i) => [i.id, i]));
+
+    if (filters.type === "party_wise") {
+      const detail = (items || [])
+        .map((it) => {
+          const inv = invMap.get(it.sale_invoice_id);
+          const party = one(inv?.parties);
+          const partyName = (party?.name_en || "Unknown").toUpperCase();
+          const routePart = party?.route || party?.head;
+          const partyLine = [
+            party?.party_code,
+            party?.address,
+            party?.city,
+            routePart ? `( ${routePart} ) RANGE` : null,
+          ]
+            .filter(Boolean)
+            .join(" ");
+          return {
+            Date: formatReportDate(inv?.invoice_date),
+            "Inv No.": formatReportInvNo(inv?.invoice_no),
+            "Item No": it.product_code || "",
+            ItemName: (it.product_name || "").toUpperCase(),
+            Qty: Number(it.qty),
+            Price: Number(it.rate),
+            Amount: Number(it.amount),
+            _sort_date: inv?.invoice_date || "",
+            _party_id: inv?.party_id || party?.party_code || "unknown",
+            _party_name: partyName,
+            _party_line: partyLine,
+          };
+        })
+        .sort((a, b) => {
+          const partyCmp = a._party_name.localeCompare(b._party_name);
+          if (partyCmp) return partyCmp;
+          const dateCmp = a._sort_date.localeCompare(b._sort_date);
+          if (dateCmp) return dateCmp;
+          return String(a["Inv No."]).localeCompare(String(b["Inv No."]));
+        });
+      return detail;
+    }
 
     if (filters.type === "item_wise") {
       return (items || []).map((it) => {
@@ -148,20 +189,7 @@ export async function buildSaleReport(
   }
 
   if (filters.type === "party_wise") {
-    const grouped = new Map<string, { bills: number; amount: number }>();
-    for (const inv of list) {
-      const party = one(inv.parties);
-      const key = party ? `${party.party_code} — ${party.name_en}` : "Unknown";
-      const cur = grouped.get(key) || { bills: 0, amount: 0 };
-      cur.bills += 1;
-      cur.amount += Number(inv.grand_total);
-      grouped.set(key, cur);
-    }
-    return [...grouped.entries()].map(([Party, v]) => ({
-      Party,
-      Bills: v.bills,
-      Amount: v.amount,
-    }));
+    return [];
   }
 
   if (filters.type === "city_wise") {
@@ -197,16 +225,10 @@ export async function buildSaleReport(
   }
 
   if (filters.type === "salesman_wise") {
-    const userIds = [...new Set(list.map((i) => i.created_by).filter(Boolean))];
-    const { data: profiles } = userIds.length
-      ? await supabase.from("profiles").select("id, full_name").in("id", userIds)
-      : { data: [] };
-    const nameMap = new Map((profiles || []).map((p) => [p.id, p.full_name || "Unknown"]));
     const grouped = new Map<string, { bills: number; amount: number }>();
     for (const inv of list) {
-      const key = inv.created_by
-        ? nameMap.get(inv.created_by) || inv.created_by
-        : "Unassigned";
+      const sm = one(inv.salesman);
+      const key = sm?.full_name || "Unassigned";
       const cur = grouped.get(key) || { bills: 0, amount: 0 };
       cur.bills += 1;
       cur.amount += Number(inv.grand_total);

@@ -9,6 +9,7 @@ import { lastNDates, sumByDay } from "@/lib/analytics/aggregate";
 import { requireCompanyContext } from "@/lib/auth";
 import type { Party } from "@/lib/types/database";
 import { formatPkr } from "@/lib/utils";
+import { one } from "@/lib/reports/helpers";
 import { AlertTriangle, Store, Wallet } from "lucide-react";
 
 type RecoveryRow = {
@@ -278,14 +279,16 @@ export default async function RecoverySheetPage({
         </h2>
         <div className="mt-3 space-y-2">
           {(recent || []).length ? (
-            recent!.map((r) => (
+            recent!.map((r) => {
+              const party = one(r.parties);
+              return (
               <div
                 key={r.id}
                 className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--border)] px-3 py-2 text-sm"
               >
                 <div>
                   <p className="font-medium">
-                    {r.parties?.party_code} — {r.parties?.name_en}
+                    {party?.party_code} — {party?.name_en}
                   </p>
                   <p className="text-xs text-[var(--muted)]">
                     {r.recovery_date}
@@ -294,7 +297,8 @@ export default async function RecoverySheetPage({
                 </div>
                 <p className="font-semibold text-emerald-700">{formatPkr(r.amount)}</p>
               </div>
-            ))
+              );
+            })
           ) : (
             <p className="text-sm text-[var(--muted)]">No recoveries recorded yet.</p>
           )}
