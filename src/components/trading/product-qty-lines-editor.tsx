@@ -56,7 +56,6 @@ export function ProductQtyLinesEditor({
   const codeRef = useRef<HTMLInputElement>(null);
   const qtyRef = useRef<HTMLInputElement>(null);
   const productSelectRef = useRef<SelectHandle>(null);
-  const codeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     linesRef.current = lines;
@@ -128,10 +127,9 @@ export function ProductQtyLinesEditor({
     return null;
   }
 
-  function queueCode(value: string) {
+  function setCodeValue(value: string) {
     patchDraft({ product_code: value });
-    if (codeTimer.current) clearTimeout(codeTimer.current);
-    codeTimer.current = setTimeout(() => resolveCode(value), 350);
+    if (!value.trim()) setHint(null);
   }
 
   function resetDraft() {
@@ -161,16 +159,16 @@ export function ProductQtyLinesEditor({
   }
 
   function onCodeEnter(e: ReactKeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter") return;
     e.preventDefault();
     e.stopPropagation();
-    if (codeTimer.current) clearTimeout(codeTimer.current);
     const found = resolveCode(draftRef.current.product_code);
     if (found) {
       focusField(qtyRef.current);
       return;
     }
     setProductOpen(true);
-    productSelectRef.current?.open();
+    productSelectRef.current?.open(draftRef.current.product_code);
   }
 
   function onProductPicked(productId: string) {
@@ -180,6 +178,7 @@ export function ProductQtyLinesEditor({
   }
 
   function onQtyEnter(e: ReactKeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter") return;
     e.preventDefault();
     e.stopPropagation();
     commitDraft();
@@ -216,8 +215,7 @@ export function ProductQtyLinesEditor({
                   value={draft.product_code}
                   placeholder="Code"
                   autoComplete="off"
-                  onChange={(e) => queueCode(e.target.value)}
-                  onBlur={() => resolveCode(draftRef.current.product_code)}
+                  onChange={(e) => setCodeValue(e.target.value)}
                   onKeyDown={onCodeEnter}
                 />
               </td>

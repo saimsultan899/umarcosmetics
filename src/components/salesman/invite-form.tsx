@@ -77,7 +77,7 @@ export function SalesmanInviteForm({
         />
       </div>
       <div>
-        <Label>Routes (comma separated)</Label>
+        <Label>Sectors (comma separated)</Label>
         <Input
           value={routes}
           onChange={(e) => setRoutes(e.target.value)}

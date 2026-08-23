@@ -52,10 +52,14 @@ export function focusNextField(
   return true;
 }
 
-export function focusField(el: HTMLElement | null | undefined) {
+export function focusField(el: HTMLElement | null | undefined, opts?: { select?: boolean }) {
   if (!el) return;
   el.focus();
-  if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+  const select = opts?.select ?? true;
+  if (
+    select &&
+    (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)
+  ) {
     try {
       el.select();
     } catch {

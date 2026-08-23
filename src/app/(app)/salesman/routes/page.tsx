@@ -25,18 +25,18 @@ export default async function RouteSheetsPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold">
-            Route sheets
+            Sector sheets
           </h1>
           <p className="mt-1 text-sm text-[var(--muted)]">
             Printable dues list for salesman market visits
           </p>
         </div>
-        <PrintButton label="Print route sheet" />
+        <PrintButton label="Print sector sheet" />
       </div>
 
       <div className="print-sheet table-shell">
         <div className="border-b border-[var(--border)] px-4 py-3">
-          <p className="font-semibold">Route Sheet — {company.name}</p>
+          <p className="font-semibold">Sector Sheet — {company.name}</p>
           <p className="text-xs text-[var(--muted)]">
             {new Date().toLocaleDateString()}
           </p>
@@ -46,7 +46,7 @@ export default async function RouteSheetsPage() {
             <tr>
               <th>Code</th>
               <th>Shop</th>
-              <th>Route / City</th>
+              <th>Sector / City</th>
               <th>Balance</th>
               <th>Rec</th>
               <th>Remarks</th>

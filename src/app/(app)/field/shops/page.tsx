@@ -27,7 +27,7 @@ export default async function FieldShopsPage() {
             My shops
           </h1>
           <p className="mt-1 text-sm text-[var(--muted)]">
-            Route / city assigned parties · {company.name}
+            Sector / city assigned parties · {company.name}
           </p>
         </div>
         <p className="rounded-full bg-[var(--surface-2)] px-3 py-1 text-xs font-semibold text-[var(--muted)]">
@@ -87,7 +87,7 @@ export default async function FieldShopsPage() {
         </div>
       ) : (
         <div className="rounded-2xl border border-dashed border-[var(--border)] px-4 py-10 text-center text-sm text-[var(--muted)]">
-          No shops assigned. Ask admin to set your routes/cities.
+          No shops assigned. Ask admin to set your sectors/cities.
         </div>
       )}
     </div>

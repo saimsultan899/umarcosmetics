@@ -59,7 +59,7 @@ export function RecoveriesTable({ rows }: { rows: RecoveryRow[] }) {
                 <th>Date</th>
                 <th>Party</th>
                 <th>Amount</th>
-                <th>City / Route</th>
+                <th>City / Sector</th>
                 <th>Remarks</th>
                 <th className="text-right">Actions</th>
               </tr>
@@ -75,7 +75,7 @@ export function RecoveriesTable({ rows }: { rows: RecoveryRow[] }) {
                     { label: "Party", value: party },
                     { label: "Amount", value: formatPkr(r.amount) },
                     {
-                      label: "City / Route",
+                      label: "City / Sector",
                       value:
                         [r.city, r.route].filter(Boolean).join(" · ") || "—",
                     },

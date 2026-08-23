@@ -164,7 +164,7 @@ export function PartyCodePicker({
           <p className="mt-0.5 text-[var(--muted)]">
             {[selected.city, selected.route, selected.mobile || selected.phone]
               .filter(Boolean)
-              .join(" · ") || "No contact/route details"}
+              .join(" · ") || "No contact/sector details"}
             {Number(selected.credit_limit) > 0
               ? ` · Credit limit ${Number(selected.credit_limit).toLocaleString()}`
               : ""}

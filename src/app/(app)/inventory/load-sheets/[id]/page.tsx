@@ -59,7 +59,7 @@ export default async function LoadSheetDetailPage({
           ...(sheet.vehicle_no
             ? [{ label: "Vehicle", value: sheet.vehicle_no }]
             : []),
-          ...(sheet.route ? [{ label: "Route", value: sheet.route }] : []),
+          ...(sheet.route ? [{ label: "Sector", value: sheet.route }] : []),
         ]}
         lines={items.map((item) => ({
           product_code: item.product_code,

@@ -24,7 +24,7 @@ export const SALE_REPORT_TYPES: { key: SaleReportType; label: string }[] = [
   { key: "item_wise", label: "Item wise sale detail" },
   { key: "manufacturer_wise", label: "Manufacturer / category wise" },
   { key: "city_wise", label: "Head / City sales" },
-  { key: "route_wise", label: "Route wise sales" },
+  { key: "route_wise", label: "Sector wise sales" },
   { key: "salesman_wise", label: "Salesman wise sales" },
   { key: "sale_profit", label: "Sale profit" },
   { key: "cash_flow", label: "Cash flow (sales)" },
@@ -211,14 +211,14 @@ export async function buildSaleReport(
   if (filters.type === "route_wise") {
     const grouped = new Map<string, { bills: number; amount: number }>();
     for (const inv of list) {
-      const key = inv.route || "No route";
+      const key = inv.route || "No sector";
       const cur = grouped.get(key) || { bills: 0, amount: 0 };
       cur.bills += 1;
       cur.amount += Number(inv.grand_total);
       grouped.set(key, cur);
     }
-    return [...grouped.entries()].map(([Route, v]) => ({
-      Route,
+    return [...grouped.entries()].map(([Sector, v]) => ({
+      Sector,
       Bills: v.bills,
       Amount: v.amount,
     }));
@@ -268,7 +268,7 @@ export async function buildSaleReport(
       Warehouse: warehouse?.name || "",
       Payment: inv.payment_type,
       City: inv.city || "",
-      Route: inv.route || "",
+      Sector: inv.route || "",
       Subtotal: Number(inv.subtotal),
       Discount: Number(inv.discount_total),
       Total: Number(inv.grand_total),

@@ -27,7 +27,8 @@ type SelectChangeEvent = {
 };
 
 export type SelectHandle = {
-  open: () => void;
+  /** Open dropdown; optional search pre-fills the filter. */
+  open: (search?: string) => void;
   close: () => void;
   focus: () => void;
 };
@@ -68,6 +69,27 @@ function matches(option: SelectOption, query: string) {
     option.label.toLowerCase().includes(q) ||
     option.value.toLowerCase().includes(q)
   );
+}
+
+/** Pick keyboard highlight index — skip empty placeholder while searching. */
+function pickHighlightIndex(
+  keyboardOptions: SelectOption[],
+  query: string,
+  selectedValue: string,
+) {
+  const q = query.trim();
+  if (q) {
+    const match = keyboardOptions.findIndex(
+      (o) => o.value !== "" && matches(o, q),
+    );
+    if (match >= 0) return match;
+  }
+  if (selectedValue) {
+    const current = keyboardOptions.findIndex((o) => o.value === selectedValue);
+    if (current >= 0) return current;
+  }
+  if (keyboardOptions.length > 1 && keyboardOptions[0]?.value === "") return 1;
+  return 0;
 }
 
 export const Select = forwardRef<
@@ -121,6 +143,8 @@ export const Select = forwardRef<
   const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
   const [highlight, setHighlight] = useState(0);
   const highlightRef = useRef(0);
+  const keyboardOptionsRef = useRef<SelectOption[]>([]);
+  const pendingSearchRef = useRef<string | null>(null);
 
   const open = openProp !== undefined ? openProp : uncontrolledOpen;
 
@@ -134,6 +158,7 @@ export const Select = forwardRef<
     if (!next) {
       setQuery("");
       setHighlight(0);
+      pendingSearchRef.current = null;
     }
   }
 
@@ -184,6 +209,8 @@ export const Select = forwardRef<
     return list;
   }, [emptyOption, visible]);
 
+  keyboardOptionsRef.current = keyboardOptions;
+
   useEffect(() => setMounted(true), []);
 
   function commit(next: string) {
@@ -198,15 +225,58 @@ export const Select = forwardRef<
   const commitRef = useRef(commit);
   commitRef.current = commit;
 
+  function moveHighlight(delta: number) {
+    const opts = keyboardOptionsRef.current;
+    setHighlight((h) => {
+      const next = Math.max(0, Math.min(h + delta, Math.max(opts.length - 1, 0)));
+      highlightRef.current = next;
+      return next;
+    });
+  }
+
+  function commitHighlighted() {
+    const opt = keyboardOptionsRef.current[highlightRef.current];
+    if (opt && !opt.disabled) commitRef.current(opt.value);
+  }
+
+  function handleMenuKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      setOpen(false);
+      triggerRef.current?.focus();
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      e.stopPropagation();
+      moveHighlight(1);
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      e.stopPropagation();
+      moveHighlight(-1);
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      e.stopPropagation();
+      commitHighlighted();
+    }
+  }
+
   useImperativeHandle(ref, () => ({
-    open: () => {
+    open: (search?: string) => {
       if (disabled) return;
+      if (search != null) pendingSearchRef.current = search;
       setOpen(true);
     },
     close: () => setOpen(false),
     focus: () => triggerRef.current?.focus(),
   }));
 
+  // Position menu + initial highlight when opening (not on every filter change)
   useEffect(() => {
     if (!open) return;
 
@@ -228,38 +298,20 @@ export const Select = forwardRef<
     }
 
     position();
-    const selectedIdx = Math.max(
-      0,
-      keyboardOptions.findIndex((o) => o.value === selectedValue),
-    );
-    setHighlight(selectedIdx);
 
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        setOpen(false);
-        triggerRef.current?.focus();
-        return;
-      }
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setHighlight((h) =>
-          Math.min(h + 1, Math.max(keyboardOptions.length - 1, 0)),
-        );
-        return;
-      }
-      if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setHighlight((h) => Math.max(h - 1, 0));
-        return;
-      }
-      if (e.key === "Enter") {
-        e.preventDefault();
-        e.stopPropagation();
-        const opt = keyboardOptions[highlightRef.current];
-        if (opt && !opt.disabled) commitRef.current(opt.value);
-      }
-    };
+    const initialQuery = pendingSearchRef.current ?? "";
+    pendingSearchRef.current = null;
+    if (initialQuery) setQuery(initialQuery);
+
+    const opts = keyboardOptionsRef.current;
+    const idx = pickHighlightIndex(
+      opts,
+      initialQuery,
+      selectedValue,
+    );
+    setHighlight(idx);
+    highlightRef.current = idx;
+
     const onPointer = (e: MouseEvent) => {
       const target = e.target as Node;
       if (rootRef.current?.contains(target)) return;
@@ -270,18 +322,39 @@ export const Select = forwardRef<
 
     window.addEventListener("resize", position);
     window.addEventListener("scroll", position, true);
-    window.addEventListener("keydown", onKey, true);
     window.addEventListener("mousedown", onPointer);
-    requestAnimationFrame(() => inputRef.current?.focus());
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    });
 
     return () => {
       window.removeEventListener("resize", position);
       window.removeEventListener("scroll", position, true);
-      window.removeEventListener("keydown", onKey, true);
       window.removeEventListener("mousedown", onPointer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, listId, keyboardOptions, selectedValue]);
+  }, [open, listId]);
+
+  // Re-highlight first match when search text changes
+  useEffect(() => {
+    if (!open) return;
+    const idx = pickHighlightIndex(keyboardOptions, query, selectedValue);
+    setHighlight(idx);
+    highlightRef.current = idx;
+  }, [open, query, keyboardOptions, selectedValue]);
+
+  // Keep highlighted row visible while navigating
+  useEffect(() => {
+    if (!open) return;
+    const menu = document.getElementById(listId);
+    const row = menu?.querySelector<HTMLElement>(
+      `[data-option-idx="${highlight}"]`,
+    );
+    row?.scrollIntoView({ block: "nearest" });
+  }, [highlight, open, listId]);
+
+  const searching = query.trim().length > 0;
 
   return (
     <div
@@ -343,6 +416,7 @@ export const Select = forwardRef<
               style={menuStyle}
               className="overflow-hidden rounded-xl border border-[var(--border)] bg-white shadow-[0_18px_50px_rgba(11,25,21,0.18)] ring-1 ring-black/5"
               data-enter-own
+              onKeyDown={handleMenuKeyDown}
             >
               <div className="border-b border-[var(--border)] p-2">
                 <div className="relative">
@@ -350,11 +424,9 @@ export const Select = forwardRef<
                   <input
                     ref={inputRef}
                     value={query}
-                    onChange={(e) => {
-                      setQuery(e.target.value);
-                      setHighlight(0);
-                    }}
-                    placeholder="Search..."
+                    onChange={(e) => setQuery(e.target.value)}
+                    onKeyDown={handleMenuKeyDown}
+                    placeholder="Search code or name..."
                     className="h-9 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] py-2 pl-8 pr-3 text-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-soft)]"
                   />
                 </div>
@@ -365,18 +437,21 @@ export const Select = forwardRef<
                   <button
                     type="button"
                     role="option"
-                    aria-selected={selectedValue === ""}
+                    data-option-idx={0}
+                    aria-selected={selectedValue === "" && !searching}
                     onMouseEnter={() => setHighlight(0)}
                     onClick={() => commit("")}
                     className={cn(
                       "flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm",
-                      highlight === 0 || selectedValue === ""
-                        ? "bg-[var(--brand-soft)] text-[var(--brand-strong)]"
-                        : "text-[var(--muted)] hover:bg-[var(--surface-2)]",
+                      highlight === 0
+                        ? "bg-[var(--brand)] text-white"
+                        : selectedValue === "" && !searching
+                          ? "bg-[var(--brand-soft)] text-[var(--brand-strong)]"
+                          : "text-[var(--muted)] hover:bg-[var(--surface-2)]",
                     )}
                   >
                     <span className="truncate">{emptyOption.label}</span>
-                    {selectedValue === "" ? (
+                    {selectedValue === "" && !searching ? (
                       <Check className="h-3.5 w-3.5 shrink-0" />
                     ) : null}
                   </button>
@@ -392,20 +467,23 @@ export const Select = forwardRef<
                         key={option.value}
                         type="button"
                         role="option"
+                        data-option-idx={idx}
                         aria-selected={active}
                         disabled={option.disabled}
                         onMouseEnter={() => setHighlight(idx)}
                         onClick={() => commit(option.value)}
                         className={cn(
                           "flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm",
-                          hi || active
+                          hi
                             ? "bg-[var(--brand)] text-white"
-                            : "text-[var(--ink)] hover:bg-[var(--surface-2)]",
+                            : active && !searching
+                              ? "bg-[var(--brand-soft)] text-[var(--brand-strong)]"
+                              : "text-[var(--ink)] hover:bg-[var(--surface-2)]",
                           option.disabled && "opacity-50",
                         )}
                       >
                         <span className="truncate">{option.label}</span>
-                        {active ? (
+                        {active && !searching && !hi ? (
                           <Check className="h-3.5 w-3.5 shrink-0" />
                         ) : null}
                       </button>

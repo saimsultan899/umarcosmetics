@@ -123,7 +123,7 @@ export default async function AccountsReportPage({
     Code: r.party_code,
     Name: r.name_en,
     City: r.city || "",
-    Route: r.route || "",
+    Sector: r.route || "",
     Balance: signedText(Number(r.balance)),
     "Balance value": Number(r.balance),
     "Credit limit": Number(r.credit_limit || 0),

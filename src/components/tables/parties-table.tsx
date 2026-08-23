@@ -25,7 +25,7 @@ function partyFields(p: Party): DetailField[] {
     { label: "Subtype", value: p.party_subtype },
     { label: "Sale channel", value: p.sale_channel || "—" },
     { label: "City", value: p.city || "—" },
-    { label: "Route", value: p.route || "—" },
+    { label: "Sector", value: p.route || "—" },
     { label: "Address", value: p.address || "—" },
     { label: "Mobile", value: p.mobile || "—" },
     { label: "Phone", value: p.phone || "—" },
@@ -196,7 +196,7 @@ export function PartiesTable({
         <TableToolbar
           query={query}
           onQueryChange={setQuery}
-          placeholder="Search code, name, city, route, phone..."
+          placeholder="Search code, name, city, sector, phone..."
           resultCount={filtered.length}
           totalCount={parties.length}
           filters={
@@ -229,7 +229,7 @@ export function PartiesTable({
                 <tr>
                   <th>Code</th>
                   <th>Name</th>
-                  <th>City / Route</th>
+                  <th>City / Sector</th>
                   <th>Type</th>
                   <th>Op. Balance</th>
                   <th>Credit Limit</th>

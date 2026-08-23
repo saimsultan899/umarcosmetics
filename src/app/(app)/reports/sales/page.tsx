@@ -99,7 +99,7 @@ export default async function SaleReportsPage({
           row.Party ||
           row.Salesman ||
           row.City ||
-          row.Route ||
+          row.Sector ||
           row.Product ||
           row.Invoice ||
           `Row ${idx + 1}`,

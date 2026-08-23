@@ -74,7 +74,6 @@ export function LineItemsEditor({
   const discountRef = useRef<HTMLInputElement>(null);
   const bonusRef = useRef<HTMLInputElement>(null);
   const productSelectRef = useRef<SelectHandle>(null);
-  const codeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     linesRef.current = lines;
@@ -228,12 +227,8 @@ export function LineItemsEditor({
     return null;
   }
 
-  function queueCodeResolve(value: string) {
+  function setCodeValue(value: string) {
     patchDraft({ product_code: value });
-    if (codeTimer.current) clearTimeout(codeTimer.current);
-    codeTimer.current = setTimeout(() => {
-      void resolveProductCode(value);
-    }, 350);
   }
 
   function resetDraft() {
@@ -271,9 +266,9 @@ export function LineItemsEditor({
   }
 
   async function onCodeEnter(e: ReactKeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter") return;
     e.preventDefault();
     e.stopPropagation();
-    if (codeTimer.current) clearTimeout(codeTimer.current);
 
     const found = await resolveProductCode(draftRef.current.product_code);
     if (found) {
@@ -282,7 +277,7 @@ export function LineItemsEditor({
     }
     // Open product dropdown so user can search/select
     setProductOpen(true);
-    productSelectRef.current?.open();
+    productSelectRef.current?.open(draftRef.current.product_code);
   }
 
   async function onProductPicked(productId: string) {
@@ -294,6 +289,7 @@ export function LineItemsEditor({
   }
 
   function onQtyEnter(e: ReactKeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter") return;
     e.preventDefault();
     e.stopPropagation();
     if (enableBonus) {
@@ -304,18 +300,21 @@ export function LineItemsEditor({
   }
 
   function onBonusEnter(e: ReactKeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter") return;
     e.preventDefault();
     e.stopPropagation();
     focusField(rateRef.current);
   }
 
   function onRateEnter(e: ReactKeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter") return;
     e.preventDefault();
     e.stopPropagation();
     focusField(discountRef.current);
   }
 
   function onDiscountEnter(e: ReactKeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter") return;
     e.preventDefault();
     e.stopPropagation();
     commitDraft();
@@ -431,10 +430,7 @@ export function LineItemsEditor({
                   value={draft.product_code}
                   placeholder="Code"
                   autoComplete="off"
-                  onChange={(e) => queueCodeResolve(e.target.value)}
-                  onBlur={() =>
-                    void resolveProductCode(draftRef.current.product_code)
-                  }
+                  onChange={(e) => setCodeValue(e.target.value)}
                   onKeyDown={onCodeEnter}
                 />
               </td>

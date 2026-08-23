@@ -57,7 +57,7 @@ export default async function LoadSheetsPage() {
           <CreateDialogButton
             label="Create load"
             title="Create load sheet"
-            description="Issue van stock for a market route"
+            description="Issue van stock for a market sector"
             size="xl"
             disabled={!canCreate}
             disabledHint="Add products and warehouses first, then create van loads."

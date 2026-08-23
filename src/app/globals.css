@@ -869,6 +869,17 @@ a {
     visibility: visible !important;
   }
 
+  /* Page/route enter animations use fill-mode:both, so their wrappers hold
+     `transform: translateY(0)` after finishing. A non-none transform makes the
+     wrapper the containing block for the absolutely-positioned .print-sheet,
+     trapping the printout in the narrow content column (right of the sidebar).
+     Clear it so .print-sheet resolves against the page and fills full width. */
+  .animate-rise,
+  .animate-page-in {
+    transform: none !important;
+    animation: none !important;
+  }
+
   .print-sheet {
     position: absolute !important;
     left: 0 !important;

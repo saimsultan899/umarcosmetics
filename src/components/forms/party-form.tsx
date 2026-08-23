@@ -6,10 +6,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
+import {
+  PARTY_CITIES,
+  PARTY_SECTORS,
+  withCurrentOption,
+} from "@/lib/locations";
 import { createClient } from "@/lib/supabase/client";
 import type { Party, PartySubtype, PartyType, SaleChannel } from "@/lib/types/database";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
 type PartyFormState = {
   party_code: string;
@@ -84,6 +89,15 @@ export function PartyForm({
   function set<K extends keyof PartyFormState>(key: K, value: PartyFormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
   }
+
+  const cityOptions = useMemo(
+    () => withCurrentOption(PARTY_CITIES, form.city),
+    [form.city],
+  );
+  const sectorOptions = useMemo(
+    () => withCurrentOption(PARTY_SECTORS, form.route),
+    [form.route],
+  );
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -218,11 +232,33 @@ export function PartyForm({
       </div>
       <div>
         <Label>City / Head</Label>
-        <Input value={form.city} onChange={(e) => set("city", e.target.value)} />
+        <Select
+          value={form.city}
+          onChange={(e) => set("city", e.target.value)}
+          placeholder="Select city"
+        >
+          <option value="">Select city</option>
+          {cityOptions.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </Select>
       </div>
       <div>
-        <Label>Route</Label>
-        <Input value={form.route} onChange={(e) => set("route", e.target.value)} />
+        <Label>Sector</Label>
+        <Select
+          value={form.route}
+          onChange={(e) => set("route", e.target.value)}
+          placeholder="Select sector"
+        >
+          <option value="">Select sector</option>
+          {sectorOptions.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </Select>
       </div>
       <div className="sm:col-span-2">
         <Label>Address</Label>

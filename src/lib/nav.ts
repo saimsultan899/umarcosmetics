@@ -81,10 +81,10 @@ export const mainNav: NavItem[] = [
     label: "Salesman",
     icon: Route,
     children: [
-      { label: "Users & Routes", href: "/salesman" },
+      { label: "Users & Sectors", href: "/salesman" },
       { label: "Field App", href: "/field" },
       { label: "Recoveries", href: "/salesman/recoveries" },
-      { label: "Route Sheets", href: "/salesman/routes" },
+      { label: "Sector Sheets", href: "/salesman/routes" },
     ],
   },
   {

@@ -29,13 +29,13 @@ const actions: Array<{
   {
     href: "/field/sale",
     label: "Quick credit sale",
-    hint: "Sell on the route",
+    hint: "Sell in the sector",
     icon: ShoppingCart,
     tone: "bg-[var(--brand-soft)] text-[var(--brand)]",
   },
   {
     href: "/field/shops",
-    label: "Browse route shops",
+    label: "Browse sector shops",
     hint: "Balances & contacts",
     icon: Store,
     tone: "bg-amber-50 text-amber-700",
@@ -149,7 +149,7 @@ export default async function FieldHomePage() {
           icon={Store}
           tone="neutral"
           href="/field/shops"
-          hint="Your route coverage"
+          hint="Your sector coverage"
         />
         <StatCard
           label="Still due"
@@ -164,14 +164,14 @@ export default async function FieldHomePage() {
       <div className="grid gap-4 lg:grid-cols-5">
         <ChartCard
           className="lg:col-span-3"
-          title="Top dues on your route"
+          title="Top dues in your sector"
           subtitle="Visit these shops first"
         >
           {topDue.length ? (
             <RankBars data={topDue} />
           ) : (
             <p className="py-8 text-center text-sm text-[var(--muted)]">
-              No outstanding dues on your route today.
+              No outstanding dues in your sector today.
             </p>
           )}
         </ChartCard>

@@ -201,12 +201,12 @@ export default async function RecoverySheetPage({
         </div>
         <div>
           <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
-            Route
+            Sector
           </label>
           <input
             name="route"
             defaultValue={sp.route || ""}
-            placeholder="Optional route"
+            placeholder="Optional sector"
             className="h-10 w-full rounded-lg border border-[var(--border)] px-3 text-sm"
           />
         </div>
@@ -236,7 +236,7 @@ export default async function RecoverySheetPage({
             <tr>
               <th>Code</th>
               <th>Name</th>
-              <th>City / Route</th>
+              <th>City / Sector</th>
               <th>Balance</th>
               <th>Credit Limit</th>
               <th>Rec</th>
@@ -298,7 +298,7 @@ export default async function RecoverySheetPage({
                 </th>
                 <th>Code</th>
                 <th>Shop</th>
-                <th>City / Route</th>
+                <th>City / Sector</th>
                 <th className="num">Balance</th>
                 <th className="num">Credit limit</th>
                 <th style={{ width: "26mm" }}>Received Rs.</th>

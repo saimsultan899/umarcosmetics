@@ -21,7 +21,7 @@ export function LoadSheetsTable({ rows }: { rows: Row[] }) {
 
   return (
     <SimplePaginatedTable
-      columns={["Sheet #", "Date", "Warehouse", "Vehicle / Route", "Lines qty", "Status"]}
+      columns={["Sheet #", "Date", "Warehouse", "Vehicle / Sector", "Lines qty", "Status"]}
       rows={mapped}
       emptyLabel="No load sheets yet. Issue your first van load above."
       renderRow={(row) => (

@@ -34,8 +34,8 @@ export default async function SalesmanAdminPage() {
   return (
     <div className="animate-rise space-y-6">
       <PageHeading
-        title="Salesman users & routes"
-        description="Invite field staff and assign cities/routes for market collection"
+        title="Salesman users & sectors"
+        description="Invite field staff and assign cities/sectors for market collection"
         actions={
           <>
             <Link href="/field">
@@ -86,7 +86,7 @@ export default async function SalesmanAdminPage() {
 
         <div className="panel p-5">
           <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
-            Route assignments
+            Sector assignments
           </h2>
           <div className="mt-4 space-y-2">
             {(routes || []).length ? (
@@ -105,7 +105,7 @@ export default async function SalesmanAdminPage() {
               ))
             ) : (
               <p className="text-sm text-[var(--muted)]">
-                No routes assigned yet.
+                No sectors assigned yet.
               </p>
             )}
           </div>

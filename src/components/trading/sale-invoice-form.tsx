@@ -13,6 +13,23 @@ import { type LineItemDraft } from "@/lib/types/trading";
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 
+const UUID_RE =
+  /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+
+function friendlyStockError(
+  message: string,
+  products: Product[],
+  warehouses: Warehouse[],
+) {
+  return message.replace(UUID_RE, (id) => {
+    const product = products.find((p) => p.id === id);
+    if (product) return `${product.code} — ${product.name_en}`;
+    const warehouse = warehouses.find((w) => w.id === id);
+    if (warehouse) return warehouse.name;
+    return id;
+  });
+}
+
 export function SaleInvoiceForm({
   companyId,
   organizationId,
@@ -129,7 +146,7 @@ export function SaleInvoiceForm({
 
     setLoading(false);
     if (rpcError) {
-      setError(rpcError.message);
+      setError(friendlyStockError(rpcError.message, products, warehouses));
       return;
     }
 
