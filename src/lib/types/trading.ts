@@ -7,6 +7,8 @@ export type LineItemDraft = {
   product_code: string;
   product_name: string;
   qty: string;
+  /** Free / bonus pieces (item-wise scheme, e.g. 10+1). Not billed. */
+  bonus: string;
   rate: string;
   discount: string;
   scheme: string;
@@ -77,6 +79,7 @@ export function emptyLine(): LineItemDraft {
     product_code: "",
     product_name: "",
     qty: "1",
+    bonus: "0",
     rate: "0",
     discount: "0",
     scheme: "",

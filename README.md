@@ -3,6 +3,7 @@
 Modern multi-company distribution ERP for the Pakistan market (replacement for the legacy Accounts & Inventory Management System).
 
 **Supabase project:** `Umar Distribution Software`  
+**Org ref:** `cxuvawvbjxerhckgakga`  
 **Project ref:** `kbkgffdskjedtrpebcyk`  
 **URL:** https://kbkgffdskjedtrpebcyk.supabase.co
 

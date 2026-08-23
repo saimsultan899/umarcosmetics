@@ -4,9 +4,11 @@ import { cn } from "@/lib/utils";
 import { Check, ChevronsUpDown, Search } from "lucide-react";
 import {
   Children,
+  forwardRef,
   isValidElement,
   useEffect,
   useId,
+  useImperativeHandle,
   useMemo,
   useRef,
   useState,
@@ -24,12 +26,24 @@ type SelectChangeEvent = {
   target: { value: string; name?: string };
 };
 
+export type SelectHandle = {
+  open: () => void;
+  close: () => void;
+  focus: () => void;
+};
+
 const DEFAULT_VISIBLE = 6;
 
 function extractOptions(children: ReactNode): SelectOption[] {
   const opts: SelectOption[] = [];
   Children.forEach(children, (child) => {
-    if (!isValidElement<{ value?: string | number; children?: ReactNode; disabled?: boolean }>(child)) {
+    if (
+      !isValidElement<{
+        value?: string | number;
+        children?: ReactNode;
+        disabled?: boolean;
+      }>(child)
+    ) {
       return;
     }
     if (child.type !== "option") return;
@@ -56,41 +70,72 @@ function matches(option: SelectOption, query: string) {
   );
 }
 
-export function Select({
-  value,
-  defaultValue = "",
-  onChange,
-  name,
-  required,
-  disabled,
-  className,
-  placeholder,
-  options: optionsProp,
-  children,
-  maxVisible = DEFAULT_VISIBLE,
-  size = "md",
-}: {
-  value?: string;
-  defaultValue?: string;
-  onChange?: (e: SelectChangeEvent) => void;
-  name?: string;
-  required?: boolean;
-  disabled?: boolean;
-  className?: string;
-  placeholder?: string;
-  options?: SelectOption[];
-  children?: ReactNode;
-  maxVisible?: number;
-  size?: "sm" | "md";
-}) {
+export const Select = forwardRef<
+  SelectHandle,
+  {
+    value?: string;
+    defaultValue?: string;
+    onChange?: (e: SelectChangeEvent) => void;
+    name?: string;
+    required?: boolean;
+    disabled?: boolean;
+    className?: string;
+    placeholder?: string;
+    options?: SelectOption[];
+    children?: ReactNode;
+    maxVisible?: number;
+    size?: "sm" | "md";
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
+    /** Called after a value is committed (keyboard or click). */
+    onCommit?: (value: string) => void;
+  }
+>(function Select(
+  {
+    value,
+    defaultValue = "",
+    onChange,
+    name,
+    required,
+    disabled,
+    className,
+    placeholder,
+    options: optionsProp,
+    children,
+    maxVisible = DEFAULT_VISIBLE,
+    size = "md",
+    open: openProp,
+    onOpenChange,
+    onCommit,
+  },
+  ref,
+) {
   const listId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [mounted, setMounted] = useState(false);
   const [uncontrolled, setUncontrolled] = useState(defaultValue);
   const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
+  const [highlight, setHighlight] = useState(0);
+  const highlightRef = useRef(0);
+
+  const open = openProp !== undefined ? openProp : uncontrolledOpen;
+
+  useEffect(() => {
+    highlightRef.current = highlight;
+  }, [highlight]);
+
+  function setOpen(next: boolean) {
+    if (openProp === undefined) setUncontrolledOpen(next);
+    onOpenChange?.(next);
+    if (!next) {
+      setQuery("");
+      setHighlight(0);
+    }
+  }
 
   const selectedValue = value !== undefined ? value : uncontrolled;
   const options = useMemo(
@@ -132,7 +177,35 @@ export function Select({
   const visible = filtered.slice(0, maxVisible);
   const hiddenCount = Math.max(0, filtered.length - visible.length);
 
+  const keyboardOptions = useMemo(() => {
+    const list: SelectOption[] = [];
+    if (emptyOption) list.push(emptyOption);
+    list.push(...visible);
+    return list;
+  }, [emptyOption, visible]);
+
   useEffect(() => setMounted(true), []);
+
+  function commit(next: string) {
+    if (value === undefined) setUncontrolled(next);
+    onChange?.({ target: { value: next, name } });
+    setOpen(false);
+    setQuery("");
+    onCommit?.(next);
+    requestAnimationFrame(() => triggerRef.current?.focus());
+  }
+
+  const commitRef = useRef(commit);
+  commitRef.current = commit;
+
+  useImperativeHandle(ref, () => ({
+    open: () => {
+      if (disabled) return;
+      setOpen(true);
+    },
+    close: () => setOpen(false),
+    focus: () => triggerRef.current?.focus(),
+  }));
 
   useEffect(() => {
     if (!open) return;
@@ -155,8 +228,37 @@ export function Select({
     }
 
     position();
+    const selectedIdx = Math.max(
+      0,
+      keyboardOptions.findIndex((o) => o.value === selectedValue),
+    );
+    setHighlight(selectedIdx);
+
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setOpen(false);
+        triggerRef.current?.focus();
+        return;
+      }
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setHighlight((h) =>
+          Math.min(h + 1, Math.max(keyboardOptions.length - 1, 0)),
+        );
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setHighlight((h) => Math.max(h - 1, 0));
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        e.stopPropagation();
+        const opt = keyboardOptions[highlightRef.current];
+        if (opt && !opt.disabled) commitRef.current(opt.value);
+      }
     };
     const onPointer = (e: MouseEvent) => {
       const target = e.target as Node;
@@ -168,27 +270,25 @@ export function Select({
 
     window.addEventListener("resize", position);
     window.addEventListener("scroll", position, true);
-    window.addEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
     window.addEventListener("mousedown", onPointer);
     requestAnimationFrame(() => inputRef.current?.focus());
 
     return () => {
       window.removeEventListener("resize", position);
       window.removeEventListener("scroll", position, true);
-      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keydown", onKey, true);
       window.removeEventListener("mousedown", onPointer);
     };
-  }, [open, listId]);
-
-  function commit(next: string) {
-    if (value === undefined) setUncontrolled(next);
-    onChange?.({ target: { value: next, name } });
-    setOpen(false);
-    setQuery("");
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, listId, keyboardOptions, selectedValue]);
 
   return (
-    <div ref={rootRef} className={cn("relative w-full", className)}>
+    <div
+      ref={rootRef}
+      className={cn("relative w-full", className)}
+      data-enter-field
+    >
       {name || required ? (
         <input
           tabIndex={-1}
@@ -201,16 +301,27 @@ export function Select({
         />
       ) : null}
       <button
+        ref={triggerRef}
         type="button"
         disabled={disabled}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listId}
         aria-required={required}
+        data-enter-field
         onClick={() => {
           if (disabled) return;
-          setOpen((v) => !v);
+          setOpen(!open);
           setQuery("");
+        }}
+        onKeyDown={(e) => {
+          if (disabled) return;
+          if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
+            e.preventDefault();
+            e.stopPropagation();
+            setOpen(true);
+            setQuery("");
+          }
         }}
         className={cn(
           "flex w-full items-center justify-between gap-2 rounded-lg border border-[var(--border)] bg-white text-left text-[var(--ink)] outline-none transition",
@@ -231,6 +342,7 @@ export function Select({
               role="listbox"
               style={menuStyle}
               className="overflow-hidden rounded-xl border border-[var(--border)] bg-white shadow-[0_18px_50px_rgba(11,25,21,0.18)] ring-1 ring-black/5"
+              data-enter-own
             >
               <div className="border-b border-[var(--border)] p-2">
                 <div className="relative">
@@ -238,7 +350,10 @@ export function Select({
                   <input
                     ref={inputRef}
                     value={query}
-                    onChange={(e) => setQuery(e.target.value)}
+                    onChange={(e) => {
+                      setQuery(e.target.value);
+                      setHighlight(0);
+                    }}
                     placeholder="Search..."
                     className="h-9 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] py-2 pl-8 pr-3 text-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-soft)]"
                   />
@@ -251,10 +366,11 @@ export function Select({
                     type="button"
                     role="option"
                     aria-selected={selectedValue === ""}
+                    onMouseEnter={() => setHighlight(0)}
                     onClick={() => commit("")}
                     className={cn(
                       "flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm",
-                      selectedValue === ""
+                      highlight === 0 || selectedValue === ""
                         ? "bg-[var(--brand-soft)] text-[var(--brand-strong)]"
                         : "text-[var(--muted)] hover:bg-[var(--surface-2)]",
                     )}
@@ -267,8 +383,10 @@ export function Select({
                 ) : null}
 
                 {visible.length ? (
-                  visible.map((option) => {
+                  visible.map((option, i) => {
+                    const idx = emptyOption ? i + 1 : i;
                     const active = option.value === selectedValue;
+                    const hi = highlight === idx;
                     return (
                       <button
                         key={option.value}
@@ -276,10 +394,11 @@ export function Select({
                         role="option"
                         aria-selected={active}
                         disabled={option.disabled}
+                        onMouseEnter={() => setHighlight(idx)}
                         onClick={() => commit(option.value)}
                         className={cn(
                           "flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm",
-                          active
+                          hi || active
                             ? "bg-[var(--brand)] text-white"
                             : "text-[var(--ink)] hover:bg-[var(--surface-2)]",
                           option.disabled && "opacity-50",
@@ -315,4 +434,6 @@ export function Select({
         : null}
     </div>
   );
-}
+});
+
+Select.displayName = "Select";

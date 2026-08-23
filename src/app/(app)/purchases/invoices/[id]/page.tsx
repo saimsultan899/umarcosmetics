@@ -1,6 +1,6 @@
 import { PrintDocument } from "@/components/trading/print-document";
 import { requireCompanyContext } from "@/lib/auth";
-import { formatPkr } from "@/lib/utils";
+import { amountInWordsPkr, formatPkr } from "@/lib/utils";
 import { notFound } from "next/navigation";
 
 export default async function PurchaseInvoiceDetailPage({
@@ -13,7 +13,7 @@ export default async function PurchaseInvoiceDetailPage({
 
   const { data: invoice } = await supabase
     .from("purchase_invoices")
-    .select("*, parties(name_en, party_code), warehouses(name)")
+    .select("*, parties(name_en, party_code, address, city, phone), warehouses(name)")
     .eq("id", id)
     .eq("company_id", company.id)
     .maybeSingle();
@@ -26,15 +26,23 @@ export default async function PurchaseInvoiceDetailPage({
     .eq("purchase_invoice_id", id)
     .order("sort_order");
 
+  const partyAddress = [invoice.parties?.address, invoice.parties?.city]
+    .filter(Boolean)
+    .join(", ");
+
   return (
     <PrintDocument
       companyName={company.name}
       companyAddress={[company.address, company.city].filter(Boolean).join(", ")}
+      companyNtn={company.ntn}
+      companyPhone={company.phone}
       title="Purchase Invoice"
       docNo={invoice.invoice_no}
       date={invoice.invoice_date}
       partyName={invoice.parties?.name_en}
       partyCode={invoice.parties?.party_code}
+      partyAddress={partyAddress || null}
+      partyPhone={invoice.parties?.phone}
       warehouseName={invoice.warehouses?.name}
       extraMeta={
         invoice.supplier_bill_no
@@ -50,8 +58,11 @@ export default async function PurchaseInvoiceDetailPage({
       }))}
       totals={[
         { label: "Subtotal", value: formatPkr(invoice.subtotal) },
-        { label: "Grand total", value: formatPkr(invoice.grand_total) },
+        { label: "Discount", value: formatPkr(invoice.discount_total) },
+        { label: "Grand total", value: formatPkr(invoice.grand_total), strong: true },
       ]}
+      amountInWords={amountInWordsPkr(invoice.grand_total)}
+      signatures={["Prepared by", "Authorized by"]}
     />
   );
 }

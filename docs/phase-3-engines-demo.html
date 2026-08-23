@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Umar — Phase 3 Engines (UOM · Schemes · GST)</title>
+<style>
+  :root{ --border:#d7e0db; --brand:#0f766e; --brand2:#0b5f59; --muted:#5f6f68; --bg:#eef3f0; --ink:#14201c; --warn:#b45309; --ok:#15803d; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--ink); font-family:Arial,"Segoe UI",sans-serif; padding:24px 16px 60px; }
+  .wrap{ max-width:1000px; margin:0 auto; }
+  h1{ font-size:22px; margin:0 0 4px; }
+  .lead{ color:var(--muted); font-size:14px; margin:0 0 18px; line-height:1.5; }
+  .badge{ display:inline-block; font-size:12px; font-weight:700; padding:3px 9px; border-radius:999px; background:#dcfce7; color:var(--ok); border:1px solid #86efac; }
+  .grid{ display:grid; gap:16px; grid-template-columns:1fr; }
+  @media(min-width:820px){ .grid{ grid-template-columns:1fr 1fr; } .span2{ grid-column:1 / -1; } }
+  .card{ background:#fff; border:1px solid var(--border); border-radius:14px; padding:16px 18px; box-shadow:0 6px 20px rgba(20,32,28,.05); }
+  .card h2{ font-size:15px; margin:0 0 3px; }
+  .card .sub{ color:var(--muted); font-size:12px; margin:0 0 12px; }
+  label{ display:block; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:10px 0 4px; }
+  input[type=number], input[type=text], select{ width:100%; height:36px; border:1px solid var(--border); border-radius:8px; padding:0 10px; font-size:14px; background:#fff; }
+  .row{ display:flex; gap:10px; } .row>div{ flex:1; }
+  .toggle{ display:flex; align-items:center; gap:8px; margin-top:12px; font-size:13px; }
+  .toggle input{ width:16px; height:16px; }
+  .out{ margin-top:14px; border-top:1px dashed var(--border); padding-top:12px; }
+  .kv{ display:flex; justify-content:space-between; gap:12px; font-size:13px; padding:3px 0; }
+  .kv span:first-child{ color:var(--muted); }
+  .kv b{ font-variant-numeric:tabular-nums; }
+  .kv.big{ font-size:15px; border-top:1px solid var(--border); margin-top:6px; padding-top:8px; }
+  .kv.big b{ color:var(--brand2); }
+  .chips{ display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+  .chip{ font-size:12px; border:1px solid var(--border); background:#f6faf8; border-radius:999px; padding:3px 10px; cursor:pointer; }
+  .chip:hover{ border-color:var(--brand); color:var(--brand); }
+  table{ width:100%; border-collapse:collapse; font-size:13px; margin-top:6px; }
+  th,td{ border-bottom:1px solid var(--border); padding:6px 8px; text-align:left; }
+  th{ font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
+  td.num,th.num{ text-align:right; font-variant-numeric:tabular-nums; }
+  tfoot td{ font-weight:700; border-top:2px solid var(--ink); }
+  .pill{ display:inline-block; font-size:11px; font-weight:700; padding:1px 7px; border-radius:6px; background:var(--brand); color:#fff; }
+  .pill.gray{ background:#94a3b8; } .pill.amber{ background:var(--warn); }
+  .note{ font-size:12px; color:var(--muted); margin-top:10px; line-height:1.5; }
+  code{ background:#f1f5f4; padding:1px 5px; border-radius:5px; font-size:12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Phase 3 engines — live demo</h1>
+  <p class="lead">
+    The three Pakistani-distribution calculation engines built this phase, running in your browser exactly as the
+    app's <code>src/lib/pricing/{uom,discounts,tax}.ts</code> modules do. Play with the inputs to validate the logic
+    (e.g. paste your real scheme strings). <span id="selfcheck" class="badge">checking…</span>
+  </p>
+
+  <div class="grid">
+    <!-- ============ UOM ============ -->
+    <div class="card">
+      <h2>1 · Carton ⇄ Piece (UOM)</h2>
+      <p class="sub">Base unit is <b>pieces</b>; <code>packing</code> = pieces per carton. Enter cartons + loose, or total pieces.</p>
+      <div class="row">
+        <div><label>Packing (pcs/ctn)</label><input id="u_pack" type="number" value="12" min="1"></div>
+        <div><label>Cartons</label><input id="u_ctn" type="number" value="2" min="0"></div>
+        <div><label>Loose pcs</label><input id="u_loose" type="number" value="3" min="0"></div>
+      </div>
+      <div class="row">
+        <div><label>Per-carton price (PKR)</label><input id="u_cprice" type="number" value="3600" min="0"></div>
+        <div><label>…or total pieces</label><input id="u_pieces" type="number" placeholder="derive breakdown" min="0"></div>
+      </div>
+      <div class="out" id="u_out"></div>
+    </div>
+
+    <!-- ============ SCHEMES ============ -->
+    <div class="card">
+      <h2>2 · Scheme / discount parser</h2>
+      <p class="sub">Turns free-text <code>product.scheme</code> into a structured rule + rupee discount / free goods.</p>
+      <label>Scheme text</label>
+      <input id="s_text" type="text" value="5+2%">
+      <div class="chips" id="s_chips"></div>
+      <div class="row" style="margin-top:10px">
+        <div><label>Qty (pcs)</label><input id="s_qty" type="number" value="120" min="0"></div>
+        <div><label>Rate (PKR/pc)</label><input id="s_rate" type="number" value="100" min="0"></div>
+      </div>
+      <div class="out" id="s_out"></div>
+    </div>
+
+    <!-- ============ TAX ============ -->
+    <div class="card span2">
+      <h2>3 · GST / FED (FBR) — single line + invoice roll-up</h2>
+      <p class="sub">Standard GST 18%, further tax 3% for unregistered buyers, optional FED. Taxable value = line net.</p>
+      <div class="row">
+        <div><label>Taxable value (PKR)</label><input id="t_val" type="number" value="1000" min="0"></div>
+        <div><label>GST %</label><input id="t_gst" type="number" value="18" min="0"></div>
+        <div><label>FED %</label><input id="t_fed" type="number" value="0" min="0"></div>
+      </div>
+      <div class="toggle"><input id="t_further" type="checkbox"><label style="margin:0">Buyer unregistered → add 3% further tax</label></div>
+      <div class="toggle"><input id="t_incl" type="checkbox"><label style="margin:0">Price is GST-inclusive (extract GST)</label></div>
+      <div class="out" id="t_out"></div>
+
+      <div style="margin-top:18px">
+        <h2 style="font-size:14px">Sample invoice roll-up</h2>
+        <p class="sub">Six FMCG lines (net after discount) → invoice-level tax via <code>computeInvoiceTax</code>.</p>
+        <table id="t_table">
+          <thead><tr>
+            <th>Item</th><th class="num">Net</th><th class="num">GST%</th><th class="num">GST</th><th class="num">FED</th><th class="num">Gross</th>
+          </tr></thead>
+          <tbody></tbody>
+          <tfoot></tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <p class="note">
+    This page is a faithful port of the tested engines (60 assertions pass in <code>outputs/engine-tests.ts</code>).
+    Persisting these values into posts (payload + Postgres RPC) is scoped in <code>docs/phase-4-wiring-spec.md</code>
+    and needs the Supabase schema dump.
+  </p>
+</div>
+
+<script>
+/* ---------- faithful JS ports of src/lib/pricing/*.ts ---------- */
+const num = v => { const n = typeof v === "number" ? v : Number(v); return Number.isFinite(n) ? n : 0; };
+const round2 = v => Math.round((num(v) + Number.EPSILON) * 100) / 100;
+
+// uom.ts
+const piecesPerCarton = p => { const n = num(p); return n >= 1 ? n : 1; };
+const hasCartonPacking = p => num(p) > 1;
+const toPieces = (c,l,p) => round2(num(c)*piecesPerCarton(p)+num(l));
+const fromPieces = (t,p) => { const ppc=piecesPerCarton(p); const total=Math.max(0,num(t)); const cartons=Math.floor(total/ppc); return {cartons, pieces:round2(total-cartons*ppc)}; };
+const piecesToCartons = (t,p) => round2(num(t)/piecesPerCarton(p));
+const perPieceRate = (r,p) => round2(num(r)/piecesPerCarton(p));
+const perCartonRate = (r,p) => round2(num(r)*piecesPerCarton(p));
+function formatUom(t,p){ const ppc=piecesPerCarton(p); const total=Math.max(0,num(t)); if(ppc<=1) return round2(total)+" PCS"; const {cartons,pieces}=fromPieces(total,p); const out=[]; if(cartons>0)out.push(cartons+" CTN"); if(pieces>0||cartons===0)out.push(pieces+" PCS"); return out.join(" + "); }
+
+// discounts.ts
+function parseScheme(text){
+  const raw = String(text ?? "").trim(); if(!raw) return {kind:"none"};
+  const s = raw.toLowerCase();
+  if(s.includes("%")){
+    const rates = s.split(/[+,]/).map(tok=>{ const m=tok.match(/(\d+(?:\.\d+)?)\s*%?/); return m?num(m[1]):NaN; }).filter(r=>Number.isFinite(r)&&r>0);
+    return rates.length ? {kind:"percent",rates} : {kind:"none"};
+  }
+  if(/\/\s*(pc|pcs|piece|unit)\b/.test(s) || /\bper\s*(pc|pcs|piece|unit)\b/.test(s)){
+    const m=s.match(/(\d+(?:\.\d+)?)/); return m?{kind:"per_unit",amount:num(m[1])}:{kind:"none"};
+  }
+  const deal=s.match(/(\d+)\s*\+\s*(\d+)/);
+  if(deal){ const buy=num(deal[1]),free=num(deal[2]); if(buy>0&&free>0) return {kind:"free_goods",buy,free}; }
+  const flat=s.match(/(?:rs\.?|₨|rupees)?\s*(\d+(?:\.\d+)?)\s*(?:\/-|\/=|rs)?/);
+  if(flat && num(flat[1])>0) return {kind:"flat",amount:num(flat[1])};
+  return {kind:"none"};
+}
+function labelFor(rule){ switch(rule.kind){ case"percent":return rule.rates.map(r=>r+"%").join("+"); case"flat":return "Rs "+round2(rule.amount)+" off"; case"per_unit":return "Rs "+round2(rule.amount)+"/pc"; case"free_goods":return rule.buy+"+"+rule.free+" free"; default:return "—"; } }
+function applyScheme(rule,qty,rate){
+  const q=Math.max(0,num(qty)), r=Math.max(0,num(rate)), gross=q*r;
+  const base={discount:0,freeQty:0,discountValue:0,kind:rule.kind,label:labelFor(rule)};
+  switch(rule.kind){
+    case"percent":{ let rem=gross; for(const x of rule.rates) rem*=1-Math.min(100,Math.max(0,x))/100; base.discount=round2(Math.min(gross,gross-rem)); base.discountValue=base.discount; return base; }
+    case"flat":{ base.discount=round2(Math.min(gross,rule.amount)); base.discountValue=base.discount; return base; }
+    case"per_unit":{ base.discount=round2(Math.min(gross,rule.amount*q)); base.discountValue=base.discount; return base; }
+    case"free_goods":{ const bundles=Math.floor(q/rule.buy); base.freeQty=bundles*rule.free; base.discountValue=round2(base.freeQty*r); return base; }
+    default:return base;
+  }
+}
+const computeLineScheme=(t,q,r)=>applyScheme(parseScheme(t),q,r);
+
+// tax.ts
+const DEFAULT_GST_RATE=18;
+function computeLineTax(inp){
+  const gstRate=inp.gstRate===undefined?DEFAULT_GST_RATE:Math.max(0,num(inp.gstRate));
+  const furtherRate=Math.max(0,num(inp.furtherTaxRate)), fedRate=Math.max(0,num(inp.fedRate));
+  let net=Math.max(0,num(inp.taxableValue)), gst;
+  if(inp.inclusive && gstRate>0){ const gross=net; net=gross/(1+gstRate/100); gst=gross-net; }
+  else { gst=net*gstRate/100; }
+  const further=net*furtherRate/100, fed=net*fedRate/100;
+  net=round2(net); gst=round2(gst); const f=round2(further), fd=round2(fed), tot=round2(gst+f+fd);
+  return {taxableValue:net,gst,furtherTax:f,fed:fd,totalTax:tot,gross:round2(net+tot)};
+}
+function computeInvoiceTax(lines){ const a={taxableValue:0,gst:0,furtherTax:0,fed:0,totalTax:0,gross:0}; for(const l of lines||[]){ const t=computeLineTax(l); a.taxableValue=round2(a.taxableValue+t.taxableValue); a.gst=round2(a.gst+t.gst); a.furtherTax=round2(a.furtherTax+t.furtherTax); a.fed=round2(a.fed+t.fed); a.totalTax=round2(a.totalTax+t.totalTax); a.gross=round2(a.gross+t.gross); } return a; }
+
+/* ---------- formatting ---------- */
+const pkr = n => "PKR " + num(n).toLocaleString("en-PK", {maximumFractionDigits:2});
+const $ = id => document.getElementById(id);
+const kv = (k,v,big) => `<div class="kv${big?' big':''}"><span>${k}</span><b>${v}</b></div>`;
+
+/* ---------- UOM panel ---------- */
+function renderUom(){
+  const pack=$("u_pack").value, ctn=$("u_ctn").value, loose=$("u_loose").value, cprice=$("u_cprice").value;
+  const manual=$("u_pieces").value;
+  const pieces = manual!=="" ? num(manual) : toPieces(ctn,loose,pack);
+  const bd=fromPieces(pieces,pack);
+  $("u_out").innerHTML =
+    kv("Total pieces (→ line qty)", pieces+" PCS") +
+    kv("Breakdown", formatUom(pieces,pack)) +
+    kv("As cartons", piecesToCartons(pieces,pack)+" CTN") +
+    kv("Per-piece rate (→ line rate)", pkr(perPieceRate(cprice,pack))) +
+    kv("Per-carton price", pkr(perCartonRate(perPieceRate(cprice,pack),pack)), true);
+}
+
+/* ---------- Scheme panel ---------- */
+const SAMPLES=["5%","5+2%","10+1","144+12 free","Rs 50","50/-","10/pc","Rs 5 per piece",""];
+function renderSchemeChips(){ $("s_chips").innerHTML = SAMPLES.map(s=>`<span class="chip" data-s="${s}">${s||"(blank)"}</span>`).join(""); document.querySelectorAll("#s_chips .chip").forEach(c=>c.onclick=()=>{ $("s_text").value=c.dataset.s; renderScheme(); }); }
+function renderScheme(){
+  const rule=parseScheme($("s_text").value); const res=applyScheme(rule,$("s_qty").value,$("s_rate").value);
+  const params = rule.kind==="percent"?rule.rates.map(r=>r+"%").join(" then "): rule.kind==="free_goods"?`buy ${rule.buy} get ${rule.free}`: rule.kind==="flat"?("Rs "+rule.amount): rule.kind==="per_unit"?("Rs "+rule.amount+"/pc"):"—";
+  const pill = `<span class="pill${rule.kind==="none"?" gray":rule.kind==="free_goods"?" amber":""}">${rule.kind}</span>`;
+  const gross=Math.max(0,num($("s_qty").value))*Math.max(0,num($("s_rate").value));
+  $("s_out").innerHTML =
+    kv("Parsed rule", pill+" &nbsp;"+params) +
+    kv("Gross (qty × rate)", pkr(gross)) +
+    kv("Discount (→ line discount Rs)", pkr(res.discount)) +
+    kv("Free goods", res.freeQty ? res.freeQty+" PCS free (value "+pkr(res.discountValue)+")" : "—") +
+    kv("Net line", pkr(gross-res.discount), true);
+}
+
+/* ---------- Tax panel ---------- */
+const SAMPLE_LINES=[
+  {name:"Sufi Cooking Oil 1L", net:17800, gst:18, fed:0},
+  {name:"Tapal Danedar 130g",  net:5040,  gst:18, fed:0},
+  {name:"Nestlé Nespray 200g", net:5760,  gst:18, fed:0},
+  {name:"Coca-Cola 1.5L",      net:1950,  gst:18, fed:5},
+  {name:"Surf Excel 500g",     net:4700,  gst:18, fed:0},
+  {name:"Lay's Masala 20",     net:4800,  gst:18, fed:0},
+];
+function renderTax(){
+  const further=$("t_further").checked?3:0;
+  const t=computeLineTax({taxableValue:$("t_val").value, gstRate:$("t_gst").value, fedRate:$("t_fed").value, furtherTaxRate:further, inclusive:$("t_incl").checked});
+  $("t_out").innerHTML =
+    kv("Taxable value", pkr(t.taxableValue)) +
+    kv("GST", pkr(t.gst)) +
+    (t.furtherTax?kv("Further tax (3%)", pkr(t.furtherTax)):"") +
+    (t.fed?kv("FED", pkr(t.fed)):"") +
+    kv("Total tax", pkr(t.totalTax)) +
+    kv("Gross (payable)", pkr(t.gross), true);
+
+  const inputs=SAMPLE_LINES.map(l=>({taxableValue:l.net,gstRate:l.gst,fedRate:l.fed,furtherTaxRate:further}));
+  const rows=SAMPLE_LINES.map((l,i)=>{ const r=computeLineTax(inputs[i]); return `<tr><td>${l.name}</td><td class="num">${pkr(r.taxableValue)}</td><td class="num">${l.gst}%</td><td class="num">${pkr(r.gst)}</td><td class="num">${r.fed?pkr(r.fed):"—"}</td><td class="num">${pkr(r.gross)}</td></tr>`; }).join("");
+  const inv=computeInvoiceTax(inputs);
+  $("t_table").querySelector("tbody").innerHTML=rows;
+  $("t_table").querySelector("tfoot").innerHTML=`<tr><td>Invoice total${further?" (+3% further)":""}</td><td class="num">${pkr(inv.taxableValue)}</td><td></td><td class="num">${pkr(inv.gst)}</td><td class="num">${pkr(inv.fed)}</td><td class="num">${pkr(inv.gross)}</td></tr>`;
+}
+
+/* ---------- self-check (mirror a few of the 60 assertions) ---------- */
+function selfCheck(){
+  const ok=[];
+  ok.push(JSON.stringify(fromPieces(27,12))===JSON.stringify({cartons:2,pieces:3}));
+  ok.push(formatUom(24,12)==="2 CTN");
+  ok.push(perPieceRate(360,12)===30);
+  ok.push(applyScheme({kind:"percent",rates:[5,2]},10,100).discount===69);
+  ok.push(applyScheme({kind:"free_goods",buy:10,free:1},25,100).freeQty===2);
+  ok.push(computeLineTax({taxableValue:1000}).gross===1180);
+  ok.push(computeLineTax({taxableValue:1180,inclusive:true}).taxableValue===1000);
+  const pass=ok.filter(Boolean).length, el=$("selfcheck");
+  if(pass===ok.length){ el.textContent="engines verified · "+pass+"/"+ok.length+" checks pass"; }
+  else { el.textContent=pass+"/"+ok.length+" checks pass"; el.style.background="#fee2e2"; el.style.color="#b91c1c"; el.style.borderColor="#fca5a5"; }
+}
+
+/* ---------- wire up ---------- */
+["u_pack","u_ctn","u_loose","u_cprice","u_pieces"].forEach(id=>$(id).addEventListener("input",renderUom));
+["s_text","s_qty","s_rate"].forEach(id=>$(id).addEventListener("input",renderScheme));
+["t_val","t_gst","t_fed","t_further","t_incl"].forEach(id=>$(id).addEventListener("input",renderTax));
+renderSchemeChips(); renderUom(); renderScheme(); renderTax(); selfCheck();
+</script>
+</body>
+</html>

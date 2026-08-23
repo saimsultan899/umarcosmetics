@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
 import { createClient } from "@/lib/supabase/client";
 import type { Party, Product, Warehouse } from "@/lib/types/database";
-import { emptyLine, type LineItemDraft } from "@/lib/types/trading";
+import { type LineItemDraft } from "@/lib/types/trading";
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 
@@ -42,7 +43,7 @@ export function PurchaseInvoiceForm({
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10));
   const [supplierBillNo, setSupplierBillNo] = useState("");
   const [narration, setNarration] = useState("");
-  const [lines, setLines] = useState<LineItemDraft[]>([emptyLine()]);
+  const [lines, setLines] = useState<LineItemDraft[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -91,8 +92,12 @@ export function PurchaseInvoiceForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <form
+      onSubmit={onSubmit}
+      className="space-y-5"
+      data-enter-root
+      onKeyDown={(e) => handleEnterAsNext(e)}
+    >      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <Label>Date</Label>
           <Input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} required />

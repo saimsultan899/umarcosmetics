@@ -3,9 +3,26 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import {
+  focusField,
+  focusNextField,
+  getFocusableFields,
+} from "@/lib/keyboard/enter-nav";
 import { createClient } from "@/lib/supabase/client";
 import type { Party } from "@/lib/types/database";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+function focusAfterParty(codeEl: HTMLElement) {
+  const root =
+    codeEl.closest<HTMLElement>("[data-enter-root]") ||
+    codeEl.closest("form") ||
+    document.body;
+  const fields = getFocusableFields(root);
+  const idx = fields.indexOf(codeEl);
+  // Skip code + party select → land on next header field (warehouse, etc.)
+  const target = fields[idx + 2] || fields[idx + 1];
+  focusField(target);
+}
 
 export function PartyCodePicker({
   companyId,
@@ -36,12 +53,13 @@ export function PartyCodePicker({
   const [code, setCode] = useState(selected?.party_code || "");
   const [status, setStatus] = useState<string | null>(null);
   const [looking, setLooking] = useState(false);
+  const codeRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setCode(selected?.party_code || "");
   }, [selected?.id, selected?.party_code]);
 
-  async function resolveCode(raw: string) {
+  async function resolveCode(raw: string, moveNext = false) {
     const trimmed = raw.trim();
     if (!trimmed) {
       onChange("", null);
@@ -56,6 +74,7 @@ export function PartyCodePicker({
       onChange(local.id, local);
       setCode(local.party_code);
       setStatus(null);
+      if (moveNext && codeRef.current) focusAfterParty(codeRef.current);
       return;
     }
 
@@ -86,6 +105,7 @@ export function PartyCodePicker({
     onChange(party.id, party as Party);
     setCode(party.party_code);
     setStatus(null);
+    if (moveNext && codeRef.current) focusAfterParty(codeRef.current);
   }
 
   return (
@@ -93,6 +113,7 @@ export function PartyCodePicker({
       <Label>{label}</Label>
       <div className="grid gap-2 sm:grid-cols-[7.5rem_1fr]">
         <Input
+          ref={codeRef}
           value={code}
           placeholder="Code"
           inputMode="numeric"
@@ -105,7 +126,8 @@ export function PartyCodePicker({
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
-              void resolveCode(code);
+              e.stopPropagation();
+              void resolveCode(code, true);
             }
           }}
         />
@@ -117,6 +139,12 @@ export function PartyCodePicker({
             onChange(e.target.value, party);
             setCode(party?.party_code || "");
             setStatus(null);
+          }}
+          onCommit={() => {
+            requestAnimationFrame(() => {
+              const el = document.activeElement as HTMLElement | null;
+              if (el) focusNextField(el);
+            });
           }}
         >
           <option value="">Select party</option>

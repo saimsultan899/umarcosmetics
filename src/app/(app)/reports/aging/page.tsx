@@ -155,6 +155,7 @@ export default async function AgingReportPage({
 
       <ReportTable
         title="Aging detail"
+        companyName={company.name}
         subtitle={`${rows.length} shops with outstanding balance`}
         rows={exportRows}
         filename={`aging-${company.code || company.name}-${asOf}`}

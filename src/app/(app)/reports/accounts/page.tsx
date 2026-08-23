@@ -253,6 +253,7 @@ export default async function AccountsReportPage({
 
           <ReportTable
             title={`Party Ledger — ${selectedParty ? `${selectedParty.party_code} ${selectedParty.name_en}` : company.name}`}
+            companyName={company.name}
             subtitle={selectedParty ? `${ledgerRows.length} lines` : "Select a party"}
             rows={selectedParty ? ledgerRows : []}
             filename={`party-ledger-${sp.party || "none"}`}
@@ -260,7 +261,8 @@ export default async function AccountsReportPage({
         </div>
       ) : (
         <ReportTable
-          title={`${view} balances — ${company.name}`}
+          title={`${view} balances`}
+          companyName={company.name}
           subtitle={`${balanceRows.length} parties`}
           rows={balanceRows}
           filename={`accounts-${view}`}

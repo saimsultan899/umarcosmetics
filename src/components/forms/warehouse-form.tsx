@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useCreateDialogClose } from "@/components/ui/create-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
 import { createClient } from "@/lib/supabase/client";
 import type { Warehouse } from "@/lib/types/database";
 import { useRouter } from "next/navigation";
@@ -66,8 +67,12 @@ export function WarehouseForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-3 sm:grid-cols-3">
-      <div>
+    <form
+      onSubmit={onSubmit}
+      className="grid gap-3 sm:grid-cols-3"
+      data-enter-root
+      onKeyDown={(e) => handleEnterAsNext(e)}
+    >      <div>
         <Label>Name</Label>
         <Input
           value={name}

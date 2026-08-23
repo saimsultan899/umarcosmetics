@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
 import { createClient } from "@/lib/supabase/client";
 import type { Party, Product, Warehouse } from "@/lib/types/database";
-import { emptyLine, type LineItemDraft, type PaymentType } from "@/lib/types/trading";
+import { type LineItemDraft } from "@/lib/types/trading";
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 
@@ -34,10 +35,8 @@ export function SaleInvoiceForm({
   const [partyId, setPartyId] = useState("");
   const [warehouseId, setWarehouseId] = useState(warehouses[0]?.id || "");
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10));
-  const [paymentType, setPaymentType] = useState<PaymentType>("credit");
-  const [amountPaid, setAmountPaid] = useState("0");
   const [narration, setNarration] = useState("");
-  const [lines, setLines] = useState<LineItemDraft[]>([emptyLine()]);
+  const [lines, setLines] = useState<LineItemDraft[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creditWarning, setCreditWarning] = useState<string | null>(null);
@@ -80,14 +79,14 @@ export function SaleInvoiceForm({
 
     const { subtotal, discount_total, grand_total } = summarizeLines(valid);
 
-    if (party && Number(party.credit_limit) > 0 && paymentType !== "cash") {
+    if (party && Number(party.credit_limit) > 0) {
       const supabaseCheck = createClient();
       const { data: balance } = await supabaseCheck.rpc("get_party_balance", {
         p_company_id: companyId,
         p_party_id: partyId,
         p_as_of: invoiceDate,
       });
-      const projected = Number(balance || 0) + grand_total - (paymentType === "partial" ? Number(amountPaid || 0) : 0);
+      const projected = Number(balance || 0) + grand_total;
       if (projected > Number(party.credit_limit)) {
         const proceed = window.confirm(
           `This sale may exceed credit limit.\nProjected balance: ${projected.toLocaleString()}\nLimit: ${Number(party.credit_limit).toLocaleString()}\n\nContinue anyway?`,
@@ -108,8 +107,8 @@ export function SaleInvoiceForm({
         warehouse_id: warehouseId,
         route: party?.route || null,
         city: party?.city || null,
-        payment_type: paymentType,
-        amount_paid: paymentType === "cash" ? grand_total : Number(amountPaid || 0),
+        payment_type: "credit",
+        amount_paid: 0,
         subtotal,
         discount_total,
         grand_total,
@@ -119,6 +118,7 @@ export function SaleInvoiceForm({
           product_code: l.product_code,
           product_name: l.product_name,
           qty: Number(l.qty),
+          bonus_qty: Number(l.bonus || 0),
           rate: Number(l.rate),
           discount: Number(l.discount || 0),
           scheme: l.scheme || null,
@@ -138,7 +138,12 @@ export function SaleInvoiceForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5">
+    <form
+      onSubmit={onSubmit}
+      className="space-y-5"
+      data-enter-root
+      onKeyDown={(e) => handleEnterAsNext(e)}
+    >
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <Label>Date</Label>
@@ -169,27 +174,8 @@ export function SaleInvoiceForm({
         </div>
         <div>
           <Label>Payment</Label>
-          <Select
-            value={paymentType}
-            onChange={(e) => setPaymentType(e.target.value as PaymentType)}
-          >
-            <option value="credit">Credit</option>
-            <option value="cash">Cash</option>
-            <option value="partial">Partial</option>
-          </Select>
+          <Input value="Credit" readOnly className="bg-[var(--surface-2)]" />
         </div>
-        {paymentType === "partial" ? (
-          <div>
-            <Label>Amount paid</Label>
-            <Input
-              type="number"
-              min="0"
-              step="0.01"
-              value={amountPaid}
-              onChange={(e) => setAmountPaid(e.target.value)}
-            />
-          </div>
-        ) : null}
         <div className="sm:col-span-2 lg:col-span-3">
           <Label>Narration</Label>
           <Input value={narration} onChange={(e) => setNarration(e.target.value)} placeholder="Optional notes" />
@@ -203,6 +189,7 @@ export function SaleInvoiceForm({
         rateField="sale_rate"
         companyId={companyId}
         partyId={partyId}
+        enableBonus
       />
 
       {creditWarning ? (

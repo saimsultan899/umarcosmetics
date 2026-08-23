@@ -204,7 +204,8 @@ export default async function StockReportPage({
       })()}
 
       <ReportTable
-        title={`${title} — ${company.name}`}
+        title={title}
+        companyName={company.name}
         subtitle={`${activeRows.length} rows`}
         rows={activeRows}
         filename={`stock-${view}`}

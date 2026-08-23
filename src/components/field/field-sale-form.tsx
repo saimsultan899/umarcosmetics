@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { enqueueMutation } from "@/lib/offline/db";
 import { resolveProductRate } from "@/lib/product-rate";
+import { computeLineScheme } from "@/lib/pricing/discounts";
 import { createClient } from "@/lib/supabase/client";
 import type { Product, Warehouse } from "@/lib/types/database";
 import { formatPkr } from "@/lib/utils";
@@ -39,6 +40,7 @@ export function FieldSaleForm({
   const [productId, setProductId] = useState("");
   const [productCode, setProductCode] = useState("");
   const [qty, setQty] = useState("1");
+  const [bonus, setBonus] = useState("0");
   const [rate, setRate] = useState("0");
   const [rateHint, setRateHint] = useState("");
   const [loading, setLoading] = useState(false);
@@ -57,6 +59,7 @@ export function FieldSaleForm({
       setProductId("");
       setProductCode("");
       setRate("0");
+      setBonus("0");
       setRateHint("");
       return;
     }
@@ -84,7 +87,10 @@ export function FieldSaleForm({
 
     setRate(String(next));
     setRateHint(hint);
+    const nextQty = !qty || Number(qty) <= 0 ? "1" : qty;
     if (!qty || Number(qty) <= 0) setQty("1");
+    const schemeResult = computeLineScheme(p.scheme, nextQty, next);
+    setBonus(String(schemeResult.freeQty || 0));
   }
 
   async function resolveCode(raw: string) {
@@ -144,8 +150,10 @@ export function FieldSaleForm({
           product_code: product.code,
           product_name: product.name_en,
           qty: Number(qty),
+          bonus_qty: Number(bonus || 0),
           rate: lineRate,
           discount: 0,
+          scheme: product.scheme || null,
           amount: lineAmount,
         },
       ],
@@ -268,7 +276,7 @@ export function FieldSaleForm({
           />
         </div>
       </div>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div>
           <Label>Qty</Label>
           <Input
@@ -276,9 +284,31 @@ export function FieldSaleForm({
             min="0"
             step="0.1"
             value={qty}
-            onChange={(e) => setQty(e.target.value)}
+            onChange={(e) => {
+              const nextQty = e.target.value;
+              setQty(nextQty);
+              if (product) {
+                const result = computeLineScheme(product.scheme, nextQty, rate);
+                setBonus(String(result.freeQty || 0));
+              }
+            }}
             inputMode="decimal"
           />
+        </div>
+        <div>
+          <Label>Bonus</Label>
+          <Input
+            type="number"
+            min="0"
+            step="0.1"
+            value={bonus}
+            onChange={(e) => setBonus(e.target.value)}
+            inputMode="decimal"
+            title={product?.scheme || "Item-wise bonus"}
+          />
+          {product?.scheme ? (
+            <p className="mt-1 text-[10px] text-[var(--muted)]">{product.scheme}</p>
+          ) : null}
         </div>
         <div>
           <Label>Rate</Label>

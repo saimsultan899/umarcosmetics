@@ -42,12 +42,12 @@ export default async function SaleInvoicesPage() {
     <div className="animate-rise space-y-6">
       <PageHeading
         title="Sale Invoice"
-        description={`Create credit/cash sales and post stock out for ${company.name}.`}
+        description={`Create credit sales and post stock out for ${company.name}.`}
         actions={
           <CreateDialogButton
             label="New sale"
             title="New sale invoice"
-            description="Create a credit or cash sale"
+            description="Create a credit sale with item-wise bonus"
             size="xl"
             disabled={!canCreate}
             disabledHint="Add parties, products, and warehouses before creating invoices."

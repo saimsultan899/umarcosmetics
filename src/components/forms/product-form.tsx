@@ -5,6 +5,7 @@ import { useCreateDialogClose } from "@/components/ui/create-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
 import { createClient } from "@/lib/supabase/client";
 import type { Product, Warehouse } from "@/lib/types/database";
 import { useRouter } from "next/navigation";
@@ -39,12 +40,9 @@ export function ProductForm({
     default_warehouse_id: initial?.default_warehouse_id || "",
     retail_rate: String(initial?.retail_rate ?? 0),
     purchase_rate: String(initial?.purchase_rate ?? 0),
-    wholesale_rate: String(initial?.wholesale_rate ?? 0),
-    sale_rate: String(initial?.sale_rate ?? 0),
     opening_qty: String(initial?.opening_qty ?? 0),
-    opening_rate: String(initial?.opening_rate ?? 0),
-    reorder_level: String(initial?.reorder_level ?? 0),
     packing: String(initial?.packing ?? 1),
+    /** Item-wise shop bonus, e.g. 10+1 (stored as products.scheme). */
     scheme: initial?.scheme || "",
   });
 
@@ -98,7 +96,11 @@ export function ProductForm({
       return;
     }
 
+    const tradePrice = Number(form.retail_rate || 0);
+
     // Persist via RPC so opening_qty also seeds/adjusts stock_balances
+    // Hidden fields keep existing values on edit; new products get safe defaults.
+    // sale_rate mirrors trade price so invoices still auto-fill correctly.
     const payload = {
       organization_id: organizationId,
       company_id: companyId,
@@ -110,15 +112,13 @@ export function ProductForm({
       category_group: form.category_group.trim() || null,
       barcode: form.barcode.trim() || null,
       default_warehouse_id: form.default_warehouse_id || null,
-      retail_rate: Number(form.retail_rate || 0),
+      retail_rate: tradePrice,
       purchase_rate: Number(form.purchase_rate || 0),
-      wholesale_rate: Number(form.wholesale_rate || 0),
-      // If sale rate left blank, inherit retail so invoices auto-fill correctly
-      sale_rate:
-        Number(form.sale_rate || 0) || Number(form.retail_rate || 0),
+      wholesale_rate: Number(initial?.wholesale_rate ?? 0),
+      sale_rate: tradePrice,
       opening_qty: openingQty,
-      opening_rate: Number(form.opening_rate || 0),
-      reorder_level: Number(form.reorder_level || 0),
+      opening_rate: Number(initial?.opening_rate ?? 0),
+      reorder_level: Number(initial?.reorder_level ?? 0),
       packing: Number(form.packing || 1),
       scheme: form.scheme.trim() || null,
     };
@@ -141,7 +141,12 @@ export function ProductForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <form
+      onSubmit={onSubmit}
+      className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+      data-enter-root
+      onKeyDown={(e) => handleEnterAsNext(e)}
+    >
       <div>
         <Label>Code (auto serial)</Label>
         <Input
@@ -199,7 +204,7 @@ export function ProductForm({
         <Input value={form.barcode} onChange={(e) => set("barcode", e.target.value)} />
       </div>
       <div>
-        <Label>Retail rate</Label>
+        <Label>Trade price</Label>
         <Input type="number" step="0.01" value={form.retail_rate} onChange={(e) => set("retail_rate", e.target.value)} />
       </div>
       <div>
@@ -207,32 +212,23 @@ export function ProductForm({
         <Input type="number" step="0.01" value={form.purchase_rate} onChange={(e) => set("purchase_rate", e.target.value)} />
       </div>
       <div>
-        <Label>Wholesale rate</Label>
-        <Input type="number" step="0.01" value={form.wholesale_rate} onChange={(e) => set("wholesale_rate", e.target.value)} />
-      </div>
-      <div>
-        <Label>Sale rate</Label>
-        <Input type="number" step="0.01" value={form.sale_rate} onChange={(e) => set("sale_rate", e.target.value)} />
-      </div>
-      <div>
         <Label>Opening qty</Label>
         <Input type="number" step="0.1" value={form.opening_qty} onChange={(e) => set("opening_qty", e.target.value)} />
-      </div>
-      <div>
-        <Label>Opening rate</Label>
-        <Input type="number" step="0.01" value={form.opening_rate} onChange={(e) => set("opening_rate", e.target.value)} />
-      </div>
-      <div>
-        <Label>Reorder level</Label>
-        <Input type="number" step="0.1" value={form.reorder_level} onChange={(e) => set("reorder_level", e.target.value)} />
       </div>
       <div>
         <Label>Packing</Label>
         <Input type="number" step="0.1" value={form.packing} onChange={(e) => set("packing", e.target.value)} />
       </div>
       <div>
-        <Label>Scheme</Label>
-        <Input value={form.scheme} onChange={(e) => set("scheme", e.target.value)} />
+        <Label>Bonus (item-wise)</Label>
+        <Input
+          value={form.scheme}
+          onChange={(e) => set("scheme", e.target.value)}
+          placeholder="10+1"
+        />
+        <p className="mt-1 text-[11px] text-[var(--muted)]">
+          Shop bonus per item, e.g. 10+1. Auto-calculates on sale lines.
+        </p>
       </div>
 
       {error ? (

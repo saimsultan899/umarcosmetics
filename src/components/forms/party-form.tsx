@@ -5,6 +5,7 @@ import { useCreateDialogClose } from "@/components/ui/create-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
 import { createClient } from "@/lib/supabase/client";
 import type { Party, PartySubtype, PartyType, SaleChannel } from "@/lib/types/database";
 import { useRouter } from "next/navigation";
@@ -149,8 +150,12 @@ export function PartyForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-3 sm:grid-cols-2">
-      <div>
+    <form
+      onSubmit={onSubmit}
+      className="grid gap-3 sm:grid-cols-2"
+      data-enter-root
+      onKeyDown={(e) => handleEnterAsNext(e)}
+    >      <div>
         <Label>Party code (auto serial)</Label>
         <Input
           value={form.party_code}

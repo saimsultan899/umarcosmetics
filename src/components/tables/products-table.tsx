@@ -32,7 +32,7 @@ function productFields(p: Product): DetailField[] {
     { label: "Opening rate", value: formatPkr(p.opening_rate) },
     { label: "Reorder", value: formatNumber(p.reorder_level, 0) },
     { label: "Packing", value: formatNumber(p.packing, 0) },
-    { label: "Scheme", value: p.scheme || "—" },
+    { label: "Bonus", value: p.scheme || "—" },
     { label: "Status", value: p.is_active ? "Active" : "Inactive" },
   ];
 }

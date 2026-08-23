@@ -243,7 +243,8 @@ export default async function SaleReportsPage({
         />
       ) : (
         <ReportTable
-          title={`${activeLabel} — ${company.name}`}
+          title={activeLabel}
+          companyName={company.name}
           subtitle={`${from} to ${to} · ${rows.length} rows`}
           rows={rows}
           filename={`sale-${type}-${from}-${to}`}

@@ -4,6 +4,7 @@ import { PartyCodeCell } from "@/components/forms/party-code-cell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
 import { createClient } from "@/lib/supabase/client";
 import type { Party } from "@/lib/types/database";
 import { formatPkr } from "@/lib/utils";
@@ -87,7 +88,12 @@ export function JournalVoucherForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5">
+    <form
+      onSubmit={onSubmit}
+      className="space-y-5"
+      data-enter-root
+      onKeyDown={(e) => handleEnterAsNext(e)}
+    >
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <Label>Date</Label>

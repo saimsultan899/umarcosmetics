@@ -220,7 +220,7 @@ export default async function RecoverySheetPage({
         </div>
       </form>
 
-      <div id="print-area" className="print-sheet table-shell">
+      <div id="print-area" className="table-shell">
         <div className="border-b border-[var(--border)] px-4 py-3">
           <p className="font-[family-name:var(--font-display)] text-lg font-semibold">
             Recovery Sheet — {company.name}
@@ -271,6 +271,78 @@ export default async function RecoverySheetPage({
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Field recovery sheet — print only (crisp borders + handwriting columns) */}
+      <div className="print-only print-sheet report-print report-print--form">
+        <div className="report-print-head">
+          <div>
+            <p className="report-print-title">Recovery Sheet</p>
+            <p className="report-print-co">{company.name}</p>
+          </div>
+          <p className="report-print-meta">
+            As of {asOf}
+            {sp.city ? ` · ${sp.city}` : ""}
+            {sp.route ? ` · ${sp.route}` : ""}
+            <br />
+            {outstanding.length} shops · Due {formatPkr(dueTotal)}
+          </p>
+        </div>
+
+        {outstanding.length ? (
+          <table>
+            <thead>
+              <tr>
+                <th className="num" style={{ width: "8mm" }}>
+                  #
+                </th>
+                <th>Code</th>
+                <th>Shop</th>
+                <th>City / Route</th>
+                <th className="num">Balance</th>
+                <th className="num">Credit limit</th>
+                <th style={{ width: "26mm" }}>Received Rs.</th>
+                <th style={{ width: "30mm" }}>Signature / Remarks</th>
+              </tr>
+            </thead>
+            <tbody>
+              {outstanding.map((r, i) => (
+                <tr key={r.party_id}>
+                  <td className="num">{i + 1}</td>
+                  <td>{r.party_code}</td>
+                  <td>{r.name_en}</td>
+                  <td>{[r.city, r.route].filter(Boolean).join(" · ") || "—"}</td>
+                  <td className="num">{balanceLabel(Number(r.balance))}</td>
+                  <td className="num">
+                    {Number(r.credit_limit) > 0 ? formatPkr(r.credit_limit) : "—"}
+                  </td>
+                  <td />
+                  <td />
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={4} className="num">
+                  Total due
+                </td>
+                <td className="num">{formatPkr(dueTotal)}</td>
+                <td />
+                <td />
+                <td />
+              </tr>
+            </tfoot>
+          </table>
+        ) : (
+          <p style={{ padding: "16px 0", fontSize: 12 }}>
+            No outstanding debit balances for this filter.
+          </p>
+        )}
+
+        <div className="report-print-foot">
+          <span>Salesman: ______________________</span>
+          <span>Total cash collected: ______________ · Umar Distribution Software</span>
+        </div>
       </div>
 
       <div className="panel p-5 no-print">

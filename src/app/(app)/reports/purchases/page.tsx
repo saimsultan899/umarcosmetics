@@ -157,7 +157,8 @@ export default async function PurchaseReportsPage({
       ) : null}
 
       <ReportTable
-        title={`${activeLabel} — ${company.name}`}
+        title={activeLabel}
+        companyName={company.name}
         subtitle={`${from} to ${to} · ${rows.length} rows`}
         rows={rows}
         filename={`purchase-${type}-${from}-${to}`}

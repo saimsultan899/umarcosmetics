@@ -1,6 +1,5 @@
-import { PrintButton } from "@/components/ui/print-button";
+import { PrintDocument } from "@/components/trading/print-document";
 import { requireCompanyContext } from "@/lib/auth";
-import { formatNumber } from "@/lib/utils";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -29,57 +28,47 @@ export default async function LoadSheetDetailPage({
   );
 
   return (
-    <div className="animate-rise space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className="animate-rise space-y-4">
+      <div className="no-print flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
             Van load sheet
           </p>
-          <h1 className="mt-1 font-[family-name:var(--font-display)] text-3xl font-semibold">
+          <h1 className="mt-1 font-[family-name:var(--font-display)] text-2xl font-semibold">
             {sheet.sheet_no}
           </h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            {sheet.sheet_date} · {wh?.name || "Warehouse"} ·{" "}
-            {[sheet.vehicle_no, sheet.route].filter(Boolean).join(" · ") || "No route"}
-          </p>
         </div>
-        <div className="flex gap-2">
-          <Link
-            href="/inventory/load-sheets"
-            className="rounded-lg border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium"
-          >
-            Back
-          </Link>
-          <PrintButton label="Print load sheet" />
-        </div>
+        <Link
+          href="/inventory/load-sheets"
+          className="rounded-lg border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium"
+        >
+          Back
+        </Link>
       </div>
 
-      <div className="table-shell print:border-0 print:shadow-none">
-        <table>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Code</th>
-              <th>Product</th>
-              <th className="text-right">Qty</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item, idx) => (
-              <tr key={item.id}>
-                <td>{idx + 1}</td>
-                <td className="font-medium">{item.product_code}</td>
-                <td>{item.product_name}</td>
-                <td className="text-right">{formatNumber(item.qty, 3)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {sheet.narration ? (
-        <p className="text-sm text-[var(--muted)]">Note: {sheet.narration}</p>
-      ) : null}
+      <PrintDocument
+        companyName={company.name}
+        companyAddress={[company.address, company.city].filter(Boolean).join(", ")}
+        companyNtn={company.ntn}
+        companyPhone={company.phone}
+        title="Van Load Sheet"
+        docNo={sheet.sheet_no}
+        date={sheet.sheet_date}
+        warehouseName={wh?.name}
+        extraMeta={[
+          ...(sheet.vehicle_no
+            ? [{ label: "Vehicle", value: sheet.vehicle_no }]
+            : []),
+          ...(sheet.route ? [{ label: "Route", value: sheet.route }] : []),
+        ]}
+        lines={items.map((item) => ({
+          product_code: item.product_code,
+          product_name: item.product_name,
+          qty: Number(item.qty),
+        }))}
+        signatures={["Storekeeper", "Driver / Salesman"]}
+        footerNote={sheet.narration ? `Note: ${sheet.narration}` : undefined}
+      />
     </div>
   );
 }
