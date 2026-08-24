@@ -10,6 +10,7 @@ export type LineItemDraft = {
   /** Free / bonus pieces (item-wise scheme, e.g. 10+1). Not billed. */
   bonus: string;
   rate: string;
+  /** Discount percent (0–100) applied to the line's gross (qty × rate). */
   discount: string;
   scheme: string;
   amount: number;
@@ -65,11 +66,17 @@ export type StockTransfer = {
   to_warehouse?: { name: string } | null;
 };
 
-export function calcLineAmount(qty: string, rate: string, discount: string) {
-  const q = Number(qty || 0);
-  const r = Number(rate || 0);
-  const d = Number(discount || 0);
-  return Math.max(0, q * r - d);
+/** Rupee discount implied by a line's discount percent, clamped to the gross. */
+export function calcLineDiscount(qty: string, rate: string, discountPct: string) {
+  const gross = Number(qty || 0) * Number(rate || 0);
+  const pct = Number(discountPct || 0);
+  if (!(gross > 0) || !(pct > 0)) return 0;
+  return Math.round(Math.min(gross, (gross * pct) / 100) * 100) / 100;
+}
+
+export function calcLineAmount(qty: string, rate: string, discountPct: string) {
+  const gross = Number(qty || 0) * Number(rate || 0);
+  return Math.max(0, gross - calcLineDiscount(qty, rate, discountPct));
 }
 
 export function emptyLine(): LineItemDraft {

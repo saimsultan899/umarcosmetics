@@ -9,7 +9,7 @@ import { Select } from "@/components/ui/select";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
 import { createClient } from "@/lib/supabase/client";
 import type { Party, Product, Warehouse } from "@/lib/types/database";
-import { type LineItemDraft } from "@/lib/types/trading";
+import { type LineItemDraft, calcLineDiscount } from "@/lib/types/trading";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
@@ -67,7 +67,7 @@ export function ReturnForm({
           product_name: l.product_name,
           qty: Number(l.qty),
           rate: Number(l.rate),
-          discount: Number(l.discount || 0),
+          discount: calcLineDiscount(l.qty, l.rate, l.discount),
           amount: l.amount,
         })),
       },

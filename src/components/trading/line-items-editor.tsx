@@ -13,6 +13,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Product, Warehouse } from "@/lib/types/database";
 import {
   calcLineAmount,
+  calcLineDiscount,
   emptyLine,
   type LineItemDraft,
 } from "@/lib/types/trading";
@@ -425,7 +426,10 @@ export function LineItemsEditor({
     (s, l) => s + Number(l.qty || 0) * Number(l.rate || 0),
     0,
   );
-  const discount = lines.reduce((s, l) => s + Number(l.discount || 0), 0);
+  const discount = lines.reduce(
+    (s, l) => s + calcLineDiscount(l.qty, l.rate, l.discount),
+    0,
+  );
   const grand = lines.reduce((s, l) => s + l.amount, 0);
   const draftAmount = calcLineAmount(draft.qty, draft.rate, draft.discount);
 
@@ -469,7 +473,7 @@ export function LineItemsEditor({
             → bonus
           </>
         ) : null}{" "}
-        → rate → discount → <kbd className="rounded bg-white px-1">Enter</kbd>{" "}
+        → rate → discount % → <kbd className="rounded bg-white px-1">Enter</kbd>{" "}
         adds the line. No need to click Add line.
       </div>
 
@@ -482,7 +486,7 @@ export function LineItemsEditor({
               <th className="w-28">Qty</th>
               {enableBonus ? <th className="w-24">Bonus</th> : null}
               <th className="w-28">Rate</th>
-              <th className="w-28">Discount</th>
+              <th className="w-28">Discount %</th>
               <th className="w-28">Amount</th>
               <th className="w-12" />
             </tr>
@@ -596,11 +600,19 @@ export function LineItemsEditor({
                   ref={discountRef}
                   type="number"
                   min="0"
+                  max="100"
                   step="0.1"
                   value={draft.discount}
                   onChange={(e) => patchDraft({ discount: e.target.value })}
                   onKeyDown={onDiscountEnter}
                 />
+                {Number(draft.discount) > 0 ? (
+                  <p className="mt-1 text-[10px] text-[var(--muted)]">
+                    {formatPkr(
+                      calcLineDiscount(draft.qty, draft.rate, draft.discount),
+                    )}
+                  </p>
+                ) : null}
               </td>
               <td className="font-medium text-[var(--muted)]">
                 {formatPkr(draftAmount)}
@@ -790,6 +802,7 @@ export function LineItemsEditor({
                       data-line-discount="1"
                       type="number"
                       min="0"
+                      max="100"
                       step="0.1"
                       value={line.discount}
                       onChange={(e) =>
@@ -803,6 +816,13 @@ export function LineItemsEditor({
                         }
                       }}
                     />
+                    {Number(line.discount) > 0 ? (
+                      <p className="mt-1 text-[10px] text-[var(--muted)]">
+                        {formatPkr(
+                          calcLineDiscount(line.qty, line.rate, line.discount),
+                        )}
+                      </p>
+                    ) : null}
                   </td>
                   <td className="font-medium">{formatPkr(line.amount)}</td>
                   <td>
@@ -846,7 +866,7 @@ export function summarizeLines(lines: LineItemDraft[]) {
     0,
   );
   const discount_total = lines.reduce(
-    (s, l) => s + Number(l.discount || 0),
+    (s, l) => s + calcLineDiscount(l.qty, l.rate, l.discount),
     0,
   );
   const grand_total = lines.reduce((s, l) => s + l.amount, 0);
