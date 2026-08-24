@@ -30,24 +30,47 @@ function friendlyStockError(
   });
 }
 
+export type StockBalanceLite = {
+  product_id: string;
+  warehouse_id: string;
+  qty: number;
+};
+
 export function SaleInvoiceForm({
   companyId,
   organizationId,
   parties,
   products,
   warehouses,
+  stockBalances = [],
 }: {
   companyId: string;
   organizationId: string;
   parties: Party[];
   products: Product[];
   warehouses: Warehouse[];
+  stockBalances?: StockBalanceLite[];
 }) {
   const router = useRouter();
   const customers = useMemo(
     () => parties.filter((p) => p.party_subtype === "customer" || p.party_subtype === "both" || p.party_type === "PARTY"),
     [parties],
   );
+
+  // product_id → warehouses that stock it, highest qty first
+  const stockByProduct = useMemo(() => {
+    const map = new Map<string, { warehouseId: string; qty: number }[]>();
+    for (const row of stockBalances) {
+      const qty = Number(row.qty);
+      if (!(qty > 0)) continue;
+      const list = map.get(row.product_id) || [];
+      list.push({ warehouseId: row.warehouse_id, qty });
+      map.set(row.product_id, list);
+    }
+    for (const list of map.values()) list.sort((a, b) => b.qty - a.qty);
+    return map;
+  }, [stockBalances]);
+
 
   const [partyId, setPartyId] = useState("");
   const [warehouseId, setWarehouseId] = useState(warehouses[0]?.id || "");
@@ -207,6 +230,10 @@ export function SaleInvoiceForm({
         companyId={companyId}
         partyId={partyId}
         enableBonus
+        warehouseId={warehouseId}
+        warehouses={warehouses}
+        stockByProduct={stockByProduct}
+        onAutoPickWarehouse={setWarehouseId}
       />
 
       {creditWarning ? (

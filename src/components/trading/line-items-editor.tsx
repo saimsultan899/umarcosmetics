@@ -10,7 +10,7 @@ import {
   type RateField,
 } from "@/lib/product-rate";
 import { createClient } from "@/lib/supabase/client";
-import type { Product } from "@/lib/types/database";
+import type { Product, Warehouse } from "@/lib/types/database";
 import {
   calcLineAmount,
   emptyLine,
@@ -24,7 +24,7 @@ import {
   toPieces,
 } from "@/lib/pricing/uom";
 import { computeLineScheme } from "@/lib/pricing/discounts";
-import { formatPkr } from "@/lib/utils";
+import { formatPkr, cn } from "@/lib/utils";
 import { Trash2 } from "lucide-react";
 import {
   useEffect,
@@ -50,6 +50,13 @@ export function LineItemsEditor({
   autoFocus = true,
   /** Distributor→shop item-wise free goods (e.g. 10+1 from product bonus). */
   enableBonus = false,
+  /** Currently selected header warehouse (sale invoice). */
+  warehouseId,
+  warehouses,
+  /** product_id → warehouses stocking it, highest qty first. Enables stock hints. */
+  stockByProduct,
+  /** When set, picking a product auto-selects the warehouse that stocks it. */
+  onAutoPickWarehouse,
 }: {
   products: Product[];
   lines: LineItemDraft[];
@@ -60,6 +67,10 @@ export function LineItemsEditor({
   /** Focus the sticky code field when the editor mounts / resets. */
   autoFocus?: boolean;
   enableBonus?: boolean;
+  warehouseId?: string;
+  warehouses?: Warehouse[];
+  stockByProduct?: Map<string, { warehouseId: string; qty: number }[]>;
+  onAutoPickWarehouse?: (warehouseId: string) => void;
 }) {
   const [draft, setDraft] = useState<Draft>(blankDraft);
   const [hint, setHint] = useState<string | null>(null);
@@ -153,6 +164,39 @@ export function LineItemsEditor({
     return { rate, hint: sourceHint };
   }
 
+  const warehouseLabel = (id?: string) =>
+    warehouses?.find((w) => w.id === id)?.name || "selected warehouse";
+
+  function formatStockQty(qty: number) {
+    return Number.isInteger(qty)
+      ? String(qty)
+      : qty.toFixed(2).replace(/\.?0+$/, "");
+  }
+
+  type StockNote = { tone: "ok" | "warn" | "bad"; text: string };
+  /** Where a product is stocked, relative to the currently selected warehouse. */
+  function stockNoteFor(productId: string): StockNote | null {
+    if (!stockByProduct || !productId) return null;
+    const entries = stockByProduct.get(productId);
+    if (!entries || entries.length === 0) {
+      return { tone: "bad", text: "Out of stock in every warehouse" };
+    }
+    const inCurrent = warehouseId
+      ? entries.find((e) => e.warehouseId === warehouseId)
+      : undefined;
+    if (inCurrent && inCurrent.qty > 0) {
+      return {
+        tone: "ok",
+        text: `In stock: ${warehouseLabel(warehouseId)} · ${formatStockQty(inCurrent.qty)}`,
+      };
+    }
+    const best = entries[0];
+    return {
+      tone: "warn",
+      text: `In ${warehouseLabel(best.warehouseId)} · ${formatStockQty(best.qty)} — not in ${warehouseLabel(warehouseId)}`,
+    };
+  }
+
   async function applyProductToDraft(p: Product | null) {
     if (!p) {
       patchDraft({
@@ -171,6 +215,28 @@ export function LineItemsEditor({
         (x) => x.code.toLowerCase() === String(p.code || "").toLowerCase(),
       ) ||
       p;
+
+    // Auto-pick the warehouse that stocks this product (sale invoice only).
+    if (stockByProduct && onAutoPickWarehouse && catalog.id) {
+      const entries = stockByProduct.get(catalog.id);
+      const currentHasStock =
+        !!warehouseId &&
+        !!entries?.some((e) => e.warehouseId === warehouseId && e.qty > 0);
+      if (entries?.length && !currentHasStock) {
+        const best = entries[0];
+        // Don't strand lines already stocked in the current warehouse.
+        const safe = linesRef.current
+          .filter((l) => l.product_id)
+          .every((l) =>
+            stockByProduct
+              .get(l.product_id)
+              ?.some((x) => x.warehouseId === best.warehouseId && x.qty > 0),
+          );
+        if (safe && best.warehouseId !== warehouseId) {
+          onAutoPickWarehouse(best.warehouseId);
+        }
+      }
+    }
 
     const current = draftRef.current;
     const qty = current && Number(current.qty) > 0 ? current.qty : "1";
@@ -444,6 +510,24 @@ export function LineItemsEditor({
                   onOpenChange={setProductOpen}
                   onChange={(e) => void onProductPicked(e.target.value)}
                 />
+                {(() => {
+                  const note = stockNoteFor(draft.product_id);
+                  if (!note) return null;
+                  return (
+                    <p
+                      className={cn(
+                        "mt-1 text-[10px]",
+                        note.tone === "ok"
+                          ? "text-[var(--brand)]"
+                          : note.tone === "warn"
+                            ? "text-amber-700"
+                            : "text-rose-600",
+                      )}
+                    >
+                      {note.text}
+                    </p>
+                  );
+                })()}
               </td>
               <td>
                 <Input
@@ -560,6 +644,22 @@ export function LineItemsEditor({
                     <div className="truncate px-1 text-sm font-medium">
                       {line.product_name || "—"}
                     </div>
+                    {(() => {
+                      const note = stockNoteFor(line.product_id);
+                      if (!note || note.tone === "ok") return null;
+                      return (
+                        <p
+                          className={cn(
+                            "px-1 text-[10px]",
+                            note.tone === "warn"
+                              ? "text-amber-700"
+                              : "text-rose-600",
+                          )}
+                        >
+                          {note.text}
+                        </p>
+                      );
+                    })()}
                   </td>
                   <td>
                     <Input

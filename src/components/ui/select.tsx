@@ -199,7 +199,10 @@ export const Select = forwardRef<
     return list;
   }, [choosable, query, selectedValue, maxVisible]);
 
-  const visible = filtered.slice(0, maxVisible);
+  const visible = useMemo(
+    () => filtered.slice(0, maxVisible),
+    [filtered, maxVisible],
+  );
   const hiddenCount = Math.max(0, filtered.length - visible.length);
 
   const keyboardOptions = useMemo(() => {

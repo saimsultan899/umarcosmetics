@@ -11,13 +11,20 @@ export default async function SaleInvoicesPage() {
   const { company, parties, products, warehouses, supabase } =
     await loadTradingMasters();
 
-  const { data: invoices } = await supabase
-    .from("sale_invoices")
-    .select("*, parties(name_en, party_code), warehouses(name)")
-    .eq("company_id", company.id)
-    .order("invoice_date", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(500);
+  const [{ data: invoices }, { data: stockRows }] = await Promise.all([
+    supabase
+      .from("sale_invoices")
+      .select("*, parties(name_en, party_code), warehouses(name)")
+      .eq("company_id", company.id)
+      .order("invoice_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(500),
+    supabase
+      .from("stock_balances")
+      .select("product_id, warehouse_id, qty")
+      .eq("company_id", company.id)
+      .gt("qty", 0),
+  ]);
 
   const rows = ((invoices as SaleInvoice[]) || []).map((inv) => ({
     id: inv.id,
@@ -58,6 +65,13 @@ export default async function SaleInvoicesPage() {
                 parties={parties}
                 products={products}
                 warehouses={warehouses}
+                stockBalances={
+                  (stockRows as {
+                    product_id: string;
+                    warehouse_id: string;
+                    qty: number;
+                  }[]) || []
+                }
               />
           </CreateDialogButton>
         }
