@@ -3,27 +3,29 @@ import {
   CreateDialogButton,
   PageHeading,
 } from "@/components/ui/create-dialog";
+import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { CashVoucherForm } from "@/components/vouchers/voucher-lines-form";
 import { requireCompanyContext } from "@/lib/auth";
+import { fetchVoucherList } from "@/lib/queries/vouchers";
 import type { Party } from "@/lib/types/database";
+import { Suspense } from "react";
 
-export default async function CashPaymentPage() {
+export default async function CashPaymentPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = await searchParams;
   const { supabase, company } = await requireCompanyContext();
 
-  const [{ data: parties }, { data: vouchers }] = await Promise.all([
+  const [{ data: parties }, list] = await Promise.all([
     supabase
       .from("parties")
       .select("*")
       .eq("company_id", company.id)
       .eq("is_active", true)
       .order("name_en"),
-    supabase
-      .from("vouchers")
-      .select("*")
-      .eq("company_id", company.id)
-      .eq("voucher_type", "CP")
-      .order("voucher_date", { ascending: false })
-      .limit(50),
+    fetchVoucherList(supabase, company.id, sp, "CP"),
   ]);
 
   return (
@@ -38,21 +40,24 @@ export default async function CashPaymentPage() {
             description="Post money paid against parties"
             size="xl"
           >
-              <CashVoucherForm
-                kind="CP"
-                companyId={company.id}
-                organizationId={company.organization_id}
-                parties={(parties || []) as Party[]}
-              />
+            <CashVoucherForm
+              kind="CP"
+              companyId={company.id}
+              organizationId={company.organization_id}
+              parties={(parties || []) as Party[]}
+            />
           </CreateDialogButton>
         }
       />
 
-      <VouchersTable
-        vouchers={vouchers || []}
-        emptyLabel="No cash payments yet."
-        detailBasePath="/vouchers/cash-payment"
-      />
+      <Suspense fallback={<PageSkeleton />}>
+        <VouchersTable
+          vouchers={list.vouchers}
+          pagination={list.pagination}
+          emptyLabel="No cash payments yet."
+          detailBasePath="/vouchers/cash-payment"
+        />
+      </Suspense>
     </div>
   );
 }

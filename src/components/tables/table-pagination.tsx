@@ -12,6 +12,7 @@ export function TablePagination({
   to,
   onPageChange,
   onPageSizeChange,
+  loading = false,
 }: {
   page: number;
   totalPages: number;
@@ -21,6 +22,7 @@ export function TablePagination({
   to: number;
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
+  loading?: boolean;
 }) {
   if (total === 0) {
     return (
@@ -45,7 +47,10 @@ export function TablePagination({
   }
 
   return (
-    <div className="table-pagination flex w-full flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 text-xs">
+    <div
+      className="table-pagination flex w-full flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 text-xs"
+      aria-busy={loading}
+    >
       <p className="text-[var(--muted)]">
         Showing{" "}
         <span className="font-semibold text-[var(--ink)]">
@@ -76,7 +81,7 @@ export function TablePagination({
           <button
             type="button"
             className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] bg-white text-[var(--ink)] disabled:opacity-40"
-            disabled={page <= 1}
+            disabled={loading || page <= 1}
             onClick={() => onPageChange(page - 1)}
             aria-label="Previous page"
           >
@@ -88,7 +93,7 @@ export function TablePagination({
           <button
             type="button"
             className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] bg-white text-[var(--ink)] disabled:opacity-40"
-            disabled={page >= totalPages}
+            disabled={loading || page >= totalPages}
             onClick={() => onPageChange(page + 1)}
             aria-label="Next page"
           >

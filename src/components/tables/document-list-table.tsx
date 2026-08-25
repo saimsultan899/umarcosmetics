@@ -5,102 +5,87 @@ import { DonutChart, TrendAreaChart } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { DocumentRowActions } from "@/components/tables/document-row-actions";
 import { FilterChip } from "@/components/tables/filter-chip";
+import {
+  TableFilterSelect,
+  warehouseOptions,
+} from "@/components/tables/table-filter-select";
+import { TableBodySkeleton } from "@/components/tables/table-body-skeleton";
 import { TablePagination } from "@/components/tables/table-pagination";
 import { TableToolbar } from "@/components/tables/table-toolbar";
-import { groupSum, sumByDay } from "@/lib/analytics/aggregate";
-import { useClientPagination } from "@/hooks/use-client-pagination";
+import { useUrlTableState } from "@/hooks/use-url-table-state";
+import type {
+  DocumentListRow,
+  DocumentListSummary,
+} from "@/lib/queries/documents";
+import type { PaginationMeta } from "@/lib/pagination";
 import { formatPkr } from "@/lib/utils";
 import { Banknote, CreditCard, FileText, ShoppingCart } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-export type DocumentListRow = {
-  id: string;
-  docNo: string;
-  date: string;
-  partyLabel: string;
-  warehouseLabel?: string;
-  paymentType?: string;
-  total: number;
-  href: string;
-  table: string;
-  linesTable: string;
-  linesFk: string;
-  extraFields?: Array<{ label: string; value: string }>;
-};
+export type { DocumentListRow };
 
 export function DocumentListTable({
   title,
   rows,
+  pagination,
+  summary,
   showPaymentFilter = false,
+  warehouses = [],
 }: {
   title?: string;
   rows: DocumentListRow[];
+  pagination: PaginationMeta;
+  summary: DocumentListSummary;
   showPaymentFilter?: boolean;
+  warehouses?: Array<{ id: string; name: string }>;
 }) {
-  const [query, setQuery] = useState("");
-  const [payment, setPayment] = useState<"all" | "cash" | "credit" | "partial">(
-    "all",
+  const filterKeys = useMemo(
+    () => [
+      ...(showPaymentFilter ? ["payment"] : []),
+      ...(warehouses.length ? ["warehouse"] : []),
+    ],
+    [showPaymentFilter, warehouses.length],
   );
+  const { q, isPending, setPage, setPageSize, setQuery, setFilter, filters } =
+    useUrlTableState(filterKeys);
+  const [localQuery, setLocalQuery] = useState(q);
+  const payment = (filters.payment || "all") as
+    | "all"
+    | "cash"
+    | "credit"
+    | "partial";
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return rows.filter((r) => {
-      if (payment !== "all" && (r.paymentType || "") !== payment) return false;
-      if (!q) return true;
-      return [r.docNo, r.date, r.partyLabel, r.warehouseLabel, r.paymentType]
-        .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(q));
-    });
-  }, [rows, query, payment]);
-
-  const pager = useClientPagination(filtered);
-
-  const totalAmount = filtered.reduce((s, r) => s + Number(r.total || 0), 0);
-  const cashTotal = filtered
-    .filter((r) => r.paymentType === "cash")
-    .reduce((s, r) => s + Number(r.total || 0), 0);
-  const creditTotal = filtered
-    .filter((r) => r.paymentType === "credit" || r.paymentType === "partial")
-    .reduce((s, r) => s + Number(r.total || 0), 0);
-
-  const trend = sumByDay(
-    filtered.map((r) => ({ date: r.date, amount: Number(r.total || 0) })),
-    14,
-  );
-  const mix = groupSum(
-    filtered.map((r) => ({
-      key: String(r.paymentType || "n/a").toUpperCase(),
-      amount: Number(r.total || 0),
-    })),
-  );
+  useEffect(() => {
+    setLocalQuery(q);
+  }, [q]);
 
   return (
     <div className="space-y-6">
       <StatsGrid>
         <StatCard
           label="In filter"
-          value={filtered.length}
+          value={pagination.total}
           format="number"
           icon={FileText}
           hint={title || "Documents matching filter"}
         />
         <StatCard
-          label="Total amount"
-          value={totalAmount}
+          label="Recent total"
+          value={summary.totalAmount}
           format="money"
           icon={ShoppingCart}
-          hint="Sum of filtered rows"
+          hint="Latest 300 documents snapshot"
         />
         {showPaymentFilter ? (
           <>
             <button
               type="button"
               className="text-left"
-              onClick={() => setPayment("cash")}
+              onClick={() => setFilter("payment", "cash")}
             >
               <StatCard
                 label="Cash"
-                value={cashTotal}
+                value={summary.cashTotal}
                 format="money"
                 icon={Banknote}
                 tone={payment === "cash" ? "brand" : "ok"}
@@ -110,11 +95,11 @@ export function DocumentListTable({
             <button
               type="button"
               className="text-left"
-              onClick={() => setPayment("credit")}
+              onClick={() => setFilter("payment", "credit")}
             >
               <StatCard
                 label="Credit / partial"
-                value={creditTotal}
+                value={summary.creditTotal}
                 format="money"
                 icon={CreditCard}
                 tone={payment === "credit" ? "brand" : "warn"}
@@ -125,10 +110,12 @@ export function DocumentListTable({
         ) : (
           <StatCard
             label="Avg document"
-            value={filtered.length ? totalAmount / filtered.length : 0}
+            value={
+              pagination.total ? summary.totalAmount / Math.min(300, pagination.total) : 0
+            }
             format="money"
             tone="neutral"
-            hint="Average of filtered set"
+            hint="Recent average"
           />
         )}
       </StatsGrid>
@@ -137,27 +124,27 @@ export function DocumentListTable({
         <ChartCard
           className="lg:col-span-2"
           title="Daily total"
-          subtitle="Based on filtered documents"
+          subtitle="Recent documents"
         >
-          <TrendAreaChart data={trend} valueLabel="Amount" />
+          <TrendAreaChart data={summary.trend} valueLabel="Amount" />
         </ChartCard>
         {showPaymentFilter ? (
-          <ChartCard title="Payment mix" subtitle="Filtered set">
+          <ChartCard title="Payment mix" subtitle="Recent documents">
             <DonutChart
-              data={mix}
-              centerValue={formatPkr(totalAmount)}
+              data={summary.mix}
+              centerValue={formatPkr(summary.totalAmount)}
               centerLabel="Total"
             />
           </ChartCard>
         ) : (
-          <ChartCard title="Summary" subtitle="Filtered amount">
+          <ChartCard title="Summary" subtitle="Recent amount">
             <div className="flex h-full min-h-[220px] flex-col justify-center gap-3">
-              <p className="text-sm text-[var(--muted)]">Filtered total</p>
+              <p className="text-sm text-[var(--muted)]">Recent total</p>
               <p className="font-[family-name:var(--font-display)] text-3xl font-semibold">
-                {formatPkr(totalAmount)}
+                {formatPkr(summary.totalAmount)}
               </p>
               <p className="text-xs text-[var(--muted)]">
-                {filtered.length} documents · page size adjustable below
+                {pagination.total} documents · server-paginated below
               </p>
             </div>
           </ChartCard>
@@ -166,32 +153,47 @@ export function DocumentListTable({
 
       <div>
         <TableToolbar
-          query={query}
-          onQueryChange={setQuery}
-          placeholder="Search doc #, party, date..."
-          resultCount={filtered.length}
-          totalCount={rows.length}
+          query={localQuery}
+          onQueryChange={(value) => {
+            setLocalQuery(value);
+            setQuery(value);
+          }}
+          loading={isPending}
+          placeholder="Search doc #..."
+          resultCount={pagination.total}
+          totalCount={pagination.total}
           filters={
-            showPaymentFilter ? (
-              <>
-                {(
-                  [
-                    ["all", "All"],
-                    ["cash", "Cash"],
-                    ["credit", "Credit"],
-                    ["partial", "Partial"],
-                  ] as const
-                ).map(([key, label]) => (
-                  <FilterChip
-                    key={key}
-                    active={payment === key}
-                    onClick={() => setPayment(key)}
-                  >
-                    {label}
-                  </FilterChip>
-                ))}
-              </>
-            ) : undefined
+            <div className="flex flex-wrap items-center gap-2">
+              {showPaymentFilter
+                ? (
+                    [
+                      ["all", "All"],
+                      ["cash", "Cash"],
+                      ["credit", "Credit"],
+                      ["partial", "Partial"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <FilterChip
+                      key={key}
+                      active={payment === key}
+                      onClick={() =>
+                        setFilter("payment", key === "all" ? null : key)
+                      }
+                    >
+                      {label}
+                    </FilterChip>
+                  ))
+                : null}
+              {warehouses.length ? (
+                <TableFilterSelect
+                  label="Warehouse"
+                  value={filters.warehouse || ""}
+                  options={warehouseOptions(warehouses)}
+                  loading={isPending}
+                  onChange={(value) => setFilter("warehouse", value)}
+                />
+              ) : null}
+            </div>
           }
         />
 
@@ -210,8 +212,13 @@ export function DocumentListTable({
                 </tr>
               </thead>
               <tbody>
-                {pager.slice.length ? (
-                  pager.slice.map((inv) => (
+                {isPending ? (
+                  <TableBodySkeleton
+                    rows={pagination.pageSize}
+                    cols={showPaymentFilter ? 7 : 6}
+                  />
+                ) : rows.length ? (
+                  rows.map((inv) => (
                     <tr key={inv.id}>
                       <td className="font-medium">{inv.docNo}</td>
                       <td>{inv.date}</td>
@@ -263,14 +270,15 @@ export function DocumentListTable({
             </table>
           </div>
           <TablePagination
-            page={pager.page}
-            totalPages={pager.totalPages}
-            pageSize={pager.pageSize}
-            total={pager.total}
-            from={pager.from}
-            to={pager.to}
-            onPageChange={pager.setPage}
-            onPageSizeChange={pager.setPageSize}
+            page={pagination.page}
+            totalPages={pagination.totalPages}
+            pageSize={pagination.pageSize}
+            total={pagination.total}
+            from={pagination.from}
+            to={pagination.to}
+            loading={isPending}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
           />
         </div>
       </div>

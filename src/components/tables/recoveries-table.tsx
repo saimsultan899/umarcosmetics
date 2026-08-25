@@ -1,40 +1,38 @@
 "use client";
 
+import { TableBodySkeleton } from "@/components/tables/table-body-skeleton";
+import {
+  stringOptions,
+  TableFilterSelect,
+} from "@/components/tables/table-filter-select";
 import { TablePagination } from "@/components/tables/table-pagination";
 import { TableToolbar } from "@/components/tables/table-toolbar";
 import { DetailField, RowActions } from "@/components/ui/row-actions";
-import { useClientPagination } from "@/hooks/use-client-pagination";
+import { useUrlTableState } from "@/hooks/use-url-table-state";
+import type { RecoveryRow } from "@/lib/queries/recoveries";
+import type { PaginationMeta } from "@/lib/pagination";
 import { createClient } from "@/lib/supabase/client";
 import { formatPkr } from "@/lib/utils";
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
-type RecoveryRow = {
-  id: string;
-  recovery_date: string;
-  amount: number;
-  city: string | null;
-  route: string | null;
-  remarks: string | null;
-  parties?: { party_code: string; name_en: string } | null;
-};
+export function RecoveriesTable({
+  rows,
+  pagination,
+  cityOptions = [],
+  sectorOptions = [],
+}: {
+  rows: RecoveryRow[];
+  pagination: PaginationMeta;
+  cityOptions?: string[];
+  sectorOptions?: string[];
+}) {
+  const { q, isPending, setPage, setPageSize, setQuery, setFilter, filters } =
+    useUrlTableState(["city", "sector"]);
+  const [localQuery, setLocalQuery] = useState(q);
 
-export function RecoveriesTable({ rows }: { rows: RecoveryRow[] }) {
-  const [query, setQuery] = useState("");
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((r) => {
-      const party = r.parties
-        ? `${r.parties.party_code} ${r.parties.name_en}`
-        : "";
-      return [r.recovery_date, party, r.city, r.route, r.remarks, r.amount]
-        .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(q));
-    });
-  }, [rows, query]);
-
-  const pager = useClientPagination(filtered);
+  useEffect(() => {
+    setLocalQuery(q);
+  }, [q]);
 
   async function remove(id: string) {
     const supabase = createClient();
@@ -45,11 +43,37 @@ export function RecoveriesTable({ rows }: { rows: RecoveryRow[] }) {
   return (
     <div>
       <TableToolbar
-        query={query}
-        onQueryChange={setQuery}
-        placeholder="Search recoveries..."
-        resultCount={filtered.length}
-        totalCount={rows.length}
+        query={localQuery}
+        onQueryChange={(value) => {
+          setLocalQuery(value);
+          setQuery(value);
+        }}
+        loading={isPending}
+        placeholder="Search party, city, sector, remarks..."
+        resultCount={pagination.total}
+        totalCount={pagination.total}
+        filters={
+          <div className="flex flex-wrap items-center gap-2">
+            {cityOptions.length ? (
+              <TableFilterSelect
+                label="City"
+                value={filters.city || ""}
+                options={stringOptions(cityOptions)}
+                loading={isPending}
+                onChange={(value) => setFilter("city", value)}
+              />
+            ) : null}
+            {sectorOptions.length ? (
+              <TableFilterSelect
+                label="Sector"
+                value={filters.sector || ""}
+                options={stringOptions(sectorOptions)}
+                loading={isPending}
+                onChange={(value) => setFilter("sector", value)}
+              />
+            ) : null}
+          </div>
+        }
       />
       <div className="table-shell">
         <div className="table-scroll">
@@ -65,8 +89,10 @@ export function RecoveriesTable({ rows }: { rows: RecoveryRow[] }) {
               </tr>
             </thead>
             <tbody>
-              {pager.slice.length ? (
-                pager.slice.map((r) => {
+              {isPending ? (
+                <TableBodySkeleton rows={pagination.pageSize} cols={6} />
+              ) : rows.length ? (
+                rows.map((r) => {
                   const party = r.parties
                     ? `${r.parties.party_code} — ${r.parties.name_en}`
                     : "—";
@@ -116,14 +142,15 @@ export function RecoveriesTable({ rows }: { rows: RecoveryRow[] }) {
           </table>
         </div>
         <TablePagination
-          page={pager.page}
-          totalPages={pager.totalPages}
-          pageSize={pager.pageSize}
-          total={pager.total}
-          from={pager.from}
-          to={pager.to}
-          onPageChange={pager.setPage}
-          onPageSizeChange={pager.setPageSize}
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          pageSize={pagination.pageSize}
+          total={pagination.total}
+          from={pagination.from}
+          to={pagination.to}
+          loading={isPending}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
         />
       </div>
     </div>

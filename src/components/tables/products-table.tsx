@@ -5,15 +5,22 @@ import { DonutChart, RankBars } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { ProductForm } from "@/components/forms/product-form";
 import { FilterChip } from "@/components/tables/filter-chip";
+import {
+  TableFilterSelect,
+  warehouseOptions,
+} from "@/components/tables/table-filter-select";
+import { TableBodySkeleton } from "@/components/tables/table-body-skeleton";
 import { TablePagination } from "@/components/tables/table-pagination";
 import { TableToolbar } from "@/components/tables/table-toolbar";
 import { DetailField, RowActions } from "@/components/ui/row-actions";
-import { useClientPagination } from "@/hooks/use-client-pagination";
+import { useUrlTableState } from "@/hooks/use-url-table-state";
+import type { PaginationMeta } from "@/lib/pagination";
+import type { ProductListStats } from "@/lib/queries/products";
 import { createClient } from "@/lib/supabase/client";
 import type { Product, Warehouse } from "@/lib/types/database";
 import { formatNumber, formatPkr } from "@/lib/utils";
 import { AlertTriangle, Package, Tags } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 function productFields(p: Product): DetailField[] {
   return [
@@ -41,6 +48,8 @@ type ViewFilter = "all" | "reorder";
 
 export function ProductsTable({
   products,
+  pagination,
+  stats,
   warehouses,
   companyId,
   organizationId,
@@ -49,6 +58,8 @@ export function ProductsTable({
   initialView,
 }: {
   products: Product[];
+  pagination: PaginationMeta;
+  stats: ProductListStats;
   warehouses: Warehouse[];
   companyId: string;
   organizationId: string;
@@ -56,55 +67,17 @@ export function ProductsTable({
   lowStockCodes?: string[];
   initialView?: string;
 }) {
-  const [query, setQuery] = useState("");
-  const [view, setView] = useState<ViewFilter>(
-    initialView === "reorder" ? "reorder" : "all",
-  );
+  const { q, isPending, setPage, setPageSize, setQuery, setFilter, filters } =
+    useUrlTableState(["view", "warehouse"]);
+  const [localQuery, setLocalQuery] = useState(q);
   const lowSet = useMemo(() => new Set(lowStockCodes || []), [lowStockCodes]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return products.filter((p) => {
-      if (view === "reorder" && !(Number(p.reorder_level) > 0)) return false;
-      if (!q) return true;
-      return [p.code, p.name_en, p.manufacturer, p.category_group, p.product_type]
-        .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(q));
-    });
-  }, [products, query, view]);
+  const view = (filters.view ||
+    (initialView === "reorder" ? "reorder" : "all")) as ViewFilter;
 
-  const pager = useClientPagination(filtered);
-
-  const stockValue = filtered.reduce(
-    (s, p) => s + Number(stockValueByCode?.[p.code] || 0),
-    0,
-  );
-  const lowCount = filtered.filter((p) => lowSet.has(p.code)).length;
-  const withReorder = filtered.filter((p) => Number(p.reorder_level) > 0).length;
-
-  const makers = new Map<string, number>();
-  for (const p of filtered) {
-    const key = p.manufacturer || "Unbranded";
-    makers.set(key, (makers.get(key) || 0) + 1);
-  }
-  const makerBars = [...makers.entries()]
-    .map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 6);
-
-  const topStock = filtered
-    .map((p) => ({
-      name: `${p.code} — ${p.name_en}`,
-      value: Number(stockValueByCode?.[p.code] || 0),
-    }))
-    .filter((x) => x.value > 0)
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 5);
-
-  const health = [
-    { name: "Healthy", value: Math.max(filtered.length - lowCount, 0) },
-    { name: "Low stock", value: lowCount },
-  ].filter((x) => x.value > 0);
+  useEffect(() => {
+    setLocalQuery(q);
+  }, [q]);
 
   async function deactivate(id: string) {
     const supabase = createClient();
@@ -120,23 +93,27 @@ export function ProductsTable({
       <StatsGrid>
         <StatCard
           label="SKUs in filter"
-          value={filtered.length}
+          value={stats.total}
           format="number"
           icon={Package}
           hint="Matches current search / chips"
         />
         <StatCard
-          label="Stock value"
-          value={stockValue}
+          label="Stock value (page)"
+          value={stats.stockValue}
           format="money"
           icon={Tags}
           tone="ok"
-          hint="Filtered catalog value"
+          hint="Current page catalog value"
         />
-        <button type="button" className="text-left" onClick={() => setView("reorder")}>
+        <button
+          type="button"
+          className="text-left"
+          onClick={() => setFilter("view", "reorder")}
+        >
           <StatCard
             label="With reorder level"
-            value={withReorder}
+            value={stats.withReorder}
             format="number"
             icon={AlertTriangle}
             tone={view === "reorder" ? "brand" : "warn"}
@@ -145,38 +122,42 @@ export function ProductsTable({
         </button>
         <StatCard
           label="Low stock SKUs"
-          value={lowCount}
+          value={stats.lowStock}
           format="number"
-          tone={lowCount > 0 ? "danger" : "ok"}
-          hint="Inside current filter"
+          tone={stats.lowStock > 0 ? "danger" : "ok"}
+          hint="Company-wide flagged SKUs"
         />
       </StatsGrid>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <ChartCard title="Stock health" subtitle="Based on current filter">
+        <ChartCard title="Stock health" subtitle="Current page">
           <DonutChart
-            data={health}
-            centerValue={formatPkr(stockValue)}
+            data={stats.health}
+            centerValue={formatPkr(stats.stockValue)}
             centerLabel="Value"
           />
         </ChartCard>
-        <ChartCard title="By manufacturer" subtitle="Updates with filters">
-          <RankBars data={makerBars} money={false} />
+        <ChartCard title="By manufacturer" subtitle="Current page">
+          <RankBars data={stats.makerBars} money={false} />
         </ChartCard>
-        <ChartCard title="Highest stock value" subtitle="In filtered set">
-          <RankBars data={topStock} />
+        <ChartCard title="Highest stock value" subtitle="Current page">
+          <RankBars data={stats.topStock} />
         </ChartCard>
       </div>
 
       <div>
         <TableToolbar
-          query={query}
-          onQueryChange={setQuery}
+          query={localQuery}
+          onQueryChange={(value) => {
+            setLocalQuery(value);
+            setQuery(value);
+          }}
+          loading={isPending}
           placeholder="Search code, name, brand, group..."
-          resultCount={filtered.length}
-          totalCount={products.length}
+          resultCount={pagination.total}
+          totalCount={pagination.total}
           filters={
-            <>
+            <div className="flex flex-wrap items-center gap-2">
               {(
                 [
                   ["all", "All"],
@@ -186,12 +167,23 @@ export function ProductsTable({
                 <FilterChip
                   key={key}
                   active={view === key}
-                  onClick={() => setView(key)}
+                  onClick={() =>
+                    setFilter("view", key === "all" ? null : key)
+                  }
                 >
                   {label}
                 </FilterChip>
               ))}
-            </>
+              {warehouses.length ? (
+                <TableFilterSelect
+                  label="Warehouse"
+                  value={filters.warehouse || ""}
+                  options={warehouseOptions(warehouses)}
+                  loading={isPending}
+                  onChange={(value) => setFilter("warehouse", value)}
+                />
+              ) : null}
+            </div>
           }
         />
 
@@ -211,9 +203,14 @@ export function ProductsTable({
                 </tr>
               </thead>
               <tbody>
-                {pager.slice.length ? (
-                  pager.slice.map((p) => (
-                    <tr key={p.id}>
+                {isPending ? (
+                  <TableBodySkeleton rows={pagination.pageSize} cols={8} />
+                ) : products.length ? (
+                  products.map((p) => (
+                    <tr
+                      key={p.id}
+                      className={lowSet.has(p.code) ? "bg-rose-50/40" : undefined}
+                    >
                       <td className="font-medium">{p.code}</td>
                       <td>
                         <div>{p.name_en}</div>
@@ -265,14 +262,15 @@ export function ProductsTable({
             </table>
           </div>
           <TablePagination
-            page={pager.page}
-            totalPages={pager.totalPages}
-            pageSize={pager.pageSize}
-            total={pager.total}
-            from={pager.from}
-            to={pager.to}
-            onPageChange={pager.setPage}
-            onPageSizeChange={pager.setPageSize}
+            page={pagination.page}
+            totalPages={pagination.totalPages}
+            pageSize={pagination.pageSize}
+            total={pagination.total}
+            from={pagination.from}
+            to={pagination.to}
+            loading={isPending}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
           />
         </div>
       </div>

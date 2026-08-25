@@ -10,6 +10,7 @@ export function TableToolbar({
   filters,
   resultCount,
   totalCount,
+  loading = false,
 }: {
   query: string;
   onQueryChange: (value: string) => void;
@@ -17,6 +18,7 @@ export function TableToolbar({
   filters?: React.ReactNode;
   resultCount: number;
   totalCount: number;
+  loading?: boolean;
 }) {
   return (
     <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -27,6 +29,8 @@ export function TableToolbar({
           onChange={(e) => onQueryChange(e.target.value)}
           placeholder={placeholder}
           className="pl-9"
+          disabled={loading}
+          aria-busy={loading}
         />
       </div>
       <div className="flex flex-wrap items-center gap-2">

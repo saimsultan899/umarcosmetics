@@ -5,23 +5,18 @@ import {
   PageHeading,
 } from "@/components/ui/create-dialog";
 import { requireCompanyContext } from "@/lib/auth";
-import type { Party } from "@/lib/types/database";
+import { fetchPartyList } from "@/lib/queries/parties";
+import { Suspense } from "react";
+import { PageSkeleton } from "@/components/ui/page-skeleton";
 
 export default async function PartiesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string; view?: string; q?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
   const { supabase, company } = await requireCompanyContext();
-
-  const { data: parties } = await supabase
-    .from("parties")
-    .select("*")
-    .eq("company_id", company.id)
-    .eq("is_active", true)
-    .order("party_code", { ascending: true })
-    .limit(2000);
+  const list = await fetchPartyList(supabase, company.id, sp);
 
   return (
     <div className="animate-rise space-y-6">
@@ -35,20 +30,29 @@ export default async function PartiesPage({
             description="Create a shop, supplier, or ledger head"
             size="lg"
           >
-              <PartyForm
-                companyId={company.id}
-                organizationId={company.organization_id}
-              />
+            <PartyForm
+              companyId={company.id}
+              organizationId={company.organization_id}
+              cityOptions={list.cityOptions}
+              sectorOptions={list.sectorOptions}
+            />
           </CreateDialogButton>
         }
       />
 
-      <PartiesTable
-        parties={(parties as Party[] | null) || []}
-        companyId={company.id}
-        organizationId={company.organization_id}
-        initialType={sp.type}
-      />
+      <Suspense fallback={<PageSkeleton />}>
+        <PartiesTable
+          parties={list.parties}
+          pagination={list.pagination}
+          stats={list.stats}
+          companyId={company.id}
+          organizationId={company.organization_id}
+          cityOptions={list.cityOptions}
+          sectorOptions={list.sectorOptions}
+          headOptions={list.headOptions}
+          initialType={typeof sp.type === "string" ? sp.type : undefined}
+        />
+      </Suspense>
     </div>
   );
 }

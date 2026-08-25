@@ -1,5 +1,5 @@
+import { SectorSheetTable } from "@/components/reports/sector-sheet-table";
 import { requireCompanyContext } from "@/lib/auth";
-import { formatPkr } from "@/lib/utils";
 import { PrintButton } from "@/components/ui/print-button";
 
 export default async function RouteSheetsPage() {
@@ -11,14 +11,16 @@ export default async function RouteSheetsPage() {
     p_route: null,
   });
 
-  const rows = ((sheet || []) as Array<{
-    party_id: string;
-    party_code: string;
-    name_en: string;
-    city: string | null;
-    route: string | null;
-    balance: number;
-  }>).filter((r) => Number(r.balance) > 0.005);
+  const rows = (
+    (sheet || []) as Array<{
+      party_id: string;
+      party_code: string;
+      name_en: string;
+      city: string | null;
+      route: string | null;
+      balance: number;
+    }>
+  ).filter((r) => Number(r.balance) > 0.005);
 
   return (
     <div className="animate-rise space-y-6">
@@ -34,50 +36,7 @@ export default async function RouteSheetsPage() {
         <PrintButton label="Print sector sheet" />
       </div>
 
-      <div className="print-sheet table-shell">
-        <div className="border-b border-[var(--border)] px-4 py-3">
-          <p className="font-semibold">Sector Sheet — {company.name}</p>
-          <p className="text-xs text-[var(--muted)]">
-            {new Date().toLocaleDateString()}
-          </p>
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Code</th>
-              <th>Shop</th>
-              <th>Sector / City</th>
-              <th>Balance</th>
-              <th>Rec</th>
-              <th>Remarks</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length ? (
-              rows.map((r) => (
-                <tr key={r.party_id}>
-                  <td className="font-medium">{r.party_code}</td>
-                  <td>{r.name_en}</td>
-                  <td className="text-[var(--muted)]">
-                    {[r.route, r.city].filter(Boolean).join(" · ") || "—"}
-                  </td>
-                  <td className="font-semibold text-rose-700">
-                    {formatPkr(r.balance)} Dr
-                  </td>
-                  <td />
-                  <td />
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={6} className="py-8 text-center text-[var(--muted)]">
-                  No dues to print.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <SectorSheetTable rows={rows} companyName={company.name} />
     </div>
   );
 }

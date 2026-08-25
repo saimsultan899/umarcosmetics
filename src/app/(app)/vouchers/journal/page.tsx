@@ -3,27 +3,29 @@ import {
   CreateDialogButton,
   PageHeading,
 } from "@/components/ui/create-dialog";
+import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { JournalVoucherForm } from "@/components/vouchers/journal-form";
 import { requireCompanyContext } from "@/lib/auth";
+import { fetchVoucherList } from "@/lib/queries/vouchers";
 import type { Party } from "@/lib/types/database";
+import { Suspense } from "react";
 
-export default async function JournalVoucherPage() {
+export default async function JournalVoucherPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = await searchParams;
   const { supabase, company } = await requireCompanyContext();
 
-  const [{ data: parties }, { data: vouchers }] = await Promise.all([
+  const [{ data: parties }, list] = await Promise.all([
     supabase
       .from("parties")
       .select("*")
       .eq("company_id", company.id)
       .eq("is_active", true)
       .order("name_en"),
-    supabase
-      .from("vouchers")
-      .select("*")
-      .eq("company_id", company.id)
-      .eq("voucher_type", "JV")
-      .order("voucher_date", { ascending: false })
-      .limit(50),
+    fetchVoucherList(supabase, company.id, sp, "JV"),
   ]);
 
   return (
@@ -38,20 +40,23 @@ export default async function JournalVoucherPage() {
             description="Post balanced debit / credit lines"
             size="xl"
           >
-              <JournalVoucherForm
-                companyId={company.id}
-                organizationId={company.organization_id}
-                parties={(parties || []) as Party[]}
-              />
+            <JournalVoucherForm
+              companyId={company.id}
+              organizationId={company.organization_id}
+              parties={(parties || []) as Party[]}
+            />
           </CreateDialogButton>
         }
       />
 
-      <VouchersTable
-        vouchers={vouchers || []}
-        emptyLabel="No journal vouchers yet."
-        detailBasePath="/vouchers/journal"
-      />
+      <Suspense fallback={<PageSkeleton />}>
+        <VouchersTable
+          vouchers={list.vouchers}
+          pagination={list.pagination}
+          emptyLabel="No journal vouchers yet."
+          detailBasePath="/vouchers/journal"
+        />
+      </Suspense>
     </div>
   );
 }

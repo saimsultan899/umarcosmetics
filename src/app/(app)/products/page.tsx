@@ -4,58 +4,29 @@ import {
   CreateDialogButton,
   PageHeading,
 } from "@/components/ui/create-dialog";
+import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { requireCompanyContext } from "@/lib/auth";
-import type { Product, Warehouse } from "@/lib/types/database";
+import { fetchProductList } from "@/lib/queries/products";
+import type { Warehouse } from "@/lib/types/database";
+import { Suspense } from "react";
 
 export default async function ProductsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
   const { supabase, company } = await requireCompanyContext();
 
-  const [{ data: products }, { data: warehouses }, { data: balances }] =
-    await Promise.all([
-      supabase
-        .from("products")
-        .select("*")
-        .eq("company_id", company.id)
-        .eq("is_active", true)
-        .order("code", { ascending: true })
-        .limit(2000),
-      supabase
-        .from("warehouses")
-        .select("*")
-        .eq("company_id", company.id)
-        .eq("is_active", true)
-        .order("name"),
-      supabase
-        .from("stock_balances")
-        .select("qty, products(code, name_en, sale_rate, reorder_level)")
-        .eq("company_id", company.id)
-        .limit(4000),
-    ]);
-
-  const list = (products as Product[] | null) || [];
-  const stockValueByCode: Record<string, number> = {};
-  const lowStockCodes: string[] = [];
-
-  for (const row of balances || []) {
-    const product = Array.isArray(row.products) ? row.products[0] : row.products;
-    if (!product?.code) continue;
-    const qty = Number(row.qty || 0);
-    const rate = Number(product.sale_rate || 0);
-    stockValueByCode[product.code] =
-      (stockValueByCode[product.code] || 0) + qty * rate;
-    if (
-      Number(product.reorder_level) > 0 &&
-      qty <= Number(product.reorder_level) &&
-      !lowStockCodes.includes(product.code)
-    ) {
-      lowStockCodes.push(product.code);
-    }
-  }
+  const [{ data: warehouses }, list] = await Promise.all([
+    supabase
+      .from("warehouses")
+      .select("*")
+      .eq("company_id", company.id)
+      .eq("is_active", true)
+      .order("name"),
+    fetchProductList(supabase, company.id, sp),
+  ]);
 
   return (
     <div className="animate-rise space-y-6">
@@ -69,24 +40,28 @@ export default async function ProductsPage({
             description="Create a catalog item with rates and packing"
             size="xl"
           >
-              <ProductForm
-                companyId={company.id}
-                organizationId={company.organization_id}
-                warehouses={(warehouses as Warehouse[]) || []}
-              />
+            <ProductForm
+              companyId={company.id}
+              organizationId={company.organization_id}
+              warehouses={(warehouses as Warehouse[]) || []}
+            />
           </CreateDialogButton>
         }
       />
 
-      <ProductsTable
-        products={list}
-        warehouses={(warehouses as Warehouse[]) || []}
-        companyId={company.id}
-        organizationId={company.organization_id}
-        stockValueByCode={stockValueByCode}
-        lowStockCodes={lowStockCodes}
-        initialView={sp.view}
-      />
+      <Suspense fallback={<PageSkeleton />}>
+        <ProductsTable
+          products={list.products}
+          pagination={list.pagination}
+          stats={list.stats}
+          warehouses={(warehouses as Warehouse[]) || []}
+          companyId={company.id}
+          organizationId={company.organization_id}
+          stockValueByCode={list.stockValueByCode}
+          lowStockCodes={list.lowStockCodes}
+          initialView={typeof sp.view === "string" ? sp.view : undefined}
+        />
+      </Suspense>
     </div>
   );
 }

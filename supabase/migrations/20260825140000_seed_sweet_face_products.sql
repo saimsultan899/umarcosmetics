@@ -1,0 +1,90 @@
+-- Seed SWEET FACE product masters (Umar Cosmetic / SWEET FACE warehouse)
+WITH seed(code, name_en) AS (
+  VALUES
+  ('970', 'SF NAIL POLISH 9 ML QD'),
+  ('971', 'SF LIPSTICK MATE'),
+  ('972', 'SF LIP & EYE PENCIL SMAAL'),
+  ('973', 'SF LIP & EYE PENCIL JUMBOO'),
+  ('974', 'SF LIP GLOSS PROUD'),
+  ('975', 'SF HIGH LIGHTER GLOW SINGLE'),
+  ('976', 'SF PRESED POWDER'),
+  ('977', 'SF LIQUID FOUNDATION REALBASE'),
+  ('978', 'SF LOOSE SHINER GLOW FB'),
+  ('979', 'SF LOOSE SETING POWDER OIL FREE'),
+  ('980', 'SF BRUSH KIT 12 PCS PROFESSION'),
+  ('981', 'SF BRUSH ON KIT 24 LUXURY'),
+  ('982', 'SF EYE SEALER MULTI'),
+  ('983', 'SF PRIMER 30 ML'),
+  ('984', 'SF NOSE STRIPE 6P'),
+  ('985', 'SF NAIL POLISH REMOVER WIPES 40P'),
+  ('986', 'SF NAIL POLISH REMOVER 100ML'),
+  ('987', 'SF BLENDING PUFF 3IN1'),
+  ('988', 'SF BLENDING PUFF JAR 6P'),
+  ('989', 'SF PUFF SMALL OVAL'),
+  ('990', 'SF ROUND PUFF SF'),
+  ('991', 'SF EYELASH GLUE'),
+  ('992', 'SF CONTOURING KIT F&N 4 COLR'),
+  ('993', 'SF GLOWING KIT CB&HIGHIER 4C'),
+  ('994', 'SF EYE SHADE KIT 70 COLER'),
+  ('995', 'SF EYEBROW PENCIL'),
+  ('996', 'SF PEN EYELINER'),
+  ('997', 'SF MASCARA REAL WP'),
+  ('998', 'SF EYELINER ULTRA WP'),
+  ('999', 'SF KAJAL PENCIL'),
+  ('1000', 'SF FINGER GEL 220GM'),
+  ('1001', 'SF CLOUD PUFF 4 IN 1'),
+  ('1027', 'SF AQUA WET CAKE'),
+  ('1028', 'SF TALCUM POWDER 125GM'),
+  ('1029', 'SF TALCUM POWDER 240GM'),
+  ('1033', 'SF PUFF&BUFF 3IN1'),
+  ('1034', 'SF BURSH SET 4IN1'),
+  ('1053', 'SF AQUA CAKE EYELINER'),
+  ('1054', 'SF BLUSH ON SILKY&MATT 6 COLOR KIT'),
+  ('1055', 'SF EYE SHADE KIT 24 COLOR SILKY&MATT'),
+  ('1056', 'SF WAX STRIPS 20P'),
+  ('1057', 'SF KAJAL MAT PREMIAM'),
+  ('1058', 'SF CONCEALER LIQUDE PRO'),
+  ('1059', 'SF EYEKIT GLITTERS 16P'),
+  ('1060', 'SF EYE SHADE KIT 25 COLOR DEAMY MATT'),
+  ('1063', 'SF 3D 4D SHIMER DUST'),
+  ('1078', 'SF Face wash 100ml'),
+  ('1079', 'SF SUNBLOCK 50ML'),
+  ('1080', 'SF SUNBLOCK 150ML')
+),
+ctx AS (
+  SELECT
+    c.id AS company_id,
+    c.organization_id,
+    w.id AS warehouse_id
+  FROM public.companies c
+  JOIN public.warehouses w
+    ON w.company_id = c.id
+   AND w.name = 'SWEET FACE'
+   AND w.is_active = true
+  WHERE c.name = 'Umar Cosmetic'
+)
+INSERT INTO public.products (
+  organization_id,
+  company_id,
+  code,
+  name_en,
+  manufacturer,
+  default_warehouse_id,
+  is_active
+)
+SELECT
+  ctx.organization_id,
+  ctx.company_id,
+  seed.code,
+  seed.name_en,
+  'SWEET FACE',
+  ctx.warehouse_id,
+  true
+FROM seed
+CROSS JOIN ctx
+ON CONFLICT (company_id, code) DO UPDATE SET
+  name_en = EXCLUDED.name_en,
+  manufacturer = EXCLUDED.manufacturer,
+  default_warehouse_id = EXCLUDED.default_warehouse_id,
+  is_active = true,
+  updated_at = now();

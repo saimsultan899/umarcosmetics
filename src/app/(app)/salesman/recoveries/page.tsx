@@ -1,14 +1,17 @@
 import { RecoveriesTable } from "@/components/tables/recoveries-table";
+import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { requireCompanyContext } from "@/lib/auth";
+import { fetchRecoveryList } from "@/lib/queries/recoveries";
+import { Suspense } from "react";
 
-export default async function SalesmanRecoveriesPage() {
+export default async function SalesmanRecoveriesPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = await searchParams;
   const { supabase, company } = await requireCompanyContext();
-  const { data: rows } = await supabase
-    .from("recoveries")
-    .select("*, parties(party_code, name_en)")
-    .eq("company_id", company.id)
-    .order("recovery_date", { ascending: false })
-    .limit(100);
+  const list = await fetchRecoveryList(supabase, company.id, sp);
 
   return (
     <div className="animate-rise space-y-6">
@@ -20,7 +23,14 @@ export default async function SalesmanRecoveriesPage() {
           Collections synced from salesman / office recovery entry
         </p>
       </div>
-      <RecoveriesTable rows={rows || []} />
+      <Suspense fallback={<PageSkeleton />}>
+        <RecoveriesTable
+          rows={list.rows}
+          pagination={list.pagination}
+          cityOptions={list.cityOptions}
+          sectorOptions={list.sectorOptions}
+        />
+      </Suspense>
     </div>
   );
 }

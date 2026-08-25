@@ -10,6 +10,8 @@ import { requireCompanyContext } from "@/lib/auth";
 import type { Party } from "@/lib/types/database";
 import { formatPkr } from "@/lib/utils";
 import { one } from "@/lib/reports/helpers";
+import { RecoveryOutstandingTable } from "@/components/reports/recovery-outstanding-table";
+
 import { AlertTriangle, Store, Wallet } from "lucide-react";
 
 type RecoveryRow = {
@@ -220,58 +222,13 @@ export default async function RecoverySheetPage({
         </div>
       </form>
 
-      <div id="print-area" className="table-shell">
-        <div className="border-b border-[var(--border)] px-4 py-3">
-          <p className="font-[family-name:var(--font-display)] text-lg font-semibold">
-            Recovery Sheet — {company.name}
-          </p>
-          <p className="text-xs text-[var(--muted)]">
-            To {asOf}
-            {sp.city ? ` · ${sp.city}` : ""}
-            {sp.route ? ` · ${sp.route}` : ""}
-          </p>
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Code</th>
-              <th>Name</th>
-              <th>City / Sector</th>
-              <th>Balance</th>
-              <th>Credit Limit</th>
-              <th>Rec</th>
-              <th>Remarks</th>
-            </tr>
-          </thead>
-          <tbody>
-            {outstanding.length ? (
-              outstanding.map((r) => (
-                <tr key={r.party_id}>
-                  <td className="font-medium">{r.party_code}</td>
-                  <td>{r.name_en}</td>
-                  <td className="text-[var(--muted)]">
-                    {[r.city, r.route].filter(Boolean).join(" · ") || "—"}
-                  </td>
-                  <td className="font-semibold text-rose-700">
-                    {balanceLabel(Number(r.balance))}
-                  </td>
-                  <td>
-                    {Number(r.credit_limit) > 0 ? formatPkr(r.credit_limit) : "—"}
-                  </td>
-                  <td className="text-[var(--muted)]"> </td>
-                  <td className="text-[var(--muted)]"> </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={7} className="py-8 text-center text-[var(--muted)]">
-                  No outstanding debit balances for this filter.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <RecoveryOutstandingTable
+        rows={outstanding}
+        companyName={company.name}
+        asOf={asOf}
+        city={sp.city}
+        route={sp.route}
+      />
 
       {/* Field recovery sheet — print only (crisp borders + handwriting columns) */}
       <div className="print-only print-sheet report-print report-print--form">

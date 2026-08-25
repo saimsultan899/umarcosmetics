@@ -4,35 +4,29 @@ import {
   CreateDialogButton,
   PageHeading,
 } from "@/components/ui/create-dialog";
+import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { loadTradingMasters } from "@/lib/trading-data";
+import {
+  documentListConfigs,
+  fetchDocumentList,
+} from "@/lib/queries/documents";
+import { Suspense } from "react";
 
-export default async function PurchaseReturnsPage() {
+export default async function PurchaseReturnsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = await searchParams;
   const { company, parties, products, warehouses, supabase } =
     await loadTradingMasters();
 
-  const { data: returns } = await supabase
-    .from("purchase_returns")
-    .select("*, parties(name_en, party_code), warehouses(name)")
-    .eq("company_id", company.id)
-    .order("return_date", { ascending: false })
-    .limit(500);
-
-  const rows = (returns || []).map((r) => {
-    const party = Array.isArray(r.parties) ? r.parties[0] : r.parties;
-    const wh = Array.isArray(r.warehouses) ? r.warehouses[0] : r.warehouses;
-    return {
-      id: r.id,
-      docNo: r.return_no,
-      date: r.return_date,
-      partyLabel: party ? `${party.party_code} — ${party.name_en}` : "—",
-      warehouseLabel: wh?.name || "—",
-      total: Number(r.grand_total || 0),
-      href: `/purchases/returns/${r.id}`,
-      table: "purchase_returns",
-      linesTable: "purchase_return_items",
-      linesFk: "purchase_return_id",
-    };
-  });
+  const list = await fetchDocumentList(
+    supabase,
+    company.id,
+    sp,
+    documentListConfigs.purchaseReturn,
+  );
 
   return (
     <div className="animate-rise space-y-6">
@@ -46,19 +40,27 @@ export default async function PurchaseReturnsPage() {
             description="Return stock to a supplier"
             size="xl"
           >
-              <ReturnForm
-                kind="purchase"
-                companyId={company.id}
-                organizationId={company.organization_id}
-                parties={parties}
-                products={products}
-                warehouses={warehouses}
-              />
+            <ReturnForm
+              kind="purchase"
+              companyId={company.id}
+              organizationId={company.organization_id}
+              parties={parties}
+              products={products}
+              warehouses={warehouses}
+            />
           </CreateDialogButton>
         }
       />
 
-      <DocumentListTable title="Purchase returns" rows={rows} />
+      <Suspense fallback={<PageSkeleton />}>
+        <DocumentListTable
+          title="Purchase returns"
+          rows={list.rows}
+          pagination={list.pagination}
+          summary={list.summary}
+          warehouses={warehouses}
+        />
+      </Suspense>
     </div>
   );
 }

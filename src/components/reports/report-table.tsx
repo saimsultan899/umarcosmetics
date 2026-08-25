@@ -1,10 +1,11 @@
 "use client";
 
 import { ExportButtons } from "@/components/reports/export-buttons";
+import { TableBodySkeleton } from "@/components/tables/table-body-skeleton";
 import { TablePagination } from "@/components/tables/table-pagination";
 import { TableToolbar } from "@/components/tables/table-toolbar";
 import { DetailField, RowActions } from "@/components/ui/row-actions";
-import { useClientPagination } from "@/hooks/use-client-pagination";
+import { useUrlTableState } from "@/hooks/use-url-table-state";
 import { formatNumber, formatPkr } from "@/lib/utils";
 import { useEffect, useMemo, useState } from "react";
 
@@ -61,27 +62,39 @@ export function ReportTable({
   rows: Record<string, unknown>[];
   filename: string;
 }) {
-  const [query, setQuery] = useState("");
+  const { page, pageSize, q, isPending, setPage, setPageSize, setQuery } =
+    useUrlTableState();
+  const [localQuery, setLocalQuery] = useState(q);
   const [printedAt, setPrintedAt] = useState("");
   const columns = rows[0] ? Object.keys(rows[0]) : [];
+
+  useEffect(() => {
+    setLocalQuery(q);
+  }, [q]);
 
   useEffect(() => {
     setPrintedAt(new Date().toLocaleString());
   }, []);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return rows;
+    const search = q.trim().toLowerCase();
+    if (!search) return rows;
     return rows.filter((row) =>
       columns.some((c) =>
         String(row[c] ?? "")
           .toLowerCase()
-          .includes(q),
+          .includes(search),
       ),
     );
-  }, [rows, query, columns]);
+  }, [rows, q, columns]);
 
-  const pager = useClientPagination(filtered);
+  const total = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize) || 1);
+  const safePage = Math.min(page, totalPages);
+  const sliceFrom = (safePage - 1) * pageSize;
+  const slice = filtered.slice(sliceFrom, sliceFrom + pageSize);
+  const from = total === 0 ? 0 : sliceFrom + 1;
+  const to = Math.min(safePage * pageSize, total);
 
   const numericCols = useMemo(
     () => new Set(columns.filter((c) => isNumericColumn(filtered, c))),
@@ -115,8 +128,12 @@ export function ReportTable({
       </div>
 
       <TableToolbar
-        query={query}
-        onQueryChange={setQuery}
+        query={localQuery}
+        onQueryChange={(value) => {
+          setLocalQuery(value);
+          setQuery(value);
+        }}
+        loading={isPending}
         placeholder="Search report rows..."
         resultCount={filtered.length}
         totalCount={rows.length}
@@ -127,8 +144,7 @@ export function ReportTable({
         <div className="border-b border-[var(--border)] px-4 py-3">
           <p className="font-semibold">{title}</p>
           <p className="text-xs text-[var(--muted)]">
-            {subtitle || `${filtered.length} rows`} · page {pager.page}/
-            {pager.totalPages}
+            {subtitle || `${filtered.length} rows`} · page {safePage}/{totalPages}
           </p>
         </div>
         <div className="table-scroll">
@@ -144,9 +160,14 @@ export function ReportTable({
               </tr>
             </thead>
             <tbody>
-              {pager.slice.length ? (
-                pager.slice.map((row, idx) => (
-                  <tr key={`${pager.from}-${idx}`}>
+              {isPending ? (
+                <TableBodySkeleton
+                  rows={pageSize}
+                  cols={Math.max(columns.length + 1, 1)}
+                />
+              ) : slice.length ? (
+                slice.map((row, idx) => (
+                  <tr key={`${from}-${idx}`}>
                     {columns.map((c) => (
                       <td key={c}>{formatCell(c, row[c])}</td>
                     ))}
@@ -176,14 +197,15 @@ export function ReportTable({
         </div>
         <div className="no-print">
           <TablePagination
-            page={pager.page}
-            totalPages={pager.totalPages}
-            pageSize={pager.pageSize}
-            total={pager.total}
-            from={pager.from}
-            to={pager.to}
-            onPageChange={pager.setPage}
-            onPageSizeChange={pager.setPageSize}
+            page={safePage}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            total={total}
+            from={from}
+            to={to}
+            loading={isPending}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
           />
         </div>
       </div>

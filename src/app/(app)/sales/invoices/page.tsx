@@ -4,43 +4,37 @@ import {
   CreateDialogButton,
   PageHeading,
 } from "@/components/ui/create-dialog";
+import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { loadTradingMasters } from "@/lib/trading-data";
-import type { SaleInvoice } from "@/lib/types/trading";
+import {
+  documentListConfigs,
+  fetchDocumentList,
+} from "@/lib/queries/documents";
+import { Suspense } from "react";
 
-export default async function SaleInvoicesPage() {
+export default async function SaleInvoicesPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = await searchParams;
   const { company, parties, products, warehouses, supabase } =
     await loadTradingMasters();
 
-  const [{ data: invoices }, { data: stockRows }] = await Promise.all([
-    supabase
-      .from("sale_invoices")
-      .select("*, parties(name_en, party_code), warehouses(name)")
-      .eq("company_id", company.id)
-      .order("invoice_date", { ascending: false })
-      .order("created_at", { ascending: false })
-      .limit(500),
+  const [{ data: stockRows }, list] = await Promise.all([
     supabase
       .from("stock_balances")
       .select("product_id, warehouse_id, qty")
       .eq("company_id", company.id)
       .gt("qty", 0),
+    fetchDocumentList(
+      supabase,
+      company.id,
+      sp,
+      documentListConfigs.sale,
+      { showPaymentFilter: true },
+    ),
   ]);
-
-  const rows = ((invoices as SaleInvoice[]) || []).map((inv) => ({
-    id: inv.id,
-    docNo: inv.invoice_no,
-    date: inv.invoice_date,
-    partyLabel: inv.parties
-      ? `${inv.parties.party_code} — ${inv.parties.name_en}`
-      : "—",
-    warehouseLabel: inv.warehouses?.name || "—",
-    paymentType: inv.payment_type,
-    total: Number(inv.grand_total || 0),
-    href: `/sales/invoices/${inv.id}`,
-    table: "sale_invoices",
-    linesTable: "sale_invoice_items",
-    linesFk: "sale_invoice_id",
-  }));
 
   const canCreate =
     parties.length > 0 && products.length > 0 && warehouses.length > 0;
@@ -49,35 +43,38 @@ export default async function SaleInvoicesPage() {
     <div className="animate-rise space-y-6">
       <PageHeading
         title="Sale Invoice"
-        description={`Create credit sales and post stock out for ${company.name}.`}
+        description="Post counter / credit sales and deduct stock."
         actions={
           <CreateDialogButton
             label="New sale"
             title="New sale invoice"
-            description="Create a credit sale with item-wise bonus"
+            description="Post a sale and deduct warehouse stock"
             size="xl"
             disabled={!canCreate}
-            disabledHint="Add parties, products, and warehouses before creating invoices."
+            disabledHint="Add at least one party, product, and warehouse first."
           >
-              <SaleInvoiceForm
-                companyId={company.id}
-                organizationId={company.organization_id}
-                parties={parties}
-                products={products}
-                warehouses={warehouses}
-                stockBalances={
-                  (stockRows as {
-                    product_id: string;
-                    warehouse_id: string;
-                    qty: number;
-                  }[]) || []
-                }
-              />
+            <SaleInvoiceForm
+              companyId={company.id}
+              organizationId={company.organization_id}
+              parties={parties}
+              products={products}
+              warehouses={warehouses}
+              stockBalances={stockRows || []}
+            />
           </CreateDialogButton>
         }
       />
 
-      <DocumentListTable title="Sale invoices" rows={rows} showPaymentFilter />
+      <Suspense fallback={<PageSkeleton />}>
+        <DocumentListTable
+          title="Sale invoices"
+          rows={list.rows}
+          pagination={list.pagination}
+          summary={list.summary}
+          showPaymentFilter
+          warehouses={warehouses}
+        />
+      </Suspense>
     </div>
   );
 }

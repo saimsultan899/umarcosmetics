@@ -1,50 +1,45 @@
 "use client";
 
 import { DocumentRowActions } from "@/components/tables/document-row-actions";
+import { TableBodySkeleton } from "@/components/tables/table-body-skeleton";
 import { TablePagination } from "@/components/tables/table-pagination";
 import { TableToolbar } from "@/components/tables/table-toolbar";
-import { useClientPagination } from "@/hooks/use-client-pagination";
+import { useUrlTableState } from "@/hooks/use-url-table-state";
+import type { VoucherRow } from "@/lib/queries/vouchers";
+import type { PaginationMeta } from "@/lib/pagination";
 import { formatPkr } from "@/lib/utils";
-import { useMemo, useState } from "react";
-
-type VoucherRow = {
-  id: string;
-  voucher_no: string;
-  voucher_date: string;
-  total_amount: number;
-  narration: string | null;
-};
+import { useEffect, useState } from "react";
 
 export function VouchersTable({
   vouchers,
+  pagination,
   emptyLabel,
   detailBasePath,
 }: {
   vouchers: VoucherRow[];
+  pagination: PaginationMeta;
   emptyLabel: string;
   detailBasePath: string;
 }) {
-  const [query, setQuery] = useState("");
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return vouchers;
-    return vouchers.filter((v) =>
-      [v.voucher_no, v.voucher_date, v.narration, v.total_amount]
-        .filter(Boolean)
-        .some((x) => String(x).toLowerCase().includes(q)),
-    );
-  }, [vouchers, query]);
+  const { q, isPending, setPage, setPageSize, setQuery } = useUrlTableState();
+  const [localQuery, setLocalQuery] = useState(q);
 
-  const pager = useClientPagination(filtered);
+  useEffect(() => {
+    setLocalQuery(q);
+  }, [q]);
 
   return (
     <div>
       <TableToolbar
-        query={query}
-        onQueryChange={setQuery}
+        query={localQuery}
+        onQueryChange={(value) => {
+          setLocalQuery(value);
+          setQuery(value);
+        }}
+        loading={isPending}
         placeholder="Search vouchers..."
-        resultCount={filtered.length}
-        totalCount={vouchers.length}
+        resultCount={pagination.total}
+        totalCount={pagination.total}
       />
       <div className="table-shell">
         <div className="table-scroll">
@@ -59,8 +54,10 @@ export function VouchersTable({
               </tr>
             </thead>
             <tbody>
-              {pager.slice.length ? (
-                pager.slice.map((v) => (
+              {isPending ? (
+                <TableBodySkeleton rows={pagination.pageSize} cols={5} />
+              ) : vouchers.length ? (
+                vouchers.map((v) => (
                   <tr key={v.id}>
                     <td className="font-medium">{v.voucher_no}</td>
                     <td>{v.voucher_date}</td>
@@ -95,14 +92,15 @@ export function VouchersTable({
           </table>
         </div>
         <TablePagination
-          page={pager.page}
-          totalPages={pager.totalPages}
-          pageSize={pager.pageSize}
-          total={pager.total}
-          from={pager.from}
-          to={pager.to}
-          onPageChange={pager.setPage}
-          onPageSizeChange={pager.setPageSize}
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          pageSize={pagination.pageSize}
+          total={pagination.total}
+          from={pagination.from}
+          to={pagination.to}
+          loading={isPending}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
         />
       </div>
     </div>

@@ -2,8 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-export const PAGE_SIZE_OPTIONS = [12, 24, 48, 96] as const;
-export const DEFAULT_PAGE_SIZE = 12;
+import {
+  DEFAULT_PAGE_SIZE,
+  PAGE_SIZE_OPTIONS,
+} from "@/lib/pagination";
+
+export { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS };
 
 export function useClientPagination<T>(items: T[], defaultSize = DEFAULT_PAGE_SIZE) {
   const [page, setPage] = useState(1);

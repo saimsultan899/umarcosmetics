@@ -4,13 +4,20 @@ import {
   CreateDialogButton,
   PageHeading,
 } from "@/components/ui/create-dialog";
+import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { requireCompanyContext } from "@/lib/auth";
-import { formatNumber } from "@/lib/utils";
+import { fetchLoadSheetList } from "@/lib/queries/load-sheets";
+import { Suspense } from "react";
 
-export default async function LoadSheetsPage() {
+export default async function LoadSheetsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = await searchParams;
   const { supabase, company } = await requireCompanyContext();
 
-  const [{ data: products }, { data: warehouses }, { data: members }, { data: sheets }] =
+  const [{ data: products }, { data: warehouses }, { data: members }, list] =
     await Promise.all([
       supabase
         .from("products")
@@ -30,14 +37,7 @@ export default async function LoadSheetsPage() {
         .eq("company_id", company.id)
         .eq("role", "salesman")
         .eq("is_active", true),
-      supabase
-        .from("load_sheets")
-        .select(
-          "id, sheet_no, sheet_date, vehicle_no, route, status, warehouses(name), load_sheet_items(qty)",
-        )
-        .eq("company_id", company.id)
-        .order("sheet_date", { ascending: false })
-        .limit(40),
+      fetchLoadSheetList(supabase, company.id, sp),
     ]);
 
   const salesmen = (members || []).map((m) => {
@@ -62,36 +62,24 @@ export default async function LoadSheetsPage() {
             disabled={!canCreate}
             disabledHint="Add products and warehouses first, then create van loads."
           >
-              <LoadSheetForm
-                companyId={company.id}
-                organizationId={company.organization_id}
-                products={products || []}
-                warehouses={warehouses || []}
-                salesmen={salesmen}
-              />
+            <LoadSheetForm
+              companyId={company.id}
+              organizationId={company.organization_id}
+              products={products || []}
+              warehouses={warehouses || []}
+              salesmen={salesmen}
+            />
           </CreateDialogButton>
         }
       />
 
-      <LoadSheetsTable
-        rows={(sheets || []).map((s) => {
-          const wh = Array.isArray(s.warehouses) ? s.warehouses[0] : s.warehouses;
-          const qty = (s.load_sheet_items || []).reduce(
-            (sum: number, i: { qty: number }) => sum + Number(i.qty || 0),
-            0,
-          );
-          return {
-            id: s.id,
-            sheet_no: s.sheet_no,
-            sheet_date: s.sheet_date,
-            warehouse: wh?.name || "—",
-            vehicle_route:
-              [s.vehicle_no, s.route].filter(Boolean).join(" · ") || "—",
-            qty: formatNumber(qty, 0),
-            status: s.status,
-          };
-        })}
-      />
+      <Suspense fallback={<PageSkeleton />}>
+        <LoadSheetsTable
+          rows={list.rows}
+          pagination={list.pagination}
+          warehouses={warehouses || []}
+        />
+      </Suspense>
     </div>
   );
 }

@@ -9,7 +9,8 @@ import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
 import {
   PARTY_CITIES,
   PARTY_SECTORS,
-  withCurrentOption,
+  headFromCity,
+  mergeLocationOptions,
 } from "@/lib/locations";
 import { createClient } from "@/lib/supabase/client";
 import type { Party, PartySubtype, PartyType, SaleChannel } from "@/lib/types/database";
@@ -38,11 +39,17 @@ export function PartyForm({
   companyId,
   organizationId,
   initial,
+  cityOptions = [],
+  sectorOptions = [],
   onDone,
 }: {
   companyId: string;
   organizationId: string;
   initial?: Party | null;
+  /** Distinct cities already stored for this company (from DB). */
+  cityOptions?: string[];
+  /** Distinct sectors already stored for this company (from DB). */
+  sectorOptions?: string[];
   onDone?: () => void;
 }) {
   const router = useRouter();
@@ -90,13 +97,13 @@ export function PartyForm({
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  const cityOptions = useMemo(
-    () => withCurrentOption(PARTY_CITIES, form.city),
-    [form.city],
+  const cities = useMemo(
+    () => mergeLocationOptions(cityOptions, PARTY_CITIES, form.city),
+    [cityOptions, form.city],
   );
-  const sectorOptions = useMemo(
-    () => withCurrentOption(PARTY_SECTORS, form.route),
-    [form.route],
+  const sectors = useMemo(
+    () => mergeLocationOptions(sectorOptions, PARTY_SECTORS, form.route),
+    [sectorOptions, form.route],
   );
 
   async function onSubmit(e: FormEvent) {
@@ -126,6 +133,7 @@ export function PartyForm({
       return;
     }
 
+    const city = form.city.trim() || null;
     const payload = {
       organization_id: organizationId,
       company_id: companyId,
@@ -134,7 +142,8 @@ export function PartyForm({
       name_ur: form.name_ur.trim() || null,
       party_type: form.party_type,
       party_subtype: form.party_subtype,
-      city: form.city.trim() || null,
+      city,
+      head: headFromCity(city),
       route: form.route.trim() || null,
       address: form.address.trim() || null,
       mobile: form.mobile.trim() || null,
@@ -144,6 +153,7 @@ export function PartyForm({
       opening_balance: Number(form.opening_balance || 0),
       credit_limit: Number(form.credit_limit || 0),
       sale_channel: form.sale_channel,
+      is_active: true,
     };
 
     const query = initial
@@ -169,7 +179,8 @@ export function PartyForm({
       className="grid gap-3 sm:grid-cols-2"
       data-enter-root
       onKeyDown={(e) => handleEnterAsNext(e)}
-    >      <div>
+    >
+      <div>
         <Label>Party code (auto serial)</Label>
         <Input
           value={form.party_code}
@@ -238,7 +249,7 @@ export function PartyForm({
           placeholder="Select city"
         >
           <option value="">Select city</option>
-          {cityOptions.map((c) => (
+          {cities.map((c) => (
             <option key={c} value={c}>
               {c}
             </option>
@@ -253,7 +264,7 @@ export function PartyForm({
           placeholder="Select sector"
         >
           <option value="">Select sector</option>
-          {sectorOptions.map((s) => (
+          {sectors.map((s) => (
             <option key={s} value={s}>
               {s}
             </option>

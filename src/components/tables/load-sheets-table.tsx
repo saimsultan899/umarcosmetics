@@ -1,50 +1,115 @@
 "use client";
 
-import { SimplePaginatedTable } from "@/components/tables/simple-paginated-table";
+import { TableBodySkeleton } from "@/components/tables/table-body-skeleton";
+import {
+  TableFilterSelect,
+  warehouseOptions,
+} from "@/components/tables/table-filter-select";
+import { TablePagination } from "@/components/tables/table-pagination";
+import { TableToolbar } from "@/components/tables/table-toolbar";
+import { useUrlTableState } from "@/hooks/use-url-table-state";
+import type { LoadSheetRow } from "@/lib/queries/load-sheets";
+import type { PaginationMeta } from "@/lib/pagination";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
-type Row = {
-  id: string;
-  sheet_no: string;
-  sheet_date: string;
-  warehouse: string;
-  vehicle_route: string;
-  qty: string;
-  status: string;
-};
+export function LoadSheetsTable({
+  rows,
+  pagination,
+  warehouses = [],
+}: {
+  rows: LoadSheetRow[];
+  pagination: PaginationMeta;
+  warehouses?: Array<{ id: string; name: string }>;
+}) {
+  const { q, isPending, setPage, setPageSize, setQuery, setFilter, filters } =
+    useUrlTableState(warehouses.length ? ["warehouse"] : []);
+  const [localQuery, setLocalQuery] = useState(q);
 
-export function LoadSheetsTable({ rows }: { rows: Row[] }) {
-  const mapped = rows.map((r) => ({
-    ...r,
-    _search: `${r.sheet_no} ${r.warehouse} ${r.vehicle_route} ${r.status}`,
-  }));
+  useEffect(() => {
+    setLocalQuery(q);
+  }, [q]);
 
   return (
-    <SimplePaginatedTable
-      columns={["Sheet #", "Date", "Warehouse", "Vehicle / Sector", "Lines qty", "Status"]}
-      rows={mapped}
-      emptyLabel="No load sheets yet. Issue your first van load above."
-      renderRow={(row) => (
-        <tr key={row.id}>
-          <td>
-            <Link
-              href={`/inventory/load-sheets/${row.id}`}
-              className="font-medium text-[var(--brand)] hover:underline"
-            >
-              {String(row.sheet_no)}
-            </Link>
-          </td>
-          <td>{String(row.sheet_date)}</td>
-          <td>{String(row.warehouse)}</td>
-          <td className="text-[var(--muted)]">{String(row.vehicle_route)}</td>
-          <td>{String(row.qty)}</td>
-          <td>
-            <span className="rounded-full bg-[var(--surface-2)] px-2 py-1 text-xs font-semibold uppercase">
-              {String(row.status)}
-            </span>
-          </td>
-        </tr>
-      )}
-    />
+    <div>
+      <TableToolbar
+        query={localQuery}
+        onQueryChange={(value) => {
+          setLocalQuery(value);
+          setQuery(value);
+        }}
+        loading={isPending}
+        placeholder="Search sheet #, vehicle, route..."
+        resultCount={pagination.total}
+        totalCount={pagination.total}
+        filters={
+          warehouses.length ? (
+            <TableFilterSelect
+              label="Warehouse"
+              value={filters.warehouse || ""}
+              options={warehouseOptions(warehouses)}
+              loading={isPending}
+              onChange={(value) => setFilter("warehouse", value)}
+            />
+          ) : undefined
+        }
+      />
+      <div className="table-shell">
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Sheet #</th>
+                <th>Date</th>
+                <th>Warehouse</th>
+                <th>Vehicle / Sector</th>
+                <th>Lines qty</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isPending ? (
+                <TableBodySkeleton rows={pagination.pageSize} cols={6} />
+              ) : rows.length ? (
+                rows.map((r) => (
+                  <tr key={r.id}>
+                    <td>
+                      <Link
+                        href={`/inventory/load-sheets/${r.id}`}
+                        className="font-medium text-[var(--brand)] hover:underline"
+                      >
+                        {r.sheet_no}
+                      </Link>
+                    </td>
+                    <td>{r.sheet_date}</td>
+                    <td>{r.warehouse}</td>
+                    <td className="text-[var(--muted)]">{r.vehicle_route}</td>
+                    <td>{r.qty}</td>
+                    <td>{r.status}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-[var(--muted)]">
+                    No load sheets yet. Issue your first van load above.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <TablePagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          pageSize={pagination.pageSize}
+          total={pagination.total}
+          from={pagination.from}
+          to={pagination.to}
+          loading={isPending}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+        />
+      </div>
+    </div>
   );
 }

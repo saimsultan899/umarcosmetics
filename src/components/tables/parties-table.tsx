@@ -5,16 +5,23 @@ import { DonutChart, RankBars } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { PartyForm } from "@/components/forms/party-form";
 import { FilterChip } from "@/components/tables/filter-chip";
+import {
+  stringOptions,
+  TableFilterSelect,
+} from "@/components/tables/table-filter-select";
+import { TableBodySkeleton } from "@/components/tables/table-body-skeleton";
 import { TablePagination } from "@/components/tables/table-pagination";
 import { TableToolbar } from "@/components/tables/table-toolbar";
 import { DetailField, RowActions } from "@/components/ui/row-actions";
-import { useClientPagination } from "@/hooks/use-client-pagination";
+import { useUrlTableState } from "@/hooks/use-url-table-state";
+import type { PartyListStats } from "@/lib/queries/parties";
 import { createClient } from "@/lib/supabase/client";
+import type { PaginationMeta } from "@/lib/pagination";
 import type { Party } from "@/lib/types/database";
 import { formatPkr } from "@/lib/utils";
 import { Building2, Store, Truck, Users } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 function partyFields(p: Party): DetailField[] {
   return [
@@ -41,88 +48,37 @@ type SubFilter = "all" | "customer" | "supplier" | "both" | "other" | "credit";
 
 export function PartiesTable({
   parties,
+  pagination,
+  stats,
   companyId,
   organizationId,
+  cityOptions = [],
+  sectorOptions = [],
+  headOptions = [],
   initialType,
 }: {
   parties: Party[];
+  pagination: PaginationMeta;
+  stats: PartyListStats;
   companyId: string;
   organizationId: string;
+  cityOptions?: string[];
+  sectorOptions?: string[];
+  headOptions?: string[];
   initialType?: string;
 }) {
-  const [query, setQuery] = useState("");
-  const [subtype, setSubtype] = useState<SubFilter>(
-    initialType === "customer" || initialType === "supplier"
+  const { q, isPending, setPage, setPageSize, setQuery, setFilter, filters } =
+    useUrlTableState(["type", "city", "sector", "head"]);
+  const [localQuery, setLocalQuery] = useState(q);
+
+  const subtype = (filters.type ||
+    (initialType === "customer" || initialType === "supplier"
       ? initialType
-      : "all",
-  );
+      : "all")) as SubFilter;
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return parties.filter((p) => {
-      if (subtype === "credit" && !(Number(p.credit_limit) > 0)) return false;
-      if (
-        subtype !== "all" &&
-        subtype !== "credit" &&
-        p.party_subtype !== subtype &&
-        !(subtype === "customer" && p.party_subtype === "both") &&
-        !(subtype === "supplier" && p.party_subtype === "both")
-      ) {
-        return false;
-      }
-      if (!q) return true;
-      return [
-        p.party_code,
-        p.name_en,
-        p.name_ur,
-        p.city,
-        p.route,
-        p.mobile,
-        p.phone,
-      ]
-        .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(q));
-    });
-  }, [parties, query, subtype]);
-
-  const pager = useClientPagination(filtered);
-
-  const customers = filtered.filter(
-    (p) => p.party_subtype === "customer" || p.party_subtype === "both",
-  ).length;
-  const suppliers = filtered.filter(
-    (p) => p.party_subtype === "supplier" || p.party_subtype === "both",
-  ).length;
-  const withLimit = filtered.filter((p) => Number(p.credit_limit) > 0).length;
-
-  const cities = new Map<string, number>();
-  for (const p of filtered) {
-    const key = p.city || "No city";
-    cities.set(key, (cities.get(key) || 0) + 1);
-  }
-  const cityBars = [...cities.entries()]
-    .map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 6);
-
-  const subtypeMix = [
-    {
-      name: "Customers",
-      value: filtered.filter((p) => p.party_subtype === "customer").length,
-    },
-    {
-      name: "Suppliers",
-      value: filtered.filter((p) => p.party_subtype === "supplier").length,
-    },
-    {
-      name: "Both",
-      value: filtered.filter((p) => p.party_subtype === "both").length,
-    },
-    {
-      name: "Other",
-      value: filtered.filter((p) => p.party_subtype === "other").length,
-    },
-  ].filter((x) => x.value > 0);
+  useEffect(() => {
+    setLocalQuery(q);
+  }, [q]);
 
   async function deactivate(id: string) {
     const supabase = createClient();
@@ -138,35 +94,47 @@ export function PartiesTable({
       <StatsGrid>
         <StatCard
           label="In filter"
-          value={filtered.length}
+          value={stats.total}
           format="number"
           icon={Users}
           hint="Matches current search / chips"
         />
-        <button type="button" className="text-left" onClick={() => setSubtype("customer")}>
+        <button
+          type="button"
+          className="text-left"
+          onClick={() => setFilter("type", "customer")}
+        >
           <StatCard
             label="Customers / shops"
-            value={customers}
+            value={stats.customers}
             format="number"
             icon={Store}
             tone={subtype === "customer" ? "brand" : "ok"}
             hint="Click to filter table"
           />
         </button>
-        <button type="button" className="text-left" onClick={() => setSubtype("supplier")}>
+        <button
+          type="button"
+          className="text-left"
+          onClick={() => setFilter("type", "supplier")}
+        >
           <StatCard
             label="Suppliers"
-            value={suppliers}
+            value={stats.suppliers}
             format="number"
             icon={Truck}
             tone={subtype === "supplier" ? "brand" : "neutral"}
             hint="Click to filter table"
           />
         </button>
-        <button type="button" className="text-left" onClick={() => setSubtype("credit")}>
+        <button
+          type="button"
+          className="text-left"
+          onClick={() => setFilter("type", "credit")}
+        >
           <StatCard
             label="With credit limit"
-            value={withLimit}
+            value={stats.withCreditLimit}
             format="number"
             icon={Building2}
             tone={subtype === "credit" ? "brand" : "warn"}
@@ -178,8 +146,8 @@ export function PartiesTable({
       <div className="grid gap-4 lg:grid-cols-3">
         <ChartCard title="Party mix" subtitle="Based on current filter">
           <DonutChart
-            data={subtypeMix}
-            centerValue={String(filtered.length)}
+            data={stats.subtypeMix}
+            centerValue={String(stats.total)}
             centerLabel="Filtered"
           />
         </ChartCard>
@@ -188,37 +156,71 @@ export function PartiesTable({
           title="Parties by city"
           subtitle="Updates with search & chips"
         >
-          <RankBars data={cityBars} money={false} />
+          <RankBars data={stats.cityBars} money={false} />
         </ChartCard>
       </div>
 
       <div>
         <TableToolbar
-          query={query}
-          onQueryChange={setQuery}
-          placeholder="Search code, name, city, sector, phone..."
-          resultCount={filtered.length}
-          totalCount={parties.length}
+          query={localQuery}
+          onQueryChange={(value) => {
+            setLocalQuery(value);
+            setQuery(value);
+          }}
+          loading={isPending}
+          placeholder="Search code, name, city, sector, head, phone..."
+          resultCount={pagination.total}
+          totalCount={pagination.total}
           filters={
-            <>
+            <div className="flex flex-wrap items-center gap-2">
               {(
                 [
                   ["all", "All"],
                   ["customer", "Customers"],
                   ["supplier", "Suppliers"],
                   ["both", "Both"],
+                  ["other", "Other"],
                   ["credit", "Credit limit"],
                 ] as const
               ).map(([key, label]) => (
                 <FilterChip
                   key={key}
                   active={subtype === key}
-                  onClick={() => setSubtype(key)}
+                  onClick={() =>
+                    setFilter("type", key === "all" ? null : key)
+                  }
                 >
                   {label}
                 </FilterChip>
               ))}
-            </>
+              {cityOptions.length ? (
+                <TableFilterSelect
+                  label="City"
+                  value={filters.city || ""}
+                  options={stringOptions(cityOptions)}
+                  loading={isPending}
+                  onChange={(value) => setFilter("city", value)}
+                />
+              ) : null}
+              {sectorOptions.length ? (
+                <TableFilterSelect
+                  label="Sector"
+                  value={filters.sector || ""}
+                  options={stringOptions(sectorOptions)}
+                  loading={isPending}
+                  onChange={(value) => setFilter("sector", value)}
+                />
+              ) : null}
+              {headOptions.length ? (
+                <TableFilterSelect
+                  label="Head"
+                  value={filters.head || ""}
+                  options={stringOptions(headOptions)}
+                  loading={isPending}
+                  onChange={(value) => setFilter("head", value)}
+                />
+              ) : null}
+            </div>
           }
         />
 
@@ -237,8 +239,10 @@ export function PartiesTable({
                 </tr>
               </thead>
               <tbody>
-                {pager.slice.length ? (
-                  pager.slice.map((p) => (
+                {isPending ? (
+                  <TableBodySkeleton rows={pagination.pageSize} cols={7} />
+                ) : parties.length ? (
+                  parties.map((p) => (
                     <tr key={p.id}>
                       <td className="font-medium">{p.party_code}</td>
                       <td>
@@ -276,6 +280,8 @@ export function PartiesTable({
                             <PartyForm
                               companyId={companyId}
                               organizationId={organizationId}
+                              cityOptions={cityOptions}
+                              sectorOptions={sectorOptions}
                               initial={p}
                               onDone={close}
                             />
@@ -298,14 +304,15 @@ export function PartiesTable({
             </table>
           </div>
           <TablePagination
-            page={pager.page}
-            totalPages={pager.totalPages}
-            pageSize={pager.pageSize}
-            total={pager.total}
-            from={pager.from}
-            to={pager.to}
-            onPageChange={pager.setPage}
-            onPageSizeChange={pager.setPageSize}
+            page={pagination.page}
+            totalPages={pagination.totalPages}
+            pageSize={pagination.pageSize}
+            total={pagination.total}
+            from={pagination.from}
+            to={pagination.to}
+            loading={isPending}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
           />
         </div>
       </div>

@@ -1,6 +1,7 @@
 /**
- * City (head) and Sector options for party / shop masters.
- * Stored as parties.city and parties.route (UI label: Sector).
+ * Bootstrap city / sector labels for empty companies.
+ * Live party masters (code, name, city, sector) live in public.parties — not here.
+ * The party form prefers distinct values already stored for the company.
  */
 
 export const PARTY_CITIES = [
@@ -13,15 +14,16 @@ export const PARTY_CITIES = [
   "Dera Ghazi Khan",
 ] as const;
 
-/** Sectors / market areas under Layyah and nearby towns. */
 export const PARTY_SECTORS = [
-  "Fatehpur",
-  "Karor Lal Eson",
-  "Kot Sultan",
+  "Layyah",
+  "Layyah C",
   "Chowk Azam",
+  "Fatehpur",
+  "Kot Sultan",
+  "Kror Lale Eisan",
+  "Ladhana",
   "Chaubara",
   "Jaman Shah",
-  "Ladhana",
   "Peer Jaggi",
   "Qadirabad",
   "Shahpur",
@@ -35,18 +37,36 @@ export const PARTY_SECTORS = [
   "Dajal",
 ] as const;
 
-export type PartyCity = (typeof PARTY_CITIES)[number];
-export type PartySector = (typeof PARTY_SECTORS)[number];
+/** Merge DB values + bootstrap + current edit value, case-insensitive unique. */
+export function mergeLocationOptions(
+  fromDb: readonly string[],
+  bootstrap: readonly string[],
+  current?: string | null,
+): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of [...fromDb, ...bootstrap, current || ""]) {
+    const value = String(raw || "").trim();
+    if (!value) continue;
+    const key = value.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+  }
+  return out;
+}
 
-/** Keep a saved value selectable even if it is not in the master list. */
+/** @deprecated use mergeLocationOptions */
 export function withCurrentOption(
   options: readonly string[],
   current: string | null | undefined,
 ): string[] {
-  const value = (current || "").trim();
-  if (!value) return [...options];
-  if (options.some((o) => o.toLowerCase() === value.toLowerCase())) {
-    return [...options];
-  }
-  return [value, ...options];
+  return mergeLocationOptions([], options, current);
+}
+
+export function headFromCity(city: string | null | undefined): string | null {
+  const value = (city || "").trim();
+  if (!value) return null;
+  if (value.toLowerCase() === "layyah") return "Main Layyah";
+  return value;
 }
