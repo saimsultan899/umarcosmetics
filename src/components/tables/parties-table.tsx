@@ -4,7 +4,6 @@ import { ChartCard } from "@/components/analytics/chart-card";
 import { DonutChart, RankBars } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { PartyForm } from "@/components/forms/party-form";
-import { FilterChip } from "@/components/tables/filter-chip";
 import {
   stringOptions,
   TableFilterSelect,
@@ -154,7 +153,7 @@ export function PartiesTable({
         <ChartCard
           className="lg:col-span-2"
           title="Parties by city"
-          subtitle="Updates with search & chips"
+          subtitle="Updates with search & filters"
         >
           <RankBars data={stats.cityBars} money={false} />
         </ChartCard>
@@ -173,26 +172,6 @@ export function PartiesTable({
           totalCount={pagination.total}
           filters={
             <div className="flex flex-wrap items-center gap-2">
-              {(
-                [
-                  ["all", "All"],
-                  ["customer", "Customers"],
-                  ["supplier", "Suppliers"],
-                  ["both", "Both"],
-                  ["other", "Other"],
-                  ["credit", "Credit limit"],
-                ] as const
-              ).map(([key, label]) => (
-                <FilterChip
-                  key={key}
-                  active={subtype === key}
-                  onClick={() =>
-                    setFilter("type", key === "all" ? null : key)
-                  }
-                >
-                  {label}
-                </FilterChip>
-              ))}
               {cityOptions.length ? (
                 <TableFilterSelect
                   label="City"
