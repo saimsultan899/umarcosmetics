@@ -10,7 +10,6 @@ function warehouseFields(w: Warehouse): DetailField[] {
     { label: "Name", value: w.name },
     { label: "Code", value: w.code || "—" },
     { label: "Address", value: w.address || "—" },
-    { label: "Status", value: w.is_active ? "Active" : "Inactive" },
   ];
 }
 
@@ -43,10 +42,7 @@ export function WarehousesList({
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {warehouses.map((w) => (
-        <div
-          key={w.id}
-          className={`panel p-4 ${!w.is_active ? "opacity-50" : ""}`}
-        >
+        <div key={w.id} className="panel p-4">
           <p className="font-[family-name:var(--font-display)] text-lg font-semibold">
             {w.name}
           </p>
@@ -56,15 +52,12 @@ export function WarehousesList({
           <p className="mt-2 text-sm text-[var(--muted)]">
             {w.address || "No address"}
           </p>
-          <div className="mt-3 flex items-center justify-between gap-2">
-            <p className="text-xs font-medium text-[var(--brand)]">
-              {w.is_active ? "Active" : "Inactive"}
-            </p>
+          <div className="mt-3 flex items-center justify-end gap-2">
             <RowActions
               viewTitle={w.name}
               editTitle={`Edit ${w.name}`}
-              deleteTitle={`Deactivate ${w.name}?`}
-              deleteDescription="Warehouse will be marked inactive."
+              deleteTitle={`Remove ${w.name}?`}
+              deleteDescription="Warehouse will be removed from this list. It can be restored later if needed."
               viewFields={warehouseFields(w)}
               onDelete={() => deactivate(w.id)}
               editContent={(close) => (

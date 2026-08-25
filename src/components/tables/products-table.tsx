@@ -37,7 +37,7 @@ function productFields(p: Product): DetailField[] {
   ];
 }
 
-type ViewFilter = "all" | "reorder" | "active" | "inactive";
+type ViewFilter = "all" | "reorder";
 
 export function ProductsTable({
   products,
@@ -66,8 +66,6 @@ export function ProductsTable({
     const q = query.trim().toLowerCase();
     return products.filter((p) => {
       if (view === "reorder" && !(Number(p.reorder_level) > 0)) return false;
-      if (view === "active" && !p.is_active) return false;
-      if (view === "inactive" && p.is_active) return false;
       if (!q) return true;
       return [p.code, p.name_en, p.manufacturer, p.category_group, p.product_type]
         .filter(Boolean)
@@ -183,8 +181,6 @@ export function ProductsTable({
                 [
                   ["all", "All"],
                   ["reorder", "Reorder set"],
-                  ["active", "Active"],
-                  ["inactive", "Inactive"],
                 ] as const
               ).map(([key, label]) => (
                 <FilterChip
@@ -217,10 +213,7 @@ export function ProductsTable({
               <tbody>
                 {pager.slice.length ? (
                   pager.slice.map((p) => (
-                    <tr
-                      key={p.id}
-                      className={!p.is_active ? "opacity-50" : undefined}
-                    >
+                    <tr key={p.id}>
                       <td className="font-medium">{p.code}</td>
                       <td>
                         <div>{p.name_en}</div>
@@ -241,8 +234,8 @@ export function ProductsTable({
                         <RowActions
                           viewTitle={p.name_en}
                           editTitle={`Edit ${p.name_en}`}
-                          deleteTitle={`Deactivate ${p.name_en}?`}
-                          deleteDescription="Product will be marked inactive and hidden from new invoices."
+                          deleteTitle={`Remove ${p.name_en}?`}
+                          deleteDescription="Product will be removed from this list and hidden from new invoices."
                           viewFields={productFields(p)}
                           onDelete={() => deactivate(p.id)}
                           editContent={(close) => (

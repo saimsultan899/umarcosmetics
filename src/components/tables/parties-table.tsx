@@ -239,10 +239,7 @@ export function PartiesTable({
               <tbody>
                 {pager.slice.length ? (
                   pager.slice.map((p) => (
-                    <tr
-                      key={p.id}
-                      className={!p.is_active ? "opacity-50" : undefined}
-                    >
+                    <tr key={p.id}>
                       <td className="font-medium">{p.party_code}</td>
                       <td>
                         <Link
@@ -271,8 +268,8 @@ export function PartiesTable({
                         <RowActions
                           viewTitle={p.name_en}
                           editTitle={`Edit ${p.name_en}`}
-                          deleteTitle={`Deactivate ${p.name_en}?`}
-                          deleteDescription="Party will be marked inactive and hidden from new transactions."
+                          deleteTitle={`Remove ${p.name_en}?`}
+                          deleteDescription="Party will be removed from this list and hidden from new transactions."
                           viewFields={partyFields(p)}
                           onDelete={() => deactivate(p.id)}
                           editContent={(close) => (

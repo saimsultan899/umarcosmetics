@@ -21,6 +21,7 @@ export default async function ProductsPage({
         .from("products")
         .select("*")
         .eq("company_id", company.id)
+        .eq("is_active", true)
         .order("code", { ascending: true })
         .limit(2000),
       supabase

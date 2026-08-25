@@ -15,6 +15,7 @@ export default async function WarehousesPage() {
     .from("warehouses")
     .select("*")
     .eq("company_id", company.id)
+    .eq("is_active", true)
     .order("name");
 
   return (

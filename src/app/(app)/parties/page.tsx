@@ -19,6 +19,7 @@ export default async function PartiesPage({
     .from("parties")
     .select("*")
     .eq("company_id", company.id)
+    .eq("is_active", true)
     .order("party_code", { ascending: true })
     .limit(2000);
 

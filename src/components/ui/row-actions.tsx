@@ -35,7 +35,7 @@ export function RowActions({
   viewTitle = "View details",
   editTitle = "Edit",
   deleteTitle = "Delete",
-  deleteDescription = "This will deactivate the record. You can restore it later if needed.",
+  deleteDescription = "This will remove the record from this list. It can be restored later if needed.",
   onDelete,
   editContent,
   href,

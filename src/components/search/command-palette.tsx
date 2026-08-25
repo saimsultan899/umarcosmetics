@@ -65,12 +65,14 @@ export function CommandPalette({ companyId }: { companyId?: string | null }) {
             .from("parties")
             .select("id, party_code, name_en, city")
             .eq("company_id", companyId)
+            .eq("is_active", true)
             .or(`name_en.ilike.${term},party_code.ilike.${term}`)
             .limit(6),
           supabase
             .from("products")
             .select("id, code, name_en, manufacturer")
             .eq("company_id", companyId)
+            .eq("is_active", true)
             .or(`name_en.ilike.${term},code.ilike.${term}`)
             .limit(6),
           supabase
