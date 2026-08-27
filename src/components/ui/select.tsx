@@ -362,7 +362,7 @@ export const Select = forwardRef<
   return (
     <div
       ref={rootRef}
-      className={cn("relative w-full", className)}
+      className={cn("relative w-full min-w-0", className)}
       data-enter-field
     >
       {name || required ? (
@@ -400,14 +400,14 @@ export const Select = forwardRef<
           }
         }}
         className={cn(
-          "flex w-full items-center justify-between gap-2 rounded-lg border border-[var(--border)] bg-white text-left text-[var(--ink)] outline-none transition",
+          "flex w-full min-w-0 items-center justify-between gap-2 overflow-hidden rounded-lg border border-[var(--border)] bg-white text-left text-[var(--ink)] outline-none transition",
           "focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-soft)]",
           "disabled:cursor-not-allowed disabled:opacity-50",
           size === "sm" ? "h-9 px-2 text-sm" : "h-10 px-3 text-sm",
           !selectedValue && "text-[var(--muted)]",
         )}
       >
-        <span className="truncate">{displayLabel}</span>
+        <span className="min-w-0 flex-1 truncate">{displayLabel}</span>
         <ChevronsUpDown className="h-4 w-4 shrink-0 text-[var(--muted)]" />
       </button>
 

@@ -153,8 +153,8 @@ export default async function RecoverySheetPage({
           <CreateDialogButton
             label="Record recovery"
             title="Record recovery"
-            description="Post collection against a shop balance"
-            size="lg"
+            description="Add one or more collections, then post them together"
+            size="xl"
           >
             <RecoveryForm
               companyId={company.id}

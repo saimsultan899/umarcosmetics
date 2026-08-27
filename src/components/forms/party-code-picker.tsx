@@ -109,9 +109,9 @@ export function PartyCodePicker({
   }
 
   return (
-    <div className="space-y-2">
+    <div className="min-w-0 space-y-2">
       <Label>{label}</Label>
-      <div className="grid gap-2 sm:grid-cols-[7.5rem_1fr]">
+      <div className="grid min-w-0 gap-2 sm:grid-cols-[7.5rem_minmax(0,1fr)]">
         <Input
           ref={codeRef}
           value={code}
@@ -134,6 +134,7 @@ export function PartyCodePicker({
         <Select
           value={value}
           required={required}
+          className="min-w-0"
           onChange={(e) => {
             const party = options.find((p) => p.id === e.target.value) || null;
             onChange(e.target.value, party);
@@ -157,11 +158,11 @@ export function PartyCodePicker({
       </div>
 
       {selected ? (
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs">
-          <p className="font-medium text-[var(--ink)]">
+        <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs">
+          <p className="truncate font-medium text-[var(--ink)]">
             {selected.party_code} — {selected.name_en}
           </p>
-          <p className="mt-0.5 text-[var(--muted)]">
+          <p className="mt-0.5 truncate text-[var(--muted)]">
             {[selected.city, selected.route, selected.mobile || selected.phone]
               .filter(Boolean)
               .join(" · ") || "No contact/sector details"}
