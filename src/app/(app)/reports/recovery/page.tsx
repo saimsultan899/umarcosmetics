@@ -2,6 +2,7 @@ import { ChartCard } from "@/components/analytics/chart-card";
 import { RankBars, TrendAreaChart } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { RecoverySheet } from "@/components/reports/recovery-sheet";
+import { UrlFilterForm } from "@/components/reports/url-filter-form";
 import { CreateDialogButton } from "@/components/ui/create-dialog";
 import { PrintButton } from "@/components/ui/print-button";
 import { Select } from "@/components/ui/select";
@@ -212,7 +213,7 @@ export default async function RecoverySheetPage({
         </ChartCard>
       </div>
 
-      <form className="panel no-print grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
+      <UrlFilterForm className="panel no-print grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
         <div>
           <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
             From date
@@ -273,7 +274,7 @@ export default async function RecoverySheetPage({
             Apply filters
           </button>
         </div>
-      </form>
+      </UrlFilterForm>
 
       <RecoverySheet
         companyName={company.name}

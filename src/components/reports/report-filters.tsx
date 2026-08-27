@@ -1,6 +1,7 @@
 "use client";
 
 import { Select } from "@/components/ui/select";
+import { UrlFilterForm } from "@/components/reports/url-filter-form";
 
 type Option = { value: string; label: string };
 
@@ -22,9 +23,8 @@ export function ReportFilters({
   extras?: React.ReactNode;
 }) {
   return (
-    <form
+    <UrlFilterForm
       action={action}
-      method="get"
       className="panel no-print grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4"
     >
       <div>
@@ -61,7 +61,7 @@ export function ReportFilters({
           Run report
         </button>
       </div>
-    </form>
+    </UrlFilterForm>
   );
 }
 

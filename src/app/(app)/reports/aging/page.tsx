@@ -2,6 +2,7 @@ import { ChartCard } from "@/components/analytics/chart-card";
 import { CompareBarChart, DonutChart } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { ReportTable } from "@/components/reports/report-table";
+import { UrlFilterForm } from "@/components/reports/url-filter-form";
 import { requireCompanyContext } from "@/lib/auth";
 import { formatPkr } from "@/lib/utils";
 import { AlertTriangle, Clock3, Wallet } from "lucide-react";
@@ -75,7 +76,7 @@ export default async function AgingReportPage({
             Credit risk by age bucket — know who to chase first ({company.name})
           </p>
         </div>
-        <form className="flex items-end gap-2">
+        <UrlFilterForm className="flex items-end gap-2">
           <label className="text-sm">
             <span className="mb-1 block text-xs text-[var(--muted)]">As of</span>
             <input
@@ -91,7 +92,7 @@ export default async function AgingReportPage({
           >
             Refresh
           </button>
-        </form>
+        </UrlFilterForm>
       </div>
 
       <StatsGrid className="xl:grid-cols-3">

@@ -2,6 +2,7 @@ import { ChartCard } from "@/components/analytics/chart-card";
 import { DonutChart, RankBars } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { ReportTable } from "@/components/reports/report-table";
+import { UrlFilterForm } from "@/components/reports/url-filter-form";
 import { Select } from "@/components/ui/select";
 import { requireCompanyContext } from "@/lib/auth";
 import { formatPkr } from "@/lib/utils";
@@ -225,7 +226,7 @@ export default async function AccountsReportPage({
 
       {view === "ledger" ? (
         <div className="space-y-4">
-          <form className="panel no-print flex flex-wrap items-end gap-3 p-4">
+          <UrlFilterForm className="panel no-print flex flex-wrap items-end gap-3 p-4">
             <div className="min-w-[260px] flex-1">
               <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
                 Party
@@ -249,7 +250,7 @@ export default async function AccountsReportPage({
             >
               Load ledger
             </button>
-          </form>
+          </UrlFilterForm>
 
           <ReportTable
             title={`Party Ledger — ${selectedParty ? `${selectedParty.party_code} ${selectedParty.name_en}` : company.name}`}
