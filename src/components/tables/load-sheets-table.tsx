@@ -1,6 +1,6 @@
 "use client";
 
-import { TableBodySkeleton } from "@/components/tables/table-body-skeleton";
+import { TableScroll } from "@/components/tables/table-scroll";
 import {
   TableFilterSelect,
   warehouseOptions,
@@ -55,7 +55,7 @@ export function LoadSheetsTable({
         }
       />
       <div className="table-shell">
-        <div className="table-scroll">
+        <TableScroll loading={isPending}>
           <table>
             <thead>
               <tr>
@@ -68,9 +68,7 @@ export function LoadSheetsTable({
               </tr>
             </thead>
             <tbody>
-              {isPending ? (
-                <TableBodySkeleton rows={pagination.pageSize} cols={6} />
-              ) : rows.length ? (
+              {rows.length ? (
                 rows.map((r) => (
                   <tr key={r.id}>
                     <td>
@@ -97,7 +95,7 @@ export function LoadSheetsTable({
               )}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
         <TablePagination
           page={pagination.page}
           totalPages={pagination.totalPages}

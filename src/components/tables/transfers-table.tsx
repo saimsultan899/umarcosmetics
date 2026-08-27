@@ -1,7 +1,7 @@
 "use client";
 
 import { DocumentRowActions } from "@/components/tables/document-row-actions";
-import { TableBodySkeleton } from "@/components/tables/table-body-skeleton";
+import { TableScroll } from "@/components/tables/table-scroll";
 import {
   TableFilterSelect,
   warehouseOptions,
@@ -64,7 +64,7 @@ export function TransfersTable({
         }
       />
       <div className="table-shell">
-        <div className="table-scroll">
+        <TableScroll loading={isPending}>
           <table>
             <thead>
               <tr>
@@ -76,9 +76,7 @@ export function TransfersTable({
               </tr>
             </thead>
             <tbody>
-              {isPending ? (
-                <TableBodySkeleton rows={pagination.pageSize} cols={5} />
-              ) : rows.length ? (
+              {rows.length ? (
                 rows.map((row) => (
                   <tr key={row.id}>
                     <td className="font-medium">{row.transfer_no}</td>
@@ -112,7 +110,7 @@ export function TransfersTable({
               )}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
         <TablePagination
           page={pagination.page}
           totalPages={pagination.totalPages}

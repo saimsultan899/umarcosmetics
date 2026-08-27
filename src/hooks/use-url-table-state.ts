@@ -42,7 +42,9 @@ export function useUrlTableState(extraFilterKeys: string[] = []) {
       }
       const qs = params.toString();
       startTransition(() => {
-        router.push(qs ? `${pathname}?${qs}` : pathname);
+        // scroll: false keeps the viewport anchored to the table while paging
+        // instead of jumping to the top on every page change.
+        router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
       });
     },
     [pathname, router, searchParams],

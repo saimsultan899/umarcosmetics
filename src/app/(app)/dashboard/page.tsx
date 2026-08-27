@@ -188,16 +188,22 @@ export default async function DashboardPage() {
             New sale
           </Link>
           <Link
-            href="/reports/aging"
+            href="/purchases/invoices"
             className="rounded-lg border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium"
           >
-            Aging report
+            Purchase
           </Link>
           <Link
             href="/reports/recovery"
             className="rounded-lg border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium"
           >
             Recovery sheet
+          </Link>
+          <Link
+            href="/reports/sales"
+            className="rounded-lg border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium"
+          >
+            Report
           </Link>
         </div>
       </div>
@@ -252,7 +258,7 @@ export default async function DashboardPage() {
           format="number"
           icon={AlertTriangle}
           tone={(s.over_limit_count || 0) > 0 ? "danger" : "ok"}
-          href="/reports/aging"
+          href="/reports/accounts?view=receivable"
           hint="Shops exceeding credit — chase first"
         />
       </StatsGrid>

@@ -9,7 +9,7 @@ import {
   TableFilterSelect,
   warehouseOptions,
 } from "@/components/tables/table-filter-select";
-import { TableBodySkeleton } from "@/components/tables/table-body-skeleton";
+import { TableScroll } from "@/components/tables/table-scroll";
 import { TablePagination } from "@/components/tables/table-pagination";
 import { TableToolbar } from "@/components/tables/table-toolbar";
 import { DetailField, RowActions } from "@/components/ui/row-actions";
@@ -188,7 +188,7 @@ export function ProductsTable({
         />
 
         <div className="table-shell">
-          <div className="table-scroll">
+          <TableScroll loading={isPending}>
             <table>
               <thead>
                 <tr>
@@ -203,9 +203,7 @@ export function ProductsTable({
                 </tr>
               </thead>
               <tbody>
-                {isPending ? (
-                  <TableBodySkeleton rows={pagination.pageSize} cols={8} />
-                ) : products.length ? (
+                {products.length ? (
                   products.map((p) => (
                     <tr
                       key={p.id}
@@ -260,7 +258,7 @@ export function ProductsTable({
                 )}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
           <TablePagination
             page={pagination.page}
             totalPages={pagination.totalPages}

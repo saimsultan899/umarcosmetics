@@ -38,6 +38,11 @@ export default async function SalesmanAdminPage() {
         description="Invite field staff and assign cities/sectors for market collection"
         actions={
           <>
+            <Link href="/sales/salesmen">
+              <Button variant="secondary" size="sm">
+                Salesman report
+              </Button>
+            </Link>
             <Link href="/field">
               <Button variant="secondary" size="sm">
                 Open field app

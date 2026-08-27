@@ -92,6 +92,7 @@ export const mainNav: NavItem[] = [
     icon: FileBarChart2,
     children: [
       { label: "Sale Reports", href: "/reports/sales" },
+      { label: "Salesman Report", href: "/sales/salesmen" },
       { label: "Purchase Reports", href: "/reports/purchases" },
       { label: "Stock Reports", href: "/reports/stock" },
       { label: "Accounts Reports", href: "/reports/accounts" },

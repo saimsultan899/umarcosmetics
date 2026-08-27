@@ -1,6 +1,6 @@
 "use client";
 
-import { TableBodySkeleton } from "@/components/tables/table-body-skeleton";
+import { TableScroll } from "@/components/tables/table-scroll";
 import {
   stringOptions,
   TableFilterSelect,
@@ -76,7 +76,7 @@ export function RecoveriesTable({
         }
       />
       <div className="table-shell">
-        <div className="table-scroll">
+        <TableScroll loading={isPending}>
           <table>
             <thead>
               <tr>
@@ -89,9 +89,7 @@ export function RecoveriesTable({
               </tr>
             </thead>
             <tbody>
-              {isPending ? (
-                <TableBodySkeleton rows={pagination.pageSize} cols={6} />
-              ) : rows.length ? (
+              {rows.length ? (
                 rows.map((r) => {
                   const party = r.parties
                     ? `${r.parties.party_code} — ${r.parties.name_en}`
@@ -140,7 +138,7 @@ export function RecoveriesTable({
               )}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
         <TablePagination
           page={pagination.page}
           totalPages={pagination.totalPages}

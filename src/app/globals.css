@@ -60,6 +60,7 @@ a {
 
 /* Tables: shell stays full-width; only .table-scroll pans sideways */
 .table-shell {
+  position: relative;
   border: 1px solid var(--border);
   border-radius: 16px;
   background: white;
@@ -132,6 +133,47 @@ a {
 .table-shell > .table-pagination,
 .table-shell > .no-print > .table-pagination {
   width: 100%;
+}
+
+/* Page-change loading: blur the current rows and float one round spinner. */
+.table-scroll--loading {
+  filter: blur(1.5px) saturate(0.92);
+  opacity: 0.5;
+  pointer-events: none;
+  user-select: none;
+  transition:
+    opacity 0.18s ease,
+    filter 0.18s ease;
+}
+
+.table-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.table-loading__spinner {
+  position: sticky;
+  top: 40vh;
+  margin: 0 auto;
+  display: flex;
+  height: 2.5rem;
+  width: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: white;
+  color: var(--brand);
+  box-shadow:
+    0 6px 20px rgba(15, 23, 42, 0.14),
+    0 0 0 1px var(--border);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .table-scroll--loading {
+    transition: none;
+  }
 }
 
 @media (min-width: 1024px) {
@@ -713,6 +755,99 @@ a {
   padding-bottom: 7px;
 }
 
+/* Recovery Sheet — mirrors the paper field-collection sheet
+   (Code · Name · Balance · Rec · Remarks), grouped by Sector. */
+.recovery-sheet {
+  background: #fff;
+  color: #000;
+  font-family: Arial, Helvetica, sans-serif;
+}
+.recovery-sheet-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 2px solid #111;
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+}
+.recovery-sheet-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+.recovery-sheet-co {
+  margin: 2px 0 0;
+  font-size: 12px;
+}
+.recovery-sheet-scope {
+  margin: 2px 0 0;
+  font-size: 11px;
+  font-weight: 700;
+}
+.recovery-sheet-dates {
+  margin: 0;
+  font-size: 12px;
+  text-align: right;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.recovery-sheet-dates p {
+  margin: 0;
+}
+.recovery-sheet-dates span {
+  display: inline-block;
+  min-width: 11mm;
+  font-weight: 700;
+  text-align: left;
+}
+.recovery-sheet-section {
+  margin-top: 10px;
+}
+.recovery-sheet-sector {
+  margin: 0 0 3px;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.recovery-sheet table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 11px;
+}
+.recovery-sheet th {
+  border: 1px solid #111;
+  background: #eee;
+  padding: 4px 6px;
+  text-align: left;
+  font-weight: 700;
+}
+.recovery-sheet td {
+  border: 1px solid #111;
+  padding: 6px;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.recovery-sheet .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.recovery-sheet tfoot td {
+  background: #f3f3f3;
+  font-weight: 800;
+}
+.recovery-sheet-foot {
+  margin-top: 10px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 10px;
+}
+
 .print-only {
   display: none;
 }
@@ -1004,6 +1139,41 @@ a {
   }
   .report-print th {
     background: #eee !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Recovery Sheet: A4 with an auto page number in the bottom-right margin
+     (browsers without @page margin-box support just omit the number). */
+  @page recovery-page {
+    size: A4 portrait;
+    margin: 12mm 12mm 14mm;
+    @bottom-right {
+      content: "Page No. " counter(page);
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10px;
+      color: #000;
+    }
+  }
+  .recovery-sheet {
+    page: recovery-page;
+  }
+  .recovery-sheet table {
+    page-break-inside: auto;
+  }
+  .recovery-sheet thead {
+    display: table-header-group;
+  }
+  .recovery-sheet tr {
+    page-break-inside: avoid;
+  }
+  .recovery-sheet th {
+    background: #eee !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .recovery-sheet tfoot td {
+    background: #f3f3f3 !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }

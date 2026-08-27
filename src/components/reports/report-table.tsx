@@ -1,7 +1,7 @@
 "use client";
 
 import { ExportButtons } from "@/components/reports/export-buttons";
-import { TableBodySkeleton } from "@/components/tables/table-body-skeleton";
+import { TableScroll } from "@/components/tables/table-scroll";
 import { TablePagination } from "@/components/tables/table-pagination";
 import { TableToolbar } from "@/components/tables/table-toolbar";
 import { DetailField, RowActions } from "@/components/ui/row-actions";
@@ -147,7 +147,7 @@ export function ReportTable({
             {subtitle || `${filtered.length} rows`} · page {safePage}/{totalPages}
           </p>
         </div>
-        <div className="table-scroll">
+        <TableScroll loading={isPending}>
           <table>
             <thead>
               <tr>
@@ -160,12 +160,7 @@ export function ReportTable({
               </tr>
             </thead>
             <tbody>
-              {isPending ? (
-                <TableBodySkeleton
-                  rows={pageSize}
-                  cols={Math.max(columns.length + 1, 1)}
-                />
-              ) : slice.length ? (
+              {slice.length ? (
                 slice.map((row, idx) => (
                   <tr key={`${from}-${idx}`}>
                     {columns.map((c) => (
@@ -194,7 +189,7 @@ export function ReportTable({
               )}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
         <div className="no-print">
           <TablePagination
             page={safePage}

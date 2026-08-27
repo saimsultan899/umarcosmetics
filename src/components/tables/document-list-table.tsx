@@ -9,7 +9,7 @@ import {
   TableFilterSelect,
   warehouseOptions,
 } from "@/components/tables/table-filter-select";
-import { TableBodySkeleton } from "@/components/tables/table-body-skeleton";
+import { TableScroll } from "@/components/tables/table-scroll";
 import { TablePagination } from "@/components/tables/table-pagination";
 import { TableToolbar } from "@/components/tables/table-toolbar";
 import { useUrlTableState } from "@/hooks/use-url-table-state";
@@ -198,7 +198,7 @@ export function DocumentListTable({
         />
 
         <div className="table-shell">
-          <div className="table-scroll">
+          <TableScroll loading={isPending}>
             <table>
               <thead>
                 <tr>
@@ -212,12 +212,7 @@ export function DocumentListTable({
                 </tr>
               </thead>
               <tbody>
-                {isPending ? (
-                  <TableBodySkeleton
-                    rows={pagination.pageSize}
-                    cols={showPaymentFilter ? 7 : 6}
-                  />
-                ) : rows.length ? (
+                {rows.length ? (
                   rows.map((inv) => (
                     <tr key={inv.id}>
                       <td className="font-medium">{inv.docNo}</td>
@@ -268,7 +263,7 @@ export function DocumentListTable({
                 )}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
           <TablePagination
             page={pagination.page}
             totalPages={pagination.totalPages}

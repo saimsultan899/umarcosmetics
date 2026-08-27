@@ -1,7 +1,7 @@
 "use client";
 
 import { DocumentRowActions } from "@/components/tables/document-row-actions";
-import { TableBodySkeleton } from "@/components/tables/table-body-skeleton";
+import { TableScroll } from "@/components/tables/table-scroll";
 import { TablePagination } from "@/components/tables/table-pagination";
 import { TableToolbar } from "@/components/tables/table-toolbar";
 import { useUrlTableState } from "@/hooks/use-url-table-state";
@@ -42,7 +42,7 @@ export function VouchersTable({
         totalCount={pagination.total}
       />
       <div className="table-shell">
-        <div className="table-scroll">
+        <TableScroll loading={isPending}>
           <table>
             <thead>
               <tr>
@@ -54,9 +54,7 @@ export function VouchersTable({
               </tr>
             </thead>
             <tbody>
-              {isPending ? (
-                <TableBodySkeleton rows={pagination.pageSize} cols={5} />
-              ) : vouchers.length ? (
+              {vouchers.length ? (
                 vouchers.map((v) => (
                   <tr key={v.id}>
                     <td className="font-medium">{v.voucher_no}</td>
@@ -90,7 +88,7 @@ export function VouchersTable({
               )}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
         <TablePagination
           page={pagination.page}
           totalPages={pagination.totalPages}

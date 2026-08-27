@@ -1,6 +1,6 @@
 "use client";
 
-import { TableBodySkeleton } from "@/components/tables/table-body-skeleton";
+import { TableScroll } from "@/components/tables/table-scroll";
 import { TablePagination } from "@/components/tables/table-pagination";
 import { TableToolbar } from "@/components/tables/table-toolbar";
 import { useUrlTableState } from "@/hooks/use-url-table-state";
@@ -73,7 +73,7 @@ export function SectorSheetTable({
             {total !== rows.length ? ` · ${total} matching search` : ""}
           </p>
         </div>
-        <div className="table-scroll">
+        <TableScroll loading={isPending}>
           <table>
             <thead>
               <tr>
@@ -86,9 +86,7 @@ export function SectorSheetTable({
               </tr>
             </thead>
             <tbody>
-              {isPending ? (
-                <TableBodySkeleton rows={pageSize} cols={6} />
-              ) : slice.length ? (
+              {slice.length ? (
                 slice.map((r) => (
                   <tr key={r.party_id}>
                     <td className="font-medium">{r.party_code}</td>
@@ -112,7 +110,7 @@ export function SectorSheetTable({
               )}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
         <div className="no-print">
           <TablePagination
             page={safePage}
