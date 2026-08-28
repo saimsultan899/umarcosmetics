@@ -26,6 +26,7 @@ export type SaleInvoice = {
   payment_type: PaymentType;
   subtotal: number;
   discount_total: number;
+  extra_discount: number;
   grand_total: number;
   amount_paid: number;
   narration: string | null;
@@ -64,6 +65,22 @@ export type StockTransfer = {
   status: DocStatus;
   from_warehouse?: { name: string } | null;
   to_warehouse?: { name: string } | null;
+};
+
+export type GatePass = {
+  id: string;
+  company_id: string;
+  pass_no: string;
+  pass_date: string;
+  party_id: string | null;
+  warehouse_id: string | null;
+  manufacturer: string | null;
+  vehicle_no: string | null;
+  transporter: string | null;
+  po_no: string | null;
+  bilty_no: string | null;
+  remarks: string | null;
+  status: DocStatus;
 };
 
 /** Rupee discount implied by a line's discount percent, clamped to the gross. */

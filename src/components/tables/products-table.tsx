@@ -18,6 +18,7 @@ import type { PaginationMeta } from "@/lib/pagination";
 import type { ProductListStats } from "@/lib/queries/products";
 import { createClient } from "@/lib/supabase/client";
 import type { Product, Warehouse } from "@/lib/types/database";
+import { formatProductPurchaseDiscount } from "@/lib/pricing/discounts";
 import { formatNumber, formatPkr } from "@/lib/utils";
 import { AlertTriangle, Package, Tags } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -39,7 +40,10 @@ function productFields(p: Product): DetailField[] {
     { label: "Opening rate", value: formatPkr(p.opening_rate) },
     { label: "Reorder", value: formatNumber(p.reorder_level, 0) },
     { label: "Packing", value: formatNumber(p.packing, 0) },
-    { label: "Bonus", value: p.scheme || "—" },
+    {
+      label: "Purchase discount",
+      value: formatProductPurchaseDiscount(p.scheme),
+    },
     { label: "Status", value: p.is_active ? "Active" : "Inactive" },
   ];
 }

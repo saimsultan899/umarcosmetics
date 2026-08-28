@@ -8,6 +8,7 @@ export type SalePrintLine = {
   product_name: string;
   qty: number;
   bonus?: number;
+  scheme?: string | null;
   tradePrice: number;
   discount: number;
   amount: number;
@@ -147,8 +148,11 @@ export function SaleInvoicePrint({
               <th className="num" style={{ width: "12%" }}>
                 Qty
               </th>
-              <th style={{ width: "32%" }}>ItemName</th>
-              <th className="num" style={{ width: "14%" }}>
+              <th style={{ width: "28%" }}>ItemName</th>
+              <th className="num" style={{ width: "10%" }}>
+                Scheme
+              </th>
+              <th className="num" style={{ width: "12%" }}>
                 Trade Price
               </th>
               <th className="num" style={{ width: "10%" }}>
@@ -175,6 +179,7 @@ export function SaleInvoicePrint({
                     ) : null}
                   </td>
                   <td>{l.product_name}</td>
+                  <td className="num">{l.scheme?.trim() ? l.scheme : "—"}</td>
                   <td className="num">{formatNumber(l.tradePrice, 2)}</td>
                   <td className="num">{pct > 0 ? `${formatNumber(pct, 1)} %` : "—"}</td>
                   <td className="num">

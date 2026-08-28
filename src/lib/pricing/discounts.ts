@@ -1,8 +1,9 @@
 /**
  * Discount / scheme engine.
  *
- * Pakistani distributors record trade offers as free text on the product
- * (`product.scheme`) and per line (`LineItemDraft.scheme`). This module turns
+ * Pakistani distributors record trade offers as free text on sale invoice lines
+ * (`LineItemDraft.scheme`). Product master stores supplier purchase discount as
+ * percent in `product.scheme` (e.g. "5%").
  * that text into a structured rule and computes, for a given line, the rupee
  * discount and/or free-goods quantity it implies.
  *
@@ -172,4 +173,38 @@ export function computeLineScheme(
   rate: unknown,
 ): SchemeResult {
   return applyScheme(parseScheme(text), qty, rate);
+}
+
+/** Product master: supplier/company trade discount stored as e.g. "5%". */
+export function purchaseDiscountPercentText(
+  scheme: string | null | undefined,
+): string {
+  if (!scheme?.trim()) return "0";
+  const rule = parseScheme(scheme);
+  if (rule.kind === "percent" && rule.rates.length) {
+    return String(rule.rates[0]);
+  }
+  const n = Number(String(scheme).replace(/%/g, "").trim());
+  if (Number.isFinite(n) && n >= 0 && n <= 100) return String(n);
+  return "0";
+}
+
+export function formatProductPurchaseDiscount(
+  scheme: string | null | undefined,
+): string {
+  if (!scheme?.trim()) return "—";
+  const rule = parseScheme(scheme);
+  if (rule.kind === "percent") {
+    return rule.rates.map((r) => `${r}%`).join("+");
+  }
+  return scheme;
+}
+
+/** Normalize user input to stored product purchase discount, e.g. "5" → "5%". */
+export function normalizePurchaseDiscountInput(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const n = Number(trimmed.replace(/%/g, ""));
+  if (!Number.isFinite(n) || n < 0 || n > 100) return null;
+  return `${n}%`;
 }

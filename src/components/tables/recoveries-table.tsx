@@ -20,14 +20,16 @@ export function RecoveriesTable({
   pagination,
   cityOptions = [],
   sectorOptions = [],
+  salesmanOptions = [],
 }: {
   rows: RecoveryRow[];
   pagination: PaginationMeta;
   cityOptions?: string[];
   sectorOptions?: string[];
+  salesmanOptions?: { value: string; label: string }[];
 }) {
   const { q, isPending, setPage, setPageSize, setQuery, setFilter, filters } =
-    useUrlTableState(["city", "sector"]);
+    useUrlTableState(["city", "sector", "salesman"]);
   const [localQuery, setLocalQuery] = useState(q);
 
   useEffect(() => {
@@ -72,6 +74,15 @@ export function RecoveriesTable({
                 onChange={(value) => setFilter("sector", value)}
               />
             ) : null}
+            {salesmanOptions.length ? (
+              <TableFilterSelect
+                label="Salesman"
+                value={filters.salesman || ""}
+                options={salesmanOptions}
+                loading={isPending}
+                onChange={(value) => setFilter("salesman", value)}
+              />
+            ) : null}
           </div>
         }
       />
@@ -83,6 +94,7 @@ export function RecoveriesTable({
                 <th>Date</th>
                 <th>Party</th>
                 <th>Amount</th>
+                <th>Salesman</th>
                 <th>City / Sector</th>
                 <th>Remarks</th>
                 <th className="text-right">Actions</th>
@@ -94,10 +106,12 @@ export function RecoveriesTable({
                   const party = r.parties
                     ? `${r.parties.party_code} — ${r.parties.name_en}`
                     : "—";
+                  const salesman = r.salesman?.full_name || (r.salesman_id ? "—" : "Unassigned");
                   const fields: DetailField[] = [
                     { label: "Date", value: r.recovery_date },
                     { label: "Party", value: party },
                     { label: "Amount", value: formatPkr(r.amount) },
+                    { label: "Salesman", value: salesman },
                     {
                       label: "City / Sector",
                       value:
@@ -112,6 +126,7 @@ export function RecoveriesTable({
                       <td className="font-semibold text-emerald-700">
                         {formatPkr(r.amount)}
                       </td>
+                      <td className="text-[var(--muted)]">{salesman}</td>
                       <td className="text-[var(--muted)]">
                         {[r.city, r.route].filter(Boolean).join(" · ") || "—"}
                       </td>
@@ -131,7 +146,7 @@ export function RecoveriesTable({
                 })
               ) : (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-[var(--muted)]">
+                  <td colSpan={7} className="py-8 text-center text-[var(--muted)]">
                     No recoveries yet.
                   </td>
                 </tr>

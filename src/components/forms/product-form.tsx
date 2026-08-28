@@ -6,6 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
+import {
+  normalizePurchaseDiscountInput,
+  purchaseDiscountPercentText,
+} from "@/lib/pricing/discounts";
 import { createClient } from "@/lib/supabase/client";
 import type { Product, Warehouse } from "@/lib/types/database";
 import { useRouter } from "next/navigation";
@@ -42,8 +46,10 @@ export function ProductForm({
     purchase_rate: String(initial?.purchase_rate ?? 0),
     opening_qty: String(initial?.opening_qty ?? 0),
     packing: String(initial?.packing ?? 1),
-    /** Item-wise shop bonus, e.g. 10+1 (stored as products.scheme). */
-    scheme: initial?.scheme || "",
+    /** Supplier/company trade discount in percent (stored as products.scheme, e.g. 5%). */
+    purchase_discount: initial?.scheme
+      ? purchaseDiscountPercentText(initial.scheme)
+      : "",
   });
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
@@ -98,6 +104,13 @@ export function ProductForm({
 
     const tradePrice = Number(form.retail_rate || 0);
 
+    const normalizedDiscount = normalizePurchaseDiscountInput(form.purchase_discount);
+    if (form.purchase_discount.trim() && !normalizedDiscount) {
+      setLoading(false);
+      setError("Purchase discount must be between 0 and 100%.");
+      return;
+    }
+
     // Persist via RPC so opening_qty also seeds/adjusts stock_balances
     // Hidden fields keep existing values on edit; new products get safe defaults.
     // sale_rate mirrors trade price so invoices still auto-fill correctly.
@@ -120,7 +133,7 @@ export function ProductForm({
       opening_rate: Number(initial?.opening_rate ?? 0),
       reorder_level: Number(initial?.reorder_level ?? 0),
       packing: Number(form.packing || 1),
-      scheme: form.scheme.trim() || null,
+      scheme: normalizedDiscount,
     };
 
     const { error: saveError } = initial
@@ -220,14 +233,18 @@ export function ProductForm({
         <Input type="number" step="0.1" value={form.packing} onChange={(e) => set("packing", e.target.value)} />
       </div>
       <div>
-        <Label>Bonus (item-wise)</Label>
+        <Label>Purchase discount %</Label>
         <Input
-          value={form.scheme}
-          onChange={(e) => set("scheme", e.target.value)}
-          placeholder="10+1"
+          type="number"
+          min="0"
+          max="100"
+          step="0.1"
+          value={form.purchase_discount}
+          onChange={(e) => set("purchase_discount", e.target.value)}
+          placeholder="5"
         />
         <p className="mt-1 text-[11px] text-[var(--muted)]">
-          Shop bonus per item, e.g. 10+1. Auto-calculates on sale lines.
+          Supplier/company trade discount in percent — auto-fills on purchase invoices.
         </p>
       </div>
 

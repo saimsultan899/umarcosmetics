@@ -11,6 +11,7 @@ import { lastNDates, sumByDay } from "@/lib/analytics/aggregate";
 import { requireCompanyContext } from "@/lib/auth";
 import { one } from "@/lib/reports/helpers";
 import { buildRecoverySheet, parseScopeToken } from "@/lib/reports/recovery-data";
+import { fetchCompanySalesmen } from "@/lib/queries/salesmen";
 import type { Party } from "@/lib/types/database";
 import { formatPkr } from "@/lib/utils";
 import { Layers, Store, Wallet } from "lucide-react";
@@ -59,7 +60,7 @@ export default async function RecoverySheetPage({
   const { scope, brand, warehouseId } = parseScopeToken(scopeToken);
 
   const from7 = lastNDates(7)[0];
-  const [sheet, { data: parties }, { data: sectorRows }, { data: recent }, { data: weekRec }] =
+  const [sheet, { data: parties }, { data: sectorRows }, { data: recent }, { data: weekRec }, salesmen] =
     await Promise.all([
       buildRecoverySheet(supabase, {
         companyId: company.id,
@@ -97,6 +98,7 @@ export default async function RecoverySheetPage({
         .select("recovery_date, amount, parties(name_en)")
         .eq("company_id", company.id)
         .gte("recovery_date", from7),
+      fetchCompanySalesmen(supabase, company.id),
     ]);
 
   const sectorOptions = distinctSorted((sectorRows || []).map((r) => r.route));
@@ -160,6 +162,7 @@ export default async function RecoverySheetPage({
               companyId={company.id}
               organizationId={company.organization_id}
               parties={(parties || []) as Party[]}
+              salesmen={salesmen}
             />
           </CreateDialogButton>
           <PrintButton label="Print / Download PDF" />

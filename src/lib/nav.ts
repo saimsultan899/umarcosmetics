@@ -48,6 +48,7 @@ export const mainNav: NavItem[] = [
       { label: "Stock Levels", href: "/reports/stock" },
       { label: "Stock Transfer", href: "/warehouses/transfers" },
       { label: "Van Load Sheets", href: "/inventory/load-sheets" },
+      { label: "Gate Pass", href: "/purchases/gate-passes" },
       { label: "Reorder Levels", href: "/products?view=reorder" },
     ],
   },
@@ -65,6 +66,7 @@ export const mainNav: NavItem[] = [
     icon: Truck,
     children: [
       { label: "Purchase Invoice", href: "/purchases/invoices" },
+      { label: "Gate Pass", href: "/purchases/gate-passes" },
       { label: "Purchase Return", href: "/purchases/returns" },
     ],
   },

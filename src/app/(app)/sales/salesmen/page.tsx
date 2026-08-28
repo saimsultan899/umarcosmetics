@@ -245,15 +245,47 @@ export default async function SalesmenPerformancePage({
         </p>
       ) : null}
 
-      {report.unassignedRecovered > 0 ? (
+      {report.unassignedRecovered > 0 && !salesmanId ? (
         <p className="no-print rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          {formatPkr(report.unassignedRecovered)} recovered in sectors with no
-          salesman. Assign sectors in{" "}
+          {formatPkr(report.unassignedRecovered)} recovered without a salesman selected
+          and without a sector assignment. Select salesman when recording recovery, or
+          assign sectors in{" "}
           <Link href="/salesman" className="font-semibold underline">
             Salesman → Users &amp; Sectors
-          </Link>{" "}
-          to attribute it.
+          </Link>
+          .
         </p>
+      ) : null}
+
+      {report.history ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <ReportTable
+            title="Sales history"
+            companyName={company.name}
+            subtitle={`${report.history.sales.length} bills · ${from} to ${to}`}
+            rows={report.history.sales.map((s) => ({
+              Date: s.invoice_date,
+              "Invoice #": s.invoice_no,
+              Party: s.party,
+              Sector: s.route || "—",
+              Amount: s.amount,
+            }))}
+            filename={`salesman-sales-${salesmanId}-${from}`}
+          />
+          <ReportTable
+            title="Recovery history"
+            companyName={company.name}
+            subtitle={`${report.history.recoveries.length} collections · ${from} to ${to}`}
+            rows={report.history.recoveries.map((r) => ({
+              Date: r.recovery_date,
+              Party: r.party,
+              Sector: r.route || "—",
+              Amount: r.amount,
+              Remarks: r.remarks || "—",
+            }))}
+            filename={`salesman-recoveries-${salesmanId}-${from}`}
+          />
+        </div>
       ) : null}
 
       <ReportTable
@@ -261,7 +293,7 @@ export default async function SalesmenPerformancePage({
         companyName={company.name}
         subtitle={`${from} to ${to} · ${report.rows.length} salesman${
           report.rows.length === 1 ? "" : "en"
-        } · recoveries attributed by sector`}
+        }${salesmanId ? " · filtered view with line history below" : " · recoveries by salesman or sector"}`}
         rows={reportRows}
         filename={`salesman-report-${from}-${to}`}
       />

@@ -40,6 +40,7 @@ export function FieldSaleForm({
   const [productId, setProductId] = useState("");
   const [productCode, setProductCode] = useState("");
   const [qty, setQty] = useState("1");
+  const [scheme, setScheme] = useState("");
   const [bonus, setBonus] = useState("0");
   const [rate, setRate] = useState("0");
   const [rateHint, setRateHint] = useState("");
@@ -54,11 +55,18 @@ export function FieldSaleForm({
   const shop = shops.find((s) => s.party_id === partyId);
   const amount = Math.max(0, Number(qty || 0) * Number(rate || 0));
 
+  function applyScheme(nextScheme: string, nextQty: string, nextRate: string) {
+    setScheme(nextScheme);
+    const result = computeLineScheme(nextScheme, nextQty, nextRate);
+    setBonus(String(result.freeQty || 0));
+  }
+
   async function applyProduct(p: Product | null) {
     if (!p) {
       setProductId("");
       setProductCode("");
       setRate("0");
+      setScheme("");
       setBonus("0");
       setRateHint("");
       return;
@@ -89,8 +97,7 @@ export function FieldSaleForm({
     setRateHint(hint);
     const nextQty = !qty || Number(qty) <= 0 ? "1" : qty;
     if (!qty || Number(qty) <= 0) setQty("1");
-    const schemeResult = computeLineScheme(p.scheme, nextQty, next);
-    setBonus(String(schemeResult.freeQty || 0));
+    applyScheme(scheme, nextQty, String(next));
   }
 
   async function resolveCode(raw: string) {
@@ -153,7 +160,7 @@ export function FieldSaleForm({
           bonus_qty: Number(bonus || 0),
           rate: lineRate,
           discount: 0,
-          scheme: product.scheme || null,
+          scheme: scheme.trim() || null,
           amount: lineAmount,
         },
       ],
@@ -287,12 +294,17 @@ export function FieldSaleForm({
             onChange={(e) => {
               const nextQty = e.target.value;
               setQty(nextQty);
-              if (product) {
-                const result = computeLineScheme(product.scheme, nextQty, rate);
-                setBonus(String(result.freeQty || 0));
-              }
+              applyScheme(scheme, nextQty, rate);
             }}
             inputMode="decimal"
+          />
+        </div>
+        <div>
+          <Label>Scheme</Label>
+          <Input
+            value={scheme}
+            placeholder="10+1"
+            onChange={(e) => applyScheme(e.target.value, qty, rate)}
           />
         </div>
         <div>
@@ -302,13 +314,11 @@ export function FieldSaleForm({
             min="0"
             step="0.1"
             value={bonus}
-            onChange={(e) => setBonus(e.target.value)}
+            readOnly
+            className="bg-[var(--surface-2)]"
             inputMode="decimal"
-            title={product?.scheme || "Item-wise bonus"}
+            title="Auto from scheme"
           />
-          {product?.scheme ? (
-            <p className="mt-1 text-[10px] text-[var(--muted)]">{product.scheme}</p>
-          ) : null}
         </div>
         <div>
           <Label>Rate</Label>

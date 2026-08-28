@@ -138,6 +138,9 @@ export function PurchaseInvoiceForm({
         rateField="purchase_rate"
         companyId={companyId}
         partyId={partyId}
+        warehouseId={warehouseId}
+        warehouses={warehouses}
+        onAutoPickWarehouse={setWarehouseId}
       />
 
       {error ? (

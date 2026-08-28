@@ -1,6 +1,7 @@
 "use client";
 
 import { PartyCodePicker } from "@/components/forms/party-code-picker";
+import { SalesmanSelect } from "@/components/forms/salesman-select";
 import { Button } from "@/components/ui/button";
 import { useCreateDialogClose } from "@/components/ui/create-dialog";
 import { Input } from "@/components/ui/input";
@@ -8,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { focusField, handleEnterAsNext } from "@/lib/keyboard/enter-nav";
 import { createClient } from "@/lib/supabase/client";
 import type { Party } from "@/lib/types/database";
+import type { SalesmanOption } from "@/lib/queries/salesmen";
 import { formatPkr } from "@/lib/utils";
 import { Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -37,11 +39,13 @@ export function RecoveryForm({
   companyId,
   organizationId,
   parties,
+  salesmen = [],
   onDone,
 }: {
   companyId: string;
   organizationId: string;
   parties: Party[];
+  salesmen?: SalesmanOption[];
   onDone?: () => void;
 }) {
   const router = useRouter();
@@ -52,6 +56,7 @@ export function RecoveryForm({
   const remarksRef = useRef<HTMLInputElement>(null);
 
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [salesmanId, setSalesmanId] = useState("");
   const [partyId, setPartyId] = useState("");
   const [party, setParty] = useState<Party | null>(null);
   const [amount, setAmount] = useState("");
@@ -168,6 +173,10 @@ export function RecoveryForm({
       setError("Add at least one recovery line before recording.");
       return;
     }
+    if (salesmen.length > 0 && !salesmanId) {
+      setError("Select the salesman who collected this recovery.");
+      return;
+    }
 
     setLoading(true);
     const supabase = createClient();
@@ -175,6 +184,7 @@ export function RecoveryForm({
     const failedMsgs: string[] = [];
 
     for (const line of pending) {
+      const lineParty = parties.find((p) => p.id === line.partyId);
       const { error: rpcError } = await supabase.rpc("record_recovery", {
         p_payload: {
           organization_id: organizationId,
@@ -183,6 +193,9 @@ export function RecoveryForm({
           recovery_date: date,
           amount: line.amount,
           remarks: line.remarks,
+          salesman_id: salesmanId || null,
+          route: lineParty?.route || null,
+          city: lineParty?.city || null,
         },
       });
       if (rpcError) {
@@ -233,6 +246,14 @@ export function RecoveryForm({
             value={date}
             onChange={(e) => setDate(e.target.value)}
             required
+          />
+        </div>
+        <div className="sm:col-span-2 lg:col-span-1">
+          <SalesmanSelect
+            salesmen={salesmen}
+            value={salesmanId}
+            onChange={setSalesmanId}
+            required={salesmen.length > 0}
           />
         </div>
       </div>

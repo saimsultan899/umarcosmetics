@@ -6,6 +6,7 @@ import {
 } from "@/components/ui/create-dialog";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { loadTradingMasters } from "@/lib/trading-data";
+import { fetchCompanySalesmen } from "@/lib/queries/salesmen";
 import {
   documentListConfigs,
   fetchDocumentList,
@@ -21,7 +22,7 @@ export default async function SaleInvoicesPage({
   const { company, parties, products, warehouses, supabase } =
     await loadTradingMasters();
 
-  const [{ data: stockRows }, list] = await Promise.all([
+  const [{ data: stockRows }, list, salesmen] = await Promise.all([
     supabase
       .from("stock_balances")
       .select("product_id, warehouse_id, qty")
@@ -34,6 +35,7 @@ export default async function SaleInvoicesPage({
       documentListConfigs.sale,
       { showPaymentFilter: true },
     ),
+    fetchCompanySalesmen(supabase, company.id),
   ]);
 
   const canCreate =
@@ -60,6 +62,7 @@ export default async function SaleInvoicesPage({
               products={products}
               warehouses={warehouses}
               stockBalances={stockRows || []}
+              salesmen={salesmen}
             />
           </CreateDialogButton>
         }

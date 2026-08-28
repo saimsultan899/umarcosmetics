@@ -6,15 +6,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  *
  * Two dimensions per salesman over [from, to]:
  *  - Sales  — posted `sale_invoices` attributed by `salesman_id` (authoritative).
- *  - Recovery — field/office `recoveries` attributed to the salesman who owns the
- *    recovery's Sector (parties.route, denormalized onto the recovery). Ownership is
- *    taken from explicit `salesman_routes` assignments; where a sector has no
- *    assignment we fall back to the salesman who sold the most in that sector during
- *    the period, so the report is useful even before sectors are formally assigned.
- *
- * Recoveries carry no salesman column, so a sector with neither an assignment nor
- * any sales in the period cannot be attributed — that amount is surfaced separately
- * as `unassignedRecovered` with a prompt to assign sectors.
+ *  - Recovery — field/office `recoveries` attributed by `salesman_id` when set,
+ *    otherwise to the salesman who owns the recovery's Sector (parties.route).
  */
 
 const INVOICE_LIMIT = 10000;
@@ -59,6 +52,22 @@ export type SalesmanTrendPoint = {
 
 export type SalesmanAttribution = "assignment" | "sales" | "mixed" | "none";
 
+export type SalesmanHistorySale = {
+  invoice_no: string;
+  invoice_date: string;
+  party: string;
+  route: string | null;
+  amount: number;
+};
+
+export type SalesmanHistoryRecovery = {
+  recovery_date: string;
+  party: string;
+  route: string | null;
+  amount: number;
+  remarks: string | null;
+};
+
 export type SalesmanReportResult = {
   /** Rows for the current view, sorted by sales desc. */
   rows: SalesmanRow[];
@@ -75,6 +84,11 @@ export type SalesmanReportResult = {
   unassignedRecovered: number;
   attributionMode: SalesmanAttribution;
   error: string | null;
+  /** Line-level history when a single salesman is filtered. */
+  history: {
+    sales: SalesmanHistorySale[];
+    recoveries: SalesmanHistoryRecovery[];
+  } | null;
 };
 
 export type SalesmanReportInput = {
@@ -118,21 +132,27 @@ export async function buildSalesmanReport(
   let invoiceQuery = supabase
     .from("sale_invoices")
     .select(
-      "id, invoice_date, grand_total, amount_paid, route, salesman_id, salesman:profiles!sale_invoices_salesman_id_fkey(id, full_name)",
+      "id, invoice_no, invoice_date, grand_total, amount_paid, route, salesman_id, parties(party_code, name_en), salesman:profiles!sale_invoices_salesman_id_fkey(id, full_name)",
     )
     .eq("company_id", companyId)
     .eq("status", "posted")
     .gte("invoice_date", from)
     .lte("invoice_date", to);
   if (sector) invoiceQuery = invoiceQuery.eq("route", sector);
+  if (salesmanId === UNASSIGNED) invoiceQuery = invoiceQuery.is("salesman_id", null);
+  else if (salesmanId) invoiceQuery = invoiceQuery.eq("salesman_id", salesmanId);
 
   let recoveryQuery = supabase
     .from("recoveries")
-    .select("recovery_date, amount, route")
+    .select(
+      "recovery_date, amount, route, salesman_id, remarks, parties(party_code, name_en)",
+    )
     .eq("company_id", companyId)
     .gte("recovery_date", from)
     .lte("recovery_date", to);
   if (sector) recoveryQuery = recoveryQuery.eq("route", sector);
+  if (salesmanId === UNASSIGNED) recoveryQuery = recoveryQuery.is("salesman_id", null);
+  else if (salesmanId) recoveryQuery = recoveryQuery.eq("salesman_id", salesmanId);
 
   const [invoicesRes, recoveriesRes, rosterRes, assignmentsRes, sectorRes] =
     await Promise.all([
@@ -169,17 +189,28 @@ export async function buildSalesmanReport(
     null;
 
   const invoices = (invoicesRes.data || []) as Array<{
+    invoice_no: string;
     invoice_date: string | null;
     grand_total: number | string | null;
     amount_paid: number | string | null;
     route: string | null;
     salesman_id: string | null;
+    parties:
+      | { party_code: string; name_en: string }
+      | { party_code: string; name_en: string }[]
+      | null;
     salesman: EmbeddedProfile | EmbeddedProfile[];
   }>;
   const recoveries = (recoveriesRes.data || []) as Array<{
     recovery_date: string | null;
     amount: number | string | null;
     route: string | null;
+    salesman_id: string | null;
+    remarks: string | null;
+    parties:
+      | { party_code: string; name_en: string }
+      | { party_code: string; name_en: string }[]
+      | null;
   }>;
 
   // Active salesman roster — keyed by profile/user id, so idle salesmen still show.
@@ -293,11 +324,20 @@ export async function buildSalesmanReport(
   let unassignedRecovered = 0;
   for (const rec of recoveries) {
     const amt = Number(rec.amount || 0);
-    const routeKey = norm(rec.route);
-    const owner = routeKey ? routeToSalesman.get(routeKey) : undefined;
-    const id = owner?.id || UNASSIGNED;
-    const name = owner?.name || "Unassigned";
-    if (!owner) unassignedRecovered += amt;
+    let id = UNASSIGNED;
+    let name = "Unassigned";
+
+    if (rec.salesman_id) {
+      id = rec.salesman_id;
+      name = rosterName.get(id) || "Salesman";
+    } else {
+      const routeKey = norm(rec.route);
+      const owner = routeKey ? routeToSalesman.get(routeKey) : undefined;
+      id = owner?.id || UNASSIGNED;
+      name = owner?.name || "Unassigned";
+      if (!owner) unassignedRecovered += amt;
+    }
+
     const row = ensure(id, name);
     row.recovered += amt;
     row.recoveryCount += 1;
@@ -375,6 +415,36 @@ export async function buildSalesmanReport(
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([d, v]) => ({ name: d.slice(5), sales: v.sales, recovered: v.recovered }));
 
+  let history: SalesmanReportResult["history"] = null;
+  if (salesmanId) {
+    history = {
+      sales: invoices
+        .map((inv) => {
+          const p = one(inv.parties);
+          return {
+            invoice_no: inv.invoice_no,
+            invoice_date: inv.invoice_date || "",
+            party: p ? `${p.party_code} — ${p.name_en}` : "—",
+            route: inv.route,
+            amount: Number(inv.grand_total || 0),
+          };
+        })
+        .sort((a, b) => b.invoice_date.localeCompare(a.invoice_date)),
+      recoveries: recoveries
+        .map((rec) => {
+          const p = one(rec.parties);
+          return {
+            recovery_date: rec.recovery_date || "",
+            party: p ? `${p.party_code} — ${p.name_en}` : "—",
+            route: rec.route,
+            amount: Number(rec.amount || 0),
+            remarks: rec.remarks,
+          };
+        })
+        .sort((a, b) => b.recovery_date.localeCompare(a.recovery_date)),
+    };
+  }
+
   const salesmanOptions = [...rosterName.entries()]
     .map(([value, label]) => ({ value, label }))
     .sort((a, b) => a.label.localeCompare(b.label));
@@ -406,5 +476,6 @@ export async function buildSalesmanReport(
     unassignedRecovered,
     attributionMode,
     error,
+    history,
   };
 }

@@ -38,6 +38,7 @@ export default async function SalesmanRecoveriesPage({
           pagination={list.pagination}
           cityOptions={list.cityOptions}
           sectorOptions={list.sectorOptions}
+          salesmanOptions={list.salesmanOptions}
         />
       </Suspense>
     </div>

@@ -82,13 +82,14 @@ export default async function SaleInvoiceDetailPage({
           product_name: i.product_name,
           qty: Number(i.qty),
           bonus: Number(i.bonus_qty || 0),
+          scheme: i.scheme,
           tradePrice: Number(i.rate),
           discount: Number(i.discount || 0),
           amount: Number(i.amount),
         }))}
         subtotal={Number(invoice.subtotal || 0)}
         tradeDiscount={Number(invoice.discount_total || 0)}
-        extraDiscount={0}
+        extraDiscount={Number(invoice.extra_discount || 0)}
         billAmount={billAmount}
         previousBalance={previousBalance}
         preparedBy={salesman?.full_name || profile?.full_name}

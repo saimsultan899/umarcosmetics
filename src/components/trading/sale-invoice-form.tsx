@@ -1,6 +1,7 @@
 "use client";
 
 import { PartyCodePicker } from "@/components/forms/party-code-picker";
+import { SalesmanSelect } from "@/components/forms/salesman-select";
 import { LineItemsEditor, summarizeLines } from "@/components/trading/line-items-editor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +10,7 @@ import { Select } from "@/components/ui/select";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
 import { createClient } from "@/lib/supabase/client";
 import type { Party, Product, Warehouse } from "@/lib/types/database";
+import type { SalesmanOption } from "@/lib/queries/salesmen";
 import { type LineItemDraft, calcLineDiscount } from "@/lib/types/trading";
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
@@ -43,6 +45,7 @@ export function SaleInvoiceForm({
   products,
   warehouses,
   stockBalances = [],
+  salesmen = [],
 }: {
   companyId: string;
   organizationId: string;
@@ -50,6 +53,7 @@ export function SaleInvoiceForm({
   products: Product[];
   warehouses: Warehouse[];
   stockBalances?: StockBalanceLite[];
+  salesmen?: SalesmanOption[];
 }) {
   const router = useRouter();
   const customers = useMemo(
@@ -73,9 +77,11 @@ export function SaleInvoiceForm({
 
 
   const [partyId, setPartyId] = useState("");
+  const [salesmanId, setSalesmanId] = useState("");
   const [warehouseId, setWarehouseId] = useState(warehouses[0]?.id || "");
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10));
   const [narration, setNarration] = useState("");
+  const [extraDiscount, setExtraDiscount] = useState("");
   const [lines, setLines] = useState<LineItemDraft[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -116,8 +122,18 @@ export function SaleInvoiceForm({
       setError("Select party, warehouse, and at least one product line.");
       return;
     }
+    if (salesmen.length > 0 && !salesmanId) {
+      setError("Select the salesman who made this sale.");
+      return;
+    }
 
-    const { subtotal, discount_total, grand_total } = summarizeLines(valid);
+    const { subtotal, discount_total, grand_total: linesTotal } = summarizeLines(valid);
+    const extra = Math.max(0, Number(extraDiscount) || 0);
+    if (extra > linesTotal + 0.005) {
+      setError("Extra discount cannot exceed the bill amount after trade discount.");
+      return;
+    }
+    const grand_total = Math.max(0, linesTotal - extra);
 
     if (party && Number(party.credit_limit) > 0) {
       const supabaseCheck = createClient();
@@ -145,12 +161,14 @@ export function SaleInvoiceForm({
         invoice_date: invoiceDate,
         party_id: partyId,
         warehouse_id: warehouseId,
+        salesman_id: salesmanId || null,
         route: party?.route || null,
         city: party?.city || null,
         payment_type: "credit",
         amount_paid: 0,
         subtotal,
         discount_total,
+        extra_discount: extra,
         grand_total,
         narration,
         items: valid.map((l) => ({
@@ -213,6 +231,14 @@ export function SaleInvoiceForm({
           </Select>
         </div>
         <div>
+          <SalesmanSelect
+            salesmen={salesmen}
+            value={salesmanId}
+            onChange={setSalesmanId}
+            required={salesmen.length > 0}
+          />
+        </div>
+        <div>
           <Label>Payment</Label>
           <Input value="Credit" readOnly className="bg-[var(--surface-2)]" />
         </div>
@@ -234,6 +260,8 @@ export function SaleInvoiceForm({
         warehouses={warehouses}
         stockByProduct={stockByProduct}
         onAutoPickWarehouse={setWarehouseId}
+        extraDiscount={extraDiscount}
+        onExtraDiscountChange={setExtraDiscount}
       />
 
       {creditWarning ? (

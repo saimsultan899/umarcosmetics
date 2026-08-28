@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, type SelectHandle } from "@/components/ui/select";
 import { focusField } from "@/lib/keyboard/enter-nav";
 import {
@@ -24,7 +25,7 @@ import {
   perCartonRate,
   toPieces,
 } from "@/lib/pricing/uom";
-import { computeLineScheme } from "@/lib/pricing/discounts";
+import { computeLineScheme, purchaseDiscountPercentText } from "@/lib/pricing/discounts";
 import { formatPkr, cn } from "@/lib/utils";
 import { Trash2 } from "lucide-react";
 import {
@@ -56,8 +57,11 @@ export function LineItemsEditor({
   warehouses,
   /** product_id → warehouses stocking it, highest qty first. Enables stock hints. */
   stockByProduct,
-  /** When set, picking a product auto-selects the warehouse that stocks it. */
+  /** Auto-selects stocked warehouse (sale) or product default warehouse (purchase). */
   onAutoPickWarehouse,
+  /** Optional invoice-level extra discount (sale invoice footer). */
+  extraDiscount,
+  onExtraDiscountChange,
 }: {
   products: Product[];
   lines: LineItemDraft[];
@@ -72,6 +76,8 @@ export function LineItemsEditor({
   warehouses?: Warehouse[];
   stockByProduct?: Map<string, { warehouseId: string; qty: number }[]>;
   onAutoPickWarehouse?: (warehouseId: string) => void;
+  extraDiscount?: string;
+  onExtraDiscountChange?: (value: string) => void;
 }) {
   const [draft, setDraft] = useState<Draft>(blankDraft);
   const [hint, setHint] = useState<string | null>(null);
@@ -82,6 +88,7 @@ export function LineItemsEditor({
   const draftRef = useRef(draft);
   const codeRef = useRef<HTMLInputElement>(null);
   const qtyRef = useRef<HTMLInputElement>(null);
+  const schemeRef = useRef<HTMLInputElement>(null);
   const rateRef = useRef<HTMLInputElement>(null);
   const discountRef = useRef<HTMLInputElement>(null);
   const bonusRef = useRef<HTMLInputElement>(null);
@@ -101,15 +108,29 @@ export function LineItemsEditor({
     return () => cancelAnimationFrame(t);
   }, [autoFocus]);
 
-  function bonusFromProduct(product: Product | null | undefined, qty: string, rate: string) {
-    if (!enableBonus || !product?.scheme) {
-      return { bonus: "0", scheme: product?.scheme || "" };
-    }
-    const result = computeLineScheme(product.scheme, qty, rate);
+  function schemeFields(scheme: string, qty: string, rate: string) {
+    if (!enableBonus) return { scheme };
+    const result = computeLineScheme(scheme, qty, rate);
     return {
+      scheme,
       bonus: String(result.freeQty || 0),
-      scheme: product.scheme,
     };
+  }
+
+  function patchDraftWithScheme(scheme: string) {
+    const current = draftRef.current;
+    patchDraft(
+      schemeFields(scheme, current.qty, current.rate),
+    );
+  }
+
+  function patchLineWithScheme(
+    key: string,
+    scheme: string,
+    qty: string,
+    rate: string,
+  ) {
+    patchLine(key, schemeFields(scheme, qty, rate));
   }
 
   function patchDraft(patch: Partial<Draft>) {
@@ -137,7 +158,7 @@ export function LineItemsEditor({
     const cartons = Math.max(0, Math.floor(Number(cartonsRaw || 0)));
     const qty = String(toPieces(cartons, loose, packing));
     const p = products.find((x) => x.id === line.product_id);
-    const bonusFields = bonusFromProduct(p, qty, line.rate);
+    const bonusFields = schemeFields(line.scheme, qty, line.rate);
     patchLine(line.key, { qty, ...bonusFields });
   }
 
@@ -217,32 +238,65 @@ export function LineItemsEditor({
       ) ||
       p;
 
-    // Auto-pick the warehouse that stocks this product (sale invoice only).
-    if (stockByProduct && onAutoPickWarehouse && catalog.id) {
-      const entries = stockByProduct.get(catalog.id);
-      const currentHasStock =
-        !!warehouseId &&
-        !!entries?.some((e) => e.warehouseId === warehouseId && e.qty > 0);
-      if (entries?.length && !currentHasStock) {
-        const best = entries[0];
-        // Don't strand lines already stocked in the current warehouse.
+    // Auto-pick warehouse when a product is chosen:
+    // 1) Sale flow — warehouse that currently stocks the product
+    // 2) Purchase / fallback — product.default_warehouse_id
+    if (onAutoPickWarehouse && catalog.id) {
+      let targetWarehouseId: string | null = null;
+
+      if (stockByProduct) {
+        const entries = stockByProduct.get(catalog.id);
+        const currentHasStock =
+          !!warehouseId &&
+          !!entries?.some((e) => e.warehouseId === warehouseId && e.qty > 0);
+        if (entries?.length && !currentHasStock) {
+          const best = entries[0];
+          const safe = linesRef.current
+            .filter((l) => l.product_id)
+            .every((l) =>
+              stockByProduct
+                .get(l.product_id)
+                ?.some((x) => x.warehouseId === best.warehouseId && x.qty > 0),
+            );
+          if (safe) targetWarehouseId = best.warehouseId;
+        }
+      }
+
+      if (
+        !targetWarehouseId &&
+        catalog.default_warehouse_id &&
+        catalog.default_warehouse_id !== warehouseId
+      ) {
+        const target = catalog.default_warehouse_id;
         const safe = linesRef.current
           .filter((l) => l.product_id)
-          .every((l) =>
-            stockByProduct
-              .get(l.product_id)
-              ?.some((x) => x.warehouseId === best.warehouseId && x.qty > 0),
-          );
-        if (safe && best.warehouseId !== warehouseId) {
-          onAutoPickWarehouse(best.warehouseId);
-        }
+          .every((l) => {
+            const existing = products.find((x) => x.id === l.product_id);
+            return (
+              !existing?.default_warehouse_id ||
+              existing.default_warehouse_id === target
+            );
+          });
+        if (safe) targetWarehouseId = target;
+      }
+
+      if (targetWarehouseId && targetWarehouseId !== warehouseId) {
+        onAutoPickWarehouse(targetWarehouseId);
       }
     }
 
     const current = draftRef.current;
     const qty = current && Number(current.qty) > 0 ? current.qty : "1";
     const { rate, hint: rateHint } = await resolveRate(catalog);
-    const bonusFields = bonusFromProduct(catalog, qty, String(rate));
+
+    const purchaseDiscount =
+      rateField === "purchase_rate"
+        ? purchaseDiscountPercentText(catalog.scheme)
+        : "0";
+    const scheme = enableBonus ? "" : current?.scheme || "";
+    const bonusFields = enableBonus
+      ? schemeFields(scheme, qty, String(rate))
+      : { bonus: current?.bonus || "0", scheme };
 
     patchDraft({
       product_id: catalog.id,
@@ -250,13 +304,16 @@ export function LineItemsEditor({
       product_name: catalog.name_en,
       qty,
       rate: String(rate),
-      discount: current?.discount || "0",
+      discount:
+        rateField === "purchase_rate" ? purchaseDiscount : "0",
       ...bonusFields,
     });
     setHint(
-      bonusFields.scheme && Number(bonusFields.bonus) > 0
-        ? `${rateHint} · Bonus ${bonusFields.scheme}`
-        : rateHint,
+      rateField === "purchase_rate" && Number(purchaseDiscount) > 0
+        ? `${rateHint} · Purchase discount ${purchaseDiscount}%`
+        : bonusFields.scheme && Number(bonusFields.bonus) > 0
+          ? `${rateHint} · Scheme ${bonusFields.scheme}`
+          : rateHint,
     );
   }
 
@@ -360,13 +417,13 @@ export function LineItemsEditor({
     e.preventDefault();
     e.stopPropagation();
     if (enableBonus) {
-      focusField(bonusRef.current);
+      focusField(schemeRef.current);
       return;
     }
     focusField(rateRef.current);
   }
 
-  function onBonusEnter(e: ReactKeyboardEvent<HTMLInputElement>) {
+  function onSchemeEnter(e: ReactKeyboardEvent<HTMLInputElement>) {
     if (e.key !== "Enter") return;
     e.preventDefault();
     e.stopPropagation();
@@ -377,6 +434,10 @@ export function LineItemsEditor({
     if (e.key !== "Enter") return;
     e.preventDefault();
     e.stopPropagation();
+    if (enableBonus) {
+      commitDraft();
+      return;
+    }
     focusField(discountRef.current);
   }
 
@@ -431,6 +492,8 @@ export function LineItemsEditor({
     0,
   );
   const grand = lines.reduce((s, l) => s + l.amount, 0);
+  const extra = Math.max(0, Number(extraDiscount || 0));
+  const billTotal = Math.max(0, grand - extra);
   const draftAmount = calcLineAmount(draft.qty, draft.rate, draft.discount);
 
   const productById = useMemo(() => {
@@ -470,11 +533,17 @@ export function LineItemsEditor({
         {enableBonus ? (
           <>
             {" "}
-            → bonus
+            → scheme (e.g. 10+1) → rate →{" "}
+            <kbd className="rounded bg-white px-1">Enter</kbd> adds the line
           </>
-        ) : null}{" "}
-        → rate → discount % → <kbd className="rounded bg-white px-1">Enter</kbd>{" "}
-        adds the line. No need to click Add line.
+        ) : (
+          <>
+            {" "}
+            → rate → discount % →{" "}
+            <kbd className="rounded bg-white px-1">Enter</kbd> adds the line
+          </>
+        )}
+        . No need to click Add line.
       </div>
 
       <div className="table-grid">
@@ -484,9 +553,10 @@ export function LineItemsEditor({
               <th className="w-24">Code</th>
               <th>Product</th>
               <th className="w-28">Qty</th>
+              {enableBonus ? <th className="w-28">Scheme</th> : null}
               {enableBonus ? <th className="w-24">Bonus</th> : null}
               <th className="w-28">Rate</th>
-              <th className="w-28">Discount %</th>
+              {!enableBonus ? <th className="w-28">Discount %</th> : null}
               <th className="w-28">Amount</th>
               <th className="w-12" />
             </tr>
@@ -542,13 +612,14 @@ export function LineItemsEditor({
                   value={draft.qty}
                   onChange={(e) => {
                     const qty = e.target.value;
-                    const p = productById.get(draftRef.current.product_id);
-                    const bonusFields = bonusFromProduct(
-                      p,
+                    patchDraft({
                       qty,
-                      draftRef.current.rate,
-                    );
-                    patchDraft({ qty, ...bonusFields });
+                      ...schemeFields(
+                        draftRef.current.scheme,
+                        qty,
+                        draftRef.current.rate,
+                      ),
+                    });
                   }}
                   onKeyDown={onQtyEnter}
                 />
@@ -565,20 +636,27 @@ export function LineItemsEditor({
               {enableBonus ? (
                 <td>
                   <Input
+                    ref={schemeRef}
+                    value={draft.scheme}
+                    placeholder="10+1"
+                    onChange={(e) => patchDraftWithScheme(e.target.value)}
+                    onKeyDown={onSchemeEnter}
+                    title="Item-wise shop scheme, e.g. 10+1"
+                  />
+                </td>
+              ) : null}
+              {enableBonus ? (
+                <td>
+                  <Input
                     ref={bonusRef}
                     type="number"
                     min="0"
                     step="0.1"
                     value={draft.bonus}
-                    onChange={(e) => patchDraft({ bonus: e.target.value })}
-                    onKeyDown={onBonusEnter}
-                    title={draft.scheme ? `Scheme ${draft.scheme}` : "Bonus qty"}
+                    readOnly
+                    className="bg-[var(--surface-2)]"
+                    title="Auto from scheme"
                   />
-                  {draft.scheme ? (
-                    <p className="mt-1 text-[10px] text-[var(--muted)]">
-                      {draft.scheme}
-                    </p>
-                  ) : null}
                 </td>
               ) : null}
               <td>
@@ -588,32 +666,44 @@ export function LineItemsEditor({
                   min="0"
                   step="0.01"
                   value={draft.rate}
-                  onChange={(e) => patchDraft({ rate: e.target.value })}
+                  onChange={(e) => {
+                    const rate = e.target.value;
+                    patchDraft({
+                      rate,
+                      ...schemeFields(
+                        draftRef.current.scheme,
+                        draftRef.current.qty,
+                        rate,
+                      ),
+                    });
+                  }}
                   onKeyDown={onRateEnter}
                 />
                 {hint ? (
                   <p className="mt-1 text-[10px] text-[var(--brand)]">{hint}</p>
                 ) : null}
               </td>
-              <td>
-                <Input
-                  ref={discountRef}
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.1"
-                  value={draft.discount}
-                  onChange={(e) => patchDraft({ discount: e.target.value })}
-                  onKeyDown={onDiscountEnter}
-                />
-                {Number(draft.discount) > 0 ? (
-                  <p className="mt-1 text-[10px] text-[var(--muted)]">
-                    {formatPkr(
-                      calcLineDiscount(draft.qty, draft.rate, draft.discount),
-                    )}
-                  </p>
-                ) : null}
-              </td>
+              {!enableBonus ? (
+                <td>
+                  <Input
+                    ref={discountRef}
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={draft.discount}
+                    onChange={(e) => patchDraft({ discount: e.target.value })}
+                    onKeyDown={onDiscountEnter}
+                  />
+                  {Number(draft.discount) > 0 ? (
+                    <p className="mt-1 text-[10px] text-[var(--muted)]">
+                      {formatPkr(
+                        calcLineDiscount(draft.qty, draft.rate, draft.discount),
+                      )}
+                    </p>
+                  ) : null}
+                </td>
+              ) : null}
               <td className="font-medium text-[var(--muted)]">
                 {formatPkr(draftAmount)}
               </td>
@@ -681,9 +771,10 @@ export function LineItemsEditor({
                       value={line.qty}
                       onChange={(e) => {
                         const qty = e.target.value;
-                        const p = productById.get(line.product_id);
-                        const bonusFields = bonusFromProduct(p, qty, line.rate);
-                        patchLine(line.key, { qty, ...bonusFields });
+                        patchLine(line.key, {
+                          qty,
+                          ...schemeFields(line.scheme, qty, line.rate),
+                        });
                       }}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
@@ -693,7 +784,7 @@ export function LineItemsEditor({
                             ? (e.currentTarget
                                 .closest("tr")
                                 ?.querySelector(
-                                  'input[data-line-bonus="1"]',
+                                  'input[data-line-scheme="1"]',
                                 ) as HTMLInputElement | null)
                             : (e.currentTarget
                                 .closest("tr")
@@ -731,13 +822,16 @@ export function LineItemsEditor({
                   {enableBonus ? (
                     <td>
                       <Input
-                        data-line-bonus="1"
-                        type="number"
-                        min="0"
-                        step="0.1"
-                        value={line.bonus}
+                        data-line-scheme="1"
+                        value={line.scheme}
+                        placeholder="10+1"
                         onChange={(e) =>
-                          patchLine(line.key, { bonus: e.target.value })
+                          patchLineWithScheme(
+                            line.key,
+                            e.target.value,
+                            line.qty,
+                            line.rate,
+                          )
                         }
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
@@ -752,11 +846,20 @@ export function LineItemsEditor({
                           }
                         }}
                       />
-                      {line.scheme ? (
-                        <p className="mt-1 text-[10px] text-[var(--muted)]">
-                          {line.scheme}
-                        </p>
-                      ) : null}
+                    </td>
+                  ) : null}
+                  {enableBonus ? (
+                    <td>
+                      <Input
+                        data-line-bonus="1"
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={line.bonus}
+                        readOnly
+                        className="bg-[var(--surface-2)]"
+                        tabIndex={-1}
+                      />
                     </td>
                   ) : null}
                   <td>
@@ -773,6 +876,10 @@ export function LineItemsEditor({
                         if (e.key === "Enter") {
                           e.preventDefault();
                           e.stopPropagation();
+                          if (enableBonus) {
+                            focusField(codeRef.current);
+                            return;
+                          }
                           const disc = e.currentTarget
                             .closest("tr")
                             ?.querySelector(
@@ -797,33 +904,35 @@ export function LineItemsEditor({
                       );
                     })()}
                   </td>
-                  <td>
-                    <Input
-                      data-line-discount="1"
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.1"
-                      value={line.discount}
-                      onChange={(e) =>
-                        patchLine(line.key, { discount: e.target.value })
-                      }
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          focusField(codeRef.current);
+                  {!enableBonus ? (
+                    <td>
+                      <Input
+                        data-line-discount="1"
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        value={line.discount}
+                        onChange={(e) =>
+                          patchLine(line.key, { discount: e.target.value })
                         }
-                      }}
-                    />
-                    {Number(line.discount) > 0 ? (
-                      <p className="mt-1 text-[10px] text-[var(--muted)]">
-                        {formatPkr(
-                          calcLineDiscount(line.qty, line.rate, line.discount),
-                        )}
-                      </p>
-                    ) : null}
-                  </td>
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            focusField(codeRef.current);
+                          }
+                        }}
+                      />
+                      {Number(line.discount) > 0 ? (
+                        <p className="mt-1 text-[10px] text-[var(--muted)]">
+                          {formatPkr(
+                            calcLineDiscount(line.qty, line.rate, line.discount),
+                          )}
+                        </p>
+                      ) : null}
+                    </td>
+                  ) : null}
                   <td className="font-medium">{formatPkr(line.amount)}</td>
                   <td>
                     <button
@@ -845,14 +954,38 @@ export function LineItemsEditor({
 
       <div className="flex flex-wrap items-center justify-end gap-3">
         <div className="rounded-xl border border-[var(--border)] bg-white px-4 py-3 text-sm">
-          <div className="flex gap-6">
-            <span className="text-[var(--muted)]">
-              Subtotal {formatPkr(subtotal)}
+          <div className="flex flex-col gap-2 sm:items-end">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
+              <span className="text-[var(--muted)]">
+                Subtotal {formatPkr(subtotal)}
+              </span>
+              <span className="text-[var(--muted)]">
+                Trade discount {formatPkr(discount)}
+              </span>
+            </div>
+            {onExtraDiscountChange ? (
+              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                <Label className="text-xs uppercase tracking-wide text-[var(--muted)]">
+                  Extra discount
+                </Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  value={extraDiscount ?? ""}
+                  onChange={(e) => onExtraDiscountChange(e.target.value)}
+                  placeholder="0"
+                  className="h-9 w-28 text-right tabular-nums"
+                />
+                <span className="min-w-[5rem] text-right text-[var(--muted)]">
+                  {formatPkr(extra)}
+                </span>
+              </div>
+            ) : null}
+            <span className="font-semibold">
+              Bill amount {formatPkr(onExtraDiscountChange ? billTotal : grand)}
             </span>
-            <span className="text-[var(--muted)]">
-              Discount {formatPkr(discount)}
-            </span>
-            <span className="font-semibold">Total {formatPkr(grand)}</span>
           </div>
         </div>
       </div>
