@@ -13,6 +13,9 @@ export type DetailField = {
   value: React.ReactNode;
 };
 
+const tableIconBtn =
+  "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg p-0";
+
 export function DetailGrid({ fields }: { fields: DetailField[] }) {
   return (
     <dl className="grid gap-3 sm:grid-cols-2">
@@ -79,27 +82,30 @@ export function RowActions({
   }
 
   return (
-    <div className={cn("flex flex-wrap items-center justify-end gap-1", className)}>
+    <div className={cn("flex flex-nowrap items-center justify-end gap-0.5", className)}>
       <Button
         type="button"
         variant="ghost"
         size="sm"
-        className="h-8 px-2"
+        className={tableIconBtn}
         onClick={() => setMode("view")}
         aria-label="View"
+        title="View"
       >
         <Eye className="h-3.5 w-3.5" />
-        <span className="hidden sm:inline">View</span>
       </Button>
 
       {printHref ? (
         <Link
           href={`${printHref}${printHref.includes("?") ? "&" : "?"}print=1`}
           aria-label="Print"
-          className="inline-flex h-8 items-center justify-center gap-2 rounded-lg px-2 text-xs font-medium text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+          title="Print"
+          className={cn(
+            tableIconBtn,
+            "text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)]",
+          )}
         >
           <Printer className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Print</span>
         </Link>
       ) : null}
 
@@ -108,12 +114,12 @@ export function RowActions({
           type="button"
           variant="ghost"
           size="sm"
-          className="h-8 px-2"
+          className={tableIconBtn}
           onClick={() => setMode("edit")}
           aria-label="Edit"
+          title="Edit"
         >
           <Pencil className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Edit</span>
         </Button>
       ) : null}
 
@@ -122,12 +128,12 @@ export function RowActions({
           type="button"
           variant="ghost"
           size="sm"
-          className="h-8 px-2 text-rose-600 hover:text-rose-700"
+          className={cn(tableIconBtn, "text-rose-600 hover:text-rose-700")}
           onClick={() => setMode("delete")}
           aria-label="Delete"
+          title="Delete"
         >
           <Trash2 className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Del</span>
         </Button>
       ) : null}
 

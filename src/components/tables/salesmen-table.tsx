@@ -2,12 +2,14 @@
 
 import { SalesmanForm } from "@/components/salesman/salesman-form";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
+import { TablePagination } from "@/components/tables/table-pagination";
 import { TableScroll } from "@/components/tables/table-scroll";
 import { TableToolbar } from "@/components/tables/table-toolbar";
 import { DetailField, RowActions } from "@/components/ui/row-actions";
+import { useClientPagination } from "@/hooks/use-client-pagination";
 import { createClient } from "@/lib/supabase/client";
 import { formatNumber, formatPkr } from "@/lib/utils";
-import { HandCoins, ShoppingCart, Users } from "lucide-react";
+import { HandCoins, ScrollText, ShoppingCart, TrendingUp, Users } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
@@ -45,6 +47,8 @@ export function SalesmenTable({
         .some((v) => String(v).toLowerCase().includes(term)),
     );
   }, [rows, query]);
+
+  const pager = useClientPagination(filtered);
 
   const totals = useMemo(
     () =>
@@ -140,8 +144,8 @@ export function SalesmenTable({
               </tr>
             </thead>
             <tbody>
-              {filtered.length ? (
-                filtered.map((r) => (
+              {pager.slice.length ? (
+                pager.slice.map((r) => (
                   <tr key={r.id}>
                     <td className="font-medium">{r.full_name}</td>
                     <td>{r.phone || "—"}</td>
@@ -165,18 +169,22 @@ export function SalesmenTable({
                       {formatPkr(r.recovered)}
                     </td>
                     <td>
-                      <div className="flex flex-wrap items-center justify-end gap-1">
+                      <div className="flex flex-nowrap items-center justify-end gap-0.5">
                         <Link
                           href={`/sales/salesmen?salesman=${r.id}`}
-                          className="inline-flex h-8 items-center rounded-lg px-2 text-xs font-medium text-[var(--brand)] hover:bg-[var(--brand-soft)]"
+                          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--brand)] hover:bg-[var(--brand-soft)]"
+                          aria-label="Sales report"
+                          title="Sales report"
                         >
-                          Report
+                          <TrendingUp className="h-3.5 w-3.5" />
                         </Link>
                         <Link
                           href={`/reports/salesman-ledger?salesman=${r.id}`}
-                          className="inline-flex h-8 items-center rounded-lg px-2 text-xs font-medium text-[var(--brand)] hover:bg-[var(--brand-soft)]"
+                          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--brand)] hover:bg-[var(--brand-soft)]"
+                          aria-label="Ledger"
+                          title="Ledger"
                         >
-                          Ledger
+                          <ScrollText className="h-3.5 w-3.5" />
                         </Link>
                         <RowActions
                           viewTitle={r.full_name}
@@ -220,6 +228,16 @@ export function SalesmenTable({
             </tbody>
           </table>
         </TableScroll>
+        <TablePagination
+          page={pager.page}
+          totalPages={pager.totalPages}
+          pageSize={pager.pageSize}
+          total={pager.total}
+          from={pager.from}
+          to={pager.to}
+          onPageChange={pager.setPage}
+          onPageSizeChange={pager.setPageSize}
+        />
       </div>
     </div>
   );

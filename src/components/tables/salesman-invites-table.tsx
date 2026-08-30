@@ -99,33 +99,31 @@ export function SalesmanInvitesTable({ rows }: { rows: SalesmanInviteRow[] }) {
                     {i.created_at?.slice(0, 10) || "—"}
                   </td>
                   <td>
-                    <div className="flex flex-wrap items-center justify-end gap-1">
+                    <div className="flex flex-nowrap items-center justify-end gap-0.5">
                       {!i.claimed_by ? (
                         <>
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="h-8 px-2"
+                            className="h-8 w-8 shrink-0 p-0"
                             onClick={() => void copyLink(i)}
+                            aria-label="Copy invite link"
+                            title={copiedId === i.id ? "Copied" : "Copy link"}
                           >
                             <Copy className="h-3.5 w-3.5" />
-                            <span className="hidden sm:inline">
-                              {copiedId === i.id ? "Copied" : "Copy link"}
-                            </span>
                           </Button>
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="h-8 px-2 text-rose-600 hover:text-rose-700"
+                            className="h-8 w-8 shrink-0 p-0 text-rose-600 hover:text-rose-700"
                             disabled={busyId === i.id}
                             onClick={() => void cancelInvite(i.id)}
+                            aria-label="Cancel invite"
+                            title="Cancel invite"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
-                            <span className="hidden sm:inline">
-                              {busyId === i.id ? "…" : "Cancel"}
-                            </span>
                           </Button>
                         </>
                       ) : (

@@ -1,7 +1,10 @@
 "use client";
 
 import { ExportButtons } from "@/components/reports/export-buttons";
+import { TablePagination } from "@/components/tables/table-pagination";
+import { TableScroll } from "@/components/tables/table-scroll";
 import { TableToolbar } from "@/components/tables/table-toolbar";
+import { useUrlTableState } from "@/hooks/use-url-table-state";
 import type {
   RecoverySheetResult,
   RecoverySheetRow,
@@ -20,6 +23,8 @@ function balanceLabel(balance: number) {
 
 type Totals = { count: number; dueTotal: number; crTotal: number };
 
+type FlatRow = RecoverySheetRow & { sector: string };
+
 function totalsOf(rows: RecoverySheetRow[]): Totals {
   let dueTotal = 0;
   let crTotal = 0;
@@ -34,6 +39,16 @@ function matchRow(r: RecoverySheetRow, term: string) {
   return [r.party_code, r.name_en, r.city, r.route]
     .filter(Boolean)
     .some((v) => String(v).toLowerCase().includes(term));
+}
+
+function filterSections(
+  sections: RecoverySheetSection[],
+  term: string,
+): RecoverySheetSection[] {
+  if (!term) return sections;
+  return sections
+    .map((s) => ({ ...s, rows: s.rows.filter((r) => matchRow(r, term)) }))
+    .filter((s) => s.rows.length);
 }
 
 export function RecoverySheet({
@@ -51,8 +66,14 @@ export function RecoverySheet({
   sections: RecoverySheetSection[];
   grand: RecoverySheetResult["grand"];
 }) {
-  const [query, setQuery] = useState("");
+  const { page, pageSize, q, isPending, setPage, setPageSize, setQuery } =
+    useUrlTableState();
+  const [localQuery, setLocalQuery] = useState(q);
   const savedTitle = useRef("");
+
+  useEffect(() => {
+    setLocalQuery(q);
+  }, [q]);
 
   // Hide browser print header title (often shows app name + URL footer).
   useEffect(() => {
@@ -71,24 +92,35 @@ export function RecoverySheet({
     };
   }, []);
 
-  // Filter sections by the on-screen search; the print sheet renders exactly
-  // what is shown here so a filtered search prints a filtered sheet.
-  const view = useMemo(() => {
-    const term = query.trim().toLowerCase();
-    const filtered = term
-      ? sections
-          .map((s) => ({ ...s, rows: s.rows.filter((r) => matchRow(r, term)) }))
-          .filter((s) => s.rows.length)
-      : sections;
-    const flat = filtered.flatMap((s) => s.rows);
-    return { sections: filtered, totals: totalsOf(flat) };
-  }, [sections, query]);
+  const term = q.trim().toLowerCase();
+  const filteredSections = useMemo(
+    () => filterSections(sections, term),
+    [sections, term],
+  );
+
+  const flatRows = useMemo<FlatRow[]>(
+    () =>
+      filteredSections.flatMap((s) =>
+        s.rows.map((r) => ({ ...r, sector: s.sector })),
+      ),
+    [filteredSections],
+  );
+
+  const viewTotals = useMemo(() => totalsOf(flatRows), [flatRows]);
+
+  const total = flatRows.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize) || 1);
+  const safePage = Math.min(page, totalPages);
+  const sliceFrom = (safePage - 1) * pageSize;
+  const slice = flatRows.slice(sliceFrom, sliceFrom + pageSize);
+  const fromRow = total === 0 ? 0 : sliceFrom + 1;
+  const toRow = Math.min(safePage * pageSize, total);
 
   const showScope =
     scopeLabel && scopeLabel !== "All parties" && scopeLabel !== "All customers";
   const totalRows = grand.count;
 
-  const exportRows = view.sections.flatMap((s) =>
+  const exportRows = filteredSections.flatMap((s) =>
     s.rows.map((r) => ({
       Sector: s.sector,
       Code: r.party_code,
@@ -110,8 +142,8 @@ export function RecoverySheet({
           </h2>
           <p className="text-sm text-[var(--muted)]">
             {formatReportDate(from)} to {formatReportDate(to)}
-            {showScope ? ` · ${scopeLabel}` : ""} · {view.totals.count}
-            {view.totals.count === 1 ? " shop" : " shops"}
+            {showScope ? ` · ${scopeLabel}` : ""} · {viewTotals.count}
+            {viewTotals.count === 1 ? " shop" : " shops"}
           </p>
         </div>
         <ExportButtons
@@ -122,75 +154,96 @@ export function RecoverySheet({
 
       <div className="no-print">
         <TableToolbar
-          query={query}
-          onQueryChange={setQuery}
+          query={localQuery}
+          onQueryChange={(value) => {
+            setLocalQuery(value);
+            setQuery(value);
+          }}
+          loading={isPending}
           placeholder="Search code, shop, sector..."
-          resultCount={view.totals.count}
+          resultCount={total}
           totalCount={totalRows}
         />
       </div>
 
-      {/* Interactive preview — screen only */}
-      <div className="table-shell no-print">
-        {view.sections.length ? (
-          view.sections.map((section) => (
-            <div key={section.sector}>
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] bg-[var(--surface-2)] px-4 py-2">
-                <p className="text-sm font-semibold uppercase tracking-wide">
-                  Sector: {section.sector}
-                </p>
-                <p className="text-xs text-[var(--muted)]">
-                  {section.count} shops · Due{" "}
-                  {formatNumber(
-                    totalsOf(section.rows).dueTotal,
-                    0,
-                  )}
-                </p>
-              </div>
-              <div className="table-scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th style={{ width: "12%" }}>Code</th>
-                      <th>Name</th>
-                      <th style={{ width: "18%" }}>Balance</th>
-                      <th style={{ width: "14%" }}>Rec</th>
-                      <th style={{ width: "20%" }}>Remarks</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {section.rows.map((r) => (
-                      <tr key={r.party_id}>
-                        <td className="font-medium">{r.party_code}</td>
-                        <td>{r.name_en}</td>
-                        <td
-                          className={
-                            r.balance > 0.005
-                              ? "font-semibold text-rose-700"
-                              : r.balance < -0.005
-                                ? "font-semibold text-emerald-700"
-                                : "text-[var(--muted)]"
-                          }
-                        >
-                          {balanceLabel(r.balance)}
-                        </td>
-                        <td />
-                        <td />
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ))
-        ) : (
-          <p className="py-8 text-center text-[var(--muted)]">
-            No shops match this filter.
+      {/* Interactive preview — screen only, paginated */}
+      <div className="table-shell recovery-balance-shell no-print">
+        <div className="border-b border-[var(--border)] px-4 py-3">
+          <p className="font-semibold">Outstanding balances</p>
+          <p className="text-xs text-[var(--muted)]">
+            {total} shops · page {safePage}/{totalPages}
           </p>
-        )}
+        </div>
+        <TableScroll loading={isPending}>
+          <table className="recovery-balance-table">
+            <colgroup>
+              <col className="recovery-balance-table__col-sector" />
+              <col className="recovery-balance-table__col-code" />
+              <col className="recovery-balance-table__col-name" />
+              <col className="recovery-balance-table__col-balance" />
+              <col className="recovery-balance-table__col-rec" />
+              <col className="recovery-balance-table__col-remarks" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th>Sector</th>
+                <th>Code</th>
+                <th>Name</th>
+                <th>Balance</th>
+                <th>Rec</th>
+                <th>Remarks</th>
+              </tr>
+            </thead>
+            <tbody>
+              {slice.length ? (
+                slice.map((r) => (
+                  <tr key={r.party_id}>
+                    <td className="recovery-balance-table__sector" title={r.sector}>
+                      {r.sector}
+                    </td>
+                    <td className="recovery-balance-table__code">{r.party_code}</td>
+                    <td className="recovery-balance-table__name" title={r.name_en}>
+                      {r.name_en}
+                    </td>
+                    <td
+                      className={
+                        r.balance > 0.005
+                          ? "recovery-balance-table__balance font-semibold text-rose-700"
+                          : r.balance < -0.005
+                            ? "recovery-balance-table__balance font-semibold text-emerald-700"
+                            : "recovery-balance-table__balance text-[var(--muted)]"
+                      }
+                    >
+                      {balanceLabel(r.balance)}
+                    </td>
+                    <td className="recovery-balance-table__rec" />
+                    <td className="recovery-balance-table__remarks" />
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-[var(--muted)]">
+                    No shops match this filter.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </TableScroll>
+        <TablePagination
+          page={safePage}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          total={total}
+          from={fromRow}
+          to={toRow}
+          loading={isPending}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+        />
       </div>
 
-      {/* Paper-matching Recovery Sheet — print / PDF only */}
+      {/* Paper-matching Recovery Sheet — print / PDF only (all filtered rows) */}
       <div className="print-only print-sheet recovery-sheet">
         <div className="recovery-sheet-head">
           <div>
@@ -210,8 +263,8 @@ export function RecoverySheet({
           </div>
         </div>
 
-        {view.sections.length ? (
-          view.sections.map((section) => {
+        {filteredSections.length ? (
+          filteredSections.map((section) => {
             const t = totalsOf(section.rows);
             return (
               <section key={section.sector} className="recovery-sheet-section">
@@ -263,9 +316,9 @@ export function RecoverySheet({
 
         <div className="recovery-sheet-foot">
           <span>
-            {view.totals.count} shops · Total due{" "}
-            {formatNumber(view.totals.dueTotal, 0)} Dr · Advance{" "}
-            {formatNumber(view.totals.crTotal, 0)} Cr
+            {viewTotals.count} shops · Total due{" "}
+            {formatNumber(viewTotals.dueTotal, 0)} Dr · Advance{" "}
+            {formatNumber(viewTotals.crTotal, 0)} Cr
           </span>
           <span>Salesman: __________________</span>
         </div>

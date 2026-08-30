@@ -748,6 +748,83 @@ button[aria-haspopup="listbox"]:focus-visible {
   width: 100%;
 }
 
+/* Recovery sheet — wide compact rows, single-line shop names */
+.recovery-balance-shell .table-scroll {
+  overflow-x: auto;
+}
+
+.recovery-balance-table {
+  width: 100%;
+  min-width: 100%;
+  table-layout: fixed;
+}
+
+.recovery-balance-table__col-sector {
+  width: 11%;
+}
+
+.recovery-balance-table__col-code {
+  width: 7%;
+}
+
+.recovery-balance-table__col-name {
+  width: 52%;
+}
+
+.recovery-balance-table__col-balance {
+  width: 12%;
+}
+
+.recovery-balance-table__col-rec {
+  width: 8%;
+}
+
+.recovery-balance-table__col-remarks {
+  width: 10%;
+}
+
+.recovery-balance-table th,
+.recovery-balance-table td {
+  padding: 7px 10px;
+  font-size: 12px;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recovery-balance-table__name {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.recovery-balance-table__sector {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.recovery-balance-table__code {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.recovery-balance-table__balance {
+  font-size: 11px;
+  text-align: right;
+}
+
+.recovery-balance-table th:nth-child(4),
+.recovery-balance-table td:nth-child(4) {
+  text-align: right;
+}
+
+.recovery-balance-table__rec,
+.recovery-balance-table__remarks {
+  padding-inline: 6px;
+}
+
 /* Page-change loading: blur the current rows and float one round spinner. */
 .table-scroll--loading {
   filter: blur(1.5px) saturate(0.92);
