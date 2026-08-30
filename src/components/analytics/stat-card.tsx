@@ -15,9 +15,9 @@ export type StatCardColor =
   | "peach";
 
 const toneClass: Record<StatTone, string> = {
-  brand: "text-[var(--brand)]",
+  brand: "text-[var(--stat-icon)]",
   ok: "text-emerald-600",
-  warn: "text-[var(--brand)]",
+  warn: "text-[var(--stat-icon)]",
   danger: "text-rose-600",
   neutral: "text-[var(--muted)]",
 };

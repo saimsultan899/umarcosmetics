@@ -6,7 +6,6 @@ import {
 } from "@/components/auth/company-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   getPreferredCompanyId,
   setPreferredCompanyId,
@@ -35,7 +34,6 @@ function LoginForm() {
   useEffect(() => {
     setPreferredId(getPreferredCompanyId());
 
-    // Already signed in? Jump straight to company pick on this page.
     (async () => {
       const supabase = createClient();
       const {
@@ -131,7 +129,6 @@ function LoginForm() {
       return;
     }
 
-    // Multiple companies → pick on this same login screen (no sidebar)
     setPreferredId(getPreferredCompanyId());
     setStep("company");
   }
@@ -145,37 +142,32 @@ function LoginForm() {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center px-4 py-10">
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -left-20 top-10 h-72 w-72 rounded-full bg-[#d65a42]/12 blur-3xl" />
-        <div className="absolute bottom-0 right-0 h-80 w-80 rounded-full bg-[#e88774]/10 blur-3xl" />
-      </div>
+    <div className="login-shell">
+      <div className="login-shell__bg" aria-hidden />
 
       <div
-        className={`panel relative z-10 w-full animate-rise p-8 ${
-          step === "company" ? "max-w-3xl" : "max-w-md"
+        className={`login-card animate-rise ${
+          step === "company" ? "login-card--wide login-card--company" : "login-card--narrow"
         }`}
       >
-        <div className="mb-8 flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--brand)] text-white shadow-lg shadow-[#c04a34]/20">
-            <Layers3 className="h-6 w-6" />
+        <div className="login-brand">
+          <div className="login-brand__mark">
+            <Layers3 className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="font-[family-name:var(--font-display)] text-2xl font-semibold text-[var(--ink)]">
-              Umar Distribution
-            </h1>
-            <p className="text-sm text-[var(--muted)]">
+            <h1 className="login-brand__title">Umar Distribution</h1>
+            <p className="login-brand__subtitle">
               {step === "credentials"
-                ? "Sign in · then open your company"
-                : "Choose company to open dashboard"}
+                ? "Sign in to your workspace"
+                : "Select a company to continue"}
             </p>
           </div>
         </div>
 
         {step === "credentials" ? (
-          <form onSubmit={onSubmit} className="space-y-4">
-            <div>
-              <Label htmlFor="email">Email</Label>
+          <form onSubmit={onSubmit} className="login-form">
+            <div className="login-field">
+              <label htmlFor="email">Email</label>
               <Input
                 id="email"
                 type="email"
@@ -183,11 +175,11 @@ function LoginForm() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@company.com"
+                placeholder="you@company.com"
               />
             </div>
-            <div>
-              <Label htmlFor="password">Password</Label>
+            <div className="login-field">
+              <label htmlFor="password">Password</label>
               <Input
                 id="password"
                 type="password"
@@ -195,14 +187,9 @@ function LoginForm() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder="Enter your password"
               />
             </div>
-
-            <p className="rounded-xl bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--muted)]">
-              After sign-in you open a company directly. Last used company opens
-              automatically when available — or you can pick another.
-            </p>
 
             {error ? (
               <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
@@ -210,29 +197,29 @@ function LoginForm() {
               </p>
             ) : null}
 
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="login-submit" disabled={loading}>
               {loading ? "Signing in..." : "Sign in"}
             </Button>
           </form>
         ) : (
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm text-[var(--muted)]">
+          <div>
+            <div className="login-account-bar">
+              <p className="text-[var(--muted)]">
                 Signed in as{" "}
                 <span className="font-medium text-[var(--ink)]">{email}</span>
               </p>
               <button
                 type="button"
                 onClick={() => void backToCredentials()}
-                className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--brand)]"
+                className="inline-flex items-center gap-1 text-[var(--brand)] font-medium"
               >
                 <ArrowLeft className="h-3.5 w-3.5" />
-                Use different account
+                Switch account
               </button>
             </div>
 
             {error ? (
-              <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              <p className="mb-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
                 {error}
               </p>
             ) : null}
@@ -242,14 +229,10 @@ function LoginForm() {
               picking={picking}
               preferredId={preferredId}
               onPick={(id) => void openCompany(id, rows)}
+              variant="login"
             />
           </div>
         )}
-
-        <p className="mt-6 text-center text-xs text-[var(--muted)]">
-          First time? Open <span className="font-semibold">/setup</span> to
-          bootstrap Super Admin + demo companies.
-        </p>
       </div>
     </div>
   );
