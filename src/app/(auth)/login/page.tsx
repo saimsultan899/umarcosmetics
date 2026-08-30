@@ -6,6 +6,7 @@ import {
 } from "@/components/auth/company-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import {
   getPreferredCompanyId,
   setPreferredCompanyId,
@@ -180,9 +181,8 @@ function LoginForm() {
             </div>
             <div className="login-field">
               <label htmlFor="password">Password</label>
-              <Input
+              <PasswordInput
                 id="password"
-                type="password"
                 autoComplete="current-password"
                 required
                 value={password}
