@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { headFromCity } from "@/lib/locations";
 import { createClient } from "@/lib/supabase/client";
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { useState } from "react";
 
 export type LocationKind = "city" | "head" | "sector";
@@ -14,7 +14,7 @@ export type LocationKind = "city" | "head" | "sector";
 export function LocationSelect({
   companyId,
   organizationId,
-  kind,
+  kind, 
   label,
   value,
   options,
@@ -38,6 +38,12 @@ export function LocationSelect({
   const [error, setError] = useState<string | null>(null);
 
   const emptyLabel = placeholder || `Select ${label.toLowerCase()}`;
+
+  function cancelAdd() {
+    setDraft("");
+    setError(null);
+    setAdding(false);
+  }
 
   async function saveNew() {
     const name = draft.trim();
@@ -99,8 +105,12 @@ export function LocationSelect({
           variant="secondary"
           className="shrink-0"
           onClick={() => {
-            setAdding((v) => !v);
+            if (adding) {
+              cancelAdd();
+              return;
+            }
             setError(null);
+            setAdding(true);
           }}
         >
           <Plus className="h-4 w-4" />
@@ -109,8 +119,9 @@ export function LocationSelect({
       </div>
       {adding ? (
         <div className="mt-2 space-y-2">
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <Input
+              className="min-w-0 flex-1"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               placeholder={`New ${label.toLowerCase()}`}
@@ -119,10 +130,25 @@ export function LocationSelect({
                   e.preventDefault();
                   void saveNew();
                 }
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  cancelAdd();
+                }
               }}
             />
             <Button type="button" size="sm" disabled={saving} onClick={() => void saveNew()}>
               {saving ? "Saving..." : "Save"}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 shrink-0 px-0"
+              disabled={saving}
+              aria-label="Close add"
+              onClick={cancelAdd}
+            >
+              <X className="h-4 w-4" />
             </Button>
           </div>
           {error ? <p className="text-xs text-rose-700">{error}</p> : null}
