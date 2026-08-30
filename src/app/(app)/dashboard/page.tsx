@@ -194,6 +194,12 @@ export default async function DashboardPage() {
             Purchase
           </Link>
           <Link
+            href="/purchases/gate-passes"
+            className="rounded-lg border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium"
+          >
+            Gate Pass
+          </Link>
+          <Link
             href="/reports/recovery"
             className="rounded-lg border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium"
           >

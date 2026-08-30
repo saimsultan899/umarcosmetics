@@ -48,7 +48,7 @@ export async function buildSaleReport(
   let query = supabase
     .from("sale_invoices")
     .select(
-      "id, invoice_no, invoice_date, payment_type, grand_total, amount_paid, discount_total, subtotal, city, route, created_by, salesman_id, party_id, warehouse_id, parties(party_code, name_en, address, city, route, head), warehouses(name), salesman:profiles!sale_invoices_salesman_id_fkey(id, full_name)",
+      "id, invoice_no, invoice_date, payment_type, grand_total, amount_paid, discount_total, subtotal, city, route, created_by, salesman_id, party_id, warehouse_id, parties(party_code, name_en, address, city, route, head), warehouses(name), salesman:salesmen!sale_invoices_salesman_id_fkey(id, full_name)",
     )
     .eq("company_id", filters.companyId)
     .eq("status", "posted")

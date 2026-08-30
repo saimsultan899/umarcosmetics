@@ -12,6 +12,7 @@ export function DocumentRowActions({
   linesTable,
   linesFk,
   allowDelete = true,
+  showPrint = false,
 }: {
   title: string;
   fields: DetailField[];
@@ -21,6 +22,7 @@ export function DocumentRowActions({
   linesTable?: string;
   linesFk?: string;
   allowDelete?: boolean;
+  showPrint?: boolean;
 }) {
   async function remove() {
     const supabase = createClient();
@@ -40,6 +42,7 @@ export function DocumentRowActions({
       viewTitle={title}
       viewFields={fields}
       href={href}
+      printHref={showPrint ? href : undefined}
       allowEdit={false}
       allowDelete={allowDelete}
       onDelete={allowDelete ? remove : undefined}

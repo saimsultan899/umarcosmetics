@@ -58,6 +58,7 @@ export const mainNav: NavItem[] = [
     children: [
       { label: "Sale Invoice", href: "/sales/invoices" },
       { label: "Sale Return", href: "/sales/returns" },
+      { label: "Salesmen", href: "/salesman" },
       { label: "Salesmen Performance", href: "/sales/salesmen" },
     ],
   },
@@ -83,7 +84,7 @@ export const mainNav: NavItem[] = [
     label: "Salesman",
     icon: Route,
     children: [
-      { label: "Users & Sectors", href: "/salesman" },
+      { label: "Salesmen", href: "/salesman" },
       { label: "Field App", href: "/field" },
       { label: "Recoveries", href: "/salesman/recoveries" },
       { label: "Sector Sheets", href: "/salesman/routes" },

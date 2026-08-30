@@ -5,7 +5,6 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import {
   focusField,
-  focusNextField,
   getFocusableFields,
 } from "@/lib/keyboard/enter-nav";
 import { createClient } from "@/lib/supabase/client";
@@ -140,12 +139,6 @@ export function PartyCodePicker({
             onChange(e.target.value, party);
             setCode(party?.party_code || "");
             setStatus(null);
-          }}
-          onCommit={() => {
-            requestAnimationFrame(() => {
-              const el = document.activeElement as HTMLElement | null;
-              if (el) focusNextField(el);
-            });
           }}
         >
           <option value="">Select party</option>

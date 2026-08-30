@@ -1,4 +1,10 @@
+import { SalesmanForm } from "@/components/salesman/salesman-form";
 import { SalesmanInviteForm } from "@/components/salesman/invite-form";
+import {
+  SalesmenTable,
+  type SalesmanListRow,
+} from "@/components/tables/salesmen-table";
+import { SalesmanInvitesTable } from "@/components/tables/salesman-invites-table";
 import { Button } from "@/components/ui/button";
 import {
   CreateDialogButton,
@@ -10,32 +16,79 @@ import Link from "next/link";
 export default async function SalesmanAdminPage() {
   const { supabase, company } = await requireCompanyContext();
 
-  const [{ data: members }, { data: invites }, { data: routes }] =
+  const [{ data: roster }, { data: invites }, salesAgg, recoveryAgg] =
     await Promise.all([
       supabase
-        .from("company_members")
-        .select("*, profiles(full_name, phone)")
+        .from("salesmen")
+        .select("id, full_name, phone, code, is_active, user_id, created_at")
         .eq("company_id", company.id)
-        .eq("role", "salesman")
-        .eq("is_active", true),
+        .eq("is_active", true)
+        .order("full_name"),
       supabase
         .from("salesman_invites")
-        .select("*")
+        .select("id, email, full_name, token, claimed_by, created_at")
         .eq("company_id", company.id)
         .order("created_at", { ascending: false })
-        .limit(20),
+        .limit(50),
       supabase
-        .from("salesman_routes")
-        .select("*, profiles(full_name)")
+        .from("sale_invoices")
+        .select("salesman_id, grand_total")
         .eq("company_id", company.id)
-        .eq("is_active", true),
+        .eq("status", "posted")
+        .not("salesman_id", "is", null),
+      supabase
+        .from("recoveries")
+        .select("salesman_id, amount")
+        .eq("company_id", company.id)
+        .not("salesman_id", "is", null),
     ]);
+
+  const salesById = new Map<string, { bills: number; sales: number }>();
+  for (const row of salesAgg.data || []) {
+    const id = row.salesman_id as string;
+    if (!id) continue;
+    const cur = salesById.get(id) || { bills: 0, sales: 0 };
+    cur.bills += 1;
+    cur.sales += Number(row.grand_total || 0);
+    salesById.set(id, cur);
+  }
+
+  const recoveryById = new Map<
+    string,
+    { recoveries: number; recovered: number }
+  >();
+  for (const row of recoveryAgg.data || []) {
+    const id = row.salesman_id as string;
+    if (!id) continue;
+    const cur = recoveryById.get(id) || { recoveries: 0, recovered: 0 };
+    cur.recoveries += 1;
+    cur.recovered += Number(row.amount || 0);
+    recoveryById.set(id, cur);
+  }
+
+  const rows: SalesmanListRow[] = (roster || []).map((m) => {
+    const s = salesById.get(m.id) || { bills: 0, sales: 0 };
+    const r = recoveryById.get(m.id) || { recoveries: 0, recovered: 0 };
+    return {
+      id: m.id,
+      full_name: m.full_name,
+      phone: m.phone,
+      code: m.code,
+      is_active: m.is_active,
+      user_id: m.user_id,
+      created_at: m.created_at,
+      bills: s.bills,
+      sales: s.sales,
+      recoveries: r.recoveries,
+      recovered: r.recovered,
+    };
+  });
 
   return (
     <div className="animate-rise space-y-6">
       <PageHeading
-        title="Salesman users & sectors"
-        description="Invite field staff and assign cities/sectors for market collection"
+        title="Salesmen"
+        description="Add field staff names to tag sale invoices and recoveries — no login needed"
         actions={
           <>
             <Link href="/sales/salesmen">
@@ -43,127 +96,48 @@ export default async function SalesmanAdminPage() {
                 Salesman report
               </Button>
             </Link>
-            <Link href="/field">
-              <Button variant="secondary" size="sm">
-                Open field app
-              </Button>
-            </Link>
             <CreateDialogButton
-              label="Invite salesman"
-              title="Invite salesman"
-              description="Send an invite link for field staff"
+              label="Invite login (optional)"
+              title="Invite salesman login"
+              description="Only if this person should use the field app"
               size="md"
             >
-                <SalesmanInviteForm
-                  companyId={company.id}
-                  organizationId={company.organization_id}
-                />
+              <SalesmanInviteForm
+                companyId={company.id}
+                organizationId={company.organization_id}
+              />
+            </CreateDialogButton>
+            <CreateDialogButton
+              label="Add salesman"
+              title="Add salesman"
+              description="Name only — used on sale invoices and recoveries"
+              size="md"
+            >
+              <SalesmanForm
+                companyId={company.id}
+                organizationId={company.organization_id}
+              />
             </CreateDialogButton>
           </>
         }
       />
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="panel p-5">
-          <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
-            Active salesmen
-          </h2>
-          <div className="mt-4 space-y-2">
-            {(members || []).length ? (
-              members!.map((m) => (
-                <div
-                  key={m.id}
-                  className="rounded-xl border border-[var(--border)] px-3 py-3 text-sm"
-                >
-                  <p className="font-medium">
-                    {m.profiles?.full_name || "Salesman"}
-                  </p>
-                  <p className="text-xs text-[var(--muted)]">{m.user_id}</p>
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-[var(--muted)]">
-                No salesman accounts yet.
-              </p>
-            )}
-          </div>
-        </div>
+      <SalesmenTable
+        rows={rows}
+        companyId={company.id}
+        organizationId={company.organization_id}
+      />
 
-        <div className="panel p-5">
-          <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
-            Sector assignments
-          </h2>
-          <div className="mt-4 space-y-2">
-            {(routes || []).length ? (
-              routes!.map((r) => (
-                <div
-                  key={r.id}
-                  className="rounded-xl border border-[var(--border)] px-3 py-3 text-sm"
-                >
-                  <p className="font-medium">
-                    {r.profiles?.full_name || "Salesman"}
-                  </p>
-                  <p className="text-xs text-[var(--muted)]">
-                    {[r.route, r.city].filter(Boolean).join(" · ") || "Unscoped"}
-                  </p>
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-[var(--muted)]">
-                No sectors assigned yet.
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="table-shell">
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Email</th>
-                <th>Name</th>
-                <th>Status</th>
-                <th>Invite link token</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(invites || []).length ? (
-                invites!.map((i) => (
-                  <tr key={i.id}>
-                    <td className="font-medium">{i.email}</td>
-                    <td>{i.full_name || "—"}</td>
-                    <td>
-                      {i.claimed_by ? (
-                        <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">
-                          Claimed
-                        </span>
-                      ) : (
-                        <span className="rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">
-                          Pending
-                        </span>
-                      )}
-                    </td>
-                    <td className="font-mono text-xs text-[var(--muted)]">
-                      {i.claimed_by ? "—" : `/join/${i.token}`}
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td
-                    colSpan={4}
-                    className="py-8 text-center text-[var(--muted)]"
-                  >
-                    No invites yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <SalesmanInvitesTable
+        rows={(invites || []).map((i) => ({
+          id: i.id,
+          email: i.email,
+          full_name: i.full_name,
+          token: i.token,
+          claimed_by: i.claimed_by,
+          created_at: i.created_at,
+        }))}
+      />
     </div>
   );
 }

@@ -24,7 +24,7 @@ export function SalesmanSelect({
       <div>
         <Label>{label}</Label>
         <p className="mt-1 text-xs text-[var(--muted)]">
-          No salesman accounts — invite from Salesman → Users &amp; Sectors.
+          No salesmen yet — add them from Salesman → Users &amp; Sectors.
         </p>
       </div>
     );

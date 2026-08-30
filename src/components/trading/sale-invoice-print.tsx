@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { formatNumber, formatPkr } from "@/lib/utils";
 import { Printer } from "lucide-react";
+import { useEffect, useRef } from "react";
 
 export type SalePrintLine = {
   product_name: string;
@@ -50,9 +51,12 @@ export function SaleInvoicePrint({
   tradeDiscount,
   extraDiscount = 0,
   billAmount,
+  paid = 0,
+  previousPayment = 0,
   previousBalance,
   creditDays = 21,
   preparedBy,
+  autoPrint = false,
 }: {
   companyName: string;
   companyPhone?: string | null;
@@ -69,23 +73,53 @@ export function SaleInvoicePrint({
   tradeDiscount: number;
   extraDiscount?: number;
   billAmount: number;
+  /** Cash received against this invoice. */
+  paid?: number;
+  /** Last recovery / collection from this shop (already in previous balance). */
+  previousPayment?: number;
   previousBalance: number;
   creditDays?: number;
   preparedBy?: string | null;
+  autoPrint?: boolean;
 }) {
-  const paid = 0; // credit-only sales
-  const billPayable = Math.max(0, billAmount - paid);
+  const paidOnBill = Math.max(0, paid);
+  const paidShown = paidOnBill > 0 ? paidOnBill : previousPayment;
+  const billPayable = Math.max(0, billAmount - paidOnBill);
   const totalPayable = billPayable + previousBalance;
   const prevLabel =
     previousBalance === 0
       ? "0.00"
       : `${formatNumber(Math.abs(previousBalance), 2)} ${previousBalance >= 0 ? "Dr" : "Cr"}`;
 
+  const savedTitle = useRef("");
+
+  useEffect(() => {
+    const onBeforePrint = () => {
+      savedTitle.current = document.title;
+      document.title = " ";
+    };
+    const onAfterPrint = () => {
+      document.title = savedTitle.current;
+    };
+    window.addEventListener("beforeprint", onBeforePrint);
+    window.addEventListener("afterprint", onAfterPrint);
+    return () => {
+      window.removeEventListener("beforeprint", onBeforePrint);
+      window.removeEventListener("afterprint", onAfterPrint);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!autoPrint) return;
+    const t = window.setTimeout(() => window.print(), 250);
+    return () => window.clearTimeout(t);
+  }, [autoPrint]);
+
   return (
     <div className="space-y-4">
       <div className="no-print flex items-center justify-end gap-2">
         <p className="mr-auto text-sm text-[var(--muted)]">
-          Half A4 · Credit sale invoice
+          Half A4 · loads on right side of paper
         </p>
         <Button type="button" onClick={() => window.print()}>
           <Printer className="h-4 w-4" />
@@ -102,7 +136,7 @@ export function SaleInvoicePrint({
         )}
 
         <div className="si-meta">
-          <div className="si-meta-left">
+          <div className="si-meta-left si-meta-block">
             <div>
               <span className="si-k">A/C No :</span>{" "}
               <span className="si-v">
@@ -121,7 +155,7 @@ export function SaleInvoicePrint({
               <div className="si-co">{companyName}</div>
             ) : null}
           </div>
-          <div className="si-meta-right">
+          <div className="si-meta-right si-meta-block">
             <div>
               <span className="si-k">Bill No :</span>{" "}
               <span className="si-v">{docNo}</span>
@@ -169,17 +203,17 @@ export function SaleInvoicePrint({
           <tbody>
             {lines.map((l, i) => {
               const pct = discPercent(l.qty, l.tradePrice, l.discount);
+              const schemeLabel =
+                l.scheme?.trim() ||
+                (l.bonus && l.bonus > 0
+                  ? `+${formatNumber(l.bonus, 0)} B`
+                  : null);
               return (
                 <tr key={`${l.product_name}-${i}`}>
                   <td className="ctr">{i + 1}</td>
-                  <td className="num">
-                    {formatNumber(l.qty, 2)}
-                    {l.bonus && l.bonus > 0 ? (
-                      <div className="si-bonus">+{formatNumber(l.bonus, 0)} B</div>
-                    ) : null}
-                  </td>
+                  <td className="num">{formatNumber(l.qty, 2)}</td>
                   <td>{l.product_name}</td>
-                  <td className="num">{l.scheme?.trim() ? l.scheme : "—"}</td>
+                  <td className="num">{schemeLabel || "—"}</td>
                   <td className="num">{formatNumber(l.tradePrice, 2)}</td>
                   <td className="num">{pct > 0 ? `${formatNumber(pct, 1)} %` : "—"}</td>
                   <td className="num">
@@ -193,7 +227,7 @@ export function SaleInvoicePrint({
         </table>
 
         <div className="si-foot">
-          <div className="si-foot-col">
+          <div className="si-foot-col si-foot-bill">
             <div className="si-row">
               <span>Total</span>
               <span>{formatNumber(subtotal, 2)}</span>
@@ -210,18 +244,18 @@ export function SaleInvoicePrint({
               <span>Bill Amount</span>
               <span>{formatNumber(billAmount, 2)}</span>
             </div>
-            <p className="si-note">
-              *Note: Please Clear This Bill Payment In {creditDays}-DAYS.
+            <p className="si-note" dir="rtl" lang="ur">
+              سابقہ بل کی ادائیگی پر نیا مال دیا جائے گا۔
             </p>
             <div className="si-prepared">
               Prepared By : {(preparedBy || "—").toUpperCase()}
             </div>
           </div>
 
-          <div className="si-foot-col">
+          <div className="si-foot-col si-foot-pay">
             <div className="si-row">
               <span>Paid</span>
-              <span>{formatNumber(paid, 2)}</span>
+              <span>{formatNumber(paidShown, 2)}</span>
             </div>
             <div className="si-row">
               <span>Bill Payable</span>

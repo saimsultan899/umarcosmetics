@@ -75,6 +75,7 @@ export default async function SaleInvoicesPage({
           pagination={list.pagination}
           summary={list.summary}
           showPaymentFilter
+          showPrint
           warehouses={warehouses}
         />
       </Suspense>

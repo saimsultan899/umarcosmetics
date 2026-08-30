@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { Eye, Pencil, Trash2 } from "lucide-react";
+import { Eye, Pencil, Printer, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -39,6 +39,7 @@ export function RowActions({
   onDelete,
   editContent,
   href,
+  printHref,
   allowEdit = true,
   allowDelete = true,
   className,
@@ -51,6 +52,8 @@ export function RowActions({
   onDelete?: () => Promise<void> | void;
   editContent?: (close: () => void) => React.ReactNode;
   href?: string;
+  /** Opens the printable slip page (shown next to View). */
+  printHref?: string;
   allowEdit?: boolean;
   allowDelete?: boolean;
   className?: string;
@@ -88,6 +91,17 @@ export function RowActions({
         <Eye className="h-3.5 w-3.5" />
         <span className="hidden sm:inline">View</span>
       </Button>
+
+      {printHref ? (
+        <Link
+          href={`${printHref}${printHref.includes("?") ? "&" : "?"}print=1`}
+          aria-label="Print"
+          className="inline-flex h-8 items-center justify-center gap-2 rounded-lg px-2 text-xs font-medium text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+        >
+          <Printer className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Print</span>
+        </Link>
+      ) : null}
 
       {allowEdit && editContent ? (
         <Button

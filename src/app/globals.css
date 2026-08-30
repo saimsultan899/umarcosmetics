@@ -766,31 +766,34 @@ a {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 18px;
+  gap: 12px;
   border-bottom: 2px solid #111;
-  padding-bottom: 6px;
-  margin-bottom: 8px;
+  padding-bottom: 4px;
+  margin-bottom: 4px;
 }
 .recovery-sheet-title {
   margin: 0;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 800;
   letter-spacing: 0.01em;
+  line-height: 1.1;
 }
 .recovery-sheet-co {
-  margin: 2px 0 0;
-  font-size: 12px;
+  margin: 1px 0 0;
+  font-size: 10px;
+  line-height: 1.2;
 }
 .recovery-sheet-scope {
-  margin: 2px 0 0;
-  font-size: 11px;
+  margin: 1px 0 0;
+  font-size: 9px;
   font-weight: 700;
+  line-height: 1.2;
 }
 .recovery-sheet-dates {
   margin: 0;
-  font-size: 12px;
+  font-size: 10px;
   text-align: right;
-  line-height: 1.5;
+  line-height: 1.25;
   white-space: nowrap;
 }
 .recovery-sheet-dates p {
@@ -803,31 +806,33 @@ a {
   text-align: left;
 }
 .recovery-sheet-section {
-  margin-top: 10px;
+  margin-top: 4px;
 }
 .recovery-sheet-sector {
-  margin: 0 0 3px;
-  font-size: 12px;
+  margin: 0 0 1px;
+  font-size: 9px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.02em;
+  line-height: 1.15;
 }
 .recovery-sheet table {
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
-  font-size: 11px;
+  font-size: 9px;
+  line-height: 1.15;
 }
 .recovery-sheet th {
   border: 1px solid #111;
   background: #eee;
-  padding: 4px 6px;
+  padding: 1px 3px;
   text-align: left;
   font-weight: 700;
 }
 .recovery-sheet td {
   border: 1px solid #111;
-  padding: 6px;
+  padding: 1px 3px;
   vertical-align: top;
   overflow-wrap: anywhere;
 }
@@ -841,11 +846,12 @@ a {
   font-weight: 800;
 }
 .recovery-sheet-foot {
-  margin-top: 10px;
+  margin-top: 4px;
   display: flex;
   justify-content: space-between;
-  gap: 12px;
-  font-size: 10px;
+  gap: 8px;
+  font-size: 8px;
+  line-height: 1.2;
 }
 
 .print-only {
@@ -961,8 +967,9 @@ a {
 .si-note {
   margin: 8px 0 4px;
   font-weight: 700;
-  text-decoration: underline;
-  font-size: 11px;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: right;
 }
 .si-prepared {
   margin-top: 6px;
@@ -1113,10 +1120,10 @@ a {
     margin: 10mm 12mm;
   }
 
-  /* Half A4 sheet: 210mm × 148mm */
+  /* Half A4 sheet on A4 portrait — bill sits on the right (feed-safe zone). */
   @page si-half-page {
-    size: 210mm 148mm;
-    margin: 5mm 6mm;
+    size: A4 portrait;
+    margin: 0;
   }
 
   body * {
@@ -1215,16 +1222,48 @@ a {
      (browsers without @page margin-box support just omit the number). */
   @page recovery-page {
     size: A4 portrait;
-    margin: 12mm 12mm 14mm;
+    margin: 7mm 9mm 8mm;
     @bottom-right {
       content: "Page No. " counter(page);
       font-family: Arial, Helvetica, sans-serif;
-      font-size: 10px;
+      font-size: 8px;
       color: #000;
     }
   }
   .recovery-sheet {
     page: recovery-page;
+    font-size: 9px;
+    line-height: 1.15;
+  }
+  .recovery-sheet-head {
+    padding-bottom: 2px;
+    margin-bottom: 3px;
+  }
+  .recovery-sheet-title {
+    font-size: 14px;
+  }
+  .recovery-sheet-co,
+  .recovery-sheet-dates {
+    font-size: 9px;
+  }
+  .recovery-sheet-section {
+    margin-top: 2px;
+  }
+  .recovery-sheet-sector {
+    font-size: 8px;
+    margin-bottom: 0;
+  }
+  .recovery-sheet table {
+    font-size: 8.5px;
+    line-height: 1.1;
+  }
+  .recovery-sheet th,
+  .recovery-sheet td {
+    padding: 0.5px 2px;
+  }
+  .recovery-sheet-foot {
+    margin-top: 2px;
+    font-size: 7.5px;
   }
   .recovery-sheet table {
     page-break-inside: auto;
@@ -1267,12 +1306,50 @@ a {
     padding-top: 2px;
   }
 
-  .si-half {
+  .print-sheet.si-half {
     page: si-half-page;
+    left: auto !important;
+    right: 0 !important;
+    top: 0 !important;
+    width: 198mm !important;
+    max-width: 198mm !important;
+    max-height: 146mm !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
     border: none !important;
     border-radius: 0 !important;
-    max-width: 100% !important;
-    padding: 0 !important;
+    padding: 4mm 6mm 3mm 12mm !important;
+    font-size: 11px !important;
+    line-height: 1.25 !important;
+  }
+  .print-sheet.si-half .si-title {
+    font-size: 18px !important;
+  }
+  .print-sheet.si-half .si-salesman,
+  .print-sheet.si-half .si-meta {
+    font-size: 10.5px !important;
+    margin-top: 4px !important;
+  }
+  .print-sheet.si-half .si-table {
+    margin-top: 4px !important;
+    font-size: 10px !important;
+  }
+  .print-sheet.si-half .si-table th,
+  .print-sheet.si-half .si-table td {
+    padding: 1px 3px !important;
+  }
+  .print-sheet.si-half .si-foot {
+    margin-top: 5px !important;
+    font-size: 10px !important;
+    gap: 12px !important;
+  }
+  .print-sheet.si-half .si-note {
+    margin: 4px 0 2px !important;
+    font-size: 9.5px !important;
+  }
+  .print-sheet.si-half .si-checked {
+    margin-top: 10px !important;
+    font-size: 10px !important;
   }
 
   .classic-report {

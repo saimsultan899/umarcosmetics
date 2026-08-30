@@ -30,6 +30,7 @@ export function DocumentListTable({
   pagination,
   summary,
   showPaymentFilter = false,
+  showPrint = false,
   warehouses = [],
 }: {
   title?: string;
@@ -37,6 +38,7 @@ export function DocumentListTable({
   pagination: PaginationMeta;
   summary: DocumentListSummary;
   showPaymentFilter?: boolean;
+  showPrint?: boolean;
   warehouses?: Array<{ id: string; name: string }>;
 }) {
   const filterKeys = useMemo(
@@ -233,6 +235,7 @@ export function DocumentListTable({
                           id={inv.id}
                           linesTable={inv.linesTable}
                           linesFk={inv.linesFk}
+                          showPrint={showPrint}
                           fields={[
                             { label: "Doc #", value: inv.docNo },
                             { label: "Date", value: inv.date },

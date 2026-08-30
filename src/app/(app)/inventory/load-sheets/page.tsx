@@ -7,6 +7,7 @@ import {
 import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { requireCompanyContext } from "@/lib/auth";
 import { fetchLoadSheetList } from "@/lib/queries/load-sheets";
+import { fetchCompanySalesmen } from "@/lib/queries/salesmen";
 import { Suspense } from "react";
 
 export default async function LoadSheetsPage({
@@ -17,7 +18,7 @@ export default async function LoadSheetsPage({
   const sp = await searchParams;
   const { supabase, company } = await requireCompanyContext();
 
-  const [{ data: products }, { data: warehouses }, { data: members }, list] =
+  const [{ data: products }, { data: warehouses }, salesmen, list] =
     await Promise.all([
       supabase
         .from("products")
@@ -31,19 +32,9 @@ export default async function LoadSheetsPage({
         .eq("company_id", company.id)
         .eq("is_active", true)
         .order("name"),
-      supabase
-        .from("company_members")
-        .select("user_id, profiles(full_name)")
-        .eq("company_id", company.id)
-        .eq("role", "salesman")
-        .eq("is_active", true),
+      fetchCompanySalesmen(supabase, company.id),
       fetchLoadSheetList(supabase, company.id, sp),
     ]);
-
-  const salesmen = (members || []).map((m) => {
-    const profile = Array.isArray(m.profiles) ? m.profiles[0] : m.profiles;
-    return { user_id: m.user_id, full_name: profile?.full_name || null };
-  });
 
   const canCreate =
     (warehouses || []).length > 0 && (products || []).length > 0;

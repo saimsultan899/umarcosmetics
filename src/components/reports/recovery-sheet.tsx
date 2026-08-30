@@ -9,7 +9,7 @@ import type {
 } from "@/lib/reports/recovery-data";
 import { formatReportDate } from "@/lib/reports/helpers";
 import { formatNumber } from "@/lib/utils";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 /** Balance → "7,434 Dr" / "1,825 Cr" / "Nil", matching the paper sheet. */
 function balanceLabel(balance: number) {
@@ -52,6 +52,24 @@ export function RecoverySheet({
   grand: RecoverySheetResult["grand"];
 }) {
   const [query, setQuery] = useState("");
+  const savedTitle = useRef("");
+
+  // Hide browser print header title (often shows app name + URL footer).
+  useEffect(() => {
+    const onBeforePrint = () => {
+      savedTitle.current = document.title;
+      document.title = " ";
+    };
+    const onAfterPrint = () => {
+      document.title = savedTitle.current;
+    };
+    window.addEventListener("beforeprint", onBeforePrint);
+    window.addEventListener("afterprint", onAfterPrint);
+    return () => {
+      window.removeEventListener("beforeprint", onBeforePrint);
+      window.removeEventListener("afterprint", onAfterPrint);
+    };
+  }, []);
 
   // Filter sections by the on-screen search; the print sheet renders exactly
   // what is shown here so a filtered search prints a filtered sheet.
@@ -248,7 +266,7 @@ export function RecoverySheet({
             {formatNumber(view.totals.dueTotal, 0)} Dr · Advance{" "}
             {formatNumber(view.totals.crTotal, 0)} Cr
           </span>
-          <span>Salesman: __________________ · Umar Distribution Software</span>
+          <span>Salesman: __________________</span>
         </div>
       </div>
     </div>

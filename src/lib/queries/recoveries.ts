@@ -57,7 +57,7 @@ export async function fetchRecoveryList(
   let query = supabase
     .from("recoveries")
     .select(
-      "*, parties(party_code, name_en), salesman:profiles!recoveries_salesman_id_fkey(full_name)",
+      "*, parties(party_code, name_en), salesman:salesmen!recoveries_salesman_id_fkey(full_name)",
       { count: "exact" },
     )
     .eq("company_id", companyId);
@@ -93,26 +93,23 @@ export async function fetchRecoveryList(
       .eq("company_id", companyId)
       .limit(5000),
     supabase
-      .from("company_members")
-      .select("user_id, profiles(full_name)")
+      .from("salesmen")
+      .select("id, full_name")
       .eq("company_id", companyId)
-      .eq("role", "salesman")
-      .eq("is_active", true),
+      .eq("is_active", true)
+      .order("full_name"),
   ]);
 
   if (error) throw new Error(error.message);
 
   const salesmanOptions = ((rosterRes.data || []) as Array<{
-    user_id: string | null;
-    profiles: { full_name: string | null } | { full_name: string | null }[] | null;
+    id: string | null;
+    full_name: string | null;
   }>)
-    .map((m) => {
-      const p = Array.isArray(m.profiles) ? m.profiles[0] : m.profiles;
-      return {
-        value: m.user_id || "",
-        label: p?.full_name || "Salesman",
-      };
-    })
+    .map((m) => ({
+      value: m.id || "",
+      label: m.full_name || "Salesman",
+    }))
     .filter((o) => o.value)
     .sort((a, b) => a.label.localeCompare(b.label));
   salesmanOptions.push({ value: "unassigned", label: "Unassigned" });

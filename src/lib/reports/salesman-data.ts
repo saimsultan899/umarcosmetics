@@ -132,7 +132,7 @@ export async function buildSalesmanReport(
   let invoiceQuery = supabase
     .from("sale_invoices")
     .select(
-      "id, invoice_no, invoice_date, grand_total, amount_paid, route, salesman_id, parties(party_code, name_en), salesman:profiles!sale_invoices_salesman_id_fkey(id, full_name)",
+      "id, invoice_no, invoice_date, grand_total, amount_paid, route, salesman_id, parties(party_code, name_en), salesman:salesmen!sale_invoices_salesman_id_fkey(id, full_name)",
     )
     .eq("company_id", companyId)
     .eq("status", "posted")
@@ -145,7 +145,7 @@ export async function buildSalesmanReport(
   let recoveryQuery = supabase
     .from("recoveries")
     .select(
-      "recovery_date, amount, route, salesman_id, remarks, parties(party_code, name_en)",
+      "recovery_date, amount, route, salesman_id, remarks, parties(party_code, name_en), salesman:salesmen!recoveries_salesman_id_fkey(id, full_name)",
     )
     .eq("company_id", companyId)
     .gte("recovery_date", from)
@@ -161,10 +161,9 @@ export async function buildSalesmanReport(
         .limit(INVOICE_LIMIT),
       recoveryQuery.limit(RECOVERY_LIMIT),
       supabase
-        .from("company_members")
-        .select("user_id, profiles(id, full_name)")
+        .from("salesmen")
+        .select("id, full_name")
         .eq("company_id", companyId)
-        .eq("role", "salesman")
         .eq("is_active", true),
       supabase
         .from("salesman_routes")
@@ -211,18 +210,18 @@ export async function buildSalesmanReport(
       | { party_code: string; name_en: string }
       | { party_code: string; name_en: string }[]
       | null;
+    salesman: EmbeddedProfile | EmbeddedProfile[];
   }>;
 
-  // Active salesman roster — keyed by profile/user id, so idle salesmen still show.
+  // Active salesman roster — keyed by salesmen.id, so idle salesmen still show.
   const rosterName = new Map<string, string>();
   for (const m of (rosterRes.data || []) as Array<{
-    user_id: string | null;
-    profiles: EmbeddedProfile | EmbeddedProfile[];
+    id: string | null;
+    full_name: string | null;
   }>) {
-    const p = one(m.profiles);
-    const id = p?.id || m.user_id || "";
+    const id = m.id || "";
     if (!id) continue;
-    rosterName.set(id, p?.full_name || "Salesman");
+    rosterName.set(id, m.full_name || "Salesman");
   }
 
   // Sector → salesman ownership. Explicit assignments win.
@@ -329,7 +328,8 @@ export async function buildSalesmanReport(
 
     if (rec.salesman_id) {
       id = rec.salesman_id;
-      name = rosterName.get(id) || "Salesman";
+      const sm = one(rec.salesman);
+      name = sm?.full_name || rosterName.get(id) || "Salesman";
     } else {
       const routeKey = norm(rec.route);
       const owner = routeKey ? routeToSalesman.get(routeKey) : undefined;

@@ -107,7 +107,7 @@ export default async function SalesmenPerformancePage({
             href="/salesman"
             className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium text-[var(--muted)] hover:text-[var(--ink)]"
           >
-            Assign sectors
+            Manage salesmen
           </Link>
         </div>
       </div>
@@ -251,7 +251,7 @@ export default async function SalesmenPerformancePage({
           and without a sector assignment. Select salesman when recording recovery, or
           assign sectors in{" "}
           <Link href="/salesman" className="font-semibold underline">
-            Salesman → Users &amp; Sectors
+            Sales → Salesmen
           </Link>
           .
         </p>
@@ -286,14 +286,20 @@ export default async function SalesmenPerformancePage({
             filename={`salesman-recoveries-${salesmanId}-${from}`}
           />
         </div>
-      ) : null}
+      ) : (
+        <p className="no-print rounded-lg border border-dashed border-[var(--border)] bg-white px-4 py-3 text-sm text-[var(--muted)]">
+          Tip: choose a <strong>Salesman</strong> in the filters above to see that
+          person&apos;s sale bills and recovery lines. Make sure each new sale /
+          recovery selects a salesman so it appears here.
+        </p>
+      )}
 
       <ReportTable
         title="Salesman-wise performance & recovery"
         companyName={company.name}
         subtitle={`${from} to ${to} · ${report.rows.length} salesman${
           report.rows.length === 1 ? "" : "en"
-        }${salesmanId ? " · filtered view with line history below" : " · recoveries by salesman or sector"}`}
+        }${salesmanId ? " · filtered view" : " · pick a salesman filter for line history"}`}
         rows={reportRows}
         filename={`salesman-report-${from}-${to}`}
       />

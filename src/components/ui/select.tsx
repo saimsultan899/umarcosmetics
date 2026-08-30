@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { focusNextField } from "@/lib/keyboard/enter-nav";
 import { Check, ChevronsUpDown, Search } from "lucide-react";
 import {
   Children,
@@ -216,13 +217,37 @@ export const Select = forwardRef<
 
   useEffect(() => setMounted(true), []);
 
-  function commit(next: string) {
+  function commit(next: string, opts?: { advance?: boolean }) {
     if (value === undefined) setUncontrolled(next);
     onChange?.({ target: { value: next, name } });
     setOpen(false);
     setQuery("");
     onCommit?.(next);
-    requestAnimationFrame(() => triggerRef.current?.focus());
+
+    const advance = opts?.advance === true;
+    // Double rAF: let onChange handlers (e.g. product → qty) move focus first.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const trigger = triggerRef.current;
+        if (!trigger) return;
+        const active = document.activeElement as HTMLElement | null;
+        const focusAlreadyMoved =
+          !!active &&
+          active !== document.body &&
+          active !== trigger &&
+          active !== inputRef.current &&
+          !rootRef.current?.contains(active) &&
+          !document.getElementById(listId)?.contains(active);
+
+        if (focusAlreadyMoved) return;
+
+        if (advance) {
+          if (!focusNextField(trigger)) trigger.focus();
+          return;
+        }
+        trigger.focus();
+      });
+    });
   }
 
   const commitRef = useRef(commit);
@@ -239,7 +264,7 @@ export const Select = forwardRef<
 
   function commitHighlighted() {
     const opt = keyboardOptionsRef.current[highlightRef.current];
-    if (opt && !opt.disabled) commitRef.current(opt.value);
+    if (opt && !opt.disabled) commitRef.current(opt.value, { advance: true });
   }
 
   function handleMenuKeyDown(e: React.KeyboardEvent) {
@@ -392,11 +417,23 @@ export const Select = forwardRef<
         }}
         onKeyDown={(e) => {
           if (disabled) return;
-          if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
+          if (e.key === "ArrowDown" || e.key === " ") {
             e.preventDefault();
             e.stopPropagation();
             setOpen(true);
             setQuery("");
+            return;
+          }
+          if (e.key === "Enter") {
+            e.preventDefault();
+            e.stopPropagation();
+            // Already picked → move to next field; empty → open list
+            if (selectedValue) {
+              focusNextField(e.currentTarget);
+            } else {
+              setOpen(true);
+              setQuery("");
+            }
           }
         }}
         className={cn(
