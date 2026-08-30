@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { ChevronDown, Layers3, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 function parseHref(href: string) {
   return new URL(href, "http://local");
@@ -105,7 +105,27 @@ function NavGroup({
     ? pickActiveHref([item.href], pathname, searchParams, hash) === item.href
     : false;
   const Icon = item.icon;
+  const anchorRef = useRef<HTMLDivElement>(null);
   const [flyout, setFlyout] = useState(false);
+  const [flyoutPos, setFlyoutPos] = useState<{ top: number; left: number } | null>(
+    null,
+  );
+
+  function openFlyout() {
+    if (!collapsed || !anchorRef.current) return;
+    const rect = anchorRef.current.getBoundingClientRect();
+    const maxTop = Math.max(8, window.innerHeight - 280);
+    setFlyoutPos({
+      top: Math.min(rect.top, maxTop),
+      left: rect.right + 6,
+    });
+    setFlyout(true);
+  }
+
+  function closeFlyout() {
+    setFlyout(false);
+    setFlyoutPos(null);
+  }
 
   const rowIcon = Icon ? (
     <span className="sidebar-link__icon">
@@ -147,15 +167,20 @@ function NavGroup({
 
   return (
     <div
+      ref={anchorRef}
       className="relative"
-      onMouseEnter={() => collapsed && setFlyout(true)}
-      onMouseLeave={() => setFlyout(false)}
+      onMouseEnter={() => collapsed && openFlyout()}
+      onMouseLeave={() => closeFlyout()}
     >
       <button
         type="button"
         onClick={() => {
-          if (collapsed) setFlyout((v) => !v);
-          else onToggle();
+          if (collapsed) {
+            if (flyout) closeFlyout();
+            else openFlyout();
+          } else {
+            onToggle();
+          }
         }}
         title={item.label}
         aria-expanded={open}
@@ -204,8 +229,11 @@ function NavGroup({
         </div>
       ) : null}
 
-      {collapsed && flyout ? (
-        <div className="sidebar-flyout">
+      {collapsed && flyout && flyoutPos ? (
+        <div
+          className="sidebar-flyout sidebar-flyout--fixed"
+          style={{ top: flyoutPos.top, left: flyoutPos.left }}
+        >
           <p className="sidebar-flyout__title">{item.label}</p>
           {item.children?.map((child) => {
             const active = activeChildHref === child.href;
@@ -217,7 +245,7 @@ function NavGroup({
                   const url = parseHref(child.href);
                   onHashChange?.(url.hash || "");
                   onNavigate?.();
-                  setFlyout(false);
+                  closeFlyout();
                 }}
                 className={cn("sidebar-sublink", active && "sidebar-sublink--active")}
               >
@@ -316,7 +344,7 @@ export function Sidebar({
         "sidebar-shell flex h-full shrink-0 flex-col",
         "fixed inset-y-0 left-0 z-50 transition-[width,transform] duration-200 ease-out",
         "lg:static lg:z-0 lg:translate-x-0",
-        collapsed ? "lg:w-[68px] lg:overflow-visible" : "lg:w-[252px]",
+        collapsed ? "lg:w-[68px]" : "lg:w-[252px]",
         "w-[min(272px,85vw)]",
         mobileOpen ? "translate-x-0 shadow-lg" : "-translate-x-full",
       )}
@@ -353,7 +381,7 @@ export function Sidebar({
       <nav
         className={cn(
           "flex flex-1 flex-col py-2",
-          iconMode ? "overflow-visible px-1.5" : "overflow-y-auto px-2",
+          iconMode ? "overflow-x-hidden overflow-y-auto px-1.5" : "overflow-y-auto px-2",
         )}
       >
         <div className="flex flex-col gap-0.5">

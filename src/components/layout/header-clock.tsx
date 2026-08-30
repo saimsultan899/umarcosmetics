@@ -43,7 +43,7 @@ export function HeaderClock() {
           {time}
         </p>
       </div>
-      <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-[var(--muted)] sm:text-xs">
+      <div className="mt-0.5 hidden items-center gap-1.5 text-[11px] text-[var(--muted)] xl:flex sm:text-xs">
         <Calendar className="h-3 w-3 shrink-0" />
         <span>{date}</span>
       </div>

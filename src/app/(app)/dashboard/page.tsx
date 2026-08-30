@@ -179,15 +179,15 @@ export default async function DashboardPage() {
     .reduce((s, r) => s + Number(r.amount || 0), 0);
 
   return (
-    <div className="animate-rise space-y-4">
-      <div className="action-bar items-center justify-between gap-3">
-        <p className="text-sm font-semibold text-[var(--ink)]">
+    <div className="animate-rise min-w-0 space-y-4">
+      <div className="action-bar action-bar--split">
+        <p className="shrink-0 text-sm font-semibold text-[var(--ink)]">
           {greeting}, {firstName}
         </p>
-        <QuickShortcuts />
+        <QuickShortcuts className="min-w-0" />
       </div>
 
-      <StatsGrid className="lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-7">
+      <StatsGrid fluid>
         <StatCard
           label="Today sales"
           value={s.sales_today || 0}

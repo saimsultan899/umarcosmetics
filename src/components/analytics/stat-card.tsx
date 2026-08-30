@@ -93,14 +93,18 @@ StatCard.displayName = "StatCard";
 export function StatsGrid({
   children,
   className,
+  fluid = false,
 }: {
   children: ReactNode;
   className?: string;
+  /** Fit as many cards per row as the viewport allows */
+  fluid?: boolean;
 }) {
   return (
     <div
       className={cn(
-        "grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5",
+        "grid min-w-0 gap-3",
+        fluid ? "stats-grid--fluid" : "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5",
         className,
       )}
     >

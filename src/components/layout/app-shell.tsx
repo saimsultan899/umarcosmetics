@@ -75,7 +75,7 @@ export function AppShell({
       companyId={company?.id}
       organizationId={company?.organization_id}
     >
-      <div className="flex h-screen">
+      <div className="flex h-screen overflow-hidden">
         <NavigationProgress />
         {mobileNavOpen ? (
           <button
@@ -95,13 +95,13 @@ export function AppShell({
           onToggleCollapsed={toggleSidebarCollapsed}
         />
 
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-[var(--background)]">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--background)]">
           <Topbar
             company={company}
             userName={userName}
             onMenuClick={() => setMobileNavOpen(true)}
           />
-          <main className="flex-1 overflow-y-auto bg-[var(--background)] p-4 sm:p-6">
+          <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-[var(--background)] p-4 sm:p-6">
             <PageTransition>{children}</PageTransition>
           </main>
         </div>

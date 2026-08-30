@@ -36,8 +36,8 @@ export function Topbar({
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-[var(--border)] bg-white px-3 sm:h-16 sm:px-6">
-      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+    <header className="sticky top-0 z-30 flex h-14 min-w-0 items-center justify-between gap-2 border-b border-[var(--border)] bg-white px-3 sm:h-16 sm:gap-3 sm:px-6">
+      <div className="flex min-w-0 shrink items-center gap-2 sm:gap-3">
         <button
           type="button"
           onClick={onMenuClick}
@@ -49,14 +49,14 @@ export function Topbar({
         <HeaderClock />
       </div>
 
-      <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
+      <div className="flex min-w-0 shrink-0 items-center gap-1 sm:gap-2 xl:gap-3">
         <CommandPalette companyId={company?.id} />
         <AlertsMenu companyId={company?.id} />
 
         <button
           type="button"
           onClick={() => void runSync()}
-          className={`hidden items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium sm:flex ${
+          className={`hidden items-center gap-2 rounded-full border px-2.5 py-1.5 text-xs font-medium lg:flex ${
             online
               ? "border-[var(--brand-soft)] bg-[var(--brand-soft)] text-[var(--brand-strong)]"
               : "border-[var(--accent-soft)] bg-[var(--accent-soft)] text-[var(--accent-strong)]"
