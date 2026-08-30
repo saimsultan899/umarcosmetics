@@ -84,7 +84,8 @@ export function RecoverySheet({
     return { sections: filtered, totals: totalsOf(flat) };
   }, [sections, query]);
 
-  const showScope = scopeLabel && scopeLabel !== "All parties";
+  const showScope =
+    scopeLabel && scopeLabel !== "All parties" && scopeLabel !== "All customers";
   const totalRows = grand.count;
 
   const exportRows = view.sections.flatMap((s) =>
@@ -105,7 +106,7 @@ export function RecoverySheet({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold">
-            Recovery Sheet
+            Customer receivables
           </h2>
           <p className="text-sm text-[var(--muted)]">
             {formatReportDate(from)} to {formatReportDate(to)}
@@ -115,7 +116,7 @@ export function RecoverySheet({
         </div>
         <ExportButtons
           rows={exportRows}
-          filename={`recovery-sheet-${to}`}
+          filename={`customer-receivables-${to}`}
         />
       </div>
 
@@ -193,7 +194,7 @@ export function RecoverySheet({
       <div className="print-only print-sheet recovery-sheet">
         <div className="recovery-sheet-head">
           <div>
-            <p className="recovery-sheet-title">Recovery Sheet</p>
+            <p className="recovery-sheet-title">Customer receivables</p>
             <p className="recovery-sheet-co">{companyName}</p>
             {showScope ? (
               <p className="recovery-sheet-scope">{scopeLabel}</p>

@@ -12,7 +12,7 @@ export type PurchaseReportType =
 export const PURCHASE_REPORT_TYPES: { key: PurchaseReportType; label: string }[] = [
   { key: "summary", label: "Purchase summary" },
   { key: "bill_wise", label: "Bill wise" },
-  { key: "supplier_wise", label: "Supplier / manufacturer wise" },
+  { key: "supplier_wise", label: "Vendor / manufacturer wise" },
   { key: "detail", label: "Purchase detail" },
   { key: "item_wise", label: "Item wise purchase" },
   { key: "manufacturer_wise", label: "Manufacturer / group wise" },
@@ -103,10 +103,10 @@ export async function buildPurchaseReport(
       return {
         Date: inv?.invoice_date,
         Invoice: inv?.invoice_no,
-        "Supplier bill": inv?.supplier_bill_no || "",
-        Supplier: party ? `${party.party_code} — ${party.name_en}` : "",
+        "Vendor bill": inv?.supplier_bill_no || "",
+        Vendor: party ? `${party.party_code} — ${party.name_en}` : "",
         City: party?.city || "",
-        Warehouse: warehouse?.name || "",
+        Company: warehouse?.name || "",
         Code: it.product_code,
         Item: it.product_name,
         Manufacturer: product?.manufacturer || "",
@@ -135,8 +135,8 @@ export async function buildPurchaseReport(
       cur.amount += Number(inv.grand_total);
       grouped.set(key, cur);
     }
-    return [...grouped.entries()].map(([Supplier, v]) => ({
-      Supplier,
+    return [...grouped.entries()].map(([Vendor, v]) => ({
+      Vendor,
       City: v.city,
       Bills: v.bills,
       Amount: v.amount,
@@ -149,9 +149,9 @@ export async function buildPurchaseReport(
     return {
       Date: inv.invoice_date,
       Invoice: inv.invoice_no,
-      "Supplier bill": inv.supplier_bill_no || "",
-      Supplier: party ? `${party.party_code} — ${party.name_en}` : "",
-      Warehouse: warehouse?.name || "",
+      "Vendor bill": inv.supplier_bill_no || "",
+      Vendor: party ? `${party.party_code} — ${party.name_en}` : "",
+      Company: warehouse?.name || "",
       Subtotal: Number(inv.subtotal),
       Discount: Number(inv.discount_total),
       Total: Number(inv.grand_total),

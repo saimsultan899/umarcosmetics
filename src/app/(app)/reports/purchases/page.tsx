@@ -79,7 +79,7 @@ export default async function PurchaseReportsPage({
           Purchase Reports
         </h1>
         <p className="mt-1 text-sm text-[var(--muted)]">
-          Supplier and item purchase analytics with export
+          Vendor and item purchase analytics with export
         </p>
       </div>
 
@@ -106,7 +106,7 @@ export default async function PurchaseReportsPage({
           <>
             <FilterSelect
               name="warehouse"
-              label="Warehouse"
+              label="Company"
               value={sp.warehouse}
               options={(warehouses || []).map((w) => ({
                 value: w.id,
@@ -115,7 +115,7 @@ export default async function PurchaseReportsPage({
             />
             <FilterSelect
               name="party"
-              label="Supplier"
+              label="Vendor"
               value={sp.party}
               options={(parties || []).map((p) => ({
                 value: p.id,

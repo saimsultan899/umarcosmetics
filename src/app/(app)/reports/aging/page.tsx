@@ -52,11 +52,11 @@ export default async function AgingReportPage({
   );
 
   const exportRows = rows.map((r) => ({
-    party_code: r.party_code,
-    name_en: r.name_en,
-    city: r.city,
-    route: r.route,
-    balance: Number(r.balance),
+    "Customer code": r.party_code,
+    Customer: r.name_en,
+    City: r.city,
+    Sector: r.route,
+    "Balance amount": Number(r.balance),
     days_0_30: Number(r.bucket_current),
     days_31_60: Number(r.bucket_30),
     days_61_90: Number(r.bucket_60),

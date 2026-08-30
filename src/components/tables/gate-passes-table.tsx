@@ -45,7 +45,7 @@ export function GatePassesTable({
         filters={
           warehouses.length ? (
             <TableFilterSelect
-              label="Warehouse"
+              label="Company"
               value={filters.warehouse || ""}
               options={warehouseOptions(warehouses)}
               loading={isPending}
@@ -61,8 +61,8 @@ export function GatePassesTable({
               <tr>
                 <th>Pass #</th>
                 <th>Date</th>
-                <th>Supplier</th>
-                <th>Warehouse</th>
+                <th>Vendor</th>
+                <th>Company</th>
                 <th>Brand</th>
                 <th>Qty</th>
               </tr>

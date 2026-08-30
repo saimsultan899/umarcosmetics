@@ -32,12 +32,12 @@ export default async function CashPaymentPage({
     <div className="animate-rise space-y-6">
       <PageHeading
         title="Cash Payment"
-        description="Record money paid to suppliers / parties"
+        description="Record money paid to vendors / accounts"
         actions={
           <CreateDialogButton
             label="New payment"
             title="New cash payment"
-            description="Post money paid against parties"
+            description="Post money paid against vendors / accounts"
             size="xl"
           >
             <CashVoucherForm

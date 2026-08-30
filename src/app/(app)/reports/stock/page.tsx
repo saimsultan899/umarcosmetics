@@ -45,7 +45,7 @@ export default async function StockReportPage({
     const qty = Number(r.qty);
     const rate = Number(product?.purchase_rate || 0);
     return {
-      Warehouse: warehouse?.name || "—",
+      Company: warehouse?.name || "—",
       Code: product?.code || "—",
       Product: product?.name_en || "—",
       Manufacturer: product?.manufacturer || "—",
@@ -77,7 +77,7 @@ export default async function StockReportPage({
     return {
       When: new Date(m.created_at).toLocaleString(),
       Type: String(m.move_type).replaceAll("_", " "),
-      Warehouse: warehouse?.name || "—",
+      Company: warehouse?.name || "—",
       Code: product?.code || "—",
       Product: product?.name_en || "—",
       Qty: Number(m.qty),
@@ -138,8 +138,8 @@ export default async function StockReportPage({
         const byWh = new Map<string, number>();
         for (const r of balanceRows) {
           byWh.set(
-            String(r.Warehouse),
-            (byWh.get(String(r.Warehouse)) || 0) + Number(r["Value (cost)"] || 0),
+            String(r.Company),
+            (byWh.get(String(r.Company)) || 0) + Number(r["Value (cost)"] || 0),
           );
         }
         const whBars = [...byWh.entries()]
@@ -154,7 +154,7 @@ export default async function StockReportPage({
                 value={balanceRows.length}
                 format="number"
                 icon={Package}
-                hint="Warehouse × product lines"
+                hint="Company × product lines"
               />
               <StatCard
                 label="Low stock"
@@ -193,7 +193,7 @@ export default async function StockReportPage({
               </ChartCard>
               <ChartCard
                 className="lg:col-span-2"
-                title="Value by warehouse"
+                title="Value by company"
                 subtitle="Where inventory capital sits"
               >
                 <RankBars data={whBars} />

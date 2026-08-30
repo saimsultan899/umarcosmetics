@@ -45,7 +45,7 @@ export function LoadSheetForm({
     setError(null);
     const valid = lines.filter((l) => l.product_id && Number(l.qty) > 0);
     if (!warehouseId || valid.length === 0) {
-      setError("Select warehouse and at least one product.");
+      setError("Select company and at least one product.");
       return;
     }
 
@@ -98,13 +98,13 @@ export function LoadSheetForm({
           />
         </div>
         <div>
-          <Label>Load from warehouse</Label>
+          <Label>Load from company</Label>
           <Select
             value={warehouseId}
             onChange={(e) => setWarehouseId(e.target.value)}
             required
           >
-            <option value="">Select warehouse</option>
+            <option value="">Select company</option>
             {warehouses.map((w) => (
               <option key={w.id} value={w.id}>
                 {w.name}

@@ -60,7 +60,7 @@ export default async function CompanySettingsPage() {
           Cross-company catalog copy
         </h2>
         <p className="mt-1 mb-4 text-sm text-[var(--muted)]">
-          Copy product catalog (+ warehouses) from one distributor account to
+          Copy product catalog (+ companies) from one distributor account to
           another under the same organization. Example: Umar Cosmetic → Ishaq
           Limited. Each company keeps its own stock, parties, and invoices.
         </p>

@@ -21,16 +21,16 @@ export default async function StockTransfersPage({
   return (
     <div className="animate-rise space-y-6">
       <PageHeading
-        title="Warehouse Transfer"
-        description="Move stock between warehouses / brand locations"
+        title="Company transfer"
+        description="Move stock between companies / brand locations"
         actions={
           <CreateDialogButton
             label="New transfer"
-            title="New warehouse transfer"
-            description="Move stock between locations"
+            title="New company transfer"
+            description="Move stock between companies"
             size="lg"
             disabled={warehouses.length < 2}
-            disabledHint="Create at least two warehouses before transferring stock."
+            disabledHint="Create at least two companies before transferring stock."
           >
             <StockTransferForm
               companyId={company.id}

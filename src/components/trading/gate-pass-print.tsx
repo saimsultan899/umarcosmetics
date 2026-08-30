@@ -90,7 +90,7 @@ export function GatePassPrint({
               <span className="si-k">Date :</span> <span className="si-v">{date}</span>
             </div>
             <div>
-              <span className="si-k">Supplier :</span>{" "}
+              <span className="si-k">Vendor :</span>{" "}
               <span className="si-v">
                 {[supplierCode, supplierName].filter(Boolean).join(" ") || "—"}
               </span>
@@ -121,7 +121,7 @@ export function GatePassPrint({
             </div>
             {warehouseName ? (
               <div>
-                <span className="si-k">Receiving warehouse :</span>{" "}
+                <span className="si-k">Receiving company :</span>{" "}
                 <span className="si-v">{warehouseName}</span>
               </div>
             ) : null}

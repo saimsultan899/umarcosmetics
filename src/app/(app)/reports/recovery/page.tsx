@@ -129,10 +129,10 @@ export default async function RecoverySheetPage({
     .map((r) => ({ name: `${r.party_code} ${r.name_en}`, value: Number(r.balance) }));
 
   const scopeOptions = [
-    { value: "all", label: "All parties" },
+    { value: "all", label: "All customers" },
     ...sheet.warehouseOptions.map((w) => ({
       value: `wh:${w.id}`,
-      label: `Warehouse — ${w.name}`,
+      label: `Company — ${w.name}`,
     })),
     ...sheet.brandOptions.map((b) => ({
       value: `brand:${b}`,
@@ -145,7 +145,7 @@ export default async function RecoverySheetPage({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold">
-            Recovery Sheet
+            Customer receivables
           </h1>
           <p className="mt-1 text-sm text-[var(--muted)]">
             Shop balances (Dr/Cr) for field collection — {company.name}
@@ -254,18 +254,18 @@ export default async function RecoverySheetPage({
         </div>
         <div>
           <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
-            Party
+            Customer
           </label>
           <Select
             name="party"
             defaultValue={party}
-            placeholder="All parties"
-            options={[{ value: "", label: "All parties" }, ...partyOptions]}
+            placeholder="All customers"
+            options={[{ value: "", label: "All customers" }, ...partyOptions]}
           />
         </div>
         <div>
           <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
-            Scope (brand / warehouse)
+            Scope (brand / company)
           </label>
           <Select name="scope" defaultValue={scopeToken} options={scopeOptions} />
         </div>

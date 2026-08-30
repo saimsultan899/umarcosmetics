@@ -180,7 +180,7 @@ export function ProductsTable({
               ))}
               {warehouses.length ? (
                 <TableFilterSelect
-                  label="Warehouse"
+                  label="Company"
                   value={filters.warehouse || ""}
                   options={warehouseOptions(warehouses)}
                   loading={isPending}

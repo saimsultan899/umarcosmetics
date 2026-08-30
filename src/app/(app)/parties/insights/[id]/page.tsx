@@ -95,7 +95,7 @@ export default async function PartyInsightsPage({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--brand)]">
-            Party intelligence
+            Customer intelligence
           </p>
           <h1 className="mt-1 font-[family-name:var(--font-display)] text-3xl font-semibold">
             {party.name_en}

@@ -20,7 +20,7 @@ export const SALE_REPORT_TYPES: { key: SaleReportType; label: string }[] = [
   { key: "cash_sales", label: "Date wise counter/cash sales" },
   { key: "credit_sales", label: "Date wise credit sales" },
   { key: "bill_range", label: "Bill # range" },
-  { key: "party_wise", label: "Item, Party Wise Sales Detail" },
+  { key: "party_wise", label: "Item, Customer Wise Sales Detail" },
   { key: "item_wise", label: "Item wise sale detail" },
   { key: "manufacturer_wise", label: "Manufacturer / category wise" },
   { key: "city_wise", label: "Head / City sales" },
@@ -138,7 +138,7 @@ export async function buildSaleReport(
         return {
           Date: inv?.invoice_date,
           Invoice: inv?.invoice_no,
-          Party: party ? `${party.party_code} — ${party.name_en}` : "",
+          Customer: party ? `${party.party_code} — ${party.name_en}` : "",
           Code: it.product_code,
           Item: it.product_name,
           Qty: Number(it.qty),
@@ -247,7 +247,7 @@ export async function buildSaleReport(
       return {
         Date: inv.invoice_date,
         Invoice: inv.invoice_no,
-        Party: party ? `${party.party_code} — ${party.name_en}` : "",
+        Customer: party ? `${party.party_code} — ${party.name_en}` : "",
         Type: inv.payment_type,
         "Invoice total": Number(inv.grand_total),
         "Cash received": Number(inv.amount_paid),
@@ -264,8 +264,8 @@ export async function buildSaleReport(
     return {
       Date: inv.invoice_date,
       Invoice: inv.invoice_no,
-      Party: party ? `${party.party_code} — ${party.name_en}` : "",
-      Warehouse: warehouse?.name || "",
+      Customer: party ? `${party.party_code} — ${party.name_en}` : "",
+      Company: warehouse?.name || "",
       Payment: inv.payment_type,
       City: inv.city || "",
       Sector: inv.route || "",

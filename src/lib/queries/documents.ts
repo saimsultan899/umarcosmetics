@@ -67,7 +67,7 @@ const PURCHASE_CONFIG: DocumentTableConfig = {
   linesFk: "purchase_invoice_id",
   mapExtra: (inv) => [
     {
-      label: "Supplier bill #",
+      label: "Vendor bill #",
       value: String(inv.supplier_bill_no || "—"),
     },
   ],

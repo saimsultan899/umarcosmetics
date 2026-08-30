@@ -51,7 +51,7 @@ export default async function LoadSheetsPage({
             description="Issue van stock for a market sector"
             size="xl"
             disabled={!canCreate}
-            disabledHint="Add products and warehouses first, then create van loads."
+            disabledHint="Add products and companies first, then create van loads."
           >
             <LoadSheetForm
               companyId={company.id}

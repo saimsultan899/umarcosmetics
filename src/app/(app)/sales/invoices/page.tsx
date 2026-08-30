@@ -50,10 +50,10 @@ export default async function SaleInvoicesPage({
           <CreateDialogButton
             label="New sale"
             title="New sale invoice"
-            description="Post a sale and deduct warehouse stock"
+            description="Post a sale and deduct company stock"
             size="xl"
             disabled={!canCreate}
-            disabledHint="Add at least one party, product, and warehouse first."
+            disabledHint="Add at least one customer, product, and company first."
           >
             <SaleInvoiceForm
               companyId={company.id}

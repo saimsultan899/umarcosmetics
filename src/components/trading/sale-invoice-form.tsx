@@ -119,11 +119,7 @@ export function SaleInvoiceForm({
 
     const valid = lines.filter((l) => l.product_id && Number(l.qty) > 0);
     if (!partyId || !warehouseId || valid.length === 0) {
-      setError("Select party, warehouse, and at least one product line.");
-      return;
-    }
-    if (salesmen.length > 0 && !salesmanId) {
-      setError("Select the salesman who made this sale.");
+      setError("Select customer, company, and at least one product line.");
       return;
     }
 
@@ -213,7 +209,7 @@ export function SaleInvoiceForm({
             parties={customers}
             value={partyId}
             required
-            label="Party code / shop"
+            label="Customer code / shop"
             filterSubtype={["customer", "both"]}
             onChange={(id) => {
               setPartyId(id);
@@ -222,9 +218,9 @@ export function SaleInvoiceForm({
           />
         </div>
         <div>
-          <Label>Warehouse</Label>
+          <Label>Company</Label>
           <Select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} required>
-            <option value="">Select warehouse</option>
+            <option value="">Select company</option>
             {warehouses.map((w) => (
               <option key={w.id} value={w.id}>{w.name}</option>
             ))}
@@ -235,7 +231,6 @@ export function SaleInvoiceForm({
             salesmen={salesmen}
             value={salesmanId}
             onChange={setSalesmanId}
-            required={salesmen.length > 0}
           />
         </div>
         <div>

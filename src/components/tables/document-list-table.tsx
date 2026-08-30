@@ -32,6 +32,7 @@ export function DocumentListTable({
   showPaymentFilter = false,
   showPrint = false,
   warehouses = [],
+  partyColumnLabel = "Customer",
 }: {
   title?: string;
   rows: DocumentListRow[];
@@ -40,6 +41,7 @@ export function DocumentListTable({
   showPaymentFilter?: boolean;
   showPrint?: boolean;
   warehouses?: Array<{ id: string; name: string }>;
+  partyColumnLabel?: string;
 }) {
   const filterKeys = useMemo(
     () => [
@@ -188,7 +190,7 @@ export function DocumentListTable({
                 : null}
               {warehouses.length ? (
                 <TableFilterSelect
-                  label="Warehouse"
+                  label="Company"
                   value={filters.warehouse || ""}
                   options={warehouseOptions(warehouses)}
                   loading={isPending}
@@ -206,8 +208,8 @@ export function DocumentListTable({
                 <tr>
                   <th>Doc #</th>
                   <th>Date</th>
-                  <th>Party</th>
-                  <th>Warehouse</th>
+                  <th>{partyColumnLabel}</th>
+                  <th>Company</th>
                   {showPaymentFilter ? <th>Payment</th> : null}
                   <th>Total</th>
                   <th className="text-right">Actions</th>
@@ -239,9 +241,9 @@ export function DocumentListTable({
                           fields={[
                             { label: "Doc #", value: inv.docNo },
                             { label: "Date", value: inv.date },
-                            { label: "Party", value: inv.partyLabel },
+                            { label: partyColumnLabel, value: inv.partyLabel },
                             {
-                              label: "Warehouse",
+                              label: "Company",
                               value: inv.warehouseLabel || "—",
                             },
                             ...(inv.paymentType

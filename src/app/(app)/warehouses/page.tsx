@@ -21,8 +21,8 @@ export default async function WarehousesPage() {
   return (
     <div className="animate-rise space-y-6">
       <PageHeading
-        title="Warehouses"
-        description="Brand / store locations for stock (e.g. KEUNE, CITY GIRL)"
+        title="Companies"
+        description="Brand / stock companies (e.g. KEUNE, CITY GIRL)"
         actions={
           <>
             <Link href="/warehouses/transfers">
@@ -31,9 +31,9 @@ export default async function WarehousesPage() {
               </Button>
             </Link>
             <CreateDialogButton
-              label="Add warehouse"
-              title="Add warehouse"
-              description="Create a warehouse or brand location"
+              label="Add company"
+              title="Add company"
+              description="Create a stock company or brand location"
             >
                 <WarehouseForm
                   companyId={company.id}

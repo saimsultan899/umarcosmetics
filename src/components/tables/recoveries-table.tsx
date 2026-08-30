@@ -92,7 +92,7 @@ export function RecoveriesTable({
             <thead>
               <tr>
                 <th>Date</th>
-                <th>Party</th>
+                <th>Customer</th>
                 <th>Amount</th>
                 <th>Salesman</th>
                 <th>City / Sector</th>
@@ -109,7 +109,7 @@ export function RecoveriesTable({
                   const salesman = r.salesman?.full_name || (r.salesman_id ? "—" : "Unassigned");
                   const fields: DetailField[] = [
                     { label: "Date", value: r.recovery_date },
-                    { label: "Party", value: party },
+                    { label: "Customer", value: party },
                     { label: "Amount", value: formatPkr(r.amount) },
                     { label: "Salesman", value: salesman },
                     {

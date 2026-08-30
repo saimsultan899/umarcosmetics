@@ -45,7 +45,7 @@ export function LoadSheetsTable({
         filters={
           warehouses.length ? (
             <TableFilterSelect
-              label="Warehouse"
+              label="Company"
               value={filters.warehouse || ""}
               options={warehouseOptions(warehouses)}
               loading={isPending}
@@ -61,7 +61,7 @@ export function LoadSheetsTable({
               <tr>
                 <th>Sheet #</th>
                 <th>Date</th>
-                <th>Warehouse</th>
+                <th>Company</th>
                 <th>Vehicle / Sector</th>
                 <th>Lines qty</th>
                 <th>Status</th>

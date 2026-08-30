@@ -161,12 +161,12 @@ export function GatePassForm({
           />
         </div>
         <div>
-          <Label>Receive at warehouse</Label>
+          <Label>Receive at company</Label>
           <Select
             value={warehouseId}
             onChange={(e) => setWarehouseId(e.target.value)}
           >
-            <option value="">Select warehouse</option>
+            <option value="">Select company</option>
             {warehouses.map((w) => (
               <option key={w.id} value={w.id}>
                 {w.name}
@@ -193,7 +193,8 @@ export function GatePassForm({
             companyId={companyId}
             parties={suppliers}
             value={partyId}
-            label="Supplier (existing)"
+            label="Vendor (existing)"
+            emptyLabel="Select vendor"
             filterSubtype={["supplier", "both"]}
             onChange={(id) => setPartyId(id)}
           />

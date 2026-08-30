@@ -107,7 +107,7 @@ export function RecoveryForm({
     setError(null);
     const amt = Number(amount);
     if (!partyId || !party || !(amt > 0)) {
-      setError("Select party and enter a recovery amount.");
+      setError("Select customer and enter a recovery amount.");
       return false;
     }
     setLines((prev) => [
@@ -171,10 +171,6 @@ export function RecoveryForm({
 
     if (pending.length === 0) {
       setError("Add at least one recovery line before recording.");
-      return;
-    }
-    if (salesmen.length > 0 && !salesmanId) {
-      setError("Select the salesman who collected this recovery.");
       return;
     }
 
@@ -253,13 +249,12 @@ export function RecoveryForm({
             salesmen={salesmen}
             value={salesmanId}
             onChange={setSalesmanId}
-            required={salesmen.length > 0}
           />
         </div>
       </div>
 
       <div className="rounded-xl border border-[var(--brand)]/30 bg-[var(--brand-soft)]/40 px-3 py-2 text-xs text-[var(--brand-strong)]">
-        Keyboard: party{" "}
+        Keyboard: customer{" "}
         <kbd className="rounded bg-white px-1">code</kbd> →{" "}
         <kbd className="rounded bg-white px-1">Enter</kbd> → amount → remarks →{" "}
         <kbd className="rounded bg-white px-1">Enter</kbd> adds the line. Then
@@ -275,7 +270,7 @@ export function RecoveryForm({
             companyId={companyId}
             parties={parties}
             value={partyId}
-            label="Shop / party code"
+            label="Customer code / shop"
             filterSubtype={["customer", "both"]}
             onChange={(id, next) => {
               setPartyId(id);
@@ -337,7 +332,7 @@ export function RecoveryForm({
             <thead className="bg-[var(--surface-2)] text-left text-xs uppercase tracking-wide text-[var(--muted)]">
               <tr>
                 <th className="px-3 py-2 font-semibold">Code</th>
-                <th className="px-3 py-2 font-semibold">Party</th>
+                <th className="px-3 py-2 font-semibold">Customer</th>
                 <th className="px-3 py-2 text-right font-semibold">Amount</th>
                 <th className="px-3 py-2 font-semibold">Remarks</th>
                 <th className="w-10 px-2 py-2" />

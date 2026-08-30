@@ -141,7 +141,7 @@ export default async function AccountsReportPage({
           Accounts Reports
         </h1>
         <p className="mt-1 text-sm text-[var(--muted)]">
-          Receivables, payables, and party ledger — export ready
+          Receivables, payables, and customer ledger — export ready
         </p>
       </div>
 
@@ -150,14 +150,17 @@ export default async function AccountsReportPage({
           ["receivable", "Receivable (Debit)"],
           ["payable", "Payable (Credit)"],
           ["all", "All balances"],
-          ["ledger", "Party ledger"],
+          ["ledger", "Customer ledger"],
+          ["salesman", "Salesman ledger"],
         ].map(([key, label]) => (
           <Link
             key={key}
             href={
               key === "ledger"
                 ? `/reports/accounts?view=ledger${sp.party ? `&party=${sp.party}` : ""}`
-                : `/reports/accounts?view=${key}`
+                : key === "salesman"
+                  ? "/reports/salesman-ledger"
+                  : `/reports/accounts?view=${key}`
             }
             className={`rounded-full px-3 py-1.5 text-sm font-medium ${
               view === key
@@ -178,7 +181,7 @@ export default async function AccountsReportPage({
           icon={ArrowUpRight}
           tone="warn"
           href="/reports/accounts?view=receivable"
-          hint="Shops owe this to you"
+          hint="Customers owe this to you"
         />
         <StatCard
           label="Payable"
@@ -186,7 +189,7 @@ export default async function AccountsReportPage({
           format="money"
           icon={ArrowDownLeft}
           href="/reports/accounts?view=payable"
-          hint="You owe this to suppliers"
+          hint="You owe this to vendors"
         />
         <StatCard
           label="Net position"
@@ -197,7 +200,7 @@ export default async function AccountsReportPage({
           hint={net >= 0 ? "Net positive working capital" : "Payables outweigh receivables"}
         />
         <StatCard
-          label="Parties in view"
+          label="Accounts in view"
           value={balanceRows.length}
           format="number"
           tone="neutral"
@@ -229,13 +232,13 @@ export default async function AccountsReportPage({
           <UrlFilterForm className="panel no-print flex flex-wrap items-end gap-3 p-4">
             <div className="min-w-[260px] flex-1">
               <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
-                Party
+                Customer / vendor
               </label>
               <Select
                 name="party"
                 defaultValue={sp.party || ""}
                 options={[
-                  { value: "", label: "Select party" },
+                  { value: "", label: "Select customer / vendor" },
                   ...(parties || []).map((p) => ({
                     value: p.id,
                     label: `${p.party_code} — ${p.name_en}`,
@@ -253,9 +256,11 @@ export default async function AccountsReportPage({
           </UrlFilterForm>
 
           <ReportTable
-            title={`Party Ledger — ${selectedParty ? `${selectedParty.party_code} ${selectedParty.name_en}` : company.name}`}
+            title={`Customer ledger — ${selectedParty ? `${selectedParty.party_code} ${selectedParty.name_en}` : company.name}`}
             companyName={company.name}
-            subtitle={selectedParty ? `${ledgerRows.length} lines` : "Select a party"}
+            subtitle={
+              selectedParty ? `${ledgerRows.length} lines` : "Select a customer / vendor"
+            }
             rows={selectedParty ? ledgerRows : []}
             filename={`party-ledger-${sp.party || "none"}`}
           />

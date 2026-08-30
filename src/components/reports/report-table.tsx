@@ -13,7 +13,7 @@ function formatCell(key: string, value: unknown) {
   if (value == null || value === "") return "—";
   if (
     typeof value === "number" &&
-    /amount|total|paid|profit|cost|rate|discount|subtotal|cash|credit|balance/i.test(
+    /amount|total|paid|profit|cost|rate|discount|subtotal|cash|credit|balance|salary|expense|recovered|collected|sales|debit/i.test(
       key,
     )
   ) {
@@ -45,7 +45,7 @@ function isAdditiveColumn(key: string) {
   return (
     /amount|total|paid|value|balance|qty|cash|credit|debit|profit|subtotal|discount/i.test(
       key,
-    ) && !/rate|price|reorder|opening|\bper\b/i.test(key)
+    ) && !/rate|price|reorder|opening|running|\bper\b/i.test(key)
   );
 }
 

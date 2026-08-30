@@ -1,5 +1,6 @@
 "use client";
 
+import { LocationSelect } from "@/components/forms/location-select";
 import { Button } from "@/components/ui/button";
 import { useCreateDialogClose } from "@/components/ui/create-dialog";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,7 @@ type PartyFormState = {
   party_type: PartyType;
   party_subtype: PartySubtype;
   city: string;
+  head: string;
   route: string;
   address: string;
   mobile: string;
@@ -41,15 +43,16 @@ export function PartyForm({
   initial,
   cityOptions = [],
   sectorOptions = [],
+  defaultSubtype,
   onDone,
 }: {
   companyId: string;
   organizationId: string;
   initial?: Party | null;
-  /** Distinct cities already stored for this company (from DB). */
   cityOptions?: string[];
-  /** Distinct sectors already stored for this company (from DB). */
   sectorOptions?: string[];
+  /** Pre-select subtype when adding from Customers / Vendors views. */
+  defaultSubtype?: PartySubtype;
   onDone?: () => void;
 }) {
   const router = useRouter();
@@ -62,8 +65,16 @@ export function PartyForm({
     name_en: initial?.name_en || "",
     name_ur: initial?.name_ur || "",
     party_type: initial?.party_type || "PARTY",
-    party_subtype: initial?.party_subtype || "customer",
-    city: initial?.city || "",
+    party_subtype:
+      initial?.party_subtype ||
+      (defaultSubtype === "supplier" ||
+      defaultSubtype === "customer" ||
+      defaultSubtype === "both" ||
+      defaultSubtype === "other"
+        ? defaultSubtype
+        : "customer"),
+    city: initial?.city || initial?.head || "",
+    head: initial?.head || headFromCity(initial?.city) || "",
     route: initial?.route || "",
     address: initial?.address || "",
     mobile: initial?.mobile || "",
@@ -97,13 +108,30 @@ export function PartyForm({
     setForm((f) => ({ ...f, [key]: value }));
   }
 
+  const [extraCities, setExtraCities] = useState<string[]>([]);
+  const [extraSectors, setExtraSectors] = useState<string[]>([]);
+
+  function setCityHead(value: string) {
+    setForm((f) => ({ ...f, city: value, head: headFromCity(value) || "" }));
+  }
+
   const cities = useMemo(
-    () => mergeLocationOptions(cityOptions, PARTY_CITIES, form.city),
-    [cityOptions, form.city],
+    () =>
+      mergeLocationOptions(
+        [...cityOptions, ...extraCities],
+        cityOptions.length ? [] : PARTY_CITIES,
+        form.city || form.head,
+      ),
+    [cityOptions, extraCities, form.city, form.head],
   );
   const sectors = useMemo(
-    () => mergeLocationOptions(sectorOptions, PARTY_SECTORS, form.route),
-    [sectorOptions, form.route],
+    () =>
+      mergeLocationOptions(
+        [...sectorOptions, ...extraSectors],
+        sectorOptions.length ? [] : PARTY_SECTORS,
+        form.route,
+      ),
+    [sectorOptions, extraSectors, form.route],
   );
 
   async function onSubmit(e: FormEvent) {
@@ -129,11 +157,13 @@ export function PartyForm({
 
     if (!partyCode) {
       setLoading(false);
-      setError("Party code is required.");
+      setError("Code is required.");
       return;
     }
 
     const city = form.city.trim() || null;
+    const head = headFromCity(city);
+    const route = form.route.trim() || null;
     const payload = {
       organization_id: organizationId,
       company_id: companyId,
@@ -143,8 +173,8 @@ export function PartyForm({
       party_type: form.party_type,
       party_subtype: form.party_subtype,
       city,
-      head: headFromCity(city),
-      route: form.route.trim() || null,
+      head,
+      route,
       address: form.address.trim() || null,
       mobile: form.mobile.trim() || null,
       phone: form.phone.trim() || null,
@@ -161,17 +191,39 @@ export function PartyForm({
       : supabase.from("parties").insert(payload);
 
     const { error: saveError } = await query;
-    setLoading(false);
-
     if (saveError) {
+      setLoading(false);
       setError(saveError.message);
       return;
     }
+
+    const remember = [
+      city ? { kind: "city" as const, name: city } : null,
+      head ? { kind: "head" as const, name: head } : null,
+      route ? { kind: "sector" as const, name: route } : null,
+    ].filter(Boolean) as Array<{ kind: "city" | "head" | "sector"; name: string }>;
+    for (const row of remember) {
+      await supabase.from("company_locations").insert({
+        organization_id: organizationId,
+        company_id: companyId,
+        kind: row.kind,
+        name: row.name,
+      });
+    }
+
+    setLoading(false);
 
     onDone?.();
     closeDialog?.();
     router.refresh();
   }
+
+  const accountKind =
+    form.party_subtype === "supplier"
+      ? "Vendor"
+      : form.party_type !== "PARTY"
+        ? "Account"
+        : "Customer";
 
   return (
     <form
@@ -181,7 +233,7 @@ export function PartyForm({
       onKeyDown={(e) => handleEnterAsNext(e)}
     >
       <div>
-        <Label>Party code (auto serial)</Label>
+        <Label>{accountKind} code (auto serial)</Label>
         <Input
           value={form.party_code}
           onChange={(e) => {
@@ -201,7 +253,7 @@ export function PartyForm({
         ) : null}
       </div>
       <div>
-        <Label>Party name</Label>
+        <Label>{accountKind} name</Label>
         <Input value={form.name_en} onChange={(e) => set("name_en", e.target.value)} required />
       </div>
       <div>
@@ -215,7 +267,9 @@ export function PartyForm({
           onChange={(e) => set("party_type", e.target.value as PartyType)}
         >
           {(["PARTY", "ASSETS", "CAPITAL", "EXPENSES", "INCOME"] as PartyType[]).map((t) => (
-            <option key={t} value={t}>{t}</option>
+            <option key={t} value={t}>
+              {t === "PARTY" ? "Customer" : t}
+            </option>
           ))}
         </Select>
       </div>
@@ -226,7 +280,7 @@ export function PartyForm({
           onChange={(e) => set("party_subtype", e.target.value as PartySubtype)}
         >
           <option value="customer">Customer / Shop</option>
-          <option value="supplier">Supplier</option>
+          <option value="supplier">Vendor</option>
           <option value="both">Both</option>
           <option value="other">Other</option>
         </Select>
@@ -241,36 +295,28 @@ export function PartyForm({
           <option value="wholesale">Wholesale</option>
         </Select>
       </div>
-      <div>
-        <Label>City / Head</Label>
-        <Select
-          value={form.city}
-          onChange={(e) => set("city", e.target.value)}
-          placeholder="Select city"
-        >
-          <option value="">Select city</option>
-          {cities.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </Select>
-      </div>
-      <div>
-        <Label>Sector</Label>
-        <Select
-          value={form.route}
-          onChange={(e) => set("route", e.target.value)}
-          placeholder="Select sector"
-        >
-          <option value="">Select sector</option>
-          {sectors.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </Select>
-      </div>
+      <LocationSelect
+        companyId={companyId}
+        organizationId={organizationId}
+        kind="city"
+        label="City / Head"
+        value={form.city}
+        options={cities}
+        placeholder="Select city / head"
+        onChange={setCityHead}
+        onAdded={(v) => setExtraCities((p) => [...p, v])}
+      />
+      <LocationSelect
+        companyId={companyId}
+        organizationId={organizationId}
+        kind="sector"
+        label="Sector"
+        value={form.route}
+        options={sectors}
+        placeholder="Select sector"
+        onChange={(v) => set("route", v)}
+        onAdded={(v) => setExtraSectors((p) => [...p, v])}
+      />
       <div className="sm:col-span-2">
         <Label>Address</Label>
         <Input value={form.address} onChange={(e) => set("address", e.target.value)} />

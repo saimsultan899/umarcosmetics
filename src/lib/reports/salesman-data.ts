@@ -1,3 +1,4 @@
+import { expenseCategoryLabel } from "@/lib/expenses/categories";
 import { one } from "@/lib/reports/helpers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -31,6 +32,12 @@ export type SalesmanRow = {
   recoveryCount: number;
   /** invoiceCash + recovered — total cash this salesman brought in. */
   collected: number;
+  /** Salary posted to this salesman. */
+  salary: number;
+  /** Non-salary expenses tagged to this salesman. */
+  otherExpenses: number;
+  /** salary + otherExpenses. */
+  totalExpenses: number;
   avgBill: number;
 };
 
@@ -42,6 +49,9 @@ export type SalesmanTotals = {
   recovered: number;
   recoveryCount: number;
   collected: number;
+  salary: number;
+  otherExpenses: number;
+  totalExpenses: number;
 };
 
 export type SalesmanTrendPoint = {
@@ -68,6 +78,14 @@ export type SalesmanHistoryRecovery = {
   remarks: string | null;
 };
 
+export type SalesmanHistoryExpense = {
+  expense_date: string;
+  expense_no: string;
+  category: string;
+  amount: number;
+  remarks: string | null;
+};
+
 export type SalesmanReportResult = {
   /** Rows for the current view, sorted by sales desc. */
   rows: SalesmanRow[];
@@ -88,6 +106,7 @@ export type SalesmanReportResult = {
   history: {
     sales: SalesmanHistorySale[];
     recoveries: SalesmanHistoryRecovery[];
+    expenses: SalesmanHistoryExpense[];
   } | null;
 };
 
@@ -154,12 +173,24 @@ export async function buildSalesmanReport(
   if (salesmanId === UNASSIGNED) recoveryQuery = recoveryQuery.is("salesman_id", null);
   else if (salesmanId) recoveryQuery = recoveryQuery.eq("salesman_id", salesmanId);
 
-  const [invoicesRes, recoveriesRes, rosterRes, assignmentsRes, sectorRes] =
+  let expenseQuery = supabase
+    .from("expenses")
+    .select(
+      "expense_no, expense_date, category, amount, remarks, salesman_id, salesman:salesmen!expenses_salesman_id_fkey(id, full_name)",
+    )
+    .eq("company_id", companyId)
+    .gte("expense_date", from)
+    .lte("expense_date", to);
+  if (salesmanId === UNASSIGNED) expenseQuery = expenseQuery.is("salesman_id", null);
+  else if (salesmanId) expenseQuery = expenseQuery.eq("salesman_id", salesmanId);
+
+  const [invoicesRes, recoveriesRes, expensesRes, rosterRes, assignmentsRes, sectorRes] =
     await Promise.all([
       invoiceQuery
         .order("invoice_date", { ascending: true })
         .limit(INVOICE_LIMIT),
       recoveryQuery.limit(RECOVERY_LIMIT),
+      expenseQuery.limit(RECOVERY_LIMIT),
       supabase
         .from("salesmen")
         .select("id, full_name")
@@ -182,6 +213,7 @@ export async function buildSalesmanReport(
   const error =
     invoicesRes.error?.message ||
     recoveriesRes.error?.message ||
+    expensesRes.error?.message ||
     rosterRes.error?.message ||
     assignmentsRes.error?.message ||
     sectorRes.error?.message ||
@@ -210,6 +242,15 @@ export async function buildSalesmanReport(
       | { party_code: string; name_en: string }
       | { party_code: string; name_en: string }[]
       | null;
+    salesman: EmbeddedProfile | EmbeddedProfile[];
+  }>;
+  const expenses = (expensesRes.data || []) as Array<{
+    expense_no: string;
+    expense_date: string | null;
+    category: string;
+    amount: number | string | null;
+    remarks: string | null;
+    salesman_id: string | null;
     salesman: EmbeddedProfile | EmbeddedProfile[];
   }>;
 
@@ -260,6 +301,9 @@ export async function buildSalesmanReport(
         recovered: 0,
         recoveryCount: 0,
         collected: 0,
+        salary: 0,
+        otherExpenses: 0,
+        totalExpenses: 0,
         avgBill: 0,
       };
       agg.set(id, r);
@@ -350,6 +394,20 @@ export async function buildSalesmanReport(
     }
   }
 
+  // Expenses have no sector — only roll them in on the all-sectors view
+  // (or a single-salesman filter, which is already applied on the query).
+  if (!sector) {
+    for (const exp of expenses) {
+      const amt = Number(exp.amount || 0);
+      const id = exp.salesman_id || UNASSIGNED;
+      const sm = one(exp.salesman);
+      const name = sm?.full_name || rosterName.get(id) || "Unassigned";
+      const row = ensure(id, name);
+      if (exp.category === "salary") row.salary += amt;
+      else row.otherExpenses += amt;
+    }
+  }
+
   // Attribute each owned sector back to its salesman for the "Sectors" column.
   const sectorsBySalesman = new Map<string, Set<string>>();
   for (const [routeKey, owner] of routeToSalesman) {
@@ -363,6 +421,7 @@ export async function buildSalesmanReport(
       a.localeCompare(b),
     );
     row.collected = row.invoiceCash + row.recovered;
+    row.totalExpenses = row.salary + row.otherExpenses;
     row.avgBill = row.bills ? row.sales / row.bills : 0;
   }
 
@@ -394,6 +453,9 @@ export async function buildSalesmanReport(
       acc.recovered += r.recovered;
       acc.recoveryCount += r.recoveryCount;
       acc.collected += r.collected;
+      acc.salary += r.salary;
+      acc.otherExpenses += r.otherExpenses;
+      acc.totalExpenses += r.totalExpenses;
       return acc;
     },
     {
@@ -404,6 +466,9 @@ export async function buildSalesmanReport(
       recovered: 0,
       recoveryCount: 0,
       collected: 0,
+      salary: 0,
+      otherExpenses: 0,
+      totalExpenses: 0,
     },
   );
 
@@ -442,6 +507,15 @@ export async function buildSalesmanReport(
           };
         })
         .sort((a, b) => b.recovery_date.localeCompare(a.recovery_date)),
+      expenses: expenses
+        .map((exp) => ({
+          expense_date: exp.expense_date || "",
+          expense_no: exp.expense_no,
+          category: expenseCategoryLabel(exp.category),
+          amount: Number(exp.amount || 0),
+          remarks: exp.remarks,
+        }))
+        .sort((a, b) => b.expense_date.localeCompare(a.expense_date)),
     };
   }
 

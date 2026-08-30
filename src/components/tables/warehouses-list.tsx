@@ -34,7 +34,7 @@ export function WarehousesList({
   if (!warehouses.length) {
     return (
       <p className="rounded-xl border border-dashed border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--muted)]">
-        No warehouses yet.
+        No companies yet.
       </p>
     );
   }
@@ -57,7 +57,7 @@ export function WarehousesList({
               viewTitle={w.name}
               editTitle={`Edit ${w.name}`}
               deleteTitle={`Remove ${w.name}?`}
-              deleteDescription="Warehouse will be removed from this list. It can be restored later if needed."
+              deleteDescription="This company will be removed from this list. It can be restored later if needed."
               viewFields={warehouseFields(w)}
               onDelete={() => deactivate(w.id)}
               editContent={(close) => (

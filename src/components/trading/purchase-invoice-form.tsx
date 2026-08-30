@@ -52,7 +52,7 @@ export function PurchaseInvoiceForm({
     setError(null);
     const valid = lines.filter((l) => l.product_id && Number(l.qty) > 0);
     if (!partyId || !warehouseId || valid.length === 0) {
-      setError("Select supplier, warehouse, and at least one product line.");
+      setError("Select vendor, company, and at least one product line.");
       return;
     }
 
@@ -108,13 +108,14 @@ export function PurchaseInvoiceForm({
             parties={suppliers}
             value={partyId}
             required
-            label="Supplier code"
+            label="Vendor code"
+            emptyLabel="Select vendor"
             filterSubtype={["supplier", "both"]}
             onChange={(id) => setPartyId(id)}
           />
         </div>
         <div>
-          <Label>Warehouse</Label>
+          <Label>Company</Label>
           <Select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} required>
             {warehouses.map((w) => (
               <option key={w.id} value={w.id}>{w.name}</option>
@@ -122,7 +123,7 @@ export function PurchaseInvoiceForm({
           </Select>
         </div>
         <div>
-          <Label>Supplier bill #</Label>
+          <Label>Vendor bill #</Label>
           <Input value={supplierBillNo} onChange={(e) => setSupplierBillNo(e.target.value)} />
         </div>
         <div className="sm:col-span-2 lg:col-span-4">

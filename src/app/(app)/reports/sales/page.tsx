@@ -96,6 +96,7 @@ export default async function SaleReportsPage({
     const label =
       String(
         row.Date ||
+          row.Customer ||
           row.Party ||
           row.Salesman ||
           row.City ||
@@ -181,7 +182,7 @@ export default async function SaleReportsPage({
           <>
             <FilterSelect
               name="warehouse"
-              label="Warehouse"
+              label="Company"
               value={sp.warehouse}
               options={(warehouses || []).map((w) => ({
                 value: w.id,
@@ -190,7 +191,7 @@ export default async function SaleReportsPage({
             />
             <FilterSelect
               name="party"
-              label="Party"
+              label="Customer"
               value={sp.party}
               options={(parties || []).map((p) => ({
                 value: p.id,

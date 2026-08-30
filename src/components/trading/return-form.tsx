@@ -42,7 +42,11 @@ export function ReturnForm({
     setError(null);
     const valid = lines.filter((l) => l.product_id && Number(l.qty) > 0);
     if (!partyId || !warehouseId || valid.length === 0) {
-      setError("Select party, warehouse, and at least one line.");
+      setError(
+        kind === "purchase"
+          ? "Select vendor, company, and at least one line."
+          : "Select customer, company, and at least one line.",
+      );
       return;
     }
 
@@ -98,12 +102,13 @@ export function ReturnForm({
             parties={parties}
             value={partyId}
             required
-            label="Party code"
+            label={kind === "purchase" ? "Vendor code" : "Customer code"}
+            emptyLabel={kind === "purchase" ? "Select vendor" : "Select customer"}
             onChange={(id) => setPartyId(id)}
           />
         </div>
         <div>
-          <Label>Warehouse</Label>
+          <Label>Company</Label>
           <Select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} required>
             {warehouses.map((w) => (
               <option key={w.id} value={w.id}>{w.name}</option>

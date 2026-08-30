@@ -49,7 +49,7 @@ export function SalesmanSelect({
         <p className="mt-1 text-[11px] text-[var(--muted)]">{hint}</p>
       ) : (
         <p className="mt-1 text-[11px] text-[var(--muted)]">
-          Used for salesman-wise performance &amp; recovery history.
+          Optional — used for salesman-wise performance &amp; recovery history.
         </p>
       )}
     </div>

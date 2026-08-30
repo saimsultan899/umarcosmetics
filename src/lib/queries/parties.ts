@@ -157,6 +157,7 @@ export async function fetchPartyList(
     otherCount,
     cityRows,
     locationRows,
+    savedLocations,
   ] = await Promise.all([
     listQuery.order("party_code", { ascending: true }).range(from, to),
     countWithFilters(supabase, companyId, "customer", q, location),
@@ -191,6 +192,10 @@ export async function fetchPartyList(
       .eq("company_id", companyId)
       .eq("is_active", true)
       .limit(5000),
+    supabase
+      .from("company_locations")
+      .select("kind, name")
+      .eq("company_id", companyId),
   ]);
 
   if (error) throw new Error(error.message);
@@ -201,7 +206,7 @@ export async function fetchPartyList(
 
   const subtypeMix = [
     { name: "Customers", value: customerOnly },
-    { name: "Suppliers", value: supplierOnly },
+    { name: "Vendors", value: supplierOnly },
     { name: "Both", value: bothCount },
     { name: "Other", value: otherCount },
   ].filter((x) => x.value > 0);
@@ -217,8 +222,18 @@ export async function fetchPartyList(
       subtypeMix,
       cityBars: aggregateCities(cityData),
     },
-    cityOptions: distinctSorted((locationRows.data || []).map((r) => r.city)),
-    sectorOptions: distinctSorted((locationRows.data || []).map((r) => r.route)),
-    headOptions: distinctSorted((locationRows.data || []).map((r) => r.head)),
+    cityOptions: distinctSorted([
+      ...(locationRows.data || []).map((r) => r.city),
+      ...((savedLocations.data || []) as Array<{ kind: string; name: string }>)
+        .filter((r) => r.kind === "city")
+        .map((r) => r.name),
+    ]),
+    sectorOptions: distinctSorted([
+      ...(locationRows.data || []).map((r) => r.route),
+      ...((savedLocations.data || []) as Array<{ kind: string; name: string }>)
+        .filter((r) => r.kind === "sector")
+        .map((r) => r.name),
+    ]),
+    headOptions: [],
   };
 }

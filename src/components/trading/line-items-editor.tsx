@@ -91,7 +91,6 @@ export function LineItemsEditor({
   const schemeRef = useRef<HTMLInputElement>(null);
   const rateRef = useRef<HTMLInputElement>(null);
   const discountRef = useRef<HTMLInputElement>(null);
-  const bonusRef = useRef<HTMLInputElement>(null);
   const productSelectRef = useRef<SelectHandle>(null);
 
   useEffect(() => {
@@ -434,10 +433,6 @@ export function LineItemsEditor({
     if (e.key !== "Enter") return;
     e.preventDefault();
     e.stopPropagation();
-    if (enableBonus) {
-      commitDraft();
-      return;
-    }
     focusField(discountRef.current);
   }
 
@@ -533,7 +528,7 @@ export function LineItemsEditor({
         {enableBonus ? (
           <>
             {" "}
-            → scheme (e.g. 10+1) → rate →{" "}
+            → scheme (e.g. 10+1) → rate → discount % →{" "}
             <kbd className="rounded bg-white px-1">Enter</kbd> adds the line
           </>
         ) : (
@@ -554,9 +549,8 @@ export function LineItemsEditor({
               <th>Product</th>
               <th className="w-28">Qty</th>
               {enableBonus ? <th className="w-28">Scheme</th> : null}
-              {enableBonus ? <th className="w-24">Bonus</th> : null}
               <th className="w-28">Rate</th>
-              {!enableBonus ? <th className="w-28">Discount %</th> : null}
+              <th className="w-28">Discount %</th>
               <th className="w-28">Amount</th>
               <th className="w-12" />
             </tr>
@@ -643,20 +637,11 @@ export function LineItemsEditor({
                     onKeyDown={onSchemeEnter}
                     title="Item-wise shop scheme, e.g. 10+1"
                   />
-                </td>
-              ) : null}
-              {enableBonus ? (
-                <td>
-                  <Input
-                    ref={bonusRef}
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    value={draft.bonus}
-                    readOnly
-                    className="bg-[var(--surface-2)]"
-                    title="Auto from scheme"
-                  />
+                  {Number(draft.bonus) > 0 ? (
+                    <p className="mt-1 text-[10px] text-[var(--muted)]">
+                      +{draft.bonus} free
+                    </p>
+                  ) : null}
                 </td>
               ) : null}
               <td>
@@ -683,27 +668,26 @@ export function LineItemsEditor({
                   <p className="mt-1 text-[10px] text-[var(--brand)]">{hint}</p>
                 ) : null}
               </td>
-              {!enableBonus ? (
-                <td>
-                  <Input
-                    ref={discountRef}
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    value={draft.discount}
-                    onChange={(e) => patchDraft({ discount: e.target.value })}
-                    onKeyDown={onDiscountEnter}
-                  />
-                  {Number(draft.discount) > 0 ? (
-                    <p className="mt-1 text-[10px] text-[var(--muted)]">
-                      {formatPkr(
-                        calcLineDiscount(draft.qty, draft.rate, draft.discount),
-                      )}
-                    </p>
-                  ) : null}
-                </td>
-              ) : null}
+              <td>
+                <Input
+                  ref={discountRef}
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  value={draft.discount}
+                  onChange={(e) => patchDraft({ discount: e.target.value })}
+                  onKeyDown={onDiscountEnter}
+                  title="Line discount percent"
+                />
+                {Number(draft.discount) > 0 ? (
+                  <p className="mt-1 text-[10px] text-[var(--muted)]">
+                    {formatPkr(
+                      calcLineDiscount(draft.qty, draft.rate, draft.discount),
+                    )}
+                  </p>
+                ) : null}
+              </td>
               <td className="font-medium text-[var(--muted)]">
                 {formatPkr(draftAmount)}
               </td>
@@ -714,7 +698,7 @@ export function LineItemsEditor({
                   variant="secondary"
                   className="px-2"
                   onClick={() => commitDraft()}
-                  title="Add line (or press Enter on Discount)"
+                  title="Add line (or press Enter on Discount %)"
                 >
                   Add
                 </Button>
@@ -846,20 +830,11 @@ export function LineItemsEditor({
                           }
                         }}
                       />
-                    </td>
-                  ) : null}
-                  {enableBonus ? (
-                    <td>
-                      <Input
-                        data-line-bonus="1"
-                        type="number"
-                        min="0"
-                        step="0.1"
-                        value={line.bonus}
-                        readOnly
-                        className="bg-[var(--surface-2)]"
-                        tabIndex={-1}
-                      />
+                      {Number(line.bonus) > 0 ? (
+                        <p className="mt-1 text-[10px] text-[var(--muted)]">
+                          +{line.bonus} free
+                        </p>
+                      ) : null}
                     </td>
                   ) : null}
                   <td>
@@ -876,10 +851,6 @@ export function LineItemsEditor({
                         if (e.key === "Enter") {
                           e.preventDefault();
                           e.stopPropagation();
-                          if (enableBonus) {
-                            focusField(codeRef.current);
-                            return;
-                          }
                           const disc = e.currentTarget
                             .closest("tr")
                             ?.querySelector(
@@ -904,35 +875,33 @@ export function LineItemsEditor({
                       );
                     })()}
                   </td>
-                  {!enableBonus ? (
-                    <td>
-                      <Input
-                        data-line-discount="1"
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.1"
-                        value={line.discount}
-                        onChange={(e) =>
-                          patchLine(line.key, { discount: e.target.value })
+                  <td>
+                    <Input
+                      data-line-discount="1"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      value={line.discount}
+                      onChange={(e) =>
+                        patchLine(line.key, { discount: e.target.value })
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          focusField(codeRef.current);
                         }
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            focusField(codeRef.current);
-                          }
-                        }}
-                      />
-                      {Number(line.discount) > 0 ? (
-                        <p className="mt-1 text-[10px] text-[var(--muted)]">
-                          {formatPkr(
-                            calcLineDiscount(line.qty, line.rate, line.discount),
-                          )}
-                        </p>
-                      ) : null}
-                    </td>
-                  ) : null}
+                      }}
+                    />
+                    {Number(line.discount) > 0 ? (
+                      <p className="mt-1 text-[10px] text-[var(--muted)]">
+                        {formatPkr(
+                          calcLineDiscount(line.qty, line.rate, line.discount),
+                        )}
+                      </p>
+                    ) : null}
+                  </td>
                   <td className="font-medium">{formatPkr(line.amount)}</td>
                   <td>
                     <button

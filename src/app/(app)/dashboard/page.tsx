@@ -43,6 +43,7 @@ export default async function DashboardPage() {
     { data: purchaseRows },
     { data: recoveryRows },
     { data: paymentMix },
+    { data: expenseRows },
   ] = await Promise.all([
     supabase.rpc("get_dashboard_snapshot", {
       p_company_id: company.id,
@@ -89,6 +90,11 @@ export default async function DashboardPage() {
       .eq("company_id", company.id)
       .eq("status", "posted")
       .gte("invoice_date", from14),
+    supabase
+      .from("expenses")
+      .select("expense_date, amount, category")
+      .eq("company_id", company.id)
+      .gte("expense_date", from14),
   ]);
 
   const s = (snap || {}) as Record<string, number>;
@@ -164,6 +170,12 @@ export default async function DashboardPage() {
 
   const weekSalesTotal = salesTrend.slice(-7).reduce((a, b) => a + b.value, 0);
   const weekRecoveryTotal = recoveryTrend.reduce((a, b) => a + b.value, 0);
+  const expenseToday = (expenseRows || [])
+    .filter((r) => r.expense_date === today)
+    .reduce((s, r) => s + Number(r.amount || 0), 0);
+  const weekExpenseTotal = (expenseRows || [])
+    .filter((r) => r.expense_date >= lastNDates(7)[0])
+    .reduce((s, r) => s + Number(r.amount || 0), 0);
 
   return (
     <div className="animate-rise space-y-6">
@@ -203,7 +215,13 @@ export default async function DashboardPage() {
             href="/reports/recovery"
             className="rounded-lg border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium"
           >
-            Recovery sheet
+            Customer receivables
+          </Link>
+          <Link
+            href="/vouchers/expenses"
+            className="rounded-lg border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium"
+          >
+            Daily expense
           </Link>
           <Link
             href="/reports/sales"
@@ -239,7 +257,7 @@ export default async function DashboardPage() {
           icon={TrendingUp}
           tone="warn"
           href="/reports/accounts?view=receivable"
-          hint="Money shops still owe you"
+          hint="Money customers still owe you"
         />
         <StatCard
           label="Payable"
@@ -247,7 +265,7 @@ export default async function DashboardPage() {
           format="money"
           icon={Truck}
           href="/reports/accounts?view=payable"
-          hint="Money you still owe suppliers"
+          hint="Money you still owe vendors"
         />
         <StatCard
           label="Low stock SKUs"
@@ -266,6 +284,15 @@ export default async function DashboardPage() {
           tone={(s.over_limit_count || 0) > 0 ? "danger" : "ok"}
           href="/reports/accounts?view=receivable"
           hint="Shops exceeding credit — chase first"
+        />
+        <StatCard
+          label="Today expenses"
+          value={expenseToday}
+          format="money"
+          icon={Wallet}
+          tone={expenseToday > 0 ? "warn" : "neutral"}
+          href="/reports/expenses"
+          hint={`Last 7 days: ${formatPkr(weekExpenseTotal)}`}
         />
       </StatsGrid>
 

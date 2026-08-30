@@ -48,7 +48,7 @@ export function CashVoucherForm({
     setError(null);
     const valid = lines.filter((l) => l.party_id && Number(l.amount) > 0);
     if (valid.length === 0) {
-      setError("Add at least one party line with amount.");
+      setError("Add at least one account line with amount.");
       return;
     }
 
@@ -99,7 +99,9 @@ export function CashVoucherForm({
         <table className="w-full min-w-[720px] text-sm">
           <thead>
             <tr className="bg-[var(--surface-2)] text-left text-[11px] uppercase tracking-wide text-[var(--muted)]">
-              <th className="px-3 py-2">Party</th>
+              <th className="px-3 py-2">
+                {kind === "CR" ? "Customer" : "Account"}
+              </th>
               <th className="px-3 py-2 w-36">Amount</th>
               <th className="px-3 py-2">Narration</th>
               <th className="px-3 py-2 w-12" />

@@ -98,7 +98,7 @@ export function ProductForm({
     const openingQty = Number(form.opening_qty || 0);
     if (openingQty !== 0 && !form.default_warehouse_id) {
       setLoading(false);
-      setError("Select a warehouse when opening quantity is not zero.");
+      setError("Select a company when opening quantity is not zero.");
       return;
     }
 
@@ -201,12 +201,12 @@ export function ProductForm({
         <Input value={form.category_group} onChange={(e) => set("category_group", e.target.value)} />
       </div>
       <div>
-        <Label>Warehouse</Label>
+        <Label>Company</Label>
         <Select
           value={form.default_warehouse_id}
           onChange={(e) => set("default_warehouse_id", e.target.value)}
         >
-          <option value="">Select warehouse</option>
+          <option value="">Select company</option>
           {warehouses.map((w) => (
             <option key={w.id} value={w.id}>{w.name}</option>
           ))}
@@ -244,7 +244,7 @@ export function ProductForm({
           placeholder="5"
         />
         <p className="mt-1 text-[11px] text-[var(--muted)]">
-          Supplier/company trade discount in percent — auto-fills on purchase invoices.
+          Vendor/company trade discount in percent — auto-fills on purchase invoices.
         </p>
       </div>
 

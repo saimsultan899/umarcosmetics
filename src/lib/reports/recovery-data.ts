@@ -206,19 +206,19 @@ export async function buildRecoverySheet(
   const scopeParts: string[] = [];
   if (scope === "warehouse") {
     scopeParts.push(
-      `Warehouse — ${warehouseOptions.find((w) => w.id === warehouseId)?.name || warehouseId || "?"}`,
+      `Company — ${warehouseOptions.find((w) => w.id === warehouseId)?.name || warehouseId || "?"}`,
     );
   } else if (scope === "brand") {
     scopeParts.push(`Brand — ${brand || "?"}`);
   }
   if (selectedParty) {
     scopeParts.push(
-      `Party — ${((selectedParty.party_code as string) || "").trim()} ${(
+      `Customer — ${((selectedParty.party_code as string) || "").trim()} ${(
         (selectedParty.name_en as string) || ""
       ).trim()}`.trim(),
     );
   }
-  const scopeLabel = scopeParts.length ? scopeParts.join(" · ") : "All parties";
+  const scopeLabel = scopeParts.length ? scopeParts.join(" · ") : "All customers";
 
   return {
     sections,

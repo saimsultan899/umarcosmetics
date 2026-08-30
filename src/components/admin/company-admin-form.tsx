@@ -155,7 +155,7 @@ export function CompanyAdminForm({
           </div>
         ) : (
           <div>
-            <Label>Default warehouse</Label>
+            <Label>Default stock company</Label>
             <Input
               value={warehouse}
               onChange={(e) => setWarehouse(e.target.value)}
@@ -167,7 +167,7 @@ export function CompanyAdminForm({
       {!initial ? (
         <p className="text-xs text-[var(--muted)]">
           Creates the company, adds you as org admin, and seeds the default
-          warehouse so the dashboard is ready.
+          stock company so the dashboard is ready.
         </p>
       ) : null}
       {error ? (

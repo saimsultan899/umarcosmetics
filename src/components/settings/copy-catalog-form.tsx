@@ -54,8 +54,8 @@ export function CopyCatalogForm({
         `• Existing product codes will be skipped\n` +
         `• Opening stock will NOT be copied (starts at 0)\n` +
         (copyWarehouses
-          ? "• Matching warehouses will be created/updated\n"
-          : "• Warehouses will not be copied\n") +
+          ? "• Matching companies will be created/updated\n"
+          : "• Companies will not be copied\n") +
         `\nCompanies stay separate — this only copies masters.`,
     );
     if (!ok) return;
@@ -82,8 +82,8 @@ export function CopyCatalogForm({
       `Done: ${result.products_copied} products copied from ${result.from_company} → ${result.to_company}. ` +
         `Skipped ${result.products_skipped} existing codes. ` +
         (copyWarehouses
-          ? `Warehouses created: ${result.warehouses_created}.`
-          : "Warehouses not copied."),
+          ? `Companies created: ${result.warehouses_created}.`
+          : "Companies not copied."),
     );
   }
 
@@ -130,7 +130,7 @@ export function CopyCatalogForm({
           onChange={(e) => setCopyWarehouses(e.target.checked)}
           className="h-4 w-4 rounded border-[var(--border)]"
         />
-        Also copy / sync warehouses
+        Also copy / sync companies
       </label>
 
       <p className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-3 text-xs text-[var(--muted)]">

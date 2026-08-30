@@ -32,12 +32,12 @@ export default async function PurchaseReturnsPage({
     <div className="animate-rise space-y-6">
       <PageHeading
         title="Purchase Return"
-        description="Return stock to suppliers and reduce warehouse qty"
+        description="Return stock to vendors and reduce company qty"
         actions={
           <CreateDialogButton
             label="New return"
             title="New purchase return"
-            description="Return stock to a supplier"
+            description="Return stock to a vendor"
             size="xl"
           >
             <ReturnForm
@@ -59,6 +59,7 @@ export default async function PurchaseReturnsPage({
           pagination={list.pagination}
           summary={list.summary}
           warehouses={warehouses}
+          partyColumnLabel="Vendor"
         />
       </Suspense>
     </div>

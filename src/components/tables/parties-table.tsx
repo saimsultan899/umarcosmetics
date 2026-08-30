@@ -27,10 +27,16 @@ function partyFields(p: Party): DetailField[] {
     { label: "Code", value: p.party_code },
     { label: "Name", value: p.name_en },
     { label: "Urdu name", value: p.name_ur || "—" },
-    { label: "Type", value: p.party_type },
-    { label: "Subtype", value: p.party_subtype },
+    {
+      label: "Type",
+      value: p.party_type === "PARTY" ? "Customer" : p.party_type,
+    },
+    {
+      label: "Subtype",
+      value: p.party_subtype === "supplier" ? "vendor" : p.party_subtype,
+    },
     { label: "Sale channel", value: p.sale_channel || "—" },
-    { label: "City", value: p.city || "—" },
+    { label: "City / Head", value: p.city || p.head || "—" },
     { label: "Sector", value: p.route || "—" },
     { label: "Address", value: p.address || "—" },
     { label: "Mobile", value: p.mobile || "—" },
@@ -53,7 +59,6 @@ export function PartiesTable({
   organizationId,
   cityOptions = [],
   sectorOptions = [],
-  headOptions = [],
   initialType,
 }: {
   parties: Party[];
@@ -63,11 +68,10 @@ export function PartiesTable({
   organizationId: string;
   cityOptions?: string[];
   sectorOptions?: string[];
-  headOptions?: string[];
   initialType?: string;
 }) {
   const { q, isPending, setPage, setPageSize, setQuery, setFilter, filters } =
-    useUrlTableState(["type", "city", "sector", "head"]);
+    useUrlTableState(["type", "city", "sector"]);
   const [localQuery, setLocalQuery] = useState(q);
 
   const subtype = (filters.type ||
@@ -118,7 +122,7 @@ export function PartiesTable({
           onClick={() => setFilter("type", "supplier")}
         >
           <StatCard
-            label="Suppliers"
+            label="Vendors"
             value={stats.suppliers}
             format="number"
             icon={Truck}
@@ -143,7 +147,7 @@ export function PartiesTable({
       </StatsGrid>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <ChartCard title="Party mix" subtitle="Based on current filter">
+        <ChartCard title="Customer / vendor mix" subtitle="Based on current filter">
           <DonutChart
             data={stats.subtypeMix}
             centerValue={String(stats.total)}
@@ -152,7 +156,7 @@ export function PartiesTable({
         </ChartCard>
         <ChartCard
           className="lg:col-span-2"
-          title="Parties by city"
+          title="Accounts by city"
           subtitle="Updates with search & filters"
         >
           <RankBars data={stats.cityBars} money={false} />
@@ -167,14 +171,14 @@ export function PartiesTable({
             setQuery(value);
           }}
           loading={isPending}
-          placeholder="Search code, name, city, sector, head, phone..."
+          placeholder="Search code, name, city / head, sector, phone..."
           resultCount={pagination.total}
           totalCount={pagination.total}
           filters={
             <div className="flex flex-wrap items-center gap-2">
               {cityOptions.length ? (
                 <TableFilterSelect
-                  label="City"
+                  label="City / Head"
                   value={filters.city || ""}
                   options={stringOptions(cityOptions)}
                   loading={isPending}
@@ -190,15 +194,6 @@ export function PartiesTable({
                   onChange={(value) => setFilter("sector", value)}
                 />
               ) : null}
-              {headOptions.length ? (
-                <TableFilterSelect
-                  label="Head"
-                  value={filters.head || ""}
-                  options={stringOptions(headOptions)}
-                  loading={isPending}
-                  onChange={(value) => setFilter("head", value)}
-                />
-              ) : null}
             </div>
           }
         />
@@ -210,7 +205,7 @@ export function PartiesTable({
                 <tr>
                   <th>Code</th>
                   <th>Name</th>
-                  <th>City / Sector</th>
+                  <th>City / Head · Sector</th>
                   <th>Type</th>
                   <th>Op. Balance</th>
                   <th>Credit Limit</th>
@@ -236,11 +231,13 @@ export function PartiesTable({
                         ) : null}
                       </td>
                       <td className="text-[var(--muted)]">
-                        {[p.city, p.route].filter(Boolean).join(" · ") || "—"}
+                        {[p.city || p.head, p.route].filter(Boolean).join(" · ") || "—"}
                       </td>
                       <td>
                         <span className="rounded-full bg-[var(--surface-2)] px-2 py-1 text-xs font-semibold uppercase">
-                          {p.party_subtype}
+                          {p.party_subtype === "supplier"
+                            ? "vendor"
+                            : p.party_subtype}
                         </span>
                       </td>
                       <td>{formatPkr(p.opening_balance)}</td>
@@ -250,7 +247,7 @@ export function PartiesTable({
                           viewTitle={p.name_en}
                           editTitle={`Edit ${p.name_en}`}
                           deleteTitle={`Remove ${p.name_en}?`}
-                          deleteDescription="Party will be removed from this list and hidden from new transactions."
+                          deleteDescription="This account will be removed from this list and hidden from new transactions."
                           viewFields={partyFields(p)}
                           onDelete={() => deactivate(p.id)}
                           editContent={(close) => (

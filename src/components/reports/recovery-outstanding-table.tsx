@@ -81,7 +81,7 @@ export function RecoveryOutstandingTable({
       <div id="print-area" className="table-shell">
         <div className="border-b border-[var(--border)] px-4 py-3">
           <p className="font-[family-name:var(--font-display)] text-lg font-semibold">
-            Recovery Sheet — {companyName}
+            Customer receivables — {companyName}
           </p>
           <p className="text-xs text-[var(--muted)]">
             To {asOf}

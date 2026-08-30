@@ -28,7 +28,8 @@ export function PartyCodePicker({
   parties,
   value,
   onChange,
-  label = "Party code / shop",
+  label = "Customer code / shop",
+  emptyLabel = "Select customer",
   required,
   filterSubtype,
 }: {
@@ -37,6 +38,7 @@ export function PartyCodePicker({
   value: string;
   onChange: (partyId: string, party: Party | null) => void;
   label?: string;
+  emptyLabel?: string;
   required?: boolean;
   filterSubtype?: Array<Party["party_subtype"]>;
 }) {
@@ -88,7 +90,7 @@ export function PartyCodePicker({
     const party = Array.isArray(data) ? data[0] : data;
     if (error || !party) {
       onChange("", null);
-      setStatus("No party found for this code");
+      setStatus("No account found for this code");
       return;
     }
 
@@ -97,7 +99,7 @@ export function PartyCodePicker({
       !filterSubtype.includes(party.party_subtype as Party["party_subtype"])
     ) {
       onChange("", null);
-      setStatus("Party found but not allowed for this document");
+      setStatus("Account found but not allowed for this document");
       return;
     }
 
@@ -141,7 +143,7 @@ export function PartyCodePicker({
             setStatus(null);
           }}
         >
-          <option value="">Select party</option>
+          <option value="">{emptyLabel}</option>
           {options.map((p) => (
             <option key={p.id} value={p.id}>
               {p.party_code} — {p.name_en}

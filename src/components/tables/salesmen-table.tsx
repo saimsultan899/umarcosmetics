@@ -172,6 +172,12 @@ export function SalesmenTable({
                         >
                           Report
                         </Link>
+                        <Link
+                          href={`/reports/salesman-ledger?salesman=${r.id}`}
+                          className="inline-flex h-8 items-center rounded-lg px-2 text-xs font-medium text-[var(--brand)] hover:bg-[var(--brand-soft)]"
+                        >
+                          Ledger
+                        </Link>
                         <RowActions
                           viewTitle={r.full_name}
                           viewFields={fields(r)}

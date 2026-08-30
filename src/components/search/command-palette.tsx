@@ -88,7 +88,7 @@ export function CommandPalette({ companyId }: { companyId?: string | null }) {
           id: p.id,
           kind: "party" as const,
           title: `${p.party_code} — ${p.name_en}`,
-          subtitle: p.city || "Party",
+          subtitle: p.city || "Customer",
           href: `/parties?q=${encodeURIComponent(p.name_en)}`,
         })),
         ...(products || []).map((p) => ({

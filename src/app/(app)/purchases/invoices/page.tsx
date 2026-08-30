@@ -32,12 +32,12 @@ export default async function PurchaseInvoicesPage({
     <div className="animate-rise space-y-6">
       <PageHeading
         title="Purchase Invoice"
-        description="Receive stock from suppliers into warehouse."
+        description="Receive stock from vendors into a company."
         actions={
           <CreateDialogButton
             label="New purchase"
             title="New purchase invoice"
-            description="Receive supplier stock into a warehouse"
+            description="Receive vendor stock into a company"
             size="xl"
           >
             <PurchaseInvoiceForm
@@ -58,6 +58,7 @@ export default async function PurchaseInvoicesPage({
           pagination={list.pagination}
           summary={list.summary}
           warehouses={warehouses}
+          partyColumnLabel="Vendor"
         />
       </Suspense>
     </div>

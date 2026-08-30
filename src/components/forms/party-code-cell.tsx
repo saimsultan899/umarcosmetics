@@ -22,7 +22,7 @@ export function PartyCodeCell({
 
   const options = useMemo(
     () => [
-      { value: "", label: "Select party" },
+      { value: "", label: "Select account" },
       ...parties.map((p) => ({
         value: p.id,
         label: `${p.party_code} — ${p.name_en}`,

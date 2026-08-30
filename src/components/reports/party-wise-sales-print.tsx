@@ -109,7 +109,7 @@ export function PartyWiseSalesPrint({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold">
-            Item, Party Wise Sales Detail
+            Item, Customer Wise Sales Detail
           </h2>
           <p className="text-sm text-[var(--muted)]">
             {companyName} · {formatReportRange(from, to)} · {rows.length} lines
@@ -120,7 +120,7 @@ export function PartyWiseSalesPrint({
 
       <div className="print-sheet classic-report">
         <div className="classic-report-head">
-          <p className="classic-report-title">Item, Party Wise Sales Detail</p>
+          <p className="classic-report-title">Item, Customer Wise Sales Detail</p>
           <p className="classic-report-dates">{formatReportRange(from, to)}</p>
         </div>
 
@@ -179,7 +179,7 @@ export function PartyWiseSalesPrint({
                     </tr>
                   ))}
                   <TotalBoxes
-                    label="Party Total ="
+                    label="Customer Total ="
                     qty={group.qty}
                     amount={group.amount}
                   />

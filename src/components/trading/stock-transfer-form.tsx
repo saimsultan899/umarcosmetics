@@ -41,7 +41,7 @@ export function StockTransferForm({
     setError(null);
     const valid = lines.filter((l) => l.product_id && Number(l.qty) > 0);
     if (!fromId || !toId || fromId === toId || valid.length === 0) {
-      setError("Choose different warehouses and at least one product.");
+      setError("Choose different companies and at least one product.");
       return;
     }
 
@@ -89,7 +89,7 @@ export function StockTransferForm({
           />
         </div>
         <div>
-          <Label>Warehouse From</Label>
+          <Label>Company from</Label>
           <Select value={fromId} onChange={(e) => setFromId(e.target.value)}>
             {warehouses.map((w) => (
               <option key={w.id} value={w.id}>
@@ -99,7 +99,7 @@ export function StockTransferForm({
           </Select>
         </div>
         <div>
-          <Label>Warehouse To</Label>
+          <Label>Company to</Label>
           <Select value={toId} onChange={(e) => setToId(e.target.value)}>
             {warehouses.map((w) => (
               <option key={w.id} value={w.id}>
@@ -129,7 +129,7 @@ export function StockTransferForm({
 
       <div>
         <Button type="submit" disabled={loading}>
-          {loading ? "Transferring..." : "Save warehouse transfer"}
+          {loading ? "Transferring..." : "Save company transfer"}
         </Button>
       </div>
     </form>

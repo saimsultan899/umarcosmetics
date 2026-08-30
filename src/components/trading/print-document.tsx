@@ -139,7 +139,7 @@ export function PrintDocument({
             </div>
             {warehouseName ? (
               <div>
-                <span className="si-k">Warehouse:</span>{" "}
+                <span className="si-k">Company:</span>{" "}
                 <span className="si-v">{warehouseName}</span>
               </div>
             ) : null}

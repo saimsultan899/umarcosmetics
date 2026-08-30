@@ -46,7 +46,7 @@ export default async function PurchaseInvoiceDetailPage({
       warehouseName={invoice.warehouses?.name}
       extraMeta={
         invoice.supplier_bill_no
-          ? [{ label: "Supplier bill", value: invoice.supplier_bill_no }]
+          ? [{ label: "Vendor bill", value: invoice.supplier_bill_no }]
           : []
       }
       lines={(items || []).map((i) => ({

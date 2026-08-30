@@ -31,7 +31,7 @@ export default async function StockTransferDetailPage({
     <PrintDocument
       companyName={company.name}
       companyAddress={[company.address, company.city].filter(Boolean).join(", ")}
-      title="Warehouse Transfer Note"
+      title="Company Transfer Note"
       docNo={doc.transfer_no}
       date={doc.transfer_date}
       warehouseName={`${doc.from_warehouse?.name || "?"} → ${doc.to_warehouse?.name || "?"}`}

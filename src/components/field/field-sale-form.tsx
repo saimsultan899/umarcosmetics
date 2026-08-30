@@ -127,7 +127,7 @@ export function FieldSaleForm({
     setError(null);
     setMessage(null);
     if (!partyId || !warehouseId || !product || Number(qty) <= 0) {
-      setError("Select shop, warehouse, product and qty.");
+      setError("Select shop, company, product and qty.");
       return;
     }
     const lineRate = Number(rate || 0);
@@ -249,7 +249,7 @@ export function FieldSaleForm({
         ) : null}
       </div>
       <div>
-        <Label>Warehouse</Label>
+        <Label>Company</Label>
         <Select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
           {warehouses.map((w) => (
             <option key={w.id} value={w.id}>

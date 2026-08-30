@@ -103,8 +103,8 @@ export function WarehouseForm({
           {loading
             ? "Saving..."
             : initial
-              ? "Update warehouse"
-              : "Add warehouse"}
+              ? "Update company"
+              : "Add company"}
         </Button>
       </div>
     </form>

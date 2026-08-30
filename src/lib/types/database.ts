@@ -121,3 +121,29 @@ export type Product = {
   created_at: string;
   updated_at: string;
 };
+
+export type ExpenseCategory =
+  | "salary"
+  | "fuel"
+  | "food"
+  | "rent"
+  | "utilities"
+  | "conveyance"
+  | "loading"
+  | "stationery"
+  | "other";
+
+export type Expense = {
+  id: string;
+  organization_id: string;
+  company_id: string;
+  expense_no: string;
+  expense_date: string;
+  category: ExpenseCategory;
+  amount: number;
+  salesman_id: string | null;
+  party_id: string;
+  remarks: string | null;
+  created_at: string;
+  updated_at: string;
+};
