@@ -22,6 +22,27 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  useEffect(() => {
+    try {
+      setSidebarCollapsed(localStorage.getItem("umar-sidebar-collapsed") === "1");
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  function toggleSidebarCollapsed() {
+    setSidebarCollapsed((current) => {
+      const next = !current;
+      try {
+        localStorage.setItem("umar-sidebar-collapsed", next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }
 
   // Company picker is a focused screen — no sidebar/topbar until a company is chosen
   const bareShell =
@@ -42,7 +63,7 @@ export function AppShell({
 
   if (bareShell) {
     return (
-      <div className="min-h-screen overflow-y-auto bg-[var(--background)]">
+      <div className="min-h-screen overflow-y-auto bg-white">
         <NavigationProgress />
         <PageTransition>{children}</PageTransition>
       </div>
@@ -54,7 +75,7 @@ export function AppShell({
       companyId={company?.id}
       organizationId={company?.organization_id}
     >
-      <div className="flex h-screen overflow-hidden">
+      <div className="flex h-screen">
         <NavigationProgress />
         {mobileNavOpen ? (
           <button
@@ -69,16 +90,18 @@ export function AppShell({
           companyName={company?.name}
           isSuperAdmin={isSuperAdmin}
           mobileOpen={mobileNavOpen}
+          collapsed={sidebarCollapsed}
           onMobileClose={() => setMobileNavOpen(false)}
+          onToggleCollapsed={toggleSidebarCollapsed}
         />
 
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-[var(--background)]">
           <Topbar
             company={company}
             userName={userName}
             onMenuClick={() => setMobileNavOpen(true)}
           />
-          <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+          <main className="flex-1 overflow-y-auto bg-[var(--background)] p-4 sm:p-6">
             <PageTransition>{children}</PageTransition>
           </main>
         </div>

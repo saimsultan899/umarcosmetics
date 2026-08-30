@@ -11,7 +11,7 @@ import {
   parsePartyLocationFilters,
   type PartyLocationFilters,
 } from "@/lib/queries/party-filters";
-import type { Party } from "@/lib/types/database";
+import type { Party, PartyType } from "@/lib/types/database";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type PartySubtypeFilter =
@@ -22,13 +22,19 @@ export type PartySubtypeFilter =
   | "other"
   | "credit";
 
+export type PartyViewFilter = "all" | "ledger" | "trading";
+
+const LEDGER_TYPES: PartyType[] = ["ASSETS", "CAPITAL", "EXPENSES", "INCOME"];
+
 export type PartyListStats = {
   total: number;
   customers: number;
   suppliers: number;
   withCreditLimit: number;
   subtypeMix: Array<{ name: string; value: number }>;
+  ledgerMix: Array<{ name: string; value: number }>;
   cityBars: Array<{ name: string; value: number }>;
+  mode: PartyViewFilter;
 };
 
 export type PartyListResult = {
@@ -39,6 +45,16 @@ export type PartyListResult = {
   sectorOptions: string[];
   headOptions: string[];
 };
+
+function applyViewFilter(query: any, view: PartyViewFilter) {
+  if (view === "ledger") {
+    return query.in("party_type", LEDGER_TYPES);
+  }
+  if (view === "trading") {
+    return query.eq("party_type", "PARTY");
+  }
+  return query;
+}
 
 function applySubtypeFilter(query: any, subtype: PartySubtypeFilter) {
   if (subtype === "credit") {
@@ -88,12 +104,14 @@ function baseQuery(supabase: SupabaseClient, companyId: string) {
 async function countWithFilters(
   supabase: SupabaseClient,
   companyId: string,
+  view: PartyViewFilter,
   subtype: PartySubtypeFilter,
   q: string,
   location: PartyLocationFilters,
   extra?: (q: any) => any,
 ) {
   let query = baseQuery(supabase, companyId);
+  query = applyViewFilter(query, view);
   query = applySubtypeFilter(query, subtype);
   query = applySearch(query, q);
   query = applyPartyLocationFilters(query, location);
@@ -137,11 +155,16 @@ export async function fetchPartyList(
   const paginationParams = parsePaginationParams(searchParams);
   const { from, to } = toRange(paginationParams);
   const q = spString(searchParams, "q") || "";
-  const subtype = (spString(searchParams, "type") ||
-    "all") as PartySubtypeFilter;
+  const rawView = spString(searchParams, "view");
+  const view: PartyViewFilter =
+    rawView === "ledger" || rawView === "trading" ? rawView : "all";
+  const subtype = (view === "ledger"
+    ? "all"
+    : spString(searchParams, "type") || "all") as PartySubtypeFilter;
   const location = parsePartyLocationFilters(searchParams);
 
   let listQuery = baseQuery(supabase, companyId);
+  listQuery = applyViewFilter(listQuery, view);
   listQuery = applySubtypeFilter(listQuery, subtype);
   listQuery = applySearch(listQuery, q);
   listQuery = applyPartyLocationFilters(listQuery, location);
@@ -155,25 +178,41 @@ export async function fetchPartyList(
     supplierOnly,
     bothCount,
     otherCount,
+    assetsCount,
+    capitalCount,
+    expensesCount,
+    incomeCount,
     cityRows,
     locationRows,
     savedLocations,
   ] = await Promise.all([
     listQuery.order("party_code", { ascending: true }).range(from, to),
-    countWithFilters(supabase, companyId, "customer", q, location),
-    countWithFilters(supabase, companyId, "supplier", q, location),
-    countWithFilters(supabase, companyId, "credit", q, location),
-    countWithFilters(supabase, companyId, "all", q, location, (qb) =>
+    countWithFilters(supabase, companyId, view, "customer", q, location),
+    countWithFilters(supabase, companyId, view, "supplier", q, location),
+    countWithFilters(supabase, companyId, view, "credit", q, location),
+    countWithFilters(supabase, companyId, view, "all", q, location, (qb) =>
       qb.eq("party_subtype", "customer"),
     ),
-    countWithFilters(supabase, companyId, "all", q, location, (qb) =>
+    countWithFilters(supabase, companyId, view, "all", q, location, (qb) =>
       qb.eq("party_subtype", "supplier"),
     ),
-    countWithFilters(supabase, companyId, "all", q, location, (qb) =>
+    countWithFilters(supabase, companyId, view, "all", q, location, (qb) =>
       qb.eq("party_subtype", "both"),
     ),
-    countWithFilters(supabase, companyId, "all", q, location, (qb) =>
+    countWithFilters(supabase, companyId, view, "all", q, location, (qb) =>
       qb.eq("party_subtype", "other"),
+    ),
+    countWithFilters(supabase, companyId, "ledger", "all", q, location, (qb) =>
+      qb.eq("party_type", "ASSETS"),
+    ),
+    countWithFilters(supabase, companyId, "ledger", "all", q, location, (qb) =>
+      qb.eq("party_type", "CAPITAL"),
+    ),
+    countWithFilters(supabase, companyId, "ledger", "all", q, location, (qb) =>
+      qb.eq("party_type", "EXPENSES"),
+    ),
+    countWithFilters(supabase, companyId, "ledger", "all", q, location, (qb) =>
+      qb.eq("party_type", "INCOME"),
     ),
     (async () => {
       let query = supabase
@@ -181,6 +220,7 @@ export async function fetchPartyList(
         .select("city")
         .eq("company_id", companyId)
         .eq("is_active", true);
+      query = applyViewFilter(query, view);
       query = applySubtypeFilter(query, subtype);
       query = applySearch(query, q);
       query = applyPartyLocationFilters(query, location);
@@ -211,6 +251,13 @@ export async function fetchPartyList(
     { name: "Other", value: otherCount },
   ].filter((x) => x.value > 0);
 
+  const ledgerMix = [
+    { name: "Assets", value: assetsCount },
+    { name: "Capital", value: capitalCount },
+    { name: "Expenses", value: expensesCount },
+    { name: "Income", value: incomeCount },
+  ].filter((x) => x.value > 0);
+
   return {
     parties: (data || []) as Party[],
     pagination: meta,
@@ -220,7 +267,9 @@ export async function fetchPartyList(
       suppliers,
       withCreditLimit,
       subtypeMix,
+      ledgerMix,
       cityBars: aggregateCities(cityData),
+      mode: view,
     },
     cityOptions: distinctSorted([
       ...(locationRows.data || []).map((r) => r.city),

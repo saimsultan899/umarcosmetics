@@ -13,7 +13,7 @@ import {
   lastNDates,
   sumByDay,
 } from "@/lib/analytics/aggregate";
-import { formatNumber, formatPkr } from "@/lib/utils";
+import { amountClass, cn, formatNumber, formatPkr } from "@/lib/utils";
 import {
   AlertTriangle,
   Package,
@@ -23,6 +23,7 @@ import {
   Wallet,
 } from "lucide-react";
 import Link from "next/link";
+import { QuickShortcuts } from "@/components/dashboard/quick-shortcuts";
 
 export default async function DashboardPage() {
   const { supabase, company, profile } = await requireCompanyContext();
@@ -178,61 +179,15 @@ export default async function DashboardPage() {
     .reduce((s, r) => s + Number(r.amount || 0), 0);
 
   return (
-    <div className="animate-rise space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--brand)]">
-            {company.name}
-          </p>
-          <h1 className="mt-1 font-[family-name:var(--font-display)] text-3xl font-semibold">
-            {greeting}, {firstName}
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm text-[var(--muted)]">
-            Welcome back to {company.name}. Here&apos;s today&apos;s sales,
-            recoveries, credit, and stock at a glance.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href="/sales/invoices"
-            className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white"
-          >
-            New sale
-          </Link>
-          <Link
-            href="/purchases/invoices"
-            className="rounded-lg border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium"
-          >
-            Purchase
-          </Link>
-          <Link
-            href="/purchases/gate-passes"
-            className="rounded-lg border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium"
-          >
-            Gate Pass
-          </Link>
-          <Link
-            href="/reports/recovery"
-            className="rounded-lg border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium"
-          >
-            Customer receivables
-          </Link>
-          <Link
-            href="/vouchers/expenses"
-            className="rounded-lg border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium"
-          >
-            Daily expense
-          </Link>
-          <Link
-            href="/reports/sales"
-            className="rounded-lg border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium"
-          >
-            Report
-          </Link>
-        </div>
+    <div className="animate-rise space-y-4">
+      <div className="action-bar items-center justify-between gap-3">
+        <p className="text-sm font-semibold text-[var(--ink)]">
+          {greeting}, {firstName}
+        </p>
+        <QuickShortcuts />
       </div>
 
-      <StatsGrid className="xl:grid-cols-3">
+      <StatsGrid className="lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-7">
         <StatCard
           label="Today sales"
           value={s.sales_today || 0}
@@ -348,26 +303,20 @@ export default async function DashboardPage() {
           <RankBars data={cityBars} />
         </ChartCard>
 
-        <div className="panel p-5">
-          <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
-            Top debtors
-          </h2>
-          <p className="mt-1 text-xs text-[var(--muted)]">
-            Highest outstanding balances — click for party intelligence
-          </p>
-          <div className="mt-4 space-y-2">
+        <ChartCard title="Top debtors" subtitle="Highest outstanding balances">
+          <div className="space-y-2">
             {debtors.length ? (
               debtors.map((d) => (
                 <Link
                   key={d.party_id}
                   href={`/parties/insights/${d.party_id}`}
-                  className="flex items-center justify-between rounded-xl border border-[var(--border)] px-3 py-2.5 text-sm hover:border-[var(--brand)]"
+                  className="panel-list-item"
                 >
                   <div>
                     <p className="font-medium">{d.name_en}</p>
                     <p className="text-xs text-[var(--muted)]">{d.party_code}</p>
                   </div>
-                  <p className="font-semibold text-rose-700">
+                  <p className={cn("font-semibold text-rose-700", amountClass)}>
                     {formatPkr(d.balance)}
                   </p>
                 </Link>
@@ -376,22 +325,13 @@ export default async function DashboardPage() {
               <p className="text-sm text-[var(--muted)]">No receivables yet.</p>
             )}
           </div>
-        </div>
+        </ChartCard>
 
-        <div className="panel p-5">
-          <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
-            Low stock watch
-          </h2>
-          <p className="mt-1 text-xs text-[var(--muted)]">
-            SKUs at or below reorder level
-          </p>
-          <div className="mt-4 space-y-2">
+        <ChartCard title="Low stock watch" subtitle="SKUs at or below reorder level">
+          <div className="space-y-2">
             {low.length ? (
               low.map((r, idx) => (
-                <div
-                  key={idx}
-                  className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm"
-                >
+                <div key={idx} className="panel-note">
                   <p className="font-medium">
                     {r.product?.code} — {r.product?.name_en}
                   </p>
@@ -406,7 +346,7 @@ export default async function DashboardPage() {
             )}
           </div>
 
-          <h3 className="mt-6 text-sm font-semibold">Recent sales</h3>
+          <h3 className="mt-5 text-sm font-semibold">Recent sales</h3>
           <div className="mt-2 space-y-2">
             {(recentSales || []).slice(0, 3).map((inv) => {
               const party = Array.isArray(inv.parties)
@@ -416,7 +356,7 @@ export default async function DashboardPage() {
                 <Link
                   key={inv.id}
                   href={`/sales/invoices/${inv.id}`}
-                  className="flex items-center justify-between rounded-xl border border-[var(--border)] px-3 py-2 text-sm"
+                  className="panel-list-item"
                 >
                   <div>
                     <p className="font-medium">{inv.invoice_no}</p>
@@ -424,12 +364,14 @@ export default async function DashboardPage() {
                       {party?.name_en || "—"}
                     </p>
                   </div>
-                  <p className="font-semibold">{formatPkr(inv.grand_total)}</p>
+                  <p className={cn("font-semibold", amountClass)}>
+                    {formatPkr(inv.grand_total)}
+                  </p>
                 </Link>
               );
             })}
           </div>
-        </div>
+        </ChartCard>
       </div>
     </div>
   );

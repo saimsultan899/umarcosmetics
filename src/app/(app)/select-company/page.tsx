@@ -91,14 +91,14 @@ export default function SelectCompanyPage() {
   return (
     <div className="relative min-h-screen px-4 pb-16 pt-16 sm:px-6 sm:pb-20 sm:pt-20 lg:px-8">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-20 top-10 h-72 w-72 rounded-full bg-teal-500/15 blur-3xl" />
-        <div className="absolute bottom-0 right-0 h-80 w-80 rounded-full bg-orange-400/10 blur-3xl" />
+        <div className="absolute -left-20 top-10 h-72 w-72 rounded-full bg-[#d65a42]/12 blur-3xl" />
+        <div className="absolute bottom-0 right-0 h-80 w-80 rounded-full bg-[#e88774]/10 blur-3xl" />
       </div>
 
       <div className="relative z-10 mx-auto w-full max-w-4xl animate-rise">
         <div className="mb-10 flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-start gap-3 sm:items-center">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--brand)] text-white shadow-lg shadow-teal-900/20">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--brand)] text-white shadow-lg shadow-[#c04a34]/20">
               <Layers3 className="h-6 w-6" />
             </div>
             <div>

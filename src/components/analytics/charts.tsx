@@ -17,7 +17,9 @@ import {
   YAxis,
 } from "recharts";
 
-const COLORS = ["#0f766e", "#c45c26", "#15803d", "#b45309", "#0ea5e9", "#64748b"];
+const COLORS = ["#d65a42", "#e88774", "#f0b5a8", "#c04a34", "#16a34a", "#64748b"];
+const BRAND_CHART = "#d65a42";
+const BRAND_CHART_LIGHT = "#e88774";
 
 type Point = { name: string; value: number; secondary?: number };
 
@@ -61,8 +63,8 @@ export function TrendAreaChart({
         <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="brandFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#0f766e" stopOpacity={0.35} />
-              <stop offset="100%" stopColor="#0f766e" stopOpacity={0.02} />
+              <stop offset="0%" stopColor={BRAND_CHART} stopOpacity={0.35} />
+              <stop offset="100%" stopColor={BRAND_CHART} stopOpacity={0.02} />
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8e4" vertical={false} />
@@ -84,7 +86,7 @@ export function TrendAreaChart({
             type="monotone"
             dataKey="value"
             name={valueLabel}
-            stroke="#0f766e"
+            stroke={BRAND_CHART}
             strokeWidth={2.5}
             fill="url(#brandFill)"
           />
@@ -129,7 +131,7 @@ export function CompareBarChart({
           <Bar
             dataKey="value"
             name={valueLabel}
-            fill="#0f766e"
+            fill={BRAND_CHART}
             radius={[8, 8, 0, 0]}
             maxBarSize={42}
           />
@@ -137,7 +139,7 @@ export function CompareBarChart({
             <Bar
               dataKey="secondary"
               name={secondaryLabel}
-              fill="#c45c26"
+              fill={BRAND_CHART_LIGHT}
               radius={[8, 8, 0, 0]}
               maxBarSize={42}
             />

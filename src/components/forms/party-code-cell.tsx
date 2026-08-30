@@ -2,6 +2,7 @@
 
 import { Select } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
+import { cn, fieldControlClass } from "@/lib/utils";
 import type { Party } from "@/lib/types/database";
 import { useEffect, useMemo, useState } from "react";
 
@@ -64,7 +65,7 @@ export function PartyCodeCell({
   return (
     <div className="flex gap-1.5">
       <input
-        className="h-9 w-20 shrink-0 rounded-lg border border-[var(--border)] bg-white px-2 text-sm"
+        className={cn(fieldControlClass, "h-9 w-20 shrink-0 px-2")}
         value={code}
         placeholder="Code"
         onChange={(e) => setCode(e.target.value)}

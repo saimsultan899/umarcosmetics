@@ -147,8 +147,8 @@ function LoginForm() {
   return (
     <div className="relative flex min-h-screen items-center justify-center px-4 py-10">
       <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -left-20 top-10 h-72 w-72 rounded-full bg-teal-500/15 blur-3xl" />
-        <div className="absolute bottom-0 right-0 h-80 w-80 rounded-full bg-orange-400/10 blur-3xl" />
+        <div className="absolute -left-20 top-10 h-72 w-72 rounded-full bg-[#d65a42]/12 blur-3xl" />
+        <div className="absolute bottom-0 right-0 h-80 w-80 rounded-full bg-[#e88774]/10 blur-3xl" />
       </div>
 
       <div
@@ -157,7 +157,7 @@ function LoginForm() {
         }`}
       >
         <div className="mb-8 flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--brand)] text-white shadow-lg shadow-teal-900/20">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--brand)] text-white shadow-lg shadow-[#c04a34]/20">
             <Layers3 className="h-6 w-6" />
           </div>
           <div>

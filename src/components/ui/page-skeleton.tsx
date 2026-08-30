@@ -45,13 +45,21 @@ export function PageSkeleton() {
 
       {/* Charts / panels */}
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="panel space-y-4 p-5">
-          <Skeleton className="h-5 w-36" />
-          <Skeleton className="h-48 w-full rounded-xl" />
+        <div className="panel">
+          <div className="panel-header">
+            <Skeleton className="h-4 w-36" />
+          </div>
+          <div className="panel-body">
+            <Skeleton className="h-48 w-full rounded-[var(--radius-sm)]" />
+          </div>
         </div>
-        <div className="panel space-y-4 p-5">
-          <Skeleton className="h-5 w-40" />
-          <Skeleton className="h-48 w-full rounded-xl" />
+        <div className="panel">
+          <div className="panel-header">
+            <Skeleton className="h-4 w-40" />
+          </div>
+          <div className="panel-body">
+            <Skeleton className="h-48 w-full rounded-[var(--radius-sm)]" />
+          </div>
         </div>
       </div>
 

@@ -1,15 +1,25 @@
-import { cn, formatNumber, formatPkr } from "@/lib/utils";
+import { cn, formatNumber, formatPkr, amountClass } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
+import { type ReactNode } from "react";
 
 export type StatTone = "brand" | "ok" | "warn" | "danger" | "neutral";
 
+export type StatCardColor =
+  | "sky"
+  | "mint"
+  | "blue"
+  | "purple"
+  | "green"
+  | "lavender"
+  | "peach";
+
 const toneClass: Record<StatTone, string> = {
-  brand: "text-[var(--brand)] bg-[var(--brand-soft)]",
-  ok: "text-emerald-700 bg-emerald-50",
-  warn: "text-amber-700 bg-amber-50",
-  danger: "text-rose-700 bg-rose-50",
-  neutral: "text-[var(--muted)] bg-[var(--surface-2)]",
+  brand: "text-[var(--brand)]",
+  ok: "text-emerald-600",
+  warn: "text-[var(--brand)]",
+  danger: "text-rose-600",
+  neutral: "text-[var(--muted)]",
 };
 
 export function StatCard({
@@ -19,6 +29,7 @@ export function StatCard({
   icon: Icon,
   href,
   tone = "brand",
+  color: _color,
   format = "text",
   className,
 }: {
@@ -28,6 +39,7 @@ export function StatCard({
   icon?: LucideIcon;
   href?: string;
   tone?: StatTone;
+  color?: StatCardColor;
   format?: "text" | "money" | "number";
   className?: string;
 }) {
@@ -41,32 +53,28 @@ export function StatCard({
   const body = (
     <div
       className={cn(
-        "stat-tile h-full transition",
-        href ? "hover:border-[var(--brand)]" : null,
+        "stat-tile h-full",
+        href ? "cursor-pointer" : null,
         className,
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
-          {label}
-        </p>
+      <div className="flex items-start justify-between gap-2">
+        <p className="stat-tile__label">{label}</p>
         {Icon ? (
-          <span
-            className={cn(
-              "inline-flex h-8 w-8 items-center justify-center rounded-xl",
-              toneClass[tone],
-            )}
-          >
-            <Icon className="h-4 w-4" />
+          <span className="stat-tile__icon">
+            <Icon className={cn("h-3.5 w-3.5", toneClass[tone])} />
           </span>
         ) : null}
       </div>
-      <p className="mt-3 font-[family-name:var(--font-display)] text-2xl font-semibold tracking-tight">
+      <p
+        className={cn(
+          "stat-tile__value",
+          format !== "text" ? amountClass : null,
+        )}
+      >
         {display}
       </p>
-      {hint ? (
-        <p className="mt-2 text-xs leading-relaxed text-[var(--muted)]">{hint}</p>
-      ) : null}
+      {hint ? <p className="stat-tile__hint">{hint}</p> : null}
     </div>
   );
 
@@ -80,17 +88,19 @@ export function StatCard({
   return body;
 }
 
+StatCard.displayName = "StatCard";
+
 export function StatsGrid({
   children,
   className,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   className?: string;
 }) {
   return (
     <div
       className={cn(
-        "grid gap-3 sm:grid-cols-2 xl:grid-cols-4",
+        "grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5",
         className,
       )}
     >

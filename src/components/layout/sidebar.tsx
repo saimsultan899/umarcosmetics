@@ -1,8 +1,8 @@
 "use client";
 
-import { adminNav, mainNav, type NavItem } from "@/lib/nav";
+import { mainNav, platformNav, type NavItem } from "@/lib/nav";
 import { cn } from "@/lib/utils";
-import { ChevronDown, Layers3, X } from "lucide-react";
+import { ChevronDown, Layers3, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -20,7 +20,6 @@ function hrefSpecificity(href: string) {
   );
 }
 
-/** Path/query/hash match — may return multiple candidates; use pickActiveHref. */
 function isHrefCandidate(
   href: string,
   pathname: string,
@@ -44,7 +43,6 @@ function isHrefCandidate(
   return true;
 }
 
-/** Among matching links, keep only the most specific (hash > query > bare path). */
 function pickActiveHref(
   hrefs: string[],
   pathname: string,
@@ -80,6 +78,7 @@ function NavGroup({
   searchParams,
   hash,
   open,
+  collapsed,
   onToggle,
   onNavigate,
   onHashChange,
@@ -89,6 +88,7 @@ function NavGroup({
   searchParams: URLSearchParams;
   hash: string;
   open: boolean;
+  collapsed: boolean;
   onToggle: () => void;
   onNavigate?: () => void;
   onHashChange?: (hash: string) => void;
@@ -105,50 +105,85 @@ function NavGroup({
     ? pickActiveHref([item.href], pathname, searchParams, hash) === item.href
     : false;
   const Icon = item.icon;
+  const [flyout, setFlyout] = useState(false);
+
+  const rowIcon = Icon ? (
+    <span className="sidebar-link__icon">
+      <Icon className="h-[17px] w-[17px]" />
+    </span>
+  ) : (
+    <span className="sidebar-link__icon" />
+  );
 
   if (!item.children?.length && item.href) {
     return (
       <Link
         href={item.href}
+        title={item.label}
         onClick={() => {
           const url = parseHref(item.href!);
           onHashChange?.(url.hash || "");
           onNavigate?.();
         }}
         className={cn(
-          "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition",
-          selfActive
-            ? "bg-[var(--brand)] text-white shadow-sm"
-            : "text-[var(--sidebar-ink)] hover:bg-white/10 hover:text-white",
+          "sidebar-link",
+          collapsed && "sidebar-link--collapsed",
+          selfActive && "sidebar-link--active",
         )}
       >
-        {Icon ? <Icon className="h-4 w-4 shrink-0 opacity-90" /> : null}
-        {item.label}
+        {collapsed ? (
+          rowIcon
+        ) : (
+          <>
+            {rowIcon}
+            <span className="sidebar-link__label">{item.label}</span>
+            <span className="sidebar-link__chevron sidebar-link__chevron--empty" aria-hidden />
+          </>
+        )}
+        {collapsed ? <span className="sr-only">{item.label}</span> : null}
       </Link>
     );
   }
 
   return (
-    <div>
+    <div
+      className="relative"
+      onMouseEnter={() => collapsed && setFlyout(true)}
+      onMouseLeave={() => setFlyout(false)}
+    >
       <button
         type="button"
-        onClick={onToggle}
+        onClick={() => {
+          if (collapsed) setFlyout((v) => !v);
+          else onToggle();
+        }}
+        title={item.label}
         aria-expanded={open}
         className={cn(
-          "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition",
-          childActive
-            ? "bg-white/10 text-white"
-            : "text-[var(--sidebar-ink)] hover:bg-white/10 hover:text-white",
+          "sidebar-link w-full",
+          collapsed && "sidebar-link--collapsed",
+          childActive && "sidebar-link--parent-active",
         )}
       >
-        {Icon ? <Icon className="h-4 w-4 shrink-0 opacity-90" /> : null}
-        <span className="flex-1 text-left">{item.label}</span>
-        <ChevronDown
-          className={cn("h-4 w-4 transition", open && "rotate-180")}
-        />
+        {collapsed ? (
+          rowIcon
+        ) : (
+          <>
+            {rowIcon}
+            <span className="sidebar-link__label">{item.label}</span>
+            <span
+              className={cn("sidebar-link__chevron", open && "sidebar-link__chevron--open")}
+              aria-hidden
+            >
+              <ChevronDown className="h-4 w-4" />
+            </span>
+          </>
+        )}
+        {collapsed ? <span className="sr-only">{item.label}</span> : null}
       </button>
-      {open ? (
-        <div className="mt-1 ml-5 space-y-0.5 border-l border-white/10 pl-3">
+
+      {!collapsed && open ? (
+        <div className="mt-0.5 ml-3 space-y-0.5 border-l border-[var(--sidebar-border)] pl-2">
           {item.children?.map((child) => {
             const active = activeChildHref === child.href;
             return (
@@ -160,12 +195,31 @@ function NavGroup({
                   onHashChange?.(url.hash || "");
                   onNavigate?.();
                 }}
-                className={cn(
-                  "block rounded-lg px-2.5 py-2 text-[13px] transition",
-                  active
-                    ? "bg-[var(--brand)] text-white"
-                    : "text-[var(--sidebar-ink)] hover:bg-white/10 hover:text-white",
-                )}
+                className={cn("sidebar-sublink", active && "sidebar-sublink--active")}
+              >
+                {child.label}
+              </Link>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {collapsed && flyout ? (
+        <div className="sidebar-flyout">
+          <p className="sidebar-flyout__title">{item.label}</p>
+          {item.children?.map((child) => {
+            const active = activeChildHref === child.href;
+            return (
+              <Link
+                key={child.href}
+                href={child.href}
+                onClick={() => {
+                  const url = parseHref(child.href);
+                  onHashChange?.(url.hash || "");
+                  onNavigate?.();
+                  setFlyout(false);
+                }}
+                className={cn("sidebar-sublink", active && "sidebar-sublink--active")}
               >
                 {child.label}
               </Link>
@@ -181,16 +235,31 @@ export function Sidebar({
   companyName,
   isSuperAdmin,
   mobileOpen = false,
+  collapsed = false,
   onMobileClose,
+  onToggleCollapsed,
 }: {
   companyName?: string | null;
   isSuperAdmin?: boolean;
   mobileOpen?: boolean;
+  collapsed?: boolean;
   onMobileClose?: () => void;
+  onToggleCollapsed?: () => void;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [hash, setHash] = useState("");
+  const [desktop, setDesktop] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const apply = () => setDesktop(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+
+  const iconMode = Boolean(collapsed && desktop);
 
   useEffect(() => {
     const sync = () => setHash(window.location.hash || "");
@@ -200,7 +269,7 @@ export function Sidebar({
   }, [pathname, searchParams]);
 
   const allGroups = useMemo(
-    () => [...mainNav, ...(isSuperAdmin ? adminNav : [])],
+    () => [...mainNav, ...(isSuperAdmin ? [platformNav] : [])],
     [isSuperAdmin],
   );
 
@@ -211,93 +280,138 @@ export function Sidebar({
     return match?.label ?? null;
   }, [allGroups, pathname, searchParams, hash]);
 
+  const platformActive = groupHasActiveChild(
+    platformNav,
+    pathname,
+    searchParams,
+    hash,
+  );
+
   const [openLabel, setOpenLabel] = useState<string | null>(activeGroupLabel);
+  const [platformOpen, setPlatformOpen] = useState(platformActive);
 
   useEffect(() => {
     if (activeGroupLabel) setOpenLabel(activeGroupLabel);
   }, [activeGroupLabel]);
 
+  useEffect(() => {
+    if (platformActive) setPlatformOpen(true);
+  }, [platformActive]);
+
   function toggleGroup(label: string) {
+    if (iconMode) return;
+    setPlatformOpen(false);
     setOpenLabel((current) => (current === label ? null : label));
+  }
+
+  function togglePlatform() {
+    if (iconMode) return;
+    setOpenLabel(null);
+    setPlatformOpen((v) => !v);
   }
 
   return (
     <aside
       className={cn(
-        "flex h-full w-[min(280px,85vw)] shrink-0 flex-col bg-[var(--sidebar)] text-white",
-        "fixed inset-y-0 left-0 z-50 transition-transform duration-200 ease-out",
-        "lg:static lg:z-0 lg:w-[280px] lg:translate-x-0",
-        mobileOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full",
+        "sidebar-shell flex h-full shrink-0 flex-col",
+        "fixed inset-y-0 left-0 z-50 transition-[width,transform] duration-200 ease-out",
+        "lg:static lg:z-0 lg:translate-x-0",
+        collapsed ? "lg:w-[68px] lg:overflow-visible" : "lg:w-[252px]",
+        "w-[min(272px,85vw)]",
+        mobileOpen ? "translate-x-0 shadow-lg" : "-translate-x-full",
       )}
     >
-      <div className="border-b border-white/10 px-5 py-5">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--brand)] shadow-lg shadow-teal-900/30">
-            <Layers3 className="h-5 w-5" />
-          </div>
+      <div
+        className={cn(
+          "sidebar-brand flex h-14 items-center sm:h-[3.75rem]",
+          iconMode ? "justify-center px-2" : "gap-2.5 px-3",
+        )}
+      >
+        <div className="sidebar-brand__mark">
+          <Layers3 className="h-4 w-4" />
+        </div>
+        {!iconMode ? (
           <div className="min-w-0 flex-1">
-            <p className="truncate font-[family-name:var(--font-display)] text-lg font-semibold tracking-tight">
+            <p className="truncate text-sm font-semibold text-[var(--ink)]">
               Umar Distribution
             </p>
-            <p className="truncate text-xs text-[var(--sidebar-ink)]">
+            <p className="truncate text-[11px] text-[var(--muted)]">
               {companyName || "Select a company"}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onMobileClose}
-            className="rounded-lg p-2 text-white/70 hover:bg-white/10 hover:text-white lg:hidden"
-            aria-label="Close menu"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
+        ) : null}
+        <button
+          type="button"
+          onClick={onMobileClose}
+          className="rounded-md p-1.5 text-[var(--muted)] hover:bg-[var(--sidebar-2)] hover:text-[var(--ink)] lg:hidden"
+          aria-label="Close menu"
+        >
+          <X className="h-5 w-5" />
+        </button>
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-        {mainNav.map((item) => (
-          <NavGroup
-            key={item.label}
-            item={item}
-            pathname={pathname}
-            searchParams={searchParams}
-            hash={hash}
-            open={openLabel === item.label}
-            onToggle={() => toggleGroup(item.label)}
-            onNavigate={onMobileClose}
-            onHashChange={setHash}
-          />
-        ))}
+      <nav
+        className={cn(
+          "flex flex-1 flex-col py-2",
+          iconMode ? "overflow-visible px-1.5" : "overflow-y-auto px-2",
+        )}
+      >
+        <div className="flex flex-col gap-0.5">
+          {mainNav.map((item) => (
+            <NavGroup
+              key={item.label}
+              item={item}
+              pathname={pathname}
+              searchParams={searchParams}
+              hash={hash}
+              collapsed={iconMode}
+              open={!iconMode && openLabel === item.label}
+              onToggle={() => toggleGroup(item.label)}
+              onNavigate={onMobileClose}
+              onHashChange={setHash}
+            />
+          ))}
 
-        {isSuperAdmin ? (
-          <div className="pt-4">
-            <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/40">
-              Platform
-            </p>
-            {adminNav.map((item) => (
+          {isSuperAdmin ? (
+            <>
+              <div className="my-1.5 border-t border-[var(--sidebar-border)]" />
               <NavGroup
-                key={item.label}
-                item={item}
+                item={platformNav}
                 pathname={pathname}
                 searchParams={searchParams}
                 hash={hash}
-                open={openLabel === item.label}
-                onToggle={() => toggleGroup(item.label)}
+                collapsed={iconMode}
+                open={!iconMode && platformOpen}
+                onToggle={togglePlatform}
                 onNavigate={onMobileClose}
                 onHashChange={setHash}
               />
-            ))}
-          </div>
-        ) : null}
+            </>
+          ) : null}
+        </div>
       </nav>
 
-      <div className="border-t border-white/10 px-4 py-4">
-        <div className="rounded-xl bg-white/5 px-3 py-3 text-xs text-[var(--sidebar-ink)]">
-          <p className="font-medium text-white/90">Offline ready</p>
-          <p className="mt-1 leading-relaxed">
-            Day work local · Night sync to cloud
-          </p>
-        </div>
+      <div
+        className={cn(
+          "sidebar-footer hidden p-2 lg:block",
+          collapsed && "flex justify-center",
+        )}
+      >
+        <button
+          type="button"
+          onClick={onToggleCollapsed}
+          className={cn("sidebar-toggle", collapsed && "sidebar-toggle--collapsed")}
+          aria-label={collapsed ? "Open sidebar" : "Close sidebar"}
+        >
+          {collapsed ? (
+            <PanelLeftOpen className="h-[17px] w-[17px]" />
+          ) : (
+            <>
+              <PanelLeftClose className="h-[17px] w-[17px]" />
+              <span className="sidebar-link__label">Close sidebar</span>
+            </>
+          )}
+        </button>
       </div>
     </aside>
   );

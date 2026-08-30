@@ -1,5 +1,6 @@
 "use client";
 
+import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { UrlFilterForm } from "@/components/reports/url-filter-form";
 
@@ -31,23 +32,13 @@ export function ReportFilters({
         <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
           From date
         </label>
-        <input
-          type="date"
-          name="from"
-          defaultValue={defaults.from}
-          className="h-10 w-full rounded-lg border border-[var(--border)] px-3 text-sm"
-        />
+        <Input type="date" name="from" defaultValue={defaults.from} />
       </div>
       <div>
         <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
           To date
         </label>
-        <input
-          type="date"
-          name="to"
-          defaultValue={defaults.to}
-          className="h-10 w-full rounded-lg border border-[var(--border)] px-3 text-sm"
-        />
+        <Input type="date" name="to" defaultValue={defaults.to} />
       </div>
       {defaults.type !== undefined ? (
         <input type="hidden" name="type" value={defaults.type} />

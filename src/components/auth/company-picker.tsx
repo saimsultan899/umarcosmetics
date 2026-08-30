@@ -36,7 +36,7 @@ export function CompanyPicker({
             onClick={() => onPick(c.id)}
             disabled={busy}
             className={`panel group p-5 text-left transition hover:-translate-y-0.5 hover:border-[var(--brand)] disabled:opacity-60 ${
-              preferred ? "border-[var(--brand)] ring-2 ring-[var(--brand-soft)]" : ""
+              preferred ? "border-[var(--brand)] ring-1 ring-[var(--brand-soft)]" : ""
             }`}
           >
             <div className="flex items-start justify-between gap-3">
@@ -57,7 +57,7 @@ export function CompanyPicker({
                 Role: {row.role.replaceAll("_", " ")}
               </p>
               {preferred ? (
-                <span className="rounded-full bg-[var(--brand-soft)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[var(--brand)]">
+                <span className="rounded-full bg-[var(--brand-soft)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--brand)]">
                   Last used
                 </span>
               ) : null}

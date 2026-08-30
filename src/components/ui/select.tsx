@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/lib/utils";
+import { cn, fieldControlClass } from "@/lib/utils";
 import { focusNextField } from "@/lib/keyboard/enter-nav";
 import { Check, ChevronsUpDown, Search } from "lucide-react";
 import {
@@ -437,8 +437,8 @@ export const Select = forwardRef<
           }
         }}
         className={cn(
-          "flex w-full min-w-0 items-center justify-between gap-2 overflow-hidden rounded-lg border border-[var(--border)] bg-white text-left text-[var(--ink)] outline-none transition",
-          "focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-soft)]",
+          fieldControlClass,
+          "flex w-full min-w-0 items-center justify-between gap-2 overflow-hidden text-left",
           "disabled:cursor-not-allowed disabled:opacity-50",
           size === "sm" ? "h-9 px-2 text-sm" : "h-10 px-3 text-sm",
           !selectedValue && "text-[var(--muted)]",
@@ -467,7 +467,7 @@ export const Select = forwardRef<
                     onChange={(e) => setQuery(e.target.value)}
                     onKeyDown={handleMenuKeyDown}
                     placeholder="Search code or name..."
-                    className="h-9 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] py-2 pl-8 pr-3 text-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-soft)]"
+                    className={cn(fieldControlClass, "h-9 bg-[var(--surface-2)] py-2 pl-8 pr-3")}
                   />
                 </div>
               </div>

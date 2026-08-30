@@ -5,6 +5,13 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/** Shared flat field styling — 1px border, no shadow (see .field-control in globals.css). */
+export const fieldControlClass =
+  "field-control bg-white text-sm text-[var(--ink)] outline-none placeholder:text-[var(--muted)]";
+
+/** Roboto for money, qty, and numeric values. */
+export const amountClass = "font-amount tabular-nums";
+
 export function formatPkr(value: number | string | null | undefined) {
   const n = Number(value ?? 0);
   return new Intl.NumberFormat("en-PK", {

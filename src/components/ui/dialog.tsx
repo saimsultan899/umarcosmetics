@@ -48,7 +48,7 @@ export function Dialog({
       <button
         type="button"
         aria-label="Close dialog"
-        className="absolute inset-0 animate-[dialog-fade_160ms_ease-out] bg-[#0b1915]/55 backdrop-blur-sm"
+        className="absolute inset-0 animate-[dialog-fade_160ms_ease-out] bg-[#1e3a5f]/45"
         onClick={onClose}
       />
       <div
@@ -57,16 +57,16 @@ export function Dialog({
         aria-labelledby={titleId}
         className={cn(
           "relative z-[101] flex max-h-[min(90vh,880px)] w-full max-w-2xl flex-col overflow-hidden",
-          "animate-[dialog-rise_180ms_ease-out] rounded-2xl bg-white",
-          "shadow-[0_24px_80px_rgba(11,25,21,0.35)] ring-1 ring-black/5",
+          "animate-[dialog-rise_180ms_ease-out] rounded-lg bg-white",
+          "shadow-[0_16px_48px_rgba(30,58,95,0.2)] ring-1 ring-black/5",
           className,
         )}
       >
-        <div className="flex items-start justify-between gap-3 border-b border-[var(--border)] bg-white px-5 py-4">
+        <div className="flex items-start justify-between gap-3 border-b border-[var(--border)] bg-[var(--surface-2)] px-5 py-4">
           <div className="min-w-0">
             <h2
               id={titleId}
-              className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--ink)]"
+              className="text-lg font-semibold text-[var(--ink)]"
             >
               {title}
             </h2>

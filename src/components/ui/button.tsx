@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 import { ButtonHTMLAttributes, forwardRef } from "react";
 
 type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "ghost" | "danger";
+  variant?: "primary" | "secondary" | "accent" | "ghost" | "danger";
   size?: "sm" | "md" | "lg";
 };
 
@@ -12,13 +12,15 @@ export const Button = forwardRef<HTMLButtonElement, Props>(
       <button
         ref={ref}
         className={cn(
-          "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition disabled:opacity-50 disabled:pointer-events-none",
+          "inline-flex items-center justify-center gap-2 rounded-md border border-transparent font-semibold transition disabled:opacity-50 disabled:pointer-events-none",
           variant === "primary" &&
-            "bg-[var(--brand)] text-white hover:bg-[var(--brand-strong)] shadow-sm",
+            "bg-[var(--brand)] text-white hover:bg-[var(--brand-strong)]",
+          variant === "accent" &&
+            "bg-[var(--accent)] text-white hover:bg-[var(--accent-strong)]",
           variant === "secondary" &&
-            "bg-white border border-[var(--border)] text-[var(--ink)] hover:bg-[var(--surface-2)]",
+            "border-[var(--border)] bg-white text-[var(--ink)] hover:border-[var(--brand)] hover:bg-[var(--brand-soft)] hover:text-[var(--brand-strong)]",
           variant === "ghost" && "text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]",
-          variant === "danger" && "bg-rose-600 text-white hover:bg-rose-700",
+          variant === "danger" && "bg-[var(--danger)] text-white hover:bg-[#b91c1c]",
           size === "sm" && "h-8 px-3 text-xs",
           size === "md" && "h-10 px-4 text-sm",
           size === "lg" && "h-11 px-5 text-sm",

@@ -44,6 +44,7 @@ export function PartyForm({
   cityOptions = [],
   sectorOptions = [],
   defaultSubtype,
+  defaultPartyType,
   onDone,
 }: {
   companyId: string;
@@ -53,6 +54,8 @@ export function PartyForm({
   sectorOptions?: string[];
   /** Pre-select subtype when adding from Customers / Vendors views. */
   defaultSubtype?: PartySubtype;
+  /** Pre-select ledger type when adding from Chart of Accounts. */
+  defaultPartyType?: PartyType;
   onDone?: () => void;
 }) {
   const router = useRouter();
@@ -64,7 +67,7 @@ export function PartyForm({
     party_code: initial?.party_code || "",
     name_en: initial?.name_en || "",
     name_ur: initial?.name_ur || "",
-    party_type: initial?.party_type || "PARTY",
+    party_type: initial?.party_type || defaultPartyType || "PARTY",
     party_subtype:
       initial?.party_subtype ||
       (defaultSubtype === "supplier" ||

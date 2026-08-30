@@ -16,11 +16,16 @@ import { useUrlTableState } from "@/hooks/use-url-table-state";
 import type { PartyListStats } from "@/lib/queries/parties";
 import { createClient } from "@/lib/supabase/client";
 import type { PaginationMeta } from "@/lib/pagination";
-import type { Party } from "@/lib/types/database";
-import { formatPkr } from "@/lib/utils";
+import type { Party, PartyType } from "@/lib/types/database";
+import { amountClass, formatPkr } from "@/lib/utils";
 import { Building2, Store, Truck, Users } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+
+function partyTypeLabel(p: Party) {
+  if (p.party_type !== "PARTY") return p.party_type;
+  return p.party_subtype === "supplier" ? "vendor" : p.party_subtype;
+}
 
 function partyFields(p: Party): DetailField[] {
   return [
@@ -92,6 +97,9 @@ export function PartiesTable({
     if (error) throw new Error(error.message);
   }
 
+  const isLedger = stats.mode === "ledger";
+  const mixData = isLedger ? stats.ledgerMix : stats.subtypeMix;
+
   return (
     <div className="space-y-6">
       <StatsGrid>
@@ -102,65 +110,94 @@ export function PartiesTable({
           icon={Users}
           hint="Matches current search / chips"
         />
-        <button
-          type="button"
-          className="text-left"
-          onClick={() => setFilter("type", "customer")}
-        >
-          <StatCard
-            label="Customers / shops"
-            value={stats.customers}
-            format="number"
-            icon={Store}
-            tone={subtype === "customer" ? "brand" : "ok"}
-            hint="Click to filter table"
-          />
-        </button>
-        <button
-          type="button"
-          className="text-left"
-          onClick={() => setFilter("type", "supplier")}
-        >
-          <StatCard
-            label="Vendors"
-            value={stats.suppliers}
-            format="number"
-            icon={Truck}
-            tone={subtype === "supplier" ? "brand" : "neutral"}
-            hint="Click to filter table"
-          />
-        </button>
-        <button
-          type="button"
-          className="text-left"
-          onClick={() => setFilter("type", "credit")}
-        >
-          <StatCard
-            label="With credit limit"
-            value={stats.withCreditLimit}
-            format="number"
-            icon={Building2}
-            tone={subtype === "credit" ? "brand" : "warn"}
-            hint="Click to filter table"
-          />
-        </button>
+        {!isLedger ? (
+          <>
+            <button
+              type="button"
+              className="text-left"
+              onClick={() => setFilter("type", "customer")}
+            >
+              <StatCard
+                label="Customers / shops"
+                value={stats.customers}
+                format="number"
+                icon={Store}
+                tone={subtype === "customer" ? "brand" : "ok"}
+                hint="Click to filter table"
+              />
+            </button>
+            <button
+              type="button"
+              className="text-left"
+              onClick={() => setFilter("type", "supplier")}
+            >
+              <StatCard
+                label="Vendors"
+                value={stats.suppliers}
+                format="number"
+                icon={Truck}
+                tone={subtype === "supplier" ? "brand" : "neutral"}
+                hint="Click to filter table"
+              />
+            </button>
+            <button
+              type="button"
+              className="text-left"
+              onClick={() => setFilter("type", "credit")}
+            >
+              <StatCard
+                label="With credit limit"
+                value={stats.withCreditLimit}
+                format="number"
+                icon={Building2}
+                tone={subtype === "credit" ? "brand" : "warn"}
+                hint="Click to filter table"
+              />
+            </button>
+          </>
+        ) : (
+          (["ASSETS", "CAPITAL", "EXPENSES", "INCOME"] as PartyType[]).map(
+            (ledgerType) => {
+              const count =
+                stats.ledgerMix.find(
+                  (row) => row.name.toUpperCase() === ledgerType,
+                )?.value ?? 0;
+              return (
+                <StatCard
+                  key={ledgerType}
+                  label={ledgerType.charAt(0) + ledgerType.slice(1).toLowerCase()}
+                  value={count}
+                  format="number"
+                  icon={Building2}
+                  tone="brand"
+                  hint="Ledger head count"
+                />
+              );
+            },
+          )
+        )}
       </StatsGrid>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <ChartCard title="Customer / vendor mix" subtitle="Based on current filter">
+        <ChartCard
+          title={isLedger ? "Ledger type mix" : "Customer / vendor mix"}
+          subtitle="Based on current filter"
+        >
           <DonutChart
-            data={stats.subtypeMix}
+            data={mixData}
             centerValue={String(stats.total)}
             centerLabel="Filtered"
           />
         </ChartCard>
-        <ChartCard
-          className="lg:col-span-2"
-          title="Accounts by city"
-          subtitle="Updates with search & filters"
-        >
-          <RankBars data={stats.cityBars} money={false} />
-        </ChartCard>
+        {!isLedger ? (
+          <ChartCard
+            className="lg:col-span-2"
+            title="Accounts by city"
+            subtitle="Updates with search & filters"
+          >
+            <RankBars data={stats.cityBars} money={false} />
+          </ChartCard>
+        ) : null}
       </div>
 
       <div>
@@ -206,9 +243,9 @@ export function PartiesTable({
                   <th>Code</th>
                   <th>Name</th>
                   <th>City / Head · Sector</th>
-                  <th>Type</th>
+                  <th>{isLedger ? "Ledger type" : "Type"}</th>
                   <th>Op. Balance</th>
-                  <th>Credit Limit</th>
+                  {!isLedger ? <th>Credit Limit</th> : null}
                   <th className="text-right">Actions</th>
                 </tr>
               </thead>
@@ -235,13 +272,13 @@ export function PartiesTable({
                       </td>
                       <td>
                         <span className="rounded-full bg-[var(--surface-2)] px-2 py-1 text-xs font-semibold uppercase">
-                          {p.party_subtype === "supplier"
-                            ? "vendor"
-                            : p.party_subtype}
+                          {partyTypeLabel(p)}
                         </span>
                       </td>
-                      <td>{formatPkr(p.opening_balance)}</td>
-                      <td>{formatPkr(p.credit_limit)}</td>
+                      <td className={amountClass}>{formatPkr(p.opening_balance)}</td>
+                      {!isLedger ? (
+                        <td className={amountClass}>{formatPkr(p.credit_limit)}</td>
+                      ) : null}
                       <td>
                         <RowActions
                           viewTitle={p.name_en}
@@ -267,7 +304,7 @@ export function PartiesTable({
                 ) : (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={isLedger ? 6 : 7}
                       className="py-8 text-center text-[var(--muted)]"
                     >
                       No parties match this filter.

@@ -1,5 +1,6 @@
 "use client";
 
+import { HeaderClock } from "@/components/layout/header-clock";
 import { AlertsMenu } from "@/components/layout/alerts-menu";
 import { useSyncStatus } from "@/components/offline/sync-provider";
 import { CommandPalette } from "@/components/search/command-palette";
@@ -7,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import type { Company } from "@/lib/types/database";
 import {
-  Building2,
   Cloud,
   CloudOff,
   LogOut,
@@ -36,27 +36,17 @@ export function Topbar({
   }
 
   return (
-    <header className="flex h-14 items-center justify-between gap-3 border-b border-[var(--border)] bg-white/80 px-3 backdrop-blur sm:h-16 sm:px-6">
+    <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-[var(--border)] bg-white px-3 sm:h-16 sm:px-6">
       <div className="flex min-w-0 items-center gap-2 sm:gap-3">
         <button
           type="button"
           onClick={onMenuClick}
-          className="rounded-lg p-2 text-[var(--ink)] hover:bg-[var(--surface-2)] lg:hidden"
+          className="rounded-md p-2 text-[var(--ink)] hover:bg-[var(--surface-2)] lg:hidden"
           aria-label="Open menu"
         >
           <Menu className="h-5 w-5" />
         </button>
-        <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)] sm:text-xs">
-            Working company
-          </p>
-          <div className="mt-0.5 flex items-center gap-2">
-            <Building2 className="hidden h-4 w-4 shrink-0 text-[var(--brand)] sm:block" />
-            <h1 className="truncate font-[family-name:var(--font-display)] text-base font-semibold text-[var(--ink)] sm:text-lg">
-              {company?.name || "No company selected"}
-            </h1>
-          </div>
-        </div>
+        <HeaderClock />
       </div>
 
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
@@ -68,8 +58,8 @@ export function Topbar({
           onClick={() => void runSync()}
           className={`hidden items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium sm:flex ${
             online
-              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-              : "border-amber-200 bg-amber-50 text-amber-800"
+              ? "border-[var(--brand-soft)] bg-[var(--brand-soft)] text-[var(--brand-strong)]"
+              : "border-[var(--accent-soft)] bg-[var(--accent-soft)] text-[var(--accent-strong)]"
           }`}
           title={syncing ? "Syncing..." : "Sync offline queue"}
         >
@@ -100,12 +90,14 @@ export function Topbar({
           <RefreshCw className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">Switch company</span>
         </Button>
-        <div className="hidden text-right md:block">
-          <p className="text-sm font-medium text-[var(--ink)]">
-            {userName || "User"}
-          </p>
-          <p className="text-xs text-[var(--muted)]">Signed in</p>
-        </div>
+        <button
+          type="button"
+          title={userName || "User"}
+          className="header-avatar"
+          aria-label={userName ? `Signed in as ${userName}` : "Signed in user"}
+        >
+          {(userName || "U").trim().charAt(0).toUpperCase()}
+        </button>
         <Button
           variant="ghost"
           size="sm"

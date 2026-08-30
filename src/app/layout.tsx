@@ -1,15 +1,17 @@
 import type { Metadata, Viewport } from "next";
-import { Manrope, Syne } from "next/font/google";
+import { Poppins, Roboto } from "next/font/google";
 import "./globals.css";
 
-const display = Syne({
+const body = Poppins({
   subsets: ["latin"],
-  variable: "--font-display",
+  weight: ["400", "500", "600"],
+  variable: "--font-body",
 });
 
-const body = Manrope({
+const amount = Roboto({
   subsets: ["latin"],
-  variable: "--font-body",
+  weight: ["400", "500", "600"],
+  variable: "--font-amount",
 });
 
 export const metadata: Metadata = {
@@ -26,7 +28,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0f766e",
+  themeColor: "#152238",
   width: "device-width",
   initialScale: 1,
 };
@@ -42,7 +44,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
       </head>
       <body
-        className={`${display.variable} ${body.variable} antialiased`}
+        className={`${body.variable} ${amount.variable} antialiased`}
         suppressHydrationWarning
       >
         {children}
