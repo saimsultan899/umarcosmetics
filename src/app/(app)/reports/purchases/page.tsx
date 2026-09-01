@@ -1,6 +1,7 @@
-import { FilterSelect, ReportFilters } from "@/components/reports/report-filters";
+import { FilterMultiSelect, ReportFilters } from "@/components/reports/report-filters";
 import { ReportTable } from "@/components/reports/report-table";
 import { requireCompanyContext } from "@/lib/auth";
+import { parseReportList, reportLinkQuery } from "@/lib/reports/filter-params";
 import {
   buildPurchaseReport,
   PURCHASE_REPORT_TYPES,
@@ -52,6 +53,9 @@ export default async function PurchaseReportsPage({
       .order("name_en"),
   ]);
 
+  const warehouseIds = parseReportList(sp.warehouse);
+  const partyIds = parseReportList(sp.party);
+
   let rows: Record<string, unknown>[] = [];
   let error: string | null = null;
   try {
@@ -60,8 +64,8 @@ export default async function PurchaseReportsPage({
       from,
       to,
       type,
-      warehouseId: sp.warehouse || undefined,
-      partyId: sp.party || undefined,
+      warehouseIds,
+      partyIds,
       billFrom: sp.billFrom || undefined,
       billTo: sp.billTo || undefined,
     });
@@ -71,6 +75,15 @@ export default async function PurchaseReportsPage({
 
   const activeLabel =
     PURCHASE_REPORT_TYPES.find((t) => t.key === type)?.label || "Purchase report";
+
+  const filterParams = {
+    from,
+    to,
+    warehouse: sp.warehouse,
+    party: sp.party,
+    billFrom: sp.billFrom,
+    billTo: sp.billTo,
+  };
 
   return (
     <div className="animate-rise space-y-6">
@@ -87,7 +100,7 @@ export default async function PurchaseReportsPage({
         {PURCHASE_REPORT_TYPES.map((t) => (
           <Link
             key={t.key}
-            href={`/reports/purchases?type=${t.key}&from=${from}&to=${to}`}
+            href={`/reports/purchases?${reportLinkQuery(filterParams, { type: t.key }).toString()}`}
             className={`rounded-full px-3 py-1.5 text-sm font-medium ${
               type === t.key
                 ? "bg-[var(--brand)] !text-white"
@@ -104,7 +117,7 @@ export default async function PurchaseReportsPage({
         defaults={{ from, to, type }}
         extras={
           <>
-            <FilterSelect
+            <FilterMultiSelect
               name="warehouse"
               label="Company"
               value={sp.warehouse}
@@ -113,7 +126,7 @@ export default async function PurchaseReportsPage({
                 label: w.name,
               }))}
             />
-            <FilterSelect
+            <FilterMultiSelect
               name="party"
               label="Vendor"
               value={sp.party}

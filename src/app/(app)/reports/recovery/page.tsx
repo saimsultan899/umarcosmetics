@@ -2,6 +2,7 @@ import { ChartCard } from "@/components/analytics/chart-card";
 import { RankBars, TrendAreaChart } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { RecoverySheet } from "@/components/reports/recovery-sheet";
+import { FilterMultiSelect } from "@/components/reports/report-filters";
 import { UrlFilterForm } from "@/components/reports/url-filter-form";
 import { CreateDialogButton } from "@/components/ui/create-dialog";
 import { PrintButton } from "@/components/ui/print-button";
@@ -9,6 +10,7 @@ import { Select } from "@/components/ui/select";
 import { RecoveryForm } from "@/components/vouchers/recovery-form";
 import { lastNDates, sumByDay } from "@/lib/analytics/aggregate";
 import { requireCompanyContext } from "@/lib/auth";
+import { parseReportList } from "@/lib/reports/filter-params";
 import { one } from "@/lib/reports/helpers";
 import { buildRecoverySheet, parseScopeToken } from "@/lib/reports/recovery-data";
 import { fetchCompanySalesmen } from "@/lib/queries/salesmen";
@@ -54,10 +56,17 @@ export default async function RecoverySheetPage({
   const { supabase, company } = await requireCompanyContext();
   const to = sp.to || today();
   const from = sp.from || monthStart();
-  const sector = sp.sector || "";
-  const party = sp.party || "";
+  const sectors = parseReportList(sp.sector);
+  const partyIds = parseReportList(sp.party);
   const scopeToken = sp.scope || "all";
   const { scope, brand, warehouseId } = parseScopeToken(scopeToken);
+
+  const townLabel =
+    sectors.length === 0
+      ? "All Towns"
+      : sectors.length === 1
+        ? sectors[0]
+        : `${sectors.length} sectors`;
 
   const from7 = lastNDates(7)[0];
   const [sheet, { data: parties }, { data: sectorRows }, { data: recent }, { data: weekRec }, salesmen] =
@@ -66,11 +75,11 @@ export default async function RecoverySheetPage({
         companyId: company.id,
         from,
         to,
-        sector,
+        sectors,
         scope,
         brand,
         warehouseId,
-        partyId: party,
+        partyIds,
         include: "all",
       }),
       supabase
@@ -239,30 +248,20 @@ export default async function RecoverySheetPage({
             className="h-10 w-full rounded-lg border border-[var(--border)] px-3 text-sm"
           />
         </div>
-        <div>
-          <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
-            Sector
-          </label>
-          <Select
-            name="sector"
-            defaultValue={sector}
-            options={[
-              { value: "", label: "All sectors" },
-              ...sectorOptions.map((s) => ({ value: s, label: s })),
-            ]}
-          />
-        </div>
-        <div>
-          <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
-            Customer
-          </label>
-          <Select
-            name="party"
-            defaultValue={party}
-            placeholder="All customers"
-            options={[{ value: "", label: "All customers" }, ...partyOptions]}
-          />
-        </div>
+        <FilterMultiSelect
+          name="sector"
+          label="Sector"
+          value={sp.sector}
+          allLabel="All sectors"
+          options={sectorOptions.map((s) => ({ value: s, label: s }))}
+        />
+        <FilterMultiSelect
+          name="party"
+          label="Customer"
+          value={sp.party}
+          allLabel="All customers"
+          options={partyOptions}
+        />
         <div>
           <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
             Scope (brand / company)
@@ -284,7 +283,7 @@ export default async function RecoverySheetPage({
         from={from}
         to={to}
         scopeLabel={sheet.scopeLabel}
-        townLabel={sector || "All Towns"}
+        townLabel={townLabel}
         sections={sheet.sections}
         grand={sheet.grand}
       />

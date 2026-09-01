@@ -23,8 +23,8 @@ type Filters = {
   from: string;
   to: string;
   type: PurchaseReportType;
-  warehouseId?: string;
-  partyId?: string;
+  warehouseIds?: string[];
+  partyIds?: string[];
   billFrom?: string;
   billTo?: string;
 };
@@ -45,8 +45,12 @@ export async function buildPurchaseReport(
     .order("invoice_date", { ascending: true })
     .limit(2000);
 
-  if (filters.warehouseId) query = query.eq("warehouse_id", filters.warehouseId);
-  if (filters.partyId) query = query.eq("party_id", filters.partyId);
+  if (filters.warehouseIds?.length) {
+    query = query.in("warehouse_id", filters.warehouseIds);
+  }
+  if (filters.partyIds?.length) {
+    query = query.in("party_id", filters.partyIds);
+  }
 
   const { data: invoices, error } = await query;
   if (error) throw new Error(error.message);

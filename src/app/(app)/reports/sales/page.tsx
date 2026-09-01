@@ -2,9 +2,10 @@ import { ChartCard } from "@/components/analytics/chart-card";
 import { CompareBarChart } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { PartyWiseSalesPrint } from "@/components/reports/party-wise-sales-print";
-import { FilterSelect, ReportFilters } from "@/components/reports/report-filters";
+import { FilterMultiSelect, ReportFilters } from "@/components/reports/report-filters";
 import { ReportTable } from "@/components/reports/report-table";
 import { requireCompanyContext } from "@/lib/auth";
+import { parseReportList, reportLinkQuery } from "@/lib/reports/filter-params";
 import {
   buildSaleReport,
   SALE_REPORT_TYPES,
@@ -57,6 +58,9 @@ export default async function SaleReportsPage({
       .limit(500),
   ]);
 
+  const warehouseIds = parseReportList(sp.warehouse);
+  const partyIds = parseReportList(sp.party);
+
   let rows: Record<string, unknown>[] = [];
   let error: string | null = null;
   try {
@@ -65,8 +69,8 @@ export default async function SaleReportsPage({
       from,
       to,
       type,
-      warehouseId: sp.warehouse || undefined,
-      partyId: sp.party || undefined,
+      warehouseIds,
+      partyIds,
       billFrom: sp.billFrom || undefined,
       billTo: sp.billTo || undefined,
     });
@@ -108,6 +112,15 @@ export default async function SaleReportsPage({
     const value = primaryMoneyKey ? Number(row[primaryMoneyKey] || 0) : 0;
     return { name: label, value };
   });
+
+  const filterParams = {
+    from,
+    to,
+    warehouse: sp.warehouse,
+    party: sp.party,
+    billFrom: sp.billFrom,
+    billTo: sp.billTo,
+  };
 
   return (
     <div className="animate-rise space-y-6">
@@ -163,7 +176,7 @@ export default async function SaleReportsPage({
         {SALE_REPORT_TYPES.map((t) => (
           <Link
             key={t.key}
-            href={`/reports/sales?type=${t.key}&from=${from}&to=${to}`}
+            href={`/reports/sales?${reportLinkQuery(filterParams, { type: t.key }).toString()}`}
             className={`rounded-full px-3 py-1.5 text-sm font-medium ${
               type === t.key
                 ? "bg-[var(--brand)] !text-white"
@@ -180,7 +193,7 @@ export default async function SaleReportsPage({
         defaults={{ from, to, type }}
         extras={
           <>
-            <FilterSelect
+            <FilterMultiSelect
               name="warehouse"
               label="Company"
               value={sp.warehouse}
@@ -189,7 +202,7 @@ export default async function SaleReportsPage({
                 label: w.name,
               }))}
             />
-            <FilterSelect
+            <FilterMultiSelect
               name="party"
               label="Customer"
               value={sp.party}

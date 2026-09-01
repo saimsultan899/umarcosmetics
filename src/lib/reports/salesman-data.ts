@@ -114,10 +114,8 @@ export type SalesmanReportInput = {
   companyId: string;
   from: string;
   to: string;
-  /** Limit to one salesman id, "unassigned", or "" for all. */
-  salesmanId?: string;
-  /** Limit to one Sector (parties.route). Empty = all sectors. */
-  sector?: string;
+  salesmanIds?: string[];
+  sectors?: string[];
 };
 
 type EmbeddedProfile = { id: string; full_name: string | null } | null;
@@ -145,8 +143,8 @@ export async function buildSalesmanReport(
   input: SalesmanReportInput,
 ): Promise<SalesmanReportResult> {
   const { companyId, from, to } = input;
-  const salesmanId = input.salesmanId || "";
-  const sector = input.sector || "";
+  const salesmanIds = input.salesmanIds || [];
+  const sectors = input.sectors || [];
 
   let invoiceQuery = supabase
     .from("sale_invoices")
@@ -157,9 +155,22 @@ export async function buildSalesmanReport(
     .eq("status", "posted")
     .gte("invoice_date", from)
     .lte("invoice_date", to);
-  if (sector) invoiceQuery = invoiceQuery.eq("route", sector);
-  if (salesmanId === UNASSIGNED) invoiceQuery = invoiceQuery.is("salesman_id", null);
-  else if (salesmanId) invoiceQuery = invoiceQuery.eq("salesman_id", salesmanId);
+  if (sectors.length) invoiceQuery = invoiceQuery.in("route", sectors);
+  if (salesmanIds.length === 1 && salesmanIds[0] === UNASSIGNED) {
+    invoiceQuery = invoiceQuery.is("salesman_id", null);
+  } else if (salesmanIds.length === 1) {
+    invoiceQuery = invoiceQuery.eq("salesman_id", salesmanIds[0]);
+  } else if (salesmanIds.length > 1) {
+    const real = salesmanIds.filter((id) => id !== UNASSIGNED);
+    const hasUnassigned = salesmanIds.includes(UNASSIGNED);
+    if (hasUnassigned && real.length > 0) {
+      invoiceQuery = invoiceQuery.or(
+        `salesman_id.is.null,salesman_id.in.(${real.join(",")})`,
+      );
+    } else if (real.length > 0) {
+      invoiceQuery = invoiceQuery.in("salesman_id", real);
+    }
+  }
 
   let recoveryQuery = supabase
     .from("recoveries")
@@ -169,9 +180,22 @@ export async function buildSalesmanReport(
     .eq("company_id", companyId)
     .gte("recovery_date", from)
     .lte("recovery_date", to);
-  if (sector) recoveryQuery = recoveryQuery.eq("route", sector);
-  if (salesmanId === UNASSIGNED) recoveryQuery = recoveryQuery.is("salesman_id", null);
-  else if (salesmanId) recoveryQuery = recoveryQuery.eq("salesman_id", salesmanId);
+  if (sectors.length) recoveryQuery = recoveryQuery.in("route", sectors);
+  if (salesmanIds.length === 1 && salesmanIds[0] === UNASSIGNED) {
+    recoveryQuery = recoveryQuery.is("salesman_id", null);
+  } else if (salesmanIds.length === 1) {
+    recoveryQuery = recoveryQuery.eq("salesman_id", salesmanIds[0]);
+  } else if (salesmanIds.length > 1) {
+    const real = salesmanIds.filter((id) => id !== UNASSIGNED);
+    const hasUnassigned = salesmanIds.includes(UNASSIGNED);
+    if (hasUnassigned && real.length > 0) {
+      recoveryQuery = recoveryQuery.or(
+        `salesman_id.is.null,salesman_id.in.(${real.join(",")})`,
+      );
+    } else if (real.length > 0) {
+      recoveryQuery = recoveryQuery.in("salesman_id", real);
+    }
+  }
 
   let expenseQuery = supabase
     .from("expenses")
@@ -181,8 +205,21 @@ export async function buildSalesmanReport(
     .eq("company_id", companyId)
     .gte("expense_date", from)
     .lte("expense_date", to);
-  if (salesmanId === UNASSIGNED) expenseQuery = expenseQuery.is("salesman_id", null);
-  else if (salesmanId) expenseQuery = expenseQuery.eq("salesman_id", salesmanId);
+  if (salesmanIds.length === 1 && salesmanIds[0] === UNASSIGNED) {
+    expenseQuery = expenseQuery.is("salesman_id", null);
+  } else if (salesmanIds.length === 1) {
+    expenseQuery = expenseQuery.eq("salesman_id", salesmanIds[0]);
+  } else if (salesmanIds.length > 1) {
+    const real = salesmanIds.filter((id) => id !== UNASSIGNED);
+    const hasUnassigned = salesmanIds.includes(UNASSIGNED);
+    if (hasUnassigned && real.length > 0) {
+      expenseQuery = expenseQuery.or(
+        `salesman_id.is.null,salesman_id.in.(${real.join(",")})`,
+      );
+    } else if (real.length > 0) {
+      expenseQuery = expenseQuery.in("salesman_id", real);
+    }
+  }
 
   const [invoicesRes, recoveriesRes, expensesRes, rosterRes, assignmentsRes, sectorRes] =
     await Promise.all([
@@ -312,7 +349,7 @@ export async function buildSalesmanReport(
   };
 
   // Seed idle salesmen as zero rows only in the all-sectors view.
-  if (!sector) for (const [id, name] of rosterName) ensure(id, name);
+  if (!sectors.length) for (const [id, name] of rosterName) ensure(id, name);
 
   const trendByDate = new Map<string, { sales: number; recovered: number }>();
   // sector → salesman → sales, used to infer ownership where no assignment exists.
@@ -396,7 +433,7 @@ export async function buildSalesmanReport(
 
   // Expenses have no sector — only roll them in on the all-sectors view
   // (or a single-salesman filter, which is already applied on the query).
-  if (!sector) {
+  if (!sectors.length) {
     for (const exp of expenses) {
       const amt = Number(exp.amount || 0);
       const id = exp.salesman_id || UNASSIGNED;
@@ -436,7 +473,9 @@ export async function buildSalesmanReport(
       .sort((a, b) => b.recovered - a.recovered)[0] || null;
 
   let rows = all;
-  if (salesmanId) rows = rows.filter((r) => r.id === salesmanId);
+  if (salesmanIds.length) {
+    rows = rows.filter((r) => salesmanIds.includes(r.id));
+  }
   rows.sort(
     (a, b) =>
       b.sales - a.sales ||
@@ -481,7 +520,7 @@ export async function buildSalesmanReport(
     .map(([d, v]) => ({ name: d.slice(5), sales: v.sales, recovered: v.recovered }));
 
   let history: SalesmanReportResult["history"] = null;
-  if (salesmanId) {
+  if (salesmanIds.length === 1) {
     history = {
       sales: invoices
         .map((inv) => {

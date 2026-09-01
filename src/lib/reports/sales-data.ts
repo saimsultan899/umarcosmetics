@@ -35,8 +35,8 @@ type Filters = {
   from: string;
   to: string;
   type: SaleReportType;
-  warehouseId?: string;
-  partyId?: string;
+  warehouseIds?: string[];
+  partyIds?: string[];
   billFrom?: string;
   billTo?: string;
 };
@@ -57,8 +57,12 @@ export async function buildSaleReport(
     .order("invoice_date", { ascending: true })
     .limit(2000);
 
-  if (filters.warehouseId) query = query.eq("warehouse_id", filters.warehouseId);
-  if (filters.partyId) query = query.eq("party_id", filters.partyId);
+  if (filters.warehouseIds?.length) {
+    query = query.in("warehouse_id", filters.warehouseIds);
+  }
+  if (filters.partyIds?.length) {
+    query = query.in("party_id", filters.partyIds);
+  }
   if (filters.type === "cash_sales") query = query.eq("payment_type", "cash");
   if (filters.type === "credit_sales") query = query.in("payment_type", ["credit", "partial"]);
 

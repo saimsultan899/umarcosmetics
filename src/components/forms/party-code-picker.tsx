@@ -32,6 +32,8 @@ export function PartyCodePicker({
   emptyLabel = "Select customer",
   required,
   filterSubtype,
+  compact = false,
+  onPartySelected,
 }: {
   companyId: string;
   parties: Party[];
@@ -41,6 +43,9 @@ export function PartyCodePicker({
   emptyLabel?: string;
   required?: boolean;
   filterSubtype?: Array<Party["party_subtype"]>;
+  /** Table-row mode: code + select only, no label or detail card. */
+  compact?: boolean;
+  onPartySelected?: () => void;
 }) {
   const options = useMemo(() => {
     let list = parties.filter((p) => p.is_active !== false);
@@ -60,6 +65,15 @@ export function PartyCodePicker({
     setCode(selected?.party_code || "");
   }, [selected?.id, selected?.party_code]);
 
+  function afterPartyPicked(moveNext: boolean) {
+    if (!moveNext) return;
+    if (onPartySelected) {
+      onPartySelected();
+      return;
+    }
+    if (codeRef.current) focusAfterParty(codeRef.current);
+  }
+
   async function resolveCode(raw: string, moveNext = false) {
     const trimmed = raw.trim();
     if (!trimmed) {
@@ -75,7 +89,7 @@ export function PartyCodePicker({
       onChange(local.id, local);
       setCode(local.party_code);
       setStatus(null);
-      if (moveNext && codeRef.current) focusAfterParty(codeRef.current);
+      afterPartyPicked(moveNext);
       return;
     }
 
@@ -106,12 +120,12 @@ export function PartyCodePicker({
     onChange(party.id, party as Party);
     setCode(party.party_code);
     setStatus(null);
-    if (moveNext && codeRef.current) focusAfterParty(codeRef.current);
+    afterPartyPicked(moveNext);
   }
 
   return (
     <div className="min-w-0 space-y-2">
-      <Label>{label}</Label>
+      {!compact && label ? <Label>{label}</Label> : null}
       <div className="grid min-w-0 gap-2 sm:grid-cols-[7.5rem_minmax(0,1fr)]">
         <Input
           ref={codeRef}
@@ -141,6 +155,7 @@ export function PartyCodePicker({
             onChange(e.target.value, party);
             setCode(party?.party_code || "");
             setStatus(null);
+            if (party) onPartySelected?.();
           }}
         >
           <option value="">{emptyLabel}</option>
@@ -152,7 +167,13 @@ export function PartyCodePicker({
         </Select>
       </div>
 
-      {selected ? (
+      {compact ? (
+        looking ? (
+          <p className="text-[10px] text-[var(--muted)]">Looking up...</p>
+        ) : status ? (
+          <p className="text-[10px] text-rose-700">{status}</p>
+        ) : null
+      ) : selected ? (
         <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs">
           <p className="truncate font-medium text-[var(--ink)]">
             {selected.party_code} — {selected.name_en}

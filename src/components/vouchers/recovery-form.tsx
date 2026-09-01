@@ -87,27 +87,36 @@ export function RecoveryForm({
     };
   }, [companyId, partyId, date]);
 
-  function clearDraft(focusCode = true) {
+  useEffect(() => {
+    const t = requestAnimationFrame(() => focusCode());
+    return () => cancelAnimationFrame(t);
+  }, []);
+
+  function focusCode() {
+    requestAnimationFrame(() => {
+      const code = document.querySelector<HTMLInputElement>(
+        '[data-recovery-entry] input[placeholder="Code"]',
+      );
+      focusField(code);
+    });
+  }
+
+  function clearDraft(focusCodeField = true) {
     setPartyId("");
     setParty(null);
     setAmount("");
     setRemarks("");
     setBalance(null);
-    if (focusCode) {
-      requestAnimationFrame(() => {
-        const code = document.querySelector<HTMLInputElement>(
-          '[data-recovery-entry] input[placeholder="Code"]',
-        );
-        focusField(code);
-      });
-    }
+    if (focusCodeField) focusCode();
   }
 
-  function addLine() {
+  function commitLine() {
     setError(null);
     const amt = Number(amount);
     if (!partyId || !party || !(amt > 0)) {
       setError("Select customer and enter a recovery amount.");
+      if (!partyId) focusCode();
+      else focusField(amountRef.current);
       return false;
     }
     setLines((prev) => [
@@ -129,42 +138,34 @@ export function RecoveryForm({
     if (e.key !== "Enter") return;
     e.preventDefault();
     e.stopPropagation();
-    if (!partyId || !(Number(amount) > 0)) {
-      focusField(remarksRef.current);
-      return;
-    }
-    // Prefer remarks next if empty; otherwise add the line
-    if (!remarks.trim()) {
-      focusField(remarksRef.current);
-      return;
-    }
-    addLine();
+    focusField(remarksRef.current);
   }
 
   function onRemarksEnter(e: ReactKeyboardEvent<HTMLInputElement>) {
     if (e.key !== "Enter") return;
     e.preventDefault();
     e.stopPropagation();
-    addLine();
+    commitLine();
   }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
 
-    // Auto-add pending draft if valid
     let pending = lines;
     const amt = Number(amount);
     if (partyId && party && amt > 0) {
-      const next: RecoveryLine = {
-        key: newKey(),
-        partyId,
-        partyCode: party.party_code,
-        partyName: party.name_en,
-        amount: amt,
-        remarks: remarks.trim(),
-      };
-      pending = [...lines, next];
+      pending = [
+        ...lines,
+        {
+          key: newKey(),
+          partyId,
+          partyCode: party.party_code,
+          partyName: party.name_en,
+          amount: amt,
+          remarks: remarks.trim(),
+        },
+      ];
       setLines(pending);
       clearDraft(false);
     }
@@ -253,120 +254,119 @@ export function RecoveryForm({
         </div>
       </div>
 
-      <div className="rounded-xl border border-[var(--brand)]/30 bg-[var(--brand-soft)]/40 px-3 py-2 text-xs text-[var(--brand-strong)]">
-        Keyboard: customer{" "}
-        <kbd className="rounded bg-white px-1">code</kbd> →{" "}
-        <kbd className="rounded bg-white px-1">Enter</kbd> → amount → remarks →{" "}
-        <kbd className="rounded bg-white px-1">Enter</kbd> adds the line. Then
-        record all at once.
-      </div>
+      <div className="space-y-3" data-enter-own>
+        <div className="rounded-xl border border-[var(--brand)]/30 bg-[var(--brand-soft)]/40 px-3 py-2 text-xs text-[var(--brand-strong)]">
+          Keyboard: type customer{" "}
+          <kbd className="rounded bg-white px-1">code</kbd> →{" "}
+          <kbd className="rounded bg-white px-1">Enter</kbd> → amount → remarks →{" "}
+          <kbd className="rounded bg-white px-1">Enter</kbd> adds the line. No need
+          to click Add.
+        </div>
 
-      <div
-        data-recovery-entry
-        className="grid min-w-0 gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/40 p-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_8rem_minmax(0,1fr)_auto]"
-      >
-        <div className="min-w-0 sm:col-span-2 lg:col-span-1">
-          <PartyCodePicker
-            companyId={companyId}
-            parties={parties}
-            value={partyId}
-            label="Customer code / shop"
-            filterSubtype={["customer", "both"]}
-            onChange={(id, next) => {
-              setPartyId(id);
-              setParty(next);
-            }}
-          />
-          {partyId && balance != null ? (
-            <p className="mt-1 text-xs text-[var(--muted)]">
-              Balance:{" "}
-              <span className="font-medium text-[var(--ink)]">
-                {formatPkr(Math.abs(balance))}{" "}
-                {balance > 0.005 ? "Dr" : balance < -0.005 ? "Cr" : "Nil"}
-              </span>
-            </p>
-          ) : null}
-        </div>
-        <div className="min-w-0">
-          <Label htmlFor={amountId}>Amount</Label>
-          <Input
-            ref={amountRef}
-            id={amountId}
-            type="number"
-            min="0"
-            step="0.01"
-            inputMode="decimal"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            onKeyDown={onAmountEnter}
-            placeholder="0.00"
-          />
-        </div>
-        <div className="min-w-0">
-          <Label htmlFor={remarksId}>Remarks</Label>
-          <Input
-            ref={remarksRef}
-            id={remarksId}
-            value={remarks}
-            onChange={(e) => setRemarks(e.target.value)}
-            onKeyDown={onRemarksEnter}
-            placeholder="Next / collected note"
-          />
-        </div>
-        <div className="flex items-end">
-          <Button
-            type="button"
-            variant="secondary"
-            className="w-full"
-            onClick={() => addLine()}
-            data-enter-skip
-          >
-            Add line
-          </Button>
-        </div>
-      </div>
-
-      <div className="overflow-hidden rounded-xl border border-[var(--border)]">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[520px] text-sm">
-            <thead className="bg-[var(--surface-2)] text-left text-xs uppercase tracking-wide text-[var(--muted)]">
+        <div className="table-grid">
+          <table className="w-full min-w-[720px] text-sm">
+            <thead>
               <tr>
-                <th className="px-3 py-2 font-semibold">Code</th>
-                <th className="px-3 py-2 font-semibold">Customer</th>
-                <th className="px-3 py-2 text-right font-semibold">Amount</th>
-                <th className="px-3 py-2 font-semibold">Remarks</th>
-                <th className="w-10 px-2 py-2" />
+                <th className="w-[11rem]">Code</th>
+                <th>Customer</th>
+                <th className="w-28">Amount</th>
+                <th>Remarks</th>
+                <th className="w-12" />
               </tr>
             </thead>
             <tbody>
+              <tr className="bg-[var(--brand-soft)]/25" data-recovery-entry>
+                <td colSpan={2}>
+                  <PartyCodePicker
+                    companyId={companyId}
+                    parties={parties}
+                    value={partyId}
+                    label=""
+                    compact
+                    filterSubtype={["customer", "both"]}
+                    onChange={(id, next) => {
+                      setPartyId(id);
+                      setParty(next);
+                    }}
+                    onPartySelected={() => focusField(amountRef.current)}
+                  />
+                  {partyId && balance != null ? (
+                    <p className="mt-1 text-[10px] text-[var(--muted)]">
+                      Balance:{" "}
+                      <span className="font-medium text-[var(--ink)]">
+                        {formatPkr(Math.abs(balance))}{" "}
+                        {balance > 0.005 ? "Dr" : balance < -0.005 ? "Cr" : "Nil"}
+                      </span>
+                    </p>
+                  ) : null}
+                </td>
+                <td>
+                  <Label htmlFor={amountId} className="sr-only">
+                    Amount
+                  </Label>
+                  <Input
+                    ref={amountRef}
+                    id={amountId}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    inputMode="decimal"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    onKeyDown={onAmountEnter}
+                    placeholder="0.00"
+                  />
+                </td>
+                <td>
+                  <Label htmlFor={remarksId} className="sr-only">
+                    Remarks
+                  </Label>
+                  <Input
+                    ref={remarksRef}
+                    id={remarksId}
+                    value={remarks}
+                    onChange={(e) => setRemarks(e.target.value)}
+                    onKeyDown={onRemarksEnter}
+                    placeholder="Next / collected note"
+                  />
+                </td>
+                <td>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    className="px-2"
+                    onClick={() => commitLine()}
+                    title="Add line (or press Enter on Remarks)"
+                    data-enter-skip
+                  >
+                    Add
+                  </Button>
+                </td>
+              </tr>
+
               {lines.length === 0 ? (
                 <tr>
                   <td
                     colSpan={5}
-                    className="px-3 py-6 text-center text-[var(--muted)]"
+                    className="py-6 text-center text-sm text-[var(--muted)]"
                   >
-                    No recoveries added yet — add lines above, then record.
+                    Added recoveries appear here. Keep using the top row to add
+                    more.
                   </td>
                 </tr>
               ) : (
                 lines.map((line) => (
-                  <tr
-                    key={line.key}
-                    className="border-t border-[var(--border)]"
-                  >
-                    <td className="px-3 py-2 font-medium tabular-nums">
-                      {line.partyCode}
-                    </td>
-                    <td className="max-w-[14rem] truncate px-3 py-2">
-                      {line.partyName}
-                    </td>
-                    <td className="px-3 py-2 text-right font-semibold tabular-nums text-emerald-700">
+                  <tr key={line.key} className="border-t border-[var(--border)]">
+                    <td className="font-medium tabular-nums">{line.partyCode}</td>
+                    <td className="max-w-[16rem] truncate">{line.partyName}</td>
+                    <td className="text-right font-semibold tabular-nums text-emerald-700">
                       {formatPkr(line.amount)}
                     </td>
-                    <td className="max-w-[12rem] truncate px-3 py-2 text-[var(--muted)]">
+                    <td className="max-w-[14rem] truncate text-[var(--muted)]">
                       {line.remarks || "—"}
                     </td>
-                    <td className="px-2 py-2">
+                    <td>
                       <button
                         type="button"
                         className="rounded-lg p-1.5 text-[var(--muted)] hover:bg-rose-50 hover:text-rose-700"
@@ -387,14 +387,13 @@ export function RecoveryForm({
             </tbody>
           </table>
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-sm">
+
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-sm">
           <span className="text-[var(--muted)]">
             {lines.length} line{lines.length === 1 ? "" : "s"}
             {draftAmt > 0 && partyId ? " (+ draft)" : ""}
           </span>
-          <span className="font-semibold">
-            Total {formatPkr(grand)}
-          </span>
+          <span className="font-semibold">Total {formatPkr(grand)}</span>
         </div>
       </div>
 

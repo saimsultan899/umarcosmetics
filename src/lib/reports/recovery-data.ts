@@ -60,15 +60,15 @@ export type RecoverySheetInput = {
   companyId: string;
   from: string;
   to: string;
-  /** parties.route filter (Sector). Empty = all sectors. */
-  sector?: string;
+  /** parties.route filter. Empty = all sectors. */
+  sectors?: string[];
+  /** Narrow to specific party ids. */
+  partyIds?: string[];
   scope: RecoveryScope;
   /** manufacturer string when scope === "brand". */
   brand?: string;
   /** warehouse id when scope === "warehouse". */
   warehouseId?: string;
-  /** Narrow to a single party (shop) id. Empty = every party in scope. */
-  partyId?: string;
   include?: RecoveryInclude;
 };
 
@@ -112,11 +112,11 @@ export async function buildRecoverySheet(
     companyId,
     from,
     to,
-    sector,
+    sectors = [],
     scope,
     brand,
     warehouseId,
-    partyId,
+    partyIds = [],
     include = "all",
   } = input;
 
@@ -140,7 +140,7 @@ export async function buildRecoverySheet(
       p_company_id: companyId,
       p_as_of: to,
       p_city: null,
-      p_route: sector || null,
+      p_route: sectors.length === 1 ? sectors[0] : null,
     }),
     (() => {
       let query = supabase
@@ -149,8 +149,8 @@ export async function buildRecoverySheet(
         .eq("company_id", companyId)
         .eq("is_active", true)
         .in("party_subtype", ["customer", "both"]);
-      if (sector) query = query.eq("route", sector);
-      if (partyId) query = query.eq("id", partyId);
+      if (sectors.length) query = query.in("route", sectors);
+      if (partyIds.length) query = query.in("id", partyIds);
       return query.order("name_en").limit(20000);
     })(),
     fetchLastSalesByParty(supabase, companyId, to),
@@ -224,9 +224,12 @@ export async function buildRecoverySheet(
     { count: 0, dueTotal: 0, crTotal: 0, netTotal: 0 },
   );
 
-  const selectedParty = partyId
-    ? (partyRows.data || []).find((p) => (p.id as string) === partyId)
-    : null;
+  const selectedParties =
+    partyIds.length > 0
+      ? (partyRows.data || []).filter((p) =>
+          partyIds.includes(p.id as string),
+        )
+      : [];
   const scopeParts: string[] = [];
   if (scope === "warehouse") {
     scopeParts.push(
@@ -235,12 +238,22 @@ export async function buildRecoverySheet(
   } else if (scope === "brand") {
     scopeParts.push(`Brand — ${brand || "?"}`);
   }
-  if (selectedParty) {
+  if (sectors.length) {
     scopeParts.push(
-      `Customer — ${((selectedParty.party_code as string) || "").trim()} ${(
-        (selectedParty.name_en as string) || ""
+      sectors.length === 1
+        ? `Sector — ${sectors[0]}`
+        : `Sectors — ${sectors.length} selected`,
+    );
+  }
+  if (selectedParties.length === 1) {
+    const p = selectedParties[0];
+    scopeParts.push(
+      `Customer — ${((p.party_code as string) || "").trim()} ${(
+        (p.name_en as string) || ""
       ).trim()}`.trim(),
     );
+  } else if (selectedParties.length > 1) {
+    scopeParts.push(`Customers — ${selectedParties.length} selected`);
   }
   const scopeLabel = scopeParts.length ? scopeParts.join(" · ") : "All customers";
 

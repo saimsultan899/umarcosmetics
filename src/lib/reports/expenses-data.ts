@@ -42,8 +42,8 @@ export async function buildExpenseReport(
     companyId: string;
     from: string;
     to: string;
-    category?: string;
-    salesmanId?: string;
+    categories?: string[];
+    salesmanIds?: string[];
   },
 ): Promise<ExpenseReportResult> {
   let query = supabase
@@ -55,9 +55,22 @@ export async function buildExpenseReport(
     .gte("expense_date", input.from)
     .lte("expense_date", input.to);
 
-  if (input.category) query = query.eq("category", input.category);
-  if (input.salesmanId === "unassigned") query = query.is("salesman_id", null);
-  else if (input.salesmanId) query = query.eq("salesman_id", input.salesmanId);
+  if (input.categories?.length) {
+    query = query.in("category", input.categories);
+  }
+
+  const salesmanIds = input.salesmanIds || [];
+  const hasUnassigned = salesmanIds.includes("unassigned");
+  const realSalesmanIds = salesmanIds.filter((id) => id !== "unassigned");
+  if (hasUnassigned && realSalesmanIds.length === 0) {
+    query = query.is("salesman_id", null);
+  } else if (hasUnassigned && realSalesmanIds.length > 0) {
+    query = query.or(
+      `salesman_id.is.null,salesman_id.in.(${realSalesmanIds.join(",")})`,
+    );
+  } else if (realSalesmanIds.length > 0) {
+    query = query.in("salesman_id", realSalesmanIds);
+  }
 
   const { data, error } = await query
     .order("expense_date", { ascending: true })

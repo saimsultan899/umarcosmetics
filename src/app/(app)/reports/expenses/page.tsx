@@ -1,11 +1,12 @@
 import { ChartCard } from "@/components/analytics/chart-card";
 import { DonutChart, RankBars, TrendAreaChart } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
-import { FilterSelect, ReportFilters } from "@/components/reports/report-filters";
+import { FilterMultiSelect, ReportFilters } from "@/components/reports/report-filters";
 import { ReportTable } from "@/components/reports/report-table";
 import { requireCompanyContext } from "@/lib/auth";
 import { EXPENSE_CATEGORIES } from "@/lib/expenses/categories";
 import { fetchCompanySalesmen } from "@/lib/queries/salesmen";
+import { parseReportList } from "@/lib/reports/filter-params";
 import { buildExpenseReport } from "@/lib/reports/expenses-data";
 import { formatPkr } from "@/lib/utils";
 import { Banknote, Receipt, Users, Wallet } from "lucide-react";
@@ -34,16 +35,16 @@ export default async function ExpenseReportPage({
   const { supabase, company } = await requireCompanyContext();
   const from = sp.from || monthStart();
   const to = sp.to || today();
-  const category = sp.category || "";
-  const salesmanId = sp.salesman || "";
+  const categories = parseReportList(sp.category);
+  const salesmanIds = parseReportList(sp.salesman);
 
   const [report, salesmen] = await Promise.all([
     buildExpenseReport(supabase, {
       companyId: company.id,
       from,
       to,
-      category,
-      salesmanId,
+      categories,
+      salesmanIds,
     }),
     fetchCompanySalesmen(supabase, company.id),
   ]);
@@ -133,20 +134,20 @@ export default async function ExpenseReportPage({
         defaults={{ from, to }}
         extras={
           <>
-            <FilterSelect
+            <FilterMultiSelect
               name="category"
               label="Type"
-              value={category}
+              value={sp.category}
               allLabel="All types"
               options={EXPENSE_CATEGORIES.map((c) => ({
                 value: c.value,
                 label: c.label,
               }))}
             />
-            <FilterSelect
+            <FilterMultiSelect
               name="salesman"
               label="Salesman"
-              value={salesmanId}
+              value={sp.salesman}
               allLabel="All salesmen"
               options={[
                 ...salesmen.map((s) => ({

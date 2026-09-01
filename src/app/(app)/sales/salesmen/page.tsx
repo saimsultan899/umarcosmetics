@@ -5,9 +5,10 @@ import {
   TrendAreaChart,
 } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
-import { FilterSelect, ReportFilters } from "@/components/reports/report-filters";
+import { FilterMultiSelect, ReportFilters } from "@/components/reports/report-filters";
 import { ReportTable } from "@/components/reports/report-table";
 import { requireCompanyContext } from "@/lib/auth";
+import { parseReportList } from "@/lib/reports/filter-params";
 import { buildSalesmanReport } from "@/lib/reports/salesman-data";
 import { formatPkr } from "@/lib/utils";
 import {
@@ -42,19 +43,20 @@ export default async function SalesmenPerformancePage({
   const { supabase, company } = await requireCompanyContext();
   const from = sp.from || monthStart();
   const to = sp.to || today();
-  const salesmanId = sp.salesman || "";
-  const sector = sp.sector || "";
+  const salesmanIds = parseReportList(sp.salesman);
+  const sectors = parseReportList(sp.sector);
 
   const report = await buildSalesmanReport(supabase, {
     companyId: company.id,
     from,
     to,
-    salesmanId,
-    sector,
+    salesmanIds,
+    sectors,
   });
 
   const { totals } = report;
-  const focused = Boolean(salesmanId);
+  const focused = salesmanIds.length === 1;
+  const focusedSalesmanId = salesmanIds[0] || "";
 
   const topBars = report.rows
     .filter((r) => r.sales > 0)
@@ -239,17 +241,17 @@ export default async function SalesmenPerformancePage({
         defaults={{ from, to }}
         extras={
           <>
-            <FilterSelect
+            <FilterMultiSelect
               name="salesman"
               label="Salesman"
-              value={salesmanId}
+              value={sp.salesman}
               allLabel="All salesmen"
               options={report.salesmanOptions}
             />
-            <FilterSelect
+            <FilterMultiSelect
               name="sector"
               label="Sector"
-              value={sector}
+              value={sp.sector}
               allLabel="All sectors"
               options={report.sectorOptions.map((s) => ({ value: s, label: s }))}
             />
@@ -263,7 +265,7 @@ export default async function SalesmenPerformancePage({
         </p>
       ) : null}
 
-      {report.unassignedRecovered > 0 && !salesmanId ? (
+      {report.unassignedRecovered > 0 && !salesmanIds.length ? (
         <p className="no-print rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
           {formatPkr(report.unassignedRecovered)} recovered without a salesman selected
           and without a sector assignment. Select salesman when recording recovery, or
@@ -288,7 +290,7 @@ export default async function SalesmenPerformancePage({
               Sector: s.route || "—",
               Amount: s.amount,
             }))}
-            filename={`salesman-sales-${salesmanId}-${from}`}
+            filename={`salesman-sales-${focusedSalesmanId}-${from}`}
           />
           <ReportTable
             title="Recovery history"
@@ -301,7 +303,7 @@ export default async function SalesmenPerformancePage({
               Amount: r.amount,
               Remarks: r.remarks || "—",
             }))}
-            filename={`salesman-recoveries-${salesmanId}-${from}`}
+            filename={`salesman-recoveries-${focusedSalesmanId}-${from}`}
           />
           <ReportTable
             title="Salary & expenses"
@@ -314,7 +316,7 @@ export default async function SalesmenPerformancePage({
               "Amount paid": e.amount,
               Remarks: e.remarks || "—",
             }))}
-            filename={`salesman-expenses-${salesmanId}-${from}`}
+            filename={`salesman-expenses-${focusedSalesmanId}-${from}`}
           />
         </div>
       ) : (
@@ -330,7 +332,7 @@ export default async function SalesmenPerformancePage({
         companyName={company.name}
         subtitle={`${from} to ${to} · ${report.rows.length} salesman${
           report.rows.length === 1 ? "" : "en"
-        }${salesmanId ? " · filtered view" : " · pick a salesman filter for line history"}`}
+        }${focused ? " · filtered view" : " · pick a salesman filter for line history"}`}
         rows={reportRows}
         filename={`salesman-report-${from}-${to}`}
       />

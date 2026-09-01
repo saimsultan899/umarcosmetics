@@ -2,9 +2,12 @@
 
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { FilterMultiSelect } from "@/components/reports/filter-multi-select";
 import { UrlFilterForm } from "@/components/reports/url-filter-form";
 
 type Option = { value: string; label: string };
+
+export { FilterMultiSelect };
 
 export function ReportFilters({
   action,
