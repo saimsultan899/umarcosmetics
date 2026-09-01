@@ -2,8 +2,9 @@ import { one } from "@/lib/reports/helpers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
- * Recovery Sheet — printable field-collection list that mirrors the paper
- * "Recovery Sheet" (Code · Name · Balance · Rec · Remarks), grouped by Sector.
+ * Customer Receivables — printable field-collection list matching the paper
+ * sheet (Acc ID · Customer name · Prev. balance · Last sale ID · Last sale ·
+ * Last sale value · Final bal. · Received · Remarks), grouped by Sector.
  *
  * Scope:
  *  - "all"       — every customer shop (incl. Nil balances)
@@ -26,6 +27,13 @@ export type RecoverySheetRow = {
   city: string | null;
   route: string | null;
   balance: number;
+  /** Balance before the most recent posted sale. */
+  prev_balance: number;
+  last_sale_id: string | null;
+  last_sale_date: string | null;
+  last_sale_value: number | null;
+  /** Same as balance — shown as FINAL BAL. on the paper sheet. */
+  final_balance: number;
 };
 
 export type RecoverySheetSection = {
@@ -112,8 +120,9 @@ export async function buildRecoverySheet(
     include = "all",
   } = input;
 
-  // Dropdown sources + balances + authoritative shop list, all in parallel.
-  const [manufacturers, warehouses, balanceSheet, partyRows] = await Promise.all([
+  // Dropdown sources + balances + authoritative shop list + last sales, all in parallel.
+  const [manufacturers, warehouses, balanceSheet, partyRows, lastSales] =
+    await Promise.all([
     supabase
       .from("products")
       .select("manufacturer")
@@ -144,6 +153,7 @@ export async function buildRecoverySheet(
       if (partyId) query = query.eq("id", partyId);
       return query.order("name_en").limit(20000);
     })(),
+    fetchLastSalesByParty(supabase, companyId, to),
   ]);
 
   if (balanceSheet.error) throw new Error(balanceSheet.error.message);
@@ -175,14 +185,28 @@ export async function buildRecoverySheet(
     warehouseId,
   });
 
-  let flat: RecoverySheetRow[] = (partyRows.data || []).map((p) => ({
-    party_id: p.id as string,
-    party_code: (p.party_code as string) || "",
-    name_en: (p.name_en as string) || "",
-    city: (p.city as string | null) ?? null,
-    route: (p.route as string | null) ?? null,
-    balance: balanceByParty.get(p.id as string) ?? 0,
-  }));
+  let flat: RecoverySheetRow[] = (partyRows.data || []).map((p) => {
+    const partyId = p.id as string;
+    const balance = balanceByParty.get(partyId) ?? 0;
+    const last = lastSales.get(partyId);
+    const lastSaleValue = last ? last.grand_total : null;
+    const prevBalance =
+      lastSaleValue != null ? balance - lastSaleValue : balance;
+
+    return {
+      party_id: partyId,
+      party_code: (p.party_code as string) || "",
+      name_en: (p.name_en as string) || "",
+      city: (p.city as string | null) ?? null,
+      route: (p.route as string | null) ?? null,
+      balance,
+      prev_balance: prevBalance,
+      last_sale_id: last?.invoice_no ?? null,
+      last_sale_date: last?.invoice_date ?? null,
+      last_sale_value: lastSaleValue,
+      final_balance: balance,
+    };
+  });
 
   if (activeSet) flat = flat.filter((r) => activeSet.has(r.party_id));
   if (include === "dues") flat = flat.filter((r) => r.balance > 0.005);
@@ -310,6 +334,42 @@ async function resolveActiveParties(
   }
 
   return null;
+}
+
+async function fetchLastSalesByParty(
+  supabase: SupabaseClient,
+  companyId: string,
+  to: string,
+) {
+  const { data, error } = await supabase
+    .from("sale_invoices")
+    .select("party_id, invoice_no, invoice_date, grand_total, created_at")
+    .eq("company_id", companyId)
+    .eq("status", "posted")
+    .lte("invoice_date", to)
+    .not("party_id", "is", null)
+    .order("invoice_date", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(50000);
+
+  if (error) throw new Error(error.message);
+
+  const map = new Map<
+    string,
+    { invoice_no: string; invoice_date: string; grand_total: number }
+  >();
+
+  for (const row of data || []) {
+    const partyId = row.party_id as string;
+    if (!partyId || map.has(partyId)) continue;
+    map.set(partyId, {
+      invoice_no: String(row.invoice_no || ""),
+      invoice_date: String(row.invoice_date || ""),
+      grand_total: Number(row.grand_total || 0),
+    });
+  }
+
+  return map;
 }
 
 function groupBySector(rows: RecoverySheetRow[]): RecoverySheetSection[] {

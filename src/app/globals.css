@@ -801,24 +801,40 @@ button[aria-haspopup="listbox"]:focus-visible {
 
 .recovery-balance-table {
   width: 100%;
-  min-width: 100%;
+  min-width: 1180px;
   table-layout: fixed;
 }
 
 .recovery-balance-table__col-sector {
-  width: 11%;
+  width: 6%;
 }
 
 .recovery-balance-table__col-code {
-  width: 7%;
+  width: 6%;
 }
 
 .recovery-balance-table__col-name {
-  width: 52%;
+  width: 23%;
 }
 
-.recovery-balance-table__col-balance {
-  width: 12%;
+.recovery-balance-table__col-prev {
+  width: 10%;
+}
+
+.recovery-balance-table__col-sale-id {
+  width: 9%;
+}
+
+.recovery-balance-table__col-sale-date {
+  width: 9%;
+}
+
+.recovery-balance-table__col-sale-value {
+  width: 10%;
+}
+
+.recovery-balance-table__col-final {
+  width: 10%;
 }
 
 .recovery-balance-table__col-rec {
@@ -826,7 +842,7 @@ button[aria-haspopup="listbox"]:focus-visible {
 }
 
 .recovery-balance-table__col-remarks {
-  width: 10%;
+  width: 9%;
 }
 
 .recovery-balance-table th,
@@ -856,19 +872,31 @@ button[aria-haspopup="listbox"]:focus-visible {
   color: var(--ink);
 }
 
-.recovery-balance-table__balance {
+.recovery-balance-table__num,
+.recovery-balance-table__sale-id,
+.recovery-balance-table__sale-date {
   font-size: 11px;
   text-align: right;
 }
 
+.recovery-balance-table__sale-date {
+  text-align: left;
+}
+
 .recovery-balance-table th:nth-child(4),
-.recovery-balance-table td:nth-child(4) {
+.recovery-balance-table td:nth-child(4),
+.recovery-balance-table th:nth-child(5),
+.recovery-balance-table td:nth-child(5),
+.recovery-balance-table th:nth-child(7),
+.recovery-balance-table td:nth-child(7),
+.recovery-balance-table th:nth-child(8),
+.recovery-balance-table td:nth-child(8) {
   text-align: right;
 }
 
 .recovery-balance-table__rec,
 .recovery-balance-table__remarks {
-  padding-inline: 6px;
+  padding-inline: 5px;
 }
 
 /* Page-change loading: blur the current rows and float one round spinner. */
@@ -1493,6 +1521,12 @@ button[aria-haspopup="listbox"]:focus-visible {
   padding-bottom: 4px;
   margin-bottom: 4px;
 }
+.recovery-sheet-head__left {
+  min-width: 0;
+}
+.recovery-sheet-head__right {
+  text-align: right;
+}
 .recovery-sheet-title {
   margin: 0;
   font-size: 16px;
@@ -1500,9 +1534,23 @@ button[aria-haspopup="listbox"]:focus-visible {
   letter-spacing: 0.01em;
   line-height: 1.1;
 }
-.recovery-sheet-co {
-  margin: 1px 0 0;
+.recovery-sheet-meta {
+  margin-top: 4px;
   font-size: 10px;
+  line-height: 1.35;
+}
+.recovery-sheet-meta p {
+  margin: 0;
+}
+.recovery-sheet-meta span {
+  display: inline-block;
+  min-width: 16mm;
+  font-weight: 600;
+}
+.recovery-sheet-co {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
   line-height: 1.2;
 }
 .recovery-sheet-scope {
@@ -1544,6 +1592,33 @@ button[aria-haspopup="listbox"]:focus-visible {
   table-layout: fixed;
   font-size: 9px;
   line-height: 1.15;
+}
+.recovery-sheet__col-id {
+  width: 6%;
+}
+.recovery-sheet__col-name {
+  width: 24%;
+}
+.recovery-sheet__col-prev {
+  width: 10%;
+}
+.recovery-sheet__col-sale-id {
+  width: 9%;
+}
+.recovery-sheet__col-sale-date {
+  width: 9%;
+}
+.recovery-sheet__col-sale-value {
+  width: 10%;
+}
+.recovery-sheet__col-final {
+  width: 10%;
+}
+.recovery-sheet__col-rec {
+  width: 8%;
+}
+.recovery-sheet__col-remarks {
+  width: 9%;
 }
 .recovery-sheet th {
   border: 1px solid #111;

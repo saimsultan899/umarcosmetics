@@ -97,7 +97,7 @@ export const mainNav: NavItem[] = [
       { label: "Expense report", href: "/reports/expenses" },
       { label: "Customer balances", href: "/reports/accounts?view=receivable" },
       { label: "Customer ledger", href: "/reports/accounts?view=ledger" },
-      { label: "Recovery sheet", href: "/reports/recovery" },
+      { label: "Customer receivables", href: "/reports/recovery" },
       { label: "Aging report", href: "/reports/aging" },
       { label: "Salesman performance", href: "/sales/salesmen" },
       { label: "Salesman ledger", href: "/reports/salesman-ledger" },

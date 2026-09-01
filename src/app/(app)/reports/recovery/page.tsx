@@ -284,6 +284,7 @@ export default async function RecoverySheetPage({
         from={from}
         to={to}
         scopeLabel={sheet.scopeLabel}
+        townLabel={sector || "All Towns"}
         sections={sheet.sections}
         grand={sheet.grand}
       />
