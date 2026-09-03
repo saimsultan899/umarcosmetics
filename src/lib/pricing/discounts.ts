@@ -22,6 +22,7 @@
  *   "Rs 50" / "50/-"   → flat Rs 50 off the line
  *   "10/pc" / "Rs 10 per piece" → Rs 10 off each piece
  *   "10+1" / "10+1 free"        → free-goods: buy 10, get 1 free
+ *   "+1" / "+ 2"                → fixed free pieces on this line
  *   ""/unknown        → no discount (kind "none"), never throws
  *
  * Pure and dependency-free.
@@ -32,6 +33,7 @@ export type SchemeRule =
   | { kind: "flat"; amount: number }
   | { kind: "per_unit"; amount: number }
   | { kind: "free_goods"; buy: number; free: number }
+  | { kind: "free_fixed"; free: number }
   | { kind: "none" };
 
 export type SchemeResult = {
@@ -91,6 +93,13 @@ export function parseScheme(text: unknown): SchemeRule {
     if (buy > 0 && free > 0) return { kind: "free_goods", buy, free };
   }
 
+  // Shorthand free only: "+1", "+ 2", "+1 free" → N free pieces on this line
+  const plusOnly = s.match(/^\+\s*(\d+)/);
+  if (plusOnly) {
+    const free = num(plusOnly[1]);
+    if (free > 0) return { kind: "free_fixed", free };
+  }
+
   // Flat rupees: "Rs 50", "₨50", "50/-", or a bare number
   const flat = s.match(/(?:rs\.?|₨|rupees)?\s*(\d+(?:\.\d+)?)\s*(?:\/-|\/=|rs)?/);
   if (flat && num(flat[1]) > 0) return { kind: "flat", amount: num(flat[1]) };
@@ -108,6 +117,8 @@ function labelFor(rule: SchemeRule): string {
       return `Rs ${round2(rule.amount)}/pc`;
     case "free_goods":
       return `${rule.buy}+${rule.free} free`;
+    case "free_fixed":
+      return `+${rule.free} free`;
     default:
       return "—";
   }
@@ -159,6 +170,12 @@ export function applyScheme(
       base.freeQty = bundles * rule.free;
       base.discountValue = round2(base.freeQty * r);
       // free-goods is not a price discount by default; leave `discount` at 0.
+      return base;
+    }
+    case "free_fixed": {
+      // "+N": N free pieces on this line (not a buy/get ratio).
+      base.freeQty = rule.free;
+      base.discountValue = round2(base.freeQty * r);
       return base;
     }
     default:

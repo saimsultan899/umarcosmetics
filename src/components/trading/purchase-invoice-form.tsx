@@ -43,6 +43,7 @@ export function PurchaseInvoiceForm({
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10));
   const [supplierBillNo, setSupplierBillNo] = useState("");
   const [narration, setNarration] = useState("");
+  const [extraDiscount, setExtraDiscount] = useState("");
   const [lines, setLines] = useState<LineItemDraft[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +57,14 @@ export function PurchaseInvoiceForm({
       return;
     }
 
-    const { subtotal, discount_total, grand_total } = summarizeLines(valid);
+    const { subtotal, discount_total, grand_total: linesTotal } = summarizeLines(valid);
+    const extra = Math.max(0, Number(extraDiscount) || 0);
+    if (extra > linesTotal + 0.005) {
+      setError("Extra discount cannot exceed the bill amount after trade discount.");
+      return;
+    }
+    const grand_total = Math.max(0, linesTotal - extra);
+
     setLoading(true);
     const supabase = createClient();
     const { data, error: rpcError } = await supabase.rpc("create_purchase_invoice", {
@@ -69,6 +77,7 @@ export function PurchaseInvoiceForm({
         warehouse_id: warehouseId,
         subtotal,
         discount_total,
+        extra_discount: extra,
         grand_total,
         narration,
         items: valid.map((l) => ({
@@ -142,6 +151,8 @@ export function PurchaseInvoiceForm({
         warehouseId={warehouseId}
         warehouses={warehouses}
         onAutoPickWarehouse={setWarehouseId}
+        extraDiscount={extraDiscount}
+        onExtraDiscountChange={setExtraDiscount}
       />
 
       {error ? (

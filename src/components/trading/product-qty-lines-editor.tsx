@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, type SelectHandle } from "@/components/ui/select";
+import { QtyUnitControl } from "@/components/trading/qty-unit-control";
 import { focusField } from "@/lib/keyboard/enter-nav";
 import type { Product } from "@/lib/types/database";
 import { Trash2 } from "lucide-react";
@@ -33,8 +34,9 @@ export function emptyProductQtyLine(): ProductQtyLine {
 }
 
 /**
- * Sticky code→product→qty entry for load sheets / transfers.
+ * Sticky code→product→qty entry for load sheets / transfers / gate passes.
  * Enter advances fields; Enter on qty commits the line and returns to code.
+ * Qty supports PCS / CTN toggle when product packing > 1.
  */
 export function ProductQtyLinesEditor({
   products,
@@ -69,6 +71,12 @@ export function ProductQtyLinesEditor({
     const t = requestAnimationFrame(() => focusField(codeRef.current));
     return () => cancelAnimationFrame(t);
   }, [autoFocus]);
+
+  const productById = useMemo(() => {
+    const map = new Map<string, Product>();
+    for (const p of products) map.set(p.id, p);
+    return map;
+  }, [products]);
 
   const productOptions = useMemo(
     () => [
@@ -191,11 +199,13 @@ export function ProductQtyLinesEditor({
     requestAnimationFrame(() => focusField(codeRef.current));
   }
 
+  const draftProduct = productById.get(draft.product_id);
+
   return (
     <div className="space-y-2" data-enter-own>
       <p className="text-xs text-[var(--muted)]">
-        Code → Enter → product dropdown → qty → Enter adds the line. Cursor
-        returns to code for the next item.
+        Code → Enter → product → qty (PCS/CTN) → Enter adds the line. Stock is
+        always saved in base units.
       </p>
       <div className="table-grid">
         <table className="w-full min-w-[640px] text-sm">
@@ -203,7 +213,7 @@ export function ProductQtyLinesEditor({
             <tr className="bg-[var(--surface-2)] text-left text-[11px] uppercase tracking-wide text-[var(--muted)]">
               <th className="w-24 px-3 py-2">Code</th>
               <th className="px-3 py-2">Product</th>
-              <th className="w-28 px-3 py-2">Qty</th>
+              <th className="w-40 px-3 py-2">Qty</th>
               <th className="w-12 px-3 py-2" />
             </tr>
           </thead>
@@ -234,14 +244,15 @@ export function ProductQtyLinesEditor({
                 ) : null}
               </td>
               <td className="px-3 py-2">
-                <Input
-                  ref={qtyRef}
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  value={draft.qty}
-                  onChange={(e) => patchDraft({ qty: e.target.value })}
-                  onKeyDown={onQtyEnter}
+                <QtyUnitControl
+                  packing={draftProduct?.packing ?? 1}
+                  unitType={draftProduct?.unit_type}
+                  baseUnit={draftProduct?.base_unit}
+                  qty={draft.qty}
+                  qtyInputRef={qtyRef}
+                  onQtyChange={(qty) => patchDraft({ qty })}
+                  onQtyKeyDown={onQtyEnter}
+                  compact
                 />
               </td>
               <td className="px-3 py-2">
@@ -267,47 +278,49 @@ export function ProductQtyLinesEditor({
                 </td>
               </tr>
             ) : (
-              lines.map((line) => (
-                <tr key={line.key} className="border-t border-[var(--border)]">
-                  <td className="px-3 py-2 font-medium">{line.product_code}</td>
-                  <td className="px-3 py-2">{line.product_name}</td>
-                  <td className="px-3 py-2">
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.1"
-                      value={line.qty}
-                      onChange={(e) => {
-                        const next = lines.map((l) =>
-                          l.key === line.key
-                            ? { ...l, qty: e.target.value }
-                            : l,
-                        );
-                        linesRef.current = next;
-                        onChange(next);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          focusField(codeRef.current);
-                        }
-                      }}
-                    />
-                  </td>
-                  <td className="px-3 py-2">
-                    <button
-                      type="button"
-                      className="rounded-lg p-2 text-[var(--muted)] hover:bg-rose-50 hover:text-rose-700"
-                      onClick={() => removeLine(line.key)}
-                      data-enter-skip
-                      aria-label="Remove line"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))
+              lines.map((line) => {
+                const p = productById.get(line.product_id);
+                return (
+                  <tr key={line.key} className="border-t border-[var(--border)]">
+                    <td className="px-3 py-2 font-medium">{line.product_code}</td>
+                    <td className="px-3 py-2">{line.product_name}</td>
+                    <td className="px-3 py-2">
+                      <QtyUnitControl
+                        packing={p?.packing ?? 1}
+                        unitType={p?.unit_type}
+                        baseUnit={p?.base_unit}
+                        qty={line.qty}
+                        onQtyChange={(qty) => {
+                          const next = lines.map((l) =>
+                            l.key === line.key ? { ...l, qty } : l,
+                          );
+                          linesRef.current = next;
+                          onChange(next);
+                        }}
+                        onQtyKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            focusField(codeRef.current);
+                          }
+                        }}
+                        compact
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <button
+                        type="button"
+                        className="rounded-lg p-2 text-[var(--muted)] hover:bg-rose-50 hover:text-rose-700"
+                        onClick={() => removeLine(line.key)}
+                        data-enter-skip
+                        aria-label="Remove line"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

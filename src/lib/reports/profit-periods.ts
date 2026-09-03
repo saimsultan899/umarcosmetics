@@ -1,3 +1,9 @@
+import {
+  localDateIso,
+  monthEndLocal,
+  monthStartLocal,
+} from "@/lib/dates";
+
 export type ProfitPreset = "today" | "week" | "month" | "last_month" | "custom";
 
 export type ProfitPeriod = {
@@ -7,16 +13,12 @@ export type ProfitPeriod = {
   label: string;
 };
 
-function iso(d: Date) {
-  return d.toISOString().slice(0, 10);
-}
-
 export function todayIso() {
-  return iso(new Date());
+  return localDateIso();
 }
 
 export function monthStartIso(d = new Date()) {
-  return iso(new Date(d.getFullYear(), d.getMonth(), 1));
+  return monthStartLocal(d);
 }
 
 export const PROFIT_PRESETS: { id: ProfitPreset; label: string }[] = [
@@ -45,19 +47,18 @@ export function resolveProfitPeriod(input: {
     start.setDate(start.getDate() - 6);
     return {
       preset,
-      from: iso(start),
+      from: localDateIso(start),
       to: todayIso(),
       label: "This week (7 days)",
     };
   }
 
   if (preset === "last_month") {
-    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const end = new Date(now.getFullYear(), now.getMonth(), 0);
+    const anchor = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     return {
       preset,
-      from: iso(start),
-      to: iso(end),
+      from: monthStartLocal(anchor),
+      to: monthEndLocal(anchor),
       label: "Last month (full)",
     };
   }

@@ -1,5 +1,6 @@
 "use client";
 
+import { DocumentRowActions } from "@/components/tables/document-row-actions";
 import { TableScroll } from "@/components/tables/table-scroll";
 import {
   TableFilterSelect,
@@ -65,6 +66,7 @@ export function GatePassesTable({
                 <th>Company</th>
                 <th>Brand</th>
                 <th>Qty</th>
+                <th className="text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -84,11 +86,30 @@ export function GatePassesTable({
                     <td>{r.warehouse}</td>
                     <td className="text-[var(--muted)]">{r.brand}</td>
                     <td>{r.qty}</td>
+                    <td>
+                      <DocumentRowActions
+                        title={`Gate pass ${r.pass_no}`}
+                        href={`/purchases/gate-passes/${r.id}`}
+                        table="gate_passes"
+                        id={r.id}
+                        linesTable="gate_pass_items"
+                        linesFk="gate_pass_id"
+                        showPrint
+                        fields={[
+                          { label: "Pass #", value: r.pass_no },
+                          { label: "Date", value: r.pass_date },
+                          { label: "Vendor", value: r.supplier },
+                          { label: "Company", value: r.warehouse },
+                          { label: "Brand", value: r.brand },
+                          { label: "Qty", value: r.qty },
+                        ]}
+                      />
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-[var(--muted)]">
+                  <td colSpan={7} className="py-8 text-center text-[var(--muted)]">
                     No gate passes yet. Record the incoming company load above.
                   </td>
                 </tr>

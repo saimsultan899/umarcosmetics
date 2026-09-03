@@ -3,6 +3,7 @@ import { DonutChart, RankBars } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { ReportTable } from "@/components/reports/report-table";
 import { requireCompanyContext } from "@/lib/auth";
+import { formatUomCompact } from "@/lib/pricing/uom";
 import { formatPkr } from "@/lib/utils";
 import { AlertTriangle, Boxes, Package } from "lucide-react";
 import Link from "next/link";
@@ -20,19 +21,19 @@ export default async function StockReportPage({
     await Promise.all([
       supabase
         .from("stock_balances")
-        .select("qty, products(code, name_en, reorder_level, purchase_rate, manufacturer), warehouses(name)")
+        .select("qty, products(code, name_en, reorder_level, purchase_rate, manufacturer, packing, unit_type, base_unit), warehouses(name)")
         .eq("company_id", company.id)
         .order("qty", { ascending: false })
         .limit(1000),
       supabase
         .from("stock_movements")
-        .select("created_at, move_type, qty, products(code, name_en), warehouses(name)")
+        .select("created_at, move_type, qty, products(code, name_en, packing, unit_type, base_unit), warehouses(name)")
         .eq("company_id", company.id)
         .order("created_at", { ascending: false })
         .limit(200),
       supabase
         .from("products")
-        .select("code, name_en, manufacturer, category_group, reorder_level, opening_qty, purchase_rate, retail_rate")
+        .select("code, name_en, manufacturer, category_group, reorder_level, opening_qty, purchase_rate, retail_rate, packing, unit_type, base_unit")
         .eq("company_id", company.id)
         .eq("is_active", true)
         .order("code")
@@ -44,12 +45,17 @@ export default async function StockReportPage({
     const warehouse = Array.isArray(r.warehouses) ? r.warehouses[0] : r.warehouses;
     const qty = Number(r.qty);
     const rate = Number(product?.purchase_rate || 0);
+    const packing = Number(product?.packing || 1);
     return {
       Company: warehouse?.name || "—",
       Code: product?.code || "—",
       Product: product?.name_en || "—",
       Manufacturer: product?.manufacturer || "—",
       Qty: qty,
+      Packing: formatUomCompact(qty, packing, {
+        unitType: product?.unit_type,
+        baseUnit: product?.base_unit,
+      }),
       Reorder: Number(product?.reorder_level || 0),
       "Value (cost)": qty * rate,
       Status:
@@ -66,6 +72,11 @@ export default async function StockReportPage({
     Manufacturer: p.manufacturer || "—",
     Group: p.category_group || "—",
     "Opening qty": Number(p.opening_qty || 0),
+    Packing: formatUomCompact(p.opening_qty, p.packing, {
+      unitType: p.unit_type,
+      baseUnit: p.base_unit,
+    }),
+    "Per pack": Number(p.packing || 1),
     Reorder: Number(p.reorder_level || 0),
     "Purchase rate": Number(p.purchase_rate || 0),
     "Retail rate": Number(p.retail_rate || 0),
@@ -74,13 +85,18 @@ export default async function StockReportPage({
   const movementRows = (movements || []).map((m) => {
     const product = Array.isArray(m.products) ? m.products[0] : m.products;
     const warehouse = Array.isArray(m.warehouses) ? m.warehouses[0] : m.warehouses;
+    const qty = Number(m.qty);
     return {
       When: new Date(m.created_at).toLocaleString(),
       Type: String(m.move_type).replaceAll("_", " "),
       Company: warehouse?.name || "—",
       Code: product?.code || "—",
       Product: product?.name_en || "—",
-      Qty: Number(m.qty),
+      Qty: qty,
+      Packing: formatUomCompact(Math.abs(qty), product?.packing, {
+        unitType: product?.unit_type,
+        baseUnit: product?.base_unit,
+      }),
     };
   });
 

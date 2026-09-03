@@ -59,6 +59,7 @@ export default async function SaleReturnsPage({
           pagination={list.pagination}
           summary={list.summary}
           warehouses={warehouses}
+          showPrint
         />
       </Suspense>
     </div>

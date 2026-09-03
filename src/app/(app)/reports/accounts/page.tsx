@@ -5,6 +5,7 @@ import { ReportTable } from "@/components/reports/report-table";
 import { UrlFilterForm } from "@/components/reports/url-filter-form";
 import { Select } from "@/components/ui/select";
 import { requireCompanyContext } from "@/lib/auth";
+import { localDateIso } from "@/lib/dates";
 import { formatPkr } from "@/lib/utils";
 import { ArrowDownLeft, ArrowUpRight, Scale } from "lucide-react";
 import Link from "next/link";
@@ -36,7 +37,7 @@ export default async function AccountsReportPage({
 
   const { data: sheet } = await supabase.rpc("get_recovery_sheet", {
     p_company_id: company.id,
-    p_as_of: new Date().toISOString().slice(0, 10),
+    p_as_of: localDateIso(),
     p_city: null,
     p_route: null,
   });

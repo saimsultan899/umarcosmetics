@@ -5,10 +5,14 @@ import { notFound } from "next/navigation";
 
 export default async function GatePassDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
+  const sp = await searchParams;
+  const autoPrint = sp.print === "1" || sp.print === "true";
   const { supabase, company, profile } = await requireCompanyContext();
 
   const { data: pass } = await supabase
@@ -24,7 +28,7 @@ export default async function GatePassDetailPage({
 
   const { data: items } = await supabase
     .from("gate_pass_items")
-    .select("*")
+    .select("*, products(packing, unit_type, base_unit)")
     .eq("gate_pass_id", id)
     .order("sort_order");
 
@@ -75,12 +79,19 @@ export default async function GatePassDetailPage({
         poNo={pass.po_no}
         biltyNo={pass.bilty_no}
         remarks={pass.remarks}
-        lines={(items || []).map((i) => ({
-          product_code: i.product_code,
-          product_name: i.product_name,
-          qty: Number(i.qty),
-        }))}
+        lines={(items || []).map((i) => {
+          const product = Array.isArray(i.products) ? i.products[0] : i.products;
+          return {
+            product_code: i.product_code,
+            product_name: i.product_name,
+            qty: Number(i.qty),
+            packing: Number(product?.packing || 1),
+            unit_type: product?.unit_type || null,
+            base_unit: product?.base_unit || null,
+          };
+        })}
         preparedBy={profile?.full_name}
+        autoPrint={autoPrint}
       />
     </div>
   );

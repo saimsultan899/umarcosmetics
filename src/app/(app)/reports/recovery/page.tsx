@@ -16,15 +16,15 @@ import { buildRecoverySheet, parseScopeToken } from "@/lib/reports/recovery-data
 import { fetchCompanySalesmen } from "@/lib/queries/salesmen";
 import type { Party } from "@/lib/types/database";
 import { formatPkr } from "@/lib/utils";
+import { localDateIso, monthStartLocal } from "@/lib/dates";
 import { Layers, Store, Wallet } from "lucide-react";
 
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  return localDateIso();
 }
 
 function monthStart() {
-  const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+  return monthStartLocal();
 }
 
 function distinctSorted(values: Array<string | null | undefined>) {

@@ -105,8 +105,8 @@ export function PartyWiseSalesPrint({
   const reportAmount = groups.reduce((s, g) => s + g.amount, 0);
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className="space-y-3">
+      <div className="no-print flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold">
             Item, Customer Wise Sales Detail
@@ -118,7 +118,20 @@ export function PartyWiseSalesPrint({
         <ExportButtons rows={exportRows(rows)} filename={filename} />
       </div>
 
-      <div className="print-sheet classic-report">
+      {!groups.length ? (
+        <p className="no-print rounded-lg border border-dashed border-[var(--border)] bg-white px-4 py-6 text-center text-sm text-[var(--muted)]">
+          No posted sale lines for this filter. Post invoices or widen the date
+          range.
+        </p>
+      ) : null}
+
+      <div
+        className={
+          groups.length
+            ? "print-sheet classic-report"
+            : "print-only print-sheet classic-report"
+        }
+      >
         <div className="classic-report-head">
           <p className="classic-report-title">Item, Customer Wise Sales Detail</p>
           <p className="classic-report-dates">{formatReportRange(from, to)}</p>
@@ -196,9 +209,8 @@ export function PartyWiseSalesPrint({
             </section>
           ))
         ) : (
-          <p className="py-8 text-center text-sm text-[var(--muted)]">
-            No posted sale lines for this filter. Post invoices or widen the
-            date range.
+          <p className="py-4 text-center text-sm text-[var(--muted)]">
+            No posted sale lines for this filter.
           </p>
         )}
       </div>

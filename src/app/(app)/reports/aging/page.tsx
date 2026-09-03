@@ -4,6 +4,7 @@ import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { ReportTable } from "@/components/reports/report-table";
 import { UrlFilterForm } from "@/components/reports/url-filter-form";
 import { requireCompanyContext } from "@/lib/auth";
+import { localDateIso } from "@/lib/dates";
 import { formatPkr } from "@/lib/utils";
 import { AlertTriangle, Clock3, Wallet } from "lucide-react";
 import Link from "next/link";
@@ -30,7 +31,7 @@ export default async function AgingReportPage({
 }) {
   const sp = await searchParams;
   const { supabase, company } = await requireCompanyContext();
-  const asOf = sp.date || new Date().toISOString().slice(0, 10);
+  const asOf = sp.date || localDateIso();
 
   const { data } = await supabase.rpc("get_receivable_aging", {
     p_company_id: company.id,

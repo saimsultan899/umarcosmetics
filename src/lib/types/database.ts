@@ -115,7 +115,12 @@ export type Product = {
   opening_rate: number;
   opening_qty: number;
   reorder_level: number;
+  /** Units (base pieces) per outer pack / carton. */
   packing: number;
+  /** Outer pack label: Carton, Box, Pack, … */
+  unit_type?: string;
+  /** Stock-keeping unit label: Piece, Pcs, Unit, … */
+  base_unit?: string;
   scheme: string | null;
   is_active: boolean;
   created_at: string;

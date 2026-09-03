@@ -9,6 +9,24 @@ import { useUrlTableState } from "@/hooks/use-url-table-state";
 import { formatNumber, formatPkr } from "@/lib/utils";
 import { useEffect, useMemo, useState } from "react";
 
+function isMetaKey(key: string) {
+  return key.startsWith("_");
+}
+
+function visibleColumns(row: Record<string, unknown> | undefined) {
+  return row ? Object.keys(row).filter((k) => !isMetaKey(k)) : [];
+}
+
+function exportRows(rows: Record<string, unknown>[]) {
+  return rows.map((row) => {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(row)) {
+      if (!isMetaKey(k)) out[k] = v;
+    }
+    return out;
+  });
+}
+
 function formatCell(key: string, value: unknown) {
   if (value == null || value === "") return "—";
   if (
@@ -66,7 +84,8 @@ export function ReportTable({
     useUrlTableState();
   const [localQuery, setLocalQuery] = useState(q);
   const [printedAt, setPrintedAt] = useState("");
-  const columns = rows[0] ? Object.keys(rows[0]) : [];
+  const columns = visibleColumns(rows[0]);
+  const exportable = useMemo(() => exportRows(rows), [rows]);
 
   useEffect(() => {
     setLocalQuery(q);
@@ -87,6 +106,8 @@ export function ReportTable({
       ),
     );
   }, [rows, q, columns]);
+
+  const filteredExport = useMemo(() => exportRows(filtered), [filtered]);
 
   const total = filtered.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize) || 1);
@@ -114,7 +135,7 @@ export function ReportTable({
   }, [columns, numericCols, filtered]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold">
@@ -124,7 +145,10 @@ export function ReportTable({
             <p className="text-sm text-[var(--muted)]">{subtitle}</p>
           ) : null}
         </div>
-        <ExportButtons rows={filtered} filename={filename} />
+        <ExportButtons
+          rows={filteredExport.length ? filteredExport : exportable}
+          filename={filename}
+        />
       </div>
 
       <TableToolbar
@@ -141,12 +165,6 @@ export function ReportTable({
 
       {/* Interactive, paginated table — screen only */}
       <div className="table-shell">
-        <div className="border-b border-[var(--border)] px-4 py-3">
-          <p className="font-semibold">{title}</p>
-          <p className="text-xs text-[var(--muted)]">
-            {subtitle || `${filtered.length} rows`} · page {safePage}/{totalPages}
-          </p>
-        </div>
         <TableScroll loading={isPending}>
           <table>
             <thead>
@@ -161,21 +179,29 @@ export function ReportTable({
             </thead>
             <tbody>
               {slice.length ? (
-                slice.map((row, idx) => (
-                  <tr key={`${from}-${idx}`}>
-                    {columns.map((c) => (
-                      <td key={c}>{formatCell(c, row[c])}</td>
-                    ))}
-                    <td className="no-print">
-                      <RowActions
-                        viewTitle="Row details"
-                        viewFields={rowFields(row, columns)}
-                        allowEdit={false}
-                        allowDelete={false}
-                      />
-                    </td>
-                  </tr>
-                ))
+                slice.map((row, idx) => {
+                  const href =
+                    typeof row._href === "string" && row._href
+                      ? row._href
+                      : undefined;
+                  return (
+                    <tr key={`${from}-${idx}`}>
+                      {columns.map((c) => (
+                        <td key={c}>{formatCell(c, row[c])}</td>
+                      ))}
+                      <td className="no-print">
+                        <RowActions
+                          viewTitle="Row details"
+                          viewFields={rowFields(row, columns)}
+                          href={href}
+                          printHref={href}
+                          allowEdit={false}
+                          allowDelete={false}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
                   <td

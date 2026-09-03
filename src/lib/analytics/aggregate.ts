@@ -1,3 +1,5 @@
+import { localDateIso } from "@/lib/dates";
+
 export type DayPoint = { name: string; value: number; secondary?: number };
 
 export function lastNDates(n: number, end = new Date()): string[] {
@@ -5,7 +7,7 @@ export function lastNDates(n: number, end = new Date()): string[] {
   for (let i = n - 1; i >= 0; i--) {
     const d = new Date(end);
     d.setDate(d.getDate() - i);
-    dates.push(d.toISOString().slice(0, 10));
+    dates.push(localDateIso(d));
   }
   return dates;
 }

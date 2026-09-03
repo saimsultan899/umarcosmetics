@@ -15,6 +15,9 @@ import type { Product, Warehouse } from "@/lib/types/database";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 
+const OUTER_UNIT = "Carton";
+const BASE_UNIT = "Unit";
+
 export function ProductForm({
   companyId,
   organizationId,
@@ -132,7 +135,9 @@ export function ProductForm({
       opening_qty: openingQty,
       opening_rate: Number(initial?.opening_rate ?? 0),
       reorder_level: Number(initial?.reorder_level ?? 0),
-      packing: Number(form.packing || 1),
+      packing: Math.max(1, Number(form.packing || 1)),
+      unit_type: OUTER_UNIT,
+      base_unit: BASE_UNIT,
       scheme: normalizedDiscount,
     };
 
@@ -225,12 +230,32 @@ export function ProductForm({
         <Input type="number" step="0.01" value={form.purchase_rate} onChange={(e) => set("purchase_rate", e.target.value)} />
       </div>
       <div>
-        <Label>Opening qty</Label>
+        <Label>Opening qty (base units)</Label>
         <Input type="number" step="0.1" value={form.opening_qty} onChange={(e) => set("opening_qty", e.target.value)} />
+        <p className="mt-1 text-[11px] text-[var(--muted)]">
+          Always stored in {BASE_UNIT.toLowerCase()}s. Use packing below to convert cartons.
+        </p>
       </div>
       <div>
-        <Label>Packing</Label>
-        <Input type="number" step="0.1" value={form.packing} onChange={(e) => set("packing", e.target.value)} />
+        <Label>Outer unit type</Label>
+        <Input value={OUTER_UNIT} readOnly disabled />
+      </div>
+      <div>
+        <Label>Base unit (stock)</Label>
+        <Input value={BASE_UNIT} readOnly disabled />
+      </div>
+      <div>
+        <Label>Units per carton</Label>
+        <Input
+          type="number"
+          min="1"
+          step="1"
+          value={form.packing}
+          onChange={(e) => set("packing", e.target.value)}
+        />
+        <p className="mt-1 text-[11px] text-[var(--muted)]">
+          e.g. 12 = one carton has 12 units. Stock stays in base units.
+        </p>
       </div>
       <div>
         <Label>Purchase discount %</Label>

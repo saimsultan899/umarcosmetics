@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+
 export default async function ProfitReportPage({
   searchParams,
 }: {
@@ -51,12 +53,23 @@ export default async function ProfitReportPage({
     { name: "Net profit", value: summary.net_profit },
   ];
 
+  const purchaseGross =
+    summary.purchases_gross +
+    summary.purchase_trade_discount +
+    summary.purchase_extra_discount;
+
   const plRows = [
     { Item: "Gross sales (posted invoices)", Amount: summary.sales },
     { Item: "Less: sale returns", Amount: -summary.returns },
     { Item: "Net sales", Amount: summary.net_sales },
     { Item: "Less: estimated cost of goods", Amount: -summary.cogs },
     { Item: "Gross profit (before expenses)", Amount: summary.gross_profit },
+    { Item: "Purchases (before discounts)", Amount: purchaseGross },
+    { Item: "Less: purchase trade discount", Amount: -summary.purchase_trade_discount },
+    { Item: "Less: purchase extra discount", Amount: -summary.purchase_extra_discount },
+    { Item: "Purchase invoices (payable)", Amount: summary.purchases_gross },
+    { Item: "Less: purchase returns", Amount: -summary.purchase_returns },
+    { Item: "Net purchases", Amount: summary.purchases },
     { Item: "Less: operating expenses", Amount: -summary.expenses },
     { Item: "  — Salesman salary", Amount: -summary.salary },
     { Item: "  — Other daily costs", Amount: -summary.other_expenses },
@@ -117,6 +130,13 @@ export default async function ProfitReportPage({
           icon={Wallet}
           tone={summary.net_profit >= 0 ? "ok" : "danger"}
           hint="Gross profit minus all expenses"
+        />
+        <StatCard
+          label="Net purchases"
+          value={summary.purchases}
+          format="money"
+          icon={ShoppingCart}
+          hint={`Bills ${formatPkr(summary.purchases_gross)} · Returns ${formatPkr(summary.purchase_returns)}`}
         />
         <StatCard
           label="Gross margin"

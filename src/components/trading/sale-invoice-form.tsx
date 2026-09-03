@@ -11,7 +11,11 @@ import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
 import { createClient } from "@/lib/supabase/client";
 import type { Party, Product, Warehouse } from "@/lib/types/database";
 import type { SalesmanOption } from "@/lib/queries/salesmen";
-import { type LineItemDraft, calcLineDiscount } from "@/lib/types/trading";
+import {
+  type LineItemDraft,
+  type PaymentType,
+  calcLineDiscount,
+} from "@/lib/types/trading";
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 
@@ -78,8 +82,9 @@ export function SaleInvoiceForm({
 
   const [partyId, setPartyId] = useState("");
   const [salesmanId, setSalesmanId] = useState("");
-  const [warehouseId, setWarehouseId] = useState(warehouses[0]?.id || "");
+  const [warehouseId, setWarehouseId] = useState("");
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10));
+  const [paymentType, setPaymentType] = useState<PaymentType>("credit");
   const [narration, setNarration] = useState("");
   const [extraDiscount, setExtraDiscount] = useState("");
   const [lines, setLines] = useState<LineItemDraft[]>([]);
@@ -118,9 +123,39 @@ export function SaleInvoiceForm({
     setError(null);
 
     const valid = lines.filter((l) => l.product_id && Number(l.qty) > 0);
-    if (!partyId || !warehouseId || valid.length === 0) {
-      setError("Select customer, company, and at least one product line.");
+    const resolvedWarehouse =
+      warehouseId ||
+      products.find((p) => p.id === valid[0]?.product_id)?.default_warehouse_id ||
+      "";
+    if (!partyId || !resolvedWarehouse || valid.length === 0) {
+      setError("Select customer, add a product line, and ensure company is set.");
       return;
+    }
+
+    // Client-side stock check (qty + free) against each product's own company
+    const needByProduct = new Map<string, number>();
+    for (const l of valid) {
+      const need = Number(l.qty || 0) + Number(l.bonus || 0);
+      needByProduct.set(
+        l.product_id,
+        (needByProduct.get(l.product_id) || 0) + need,
+      );
+    }
+    for (const [productId, need] of needByProduct) {
+      const product = products.find((p) => p.id === productId);
+      const stockWh = product?.default_warehouse_id || resolvedWarehouse;
+      const onHand =
+        stockByProduct
+          .get(productId)
+          ?.find((e) => e.warehouseId === stockWh)?.qty ?? 0;
+      if (need > onHand + 1e-9) {
+        const companyName =
+          warehouses.find((w) => w.id === stockWh)?.name || "selected company";
+        setError(
+          `${product ? `${product.code} — ${product.name_en}` : "Product"}: only ${onHand} available in ${companyName} (need ${need}).`,
+        );
+        return;
+      }
     }
 
     const { subtotal, discount_total, grand_total: linesTotal } = summarizeLines(valid);
@@ -131,14 +166,16 @@ export function SaleInvoiceForm({
     }
     const grand_total = Math.max(0, linesTotal - extra);
 
-    if (party && Number(party.credit_limit) > 0) {
+    const amountPaid = paymentType === "cash" ? grand_total : 0;
+
+    if (paymentType !== "cash" && party && Number(party.credit_limit) > 0) {
       const supabaseCheck = createClient();
       const { data: balance } = await supabaseCheck.rpc("get_party_balance", {
         p_company_id: companyId,
         p_party_id: partyId,
         p_as_of: invoiceDate,
       });
-      const projected = Number(balance || 0) + grand_total;
+      const projected = Number(balance || 0) + grand_total - amountPaid;
       if (projected > Number(party.credit_limit)) {
         const proceed = window.confirm(
           `This sale may exceed credit limit.\nProjected balance: ${projected.toLocaleString()}\nLimit: ${Number(party.credit_limit).toLocaleString()}\n\nContinue anyway?`,
@@ -156,12 +193,12 @@ export function SaleInvoiceForm({
         company_id: companyId,
         invoice_date: invoiceDate,
         party_id: partyId,
-        warehouse_id: warehouseId,
+        warehouse_id: resolvedWarehouse,
         salesman_id: salesmanId || null,
         route: party?.route || null,
         city: party?.city || null,
-        payment_type: "credit",
-        amount_paid: 0,
+        payment_type: paymentType,
+        amount_paid: amountPaid,
         subtotal,
         discount_total,
         extra_discount: extra,
@@ -218,15 +255,6 @@ export function SaleInvoiceForm({
           />
         </div>
         <div>
-          <Label>Company</Label>
-          <Select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} required>
-            <option value="">Select company</option>
-            {warehouses.map((w) => (
-              <option key={w.id} value={w.id}>{w.name}</option>
-            ))}
-          </Select>
-        </div>
-        <div>
           <SalesmanSelect
             salesmen={salesmen}
             value={salesmanId}
@@ -235,7 +263,15 @@ export function SaleInvoiceForm({
         </div>
         <div>
           <Label>Payment</Label>
-          <Input value="Credit" readOnly className="bg-[var(--surface-2)]" />
+          <Select
+            value={paymentType}
+            onChange={(e) =>
+              setPaymentType((e.target.value as PaymentType) || "credit")
+            }
+          >
+            <option value="credit">Credit</option>
+            <option value="cash">Cash</option>
+          </Select>
         </div>
         <div className="sm:col-span-2 lg:col-span-3">
           <Label>Narration</Label>
@@ -255,6 +291,7 @@ export function SaleInvoiceForm({
         warehouses={warehouses}
         stockByProduct={stockByProduct}
         onAutoPickWarehouse={setWarehouseId}
+        showCompanyPicker
         extraDiscount={extraDiscount}
         onExtraDiscountChange={setExtraDiscount}
       />

@@ -19,6 +19,7 @@ import type { ProductListStats } from "@/lib/queries/products";
 import { createClient } from "@/lib/supabase/client";
 import type { Product, Warehouse } from "@/lib/types/database";
 import { formatProductPurchaseDiscount } from "@/lib/pricing/discounts";
+import { formatUomCompact } from "@/lib/pricing/uom";
 import { formatNumber, formatPkr } from "@/lib/utils";
 import { AlertTriangle, Package, Tags } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -39,7 +40,19 @@ function productFields(p: Product): DetailField[] {
     { label: "Opening qty", value: formatNumber(p.opening_qty, 3) },
     { label: "Opening rate", value: formatPkr(p.opening_rate) },
     { label: "Reorder", value: formatNumber(p.reorder_level, 0) },
-    { label: "Packing", value: formatNumber(p.packing, 0) },
+    { label: "Outer unit", value: p.unit_type || "Carton" },
+    { label: "Base unit", value: p.base_unit || "Piece" },
+    {
+      label: "Units / pack",
+      value: `${formatNumber(p.packing, 0)} ${p.base_unit || "pcs"} / ${p.unit_type || "pack"}`,
+    },
+    {
+      label: "Opening (ctn/pcs)",
+      value: formatUomCompact(p.opening_qty, p.packing, {
+        unitType: p.unit_type,
+        baseUnit: p.base_unit,
+      }),
+    },
     {
       label: "Purchase discount",
       value: formatProductPurchaseDiscount(p.scheme),
@@ -202,7 +215,7 @@ export function ProductsTable({
                   <th>Retail</th>
                   <th>Purchase</th>
                   <th>Reorder</th>
-                  <th>Packing</th>
+                  <th>Pack</th>
                   <th className="text-right">Actions</th>
                 </tr>
               </thead>
@@ -228,7 +241,12 @@ export function ProductsTable({
                       <td>{formatPkr(p.retail_rate)}</td>
                       <td>{formatPkr(p.purchase_rate)}</td>
                       <td>{formatNumber(p.reorder_level, 0)}</td>
-                      <td>{formatNumber(p.packing, 0)}</td>
+                      <td>
+                        <div>{formatNumber(p.packing, 0)}/{(p.unit_type || "ctn").toLowerCase()}</div>
+                        <div className="text-[10px] text-[var(--muted)]">
+                          {p.base_unit || "Piece"}
+                        </div>
+                      </td>
                       <td>
                         <RowActions
                           viewTitle={p.name_en}

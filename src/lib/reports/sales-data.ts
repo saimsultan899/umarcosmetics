@@ -149,6 +149,7 @@ export async function buildSaleReport(
           Rate: Number(it.rate),
           Discount: Number(it.discount),
           Amount: Number(it.amount),
+          _href: inv?.id ? `/sales/invoices/${inv.id}` : "",
         };
       });
     }
@@ -187,6 +188,7 @@ export async function buildSaleReport(
           "Sale amount": sale,
           "Est. cost": cost,
           Profit: sale - cost,
+          _href: inv?.id ? `/sales/invoices/${inv.id}` : "",
         };
       });
     }
@@ -257,6 +259,7 @@ export async function buildSaleReport(
         "Cash received": Number(inv.amount_paid),
         "Credit balance":
           Number(inv.grand_total) - Number(inv.amount_paid),
+        _href: `/sales/invoices/${inv.id}`,
       };
     });
   }
@@ -277,6 +280,7 @@ export async function buildSaleReport(
       Discount: Number(inv.discount_total),
       Total: Number(inv.grand_total),
       Paid: Number(inv.amount_paid),
+      _href: `/sales/invoices/${inv.id}`,
     };
   });
 }

@@ -3,11 +3,20 @@
 import { Button } from "@/components/ui/button";
 import { formatNumber } from "@/lib/utils";
 import { Printer } from "lucide-react";
+import { useEffect } from "react";
+
+function formatCartonQty(qty: number, packing: number) {
+  if (!(packing > 1)) return "—";
+  return formatNumber(qty / packing, 2);
+}
 
 export type GatePassPrintLine = {
   product_code: string;
   product_name: string;
   qty: number;
+  packing?: number;
+  unit_type?: string | null;
+  base_unit?: string | null;
 };
 
 export function GatePassPrint({
@@ -29,6 +38,7 @@ export function GatePassPrint({
   remarks,
   lines,
   preparedBy,
+  autoPrint = false,
 }: {
   companyName: string;
   companyAddress?: string | null;
@@ -48,8 +58,15 @@ export function GatePassPrint({
   remarks?: string | null;
   lines: GatePassPrintLine[];
   preparedBy?: string | null;
+  autoPrint?: boolean;
 }) {
   const totalQty = lines.reduce((s, l) => s + Number(l.qty || 0), 0);
+
+  useEffect(() => {
+    if (!autoPrint) return;
+    const t = window.setTimeout(() => window.print(), 250);
+    return () => window.clearTimeout(t);
+  }, [autoPrint]);
 
   return (
     <div className="space-y-4">
@@ -153,22 +170,29 @@ export function GatePassPrint({
               </th>
               <th style={{ width: "16%" }}>Product Code</th>
               <th>Product Description</th>
-              <th className="num" style={{ width: "16%" }}>
-                Delivery Qty
+              <th className="ctr" style={{ width: "12%" }}>
+                Carton
+              </th>
+              <th className="num" style={{ width: "12%" }}>
+                Qty
               </th>
             </tr>
           </thead>
           <tbody>
-            {lines.map((l, i) => (
-              <tr key={`${l.product_code}-${i}`}>
-                <td className="ctr">{i + 1}</td>
-                <td>{l.product_code}</td>
-                <td>{l.product_name}</td>
-                <td className="num">{formatNumber(l.qty, 2)}</td>
-              </tr>
-            ))}
+            {lines.map((l, i) => {
+              const packing = Number(l.packing || 0);
+              return (
+                <tr key={`${l.product_code}-${i}`}>
+                  <td className="ctr">{i + 1}</td>
+                  <td>{l.product_code}</td>
+                  <td>{l.product_name}</td>
+                  <td className="ctr">{formatCartonQty(l.qty, packing)}</td>
+                  <td className="num">{formatNumber(l.qty, 2)}</td>
+                </tr>
+              );
+            })}
             <tr>
-              <td colSpan={3} className="num" style={{ fontWeight: 700 }}>
+              <td colSpan={4} className="num" style={{ fontWeight: 700 }}>
                 Total qty
               </td>
               <td className="num" style={{ fontWeight: 700 }}>

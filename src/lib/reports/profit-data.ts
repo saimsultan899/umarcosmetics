@@ -23,6 +23,15 @@ export type ProfitSummary = {
   net_profit: number;
   gross_margin_pct: number;
   net_margin_pct: number;
+  /** Posted purchase bills before purchase returns. */
+  purchases_gross: number;
+  /** Posted purchase returns in the period. */
+  purchase_returns: number;
+  /** Net purchases = purchase bills − purchase returns. */
+  purchases: number;
+  purchase_trade_discount: number;
+  purchase_extra_discount: number;
+  purchase_discounts: number;
   daily: ProfitDailyRow[];
   expenses_by_category: { category: string; amount: number; label: string }[];
 };
@@ -85,6 +94,12 @@ export async function buildProfitReport(
       net_profit: num(raw.net_profit),
       gross_margin_pct: num(raw.gross_margin_pct),
       net_margin_pct: num(raw.net_margin_pct),
+      purchases_gross: num(raw.purchases_gross ?? raw.purchases),
+      purchase_returns: num(raw.purchase_returns),
+      purchases: num(raw.purchases),
+      purchase_trade_discount: num(raw.purchase_trade_discount),
+      purchase_extra_discount: num(raw.purchase_extra_discount),
+      purchase_discounts: num(raw.purchase_discounts),
       daily,
       expenses_by_category: expensesByCategory,
     },
@@ -107,6 +122,12 @@ function emptySummary(from: string, to: string): ProfitSummary {
     net_profit: 0,
     gross_margin_pct: 0,
     net_margin_pct: 0,
+    purchases_gross: 0,
+    purchase_returns: 0,
+    purchases: 0,
+    purchase_trade_discount: 0,
+    purchase_extra_discount: 0,
+    purchase_discounts: 0,
     daily: [],
     expenses_by_category: [],
   };

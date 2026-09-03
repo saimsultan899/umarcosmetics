@@ -3,26 +3,62 @@
 import { Button } from "@/components/ui/button";
 import { cn, formatNumber } from "@/lib/utils";
 import { Printer } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export type PrintLine = {
   product_code: string;
   product_name: string;
+  /** Brand / stock company shown before ItemName when present. */
+  company?: string | null;
   qty: number;
   bonus?: number;
+  /** Pack / unit label e.g. Carton, Piece */
   uom?: string | null;
+  packing?: number;
+  unit_type?: string | null;
+  base_unit?: string | null;
   rate?: number;
+  /** Line discount amount (rupees). Displayed as % of qty×rate. */
   discount?: number;
   amount?: number;
 };
+
+function lineDiscPercent(qty: number, rate: number, discount: number) {
+  const gross = qty * rate;
+  if (gross <= 0 || discount <= 0) return 0;
+  return Math.round((discount / gross) * 1000) / 10;
+}
+
+/** Qty expressed as cartons from packing, e.g. 100 ÷ 200 → 0.5 */
+function formatCartonQty(qty: number, packing: number) {
+  if (!(packing > 1)) return "—";
+  return formatNumber(qty / packing, 2);
+}
+
+function formatPrintDate(iso: string) {
+  // Keep ISO date as-is if already YYYY-MM-DD; otherwise format.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
+  const d = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("en-CA");
+}
+
+function formatPrintTime(isoDateTime?: string | null) {
+  if (!isoDateTime) return "";
+  const d = new Date(isoDateTime);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
 
 export type PrintMeta = { label: string; value: string; strong?: boolean };
 
 /**
  * Generic document print — classic distributor layout shared by purchase
  * invoices, sales/purchase returns, transfers, load sheets and vouchers.
- * Matches the sale-invoice bill styling (serif, ruled table, right-aligned
- * totals, signature row); columns adapt to whichever fields the doc supplies.
  */
 export function PrintDocument({
   companyName,
@@ -32,9 +68,11 @@ export function PrintDocument({
   title,
   docNo,
   date,
+  printedAt,
   partyName,
   partyCode,
   partyAddress,
+  partyCity,
   partyPhone,
   warehouseName,
   extraMeta,
@@ -44,6 +82,7 @@ export function PrintDocument({
   signatures,
   footerNote,
   size = "full",
+  autoPrint = false,
 }: {
   companyName: string;
   companyAddress?: string | null;
@@ -52,9 +91,12 @@ export function PrintDocument({
   title: string;
   docNo: string;
   date: string;
+  /** Invoice created_at — shown as time next to date. */
+  printedAt?: string | null;
   partyName?: string | null;
   partyCode?: string | null;
   partyAddress?: string | null;
+  partyCity?: string | null;
   partyPhone?: string | null;
   warehouseName?: string | null;
   extraMeta?: PrintMeta[];
@@ -64,21 +106,28 @@ export function PrintDocument({
   signatures?: string[];
   footerNote?: string | null;
   size?: "full" | "half";
+  autoPrint?: boolean;
 }) {
   const [sheet, setSheet] = useState<"full" | "half">(size);
 
-  const hasRate = lines.some((l) => l.rate != null);
-  const hasDiscount = lines.some((l) => l.discount != null && l.discount !== 0);
-  const hasAmount = lines.some((l) => l.amount != null);
-  const hasUom = lines.some((l) => l.uom);
+  useEffect(() => {
+    if (!autoPrint) return;
+    const t = window.setTimeout(() => window.print(), 250);
+    return () => window.clearTimeout(t);
+  }, [autoPrint]);
 
-  const companyLine = [companyName, companyPhone].filter(Boolean).join("  ");
-  const companySub = [
-    companyAddress,
-    companyNtn ? `NTN/STRN: ${companyNtn}` : "",
-  ]
+  const hasRate = lines.some((l) => l.rate != null);
+  /** Show Disc. column whenever any line includes a discount field (incl. 0). */
+  const hasDiscount = lines.some((l) => l.discount != null);
+  const hasAmount = lines.some((l) => l.amount != null);
+  const hasUom = lines.some(
+    (l) => l.uom || (l.packing != null && Number(l.packing) > 1),
+  );
+  const hasLineCompany = lines.some((l) => Boolean(l.company));
+
+  const dateTimeLabel = [formatPrintDate(date), formatPrintTime(printedAt)]
     .filter(Boolean)
-    .join("  ·  ");
+    .join(" ");
 
   return (
     <div className="space-y-4">
@@ -113,7 +162,17 @@ export function PrintDocument({
 
       <div className={cn("print-sheet cdoc mx-auto", sheet === "half" && "cdoc--half")}>
         <div className="si-title">{title}</div>
-        {companyLine ? <div className="si-salesman">{companyLine}</div> : null}
+        {companyName ? <div className="si-company">{companyName}</div> : null}
+        {companyAddress ? (
+          <div className="si-distributor-addr">{companyAddress}</div>
+        ) : null}
+        {companyPhone || companyNtn ? (
+          <div className="si-distributor-addr">
+            {[companyPhone, companyNtn ? `NTN/STRN: ${companyNtn}` : ""]
+              .filter(Boolean)
+              .join("  ·  ")}
+          </div>
+        ) : null}
 
         <div className="si-meta">
           <div className="si-meta-left">
@@ -125,9 +184,11 @@ export function PrintDocument({
                 </span>
               </div>
             ) : null}
-            {partyAddress ? <div className="si-co">{partyAddress}</div> : null}
+            {partyAddress ? (
+              <div className="si-co">{partyAddress}</div>
+            ) : null}
+            {partyCity ? <div className="si-co">{partyCity}</div> : null}
             {partyPhone ? <div className="si-co">Ph: {partyPhone}</div> : null}
-            {companySub ? <div className="si-co">{companySub}</div> : null}
           </div>
           <div className="si-meta-right">
             <div>
@@ -135,7 +196,7 @@ export function PrintDocument({
             </div>
             <div>
               <span className="si-k">Date :</span>{" "}
-              <span className="si-v">{date}</span>
+              <span className="si-v">{dateTimeLabel}</span>
             </div>
             {warehouseName ? (
               <div>
@@ -155,48 +216,80 @@ export function PrintDocument({
         <table className="si-table">
           <thead>
             <tr>
-              <th className="ctr" style={{ width: "8%" }}>
+              <th className="ctr" style={{ width: "7%" }}>
                 Sr.
               </th>
-              <th style={{ width: "16%" }}>Code</th>
+              <th style={{ width: "12%" }}>Code</th>
+              {hasLineCompany ? (
+                <th style={{ width: "14%" }}>Company</th>
+              ) : null}
               <th>ItemName</th>
-              {hasUom ? <th className="ctr">UOM</th> : null}
-              <th className="num">Qty</th>
+              {hasUom ? (
+                <th className="ctr" style={{ width: "10%" }}>
+                  Carton
+                </th>
+              ) : null}
+              <th className="num" style={{ width: "12%" }}>
+                Qty
+              </th>
               {hasRate ? <th className="num">Rate</th> : null}
-              {hasDiscount ? <th className="num">Disc.</th> : null}
+              {hasDiscount ? <th className="num">Disc %</th> : null}
+              {hasDiscount ? <th className="num">Disc Val</th> : null}
               {hasAmount ? <th className="num">Amount</th> : null}
             </tr>
           </thead>
           <tbody>
-            {lines.map((l, i) => (
-              <tr key={`${l.product_code}-${i}`}>
-                <td className="ctr">{i + 1}</td>
-                <td>{l.product_code}</td>
-                <td>{l.product_name}</td>
-                {hasUom ? <td className="ctr">{l.uom || "—"}</td> : null}
-                <td className="num">
-                  {formatNumber(l.qty, 2)}
-                  {l.bonus && l.bonus > 0 ? (
-                    <div className="si-bonus">+{formatNumber(l.bonus, 0)} B</div>
+            {lines.map((l, i) => {
+              const packing = Number(l.packing || 0);
+              const cartonValue =
+                packing > 1
+                  ? formatCartonQty(l.qty, packing)
+                  : l.uom || l.base_unit || l.unit_type || "—";
+              return (
+                <tr key={`${l.product_code}-${i}`}>
+                  <td className="ctr">{i + 1}</td>
+                  <td>{l.product_code}</td>
+                  {hasLineCompany ? (
+                    <td>{l.company || "—"}</td>
                   ) : null}
-                </td>
-                {hasRate ? (
+                  <td>{l.product_name}</td>
+                  {hasUom ? <td className="ctr">{cartonValue}</td> : null}
                   <td className="num">
-                    {l.rate != null ? formatNumber(l.rate, 2) : "—"}
+                    <div>{formatNumber(l.qty, 2)}</div>
+                    {l.bonus && l.bonus > 0 ? (
+                      <div className="si-bonus">+{formatNumber(l.bonus, 0)} B</div>
+                    ) : null}
                   </td>
-                ) : null}
-                {hasDiscount ? (
-                  <td className="num">
-                    {l.discount ? formatNumber(l.discount, 2) : "—"}
-                  </td>
-                ) : null}
-                {hasAmount ? (
-                  <td className="num">
-                    {l.amount != null ? formatNumber(l.amount, 2) : "—"}
-                  </td>
-                ) : null}
-              </tr>
-            ))}
+                  {hasRate ? (
+                    <td className="num">
+                      {l.rate != null ? formatNumber(l.rate, 2) : "—"}
+                    </td>
+                  ) : null}
+                  {hasDiscount ? (
+                    <td className="num">
+                      {(() => {
+                        const pct = lineDiscPercent(
+                          Number(l.qty || 0),
+                          Number(l.rate || 0),
+                          Number(l.discount || 0),
+                        );
+                        return pct > 0 ? `${formatNumber(pct, 1)}%` : "—";
+                      })()}
+                    </td>
+                  ) : null}
+                  {hasDiscount ? (
+                    <td className="num">
+                      {l.discount ? formatNumber(l.discount, 2) : "—"}
+                    </td>
+                  ) : null}
+                  {hasAmount ? (
+                    <td className="num">
+                      {l.amount != null ? formatNumber(l.amount, 2) : "—"}
+                    </td>
+                  ) : null}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
 

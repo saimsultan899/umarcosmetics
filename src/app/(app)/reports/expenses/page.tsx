@@ -8,17 +8,17 @@ import { EXPENSE_CATEGORIES } from "@/lib/expenses/categories";
 import { fetchCompanySalesmen } from "@/lib/queries/salesmen";
 import { parseReportList } from "@/lib/reports/filter-params";
 import { buildExpenseReport } from "@/lib/reports/expenses-data";
+import { localDateIso, monthStartLocal } from "@/lib/dates";
 import { formatPkr } from "@/lib/utils";
 import { Banknote, Receipt, Users, Wallet } from "lucide-react";
 import Link from "next/link";
 
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  return localDateIso();
 }
 
 function monthStart() {
-  const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+  return monthStartLocal();
 }
 
 export default async function ExpenseReportPage({

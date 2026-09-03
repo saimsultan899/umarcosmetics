@@ -72,6 +72,27 @@ function matches(option: SelectOption, query: string) {
   );
 }
 
+/** Scroll a child into view inside its overflow parent — never scrolls the page. */
+function scrollRowIntoList(list: HTMLElement, row: HTMLElement) {
+  const listRect = list.getBoundingClientRect();
+  const rowRect = row.getBoundingClientRect();
+  if (rowRect.bottom > listRect.bottom) {
+    list.scrollTop += rowRect.bottom - listRect.bottom;
+  } else if (rowRect.top < listRect.top) {
+    list.scrollTop -= listRect.top - rowRect.top;
+  }
+}
+
+function menuStyleEqual(a: React.CSSProperties, b: React.CSSProperties) {
+  return (
+    a.left === b.left &&
+    a.width === b.width &&
+    a.top === b.top &&
+    a.bottom === b.bottom &&
+    a.zIndex === b.zIndex
+  );
+}
+
 /** Pick keyboard highlight index — skip empty placeholder while searching. */
 function pickHighlightIndex(
   keyboardOptions: SelectOption[],
@@ -137,6 +158,8 @@ export const Select = forwardRef<
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const optionsListRef = useRef<HTMLDivElement>(null);
+  const menuStyleRef = useRef<React.CSSProperties>({});
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [mounted, setMounted] = useState(false);
@@ -314,15 +337,19 @@ export const Select = forwardRef<
       const rect = el.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom;
       const openUp = spaceBelow < 280 && rect.top > spaceBelow;
-      setMenuStyle({
+      const next: React.CSSProperties = {
         position: "fixed",
         left: rect.left,
         width: Math.max(rect.width, 220),
-        zIndex: 120,
+        // Above dialogs (z-100) without fighting the page chrome.
+        zIndex: 220,
         ...(openUp
-          ? { bottom: window.innerHeight - rect.top + 6 }
-          : { top: rect.bottom + 6 }),
-      });
+          ? { bottom: window.innerHeight - rect.top + 6, top: "auto" }
+          : { top: rect.bottom + 6, bottom: "auto" }),
+      };
+      if (menuStyleEqual(menuStyleRef.current, next)) return;
+      menuStyleRef.current = next;
+      setMenuStyle(next);
     }
 
     position();
@@ -352,7 +379,7 @@ export const Select = forwardRef<
     window.addEventListener("scroll", position, true);
     window.addEventListener("mousedown", onPointer);
     requestAnimationFrame(() => {
-      inputRef.current?.focus();
+      inputRef.current?.focus({ preventScroll: true });
       inputRef.current?.select();
     });
 
@@ -372,15 +399,15 @@ export const Select = forwardRef<
     highlightRef.current = idx;
   }, [open, query, keyboardOptions, selectedValue]);
 
-  // Keep highlighted row visible while navigating
+  // Keep highlighted row visible inside the list only (no page scroll)
   useEffect(() => {
     if (!open) return;
-    const menu = document.getElementById(listId);
-    const row = menu?.querySelector<HTMLElement>(
+    const list = optionsListRef.current;
+    const row = list?.querySelector<HTMLElement>(
       `[data-option-idx="${highlight}"]`,
     );
-    row?.scrollIntoView({ block: "nearest" });
-  }, [highlight, open, listId]);
+    if (list && row) scrollRowIntoList(list, row);
+  }, [highlight, open]);
 
   const searching = query.trim().length > 0;
 
@@ -472,7 +499,7 @@ export const Select = forwardRef<
                 </div>
               </div>
 
-              <div className="max-h-64 overflow-y-auto p-1">
+              <div ref={optionsListRef} className="max-h-64 overflow-y-auto p-1">
                 {emptyOption ? (
                   <button
                     type="button"

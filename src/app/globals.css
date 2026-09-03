@@ -58,6 +58,10 @@ body {
   overflow-x: clip;
 }
 
+html {
+  scrollbar-gutter: stable;
+}
+
 body {
   margin: 0;
   background: var(--background);
@@ -1117,7 +1121,7 @@ button[aria-haspopup="listbox"]:focus-visible {
   background: #fff;
   color: #000;
   font-family: Arial, Helvetica, sans-serif;
-  padding: 12px 0 24px;
+  padding: 0 0 12px;
   border: none;
   border-radius: 0;
 }
@@ -1676,11 +1680,24 @@ button[aria-haspopup="listbox"]:focus-visible {
   text-transform: uppercase;
   line-height: 1.1;
 }
-.si-salesman {
+.si-salesman,
+.si-company {
   text-align: center;
   font-size: 12px;
   margin-top: 2px;
   font-weight: 600;
+}
+.si-company {
+  font-size: 13px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.si-distributor-addr {
+  text-align: center;
+  font-size: 11px;
+  margin-top: 1px;
+  color: #333;
+  font-weight: 500;
 }
 .si-meta {
   display: flex;
@@ -1766,7 +1783,7 @@ button[aria-haspopup="listbox"]:focus-visible {
   font-weight: 600;
   font-size: 12px;
   line-height: 1.45;
-  text-align: right;
+  text-align: left;
 }
 .si-prepared {
   margin-top: 6px;
@@ -2123,6 +2140,7 @@ button[aria-haspopup="listbox"]:focus-visible {
     font-size: 18px !important;
   }
   .print-sheet.si-half .si-salesman,
+  .print-sheet.si-half .si-company,
   .print-sheet.si-half .si-meta {
     font-size: 10.5px !important;
     margin-top: 4px !important;

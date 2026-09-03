@@ -118,21 +118,25 @@ export default async function SaleInvoiceDetailPage({
         companyPhone={company.phone}
         docNo={invoice.invoice_no}
         date={invoice.invoice_date}
+        printedAt={invoice.created_at}
         partyCode={party?.party_code}
         partyName={party?.name_en}
         partyOwner={party?.contact_person}
-        partyPhone={party?.mobile || party?.phone}
+        partyPhone={party?.phone}
+        partyMobile={party?.mobile}
         sector={sector || invoice.route || null}
         salesmanLabel={salesmanLabel || null}
-        lines={(items || []).map((i) => ({
-          product_name: i.product_name,
-          qty: Number(i.qty),
-          bonus: Number(i.bonus_qty || 0),
-          scheme: i.scheme,
-          tradePrice: Number(i.rate),
-          discount: Number(i.discount || 0),
-          amount: Number(i.amount),
-        }))}
+        lines={(items || []).map((i) => {
+          return {
+            product_name: i.product_name,
+            qty: Number(i.qty),
+            bonus: Number(i.bonus_qty || 0),
+            scheme: i.scheme,
+            tradePrice: Number(i.rate),
+            discount: Number(i.discount || 0),
+            amount: Number(i.amount),
+          };
+        })}
         subtotal={Number(invoice.subtotal || 0)}
         tradeDiscount={Number(invoice.discount_total || 0)}
         extraDiscount={Number(invoice.extra_discount || 0)}

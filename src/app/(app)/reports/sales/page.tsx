@@ -3,24 +3,24 @@ import { CompareBarChart } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { PartyWiseSalesPrint } from "@/components/reports/party-wise-sales-print";
 import { FilterMultiSelect, ReportFilters } from "@/components/reports/report-filters";
+import { ReportTypePills } from "@/components/reports/report-type-pills";
 import { ReportTable } from "@/components/reports/report-table";
 import { requireCompanyContext } from "@/lib/auth";
-import { parseReportList, reportLinkQuery } from "@/lib/reports/filter-params";
+import { parseReportList } from "@/lib/reports/filter-params";
 import {
   buildSaleReport,
   SALE_REPORT_TYPES,
   type SaleReportType,
 } from "@/lib/reports/sales-data";
+import { localDateIso, monthStartLocal } from "@/lib/dates";
 import { FileSpreadsheet, Rows3 } from "lucide-react";
-import Link from "next/link";
 
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  return localDateIso();
 }
 
 function monthStart() {
-  const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+  return monthStartLocal();
 }
 
 export default async function SaleReportsPage({
@@ -38,7 +38,11 @@ export default async function SaleReportsPage({
 }) {
   const sp = await searchParams;
   const { supabase, company } = await requireCompanyContext();
-  const type = (sp.type || "date_wise") as SaleReportType;
+  const selectedTypes = parseReportList(sp.type) as SaleReportType[];
+  const types: SaleReportType[] = selectedTypes.length
+    ? selectedTypes
+    : ["date_wise"];
+  const primaryType = types[0];
   const from = sp.from || monthStart();
   const to = sp.to || today();
 
@@ -61,25 +65,40 @@ export default async function SaleReportsPage({
   const warehouseIds = parseReportList(sp.warehouse);
   const partyIds = parseReportList(sp.party);
 
-  let rows: Record<string, unknown>[] = [];
+  const reportSections: {
+    type: SaleReportType;
+    label: string;
+    rows: Record<string, unknown>[];
+  }[] = [];
   let error: string | null = null;
   try {
-    rows = await buildSaleReport(supabase, {
-      companyId: company.id,
-      from,
-      to,
-      type,
-      warehouseIds,
-      partyIds,
-      billFrom: sp.billFrom || undefined,
-      billTo: sp.billTo || undefined,
-    });
+    for (const type of types) {
+      const rows = await buildSaleReport(supabase, {
+        companyId: company.id,
+        from,
+        to,
+        type,
+        warehouseIds,
+        partyIds,
+        billFrom: sp.billFrom || undefined,
+        billTo: sp.billTo || undefined,
+      });
+      reportSections.push({
+        type,
+        label:
+          SALE_REPORT_TYPES.find((t) => t.key === type)?.label || "Sale report",
+        rows,
+      });
+    }
   } catch (e) {
     error = e instanceof Error ? e.message : "Failed to build report";
   }
 
+  const rows = reportSections.find((s) => s.type === primaryType)?.rows || [];
   const activeLabel =
-    SALE_REPORT_TYPES.find((t) => t.key === type)?.label || "Sale report";
+    types.length === 1
+      ? reportSections[0]?.label || "Sale report"
+      : `${types.length} reports selected`;
 
   const primaryMoneyKey = (() => {
     if (!rows.length) return null;
@@ -112,15 +131,6 @@ export default async function SaleReportsPage({
     const value = primaryMoneyKey ? Number(row[primaryMoneyKey] || 0) : 0;
     return { name: label, value };
   });
-
-  const filterParams = {
-    from,
-    to,
-    warehouse: sp.warehouse,
-    party: sp.party,
-    billFrom: sp.billFrom,
-    billTo: sp.billTo,
-  };
 
   return (
     <div className="animate-rise space-y-6">
@@ -172,25 +182,11 @@ export default async function SaleReportsPage({
         </ChartCard>
       ) : null}
 
-      <div className="no-print flex flex-wrap gap-2">
-        {SALE_REPORT_TYPES.map((t) => (
-          <Link
-            key={t.key}
-            href={`/reports/sales?${reportLinkQuery(filterParams, { type: t.key }).toString()}`}
-            className={`rounded-full px-3 py-1.5 text-sm font-medium ${
-              type === t.key
-                ? "bg-[var(--brand)] !text-white"
-                : "border border-[var(--border)] bg-white text-[var(--muted)]"
-            }`}
-          >
-            {t.label}
-          </Link>
-        ))}
-      </div>
+      <ReportTypePills options={SALE_REPORT_TYPES} />
 
       <ReportFilters
         action="/reports/sales"
-        defaults={{ from, to, type }}
+        defaults={{ from, to, type: types.join(",") }}
         extras={
           <>
             <FilterMultiSelect
@@ -211,7 +207,7 @@ export default async function SaleReportsPage({
                 label: `${p.party_code} — ${p.name_en}`,
               }))}
             />
-            {type === "bill_range" ? (
+            {types.includes("bill_range") ? (
               <>
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
@@ -247,23 +243,30 @@ export default async function SaleReportsPage({
         </p>
       ) : null}
 
-      {type === "party_wise" ? (
-        <PartyWiseSalesPrint
-          companyName={company.name}
-          from={from}
-          to={to}
-          rows={rows}
-          filename={`sale-${type}-${from}-${to}`}
-        />
-      ) : (
-        <ReportTable
-          title={activeLabel}
-          companyName={company.name}
-          subtitle={`${from} to ${to} · ${rows.length} rows`}
-          rows={rows}
-          filename={`sale-${type}-${from}-${to}`}
-        />
-      )}
+      {reportSections.map((section) => (
+        <section
+          key={section.type}
+          className="space-y-3 border-t border-[var(--border)] pt-6 first:border-t-0 first:pt-0"
+        >
+          {section.type === "party_wise" ? (
+            <PartyWiseSalesPrint
+              companyName={company.name}
+              from={from}
+              to={to}
+              rows={section.rows}
+              filename={`sale-${section.type}-${from}-${to}`}
+            />
+          ) : (
+            <ReportTable
+              title={section.label}
+              companyName={company.name}
+              subtitle={`${from} to ${to} · ${section.rows.length} rows`}
+              rows={section.rows}
+              filename={`sale-${section.type}-${from}-${to}`}
+            />
+          )}
+        </section>
+      ))}
     </div>
   );
 }

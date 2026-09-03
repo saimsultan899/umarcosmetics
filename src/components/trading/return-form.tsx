@@ -11,7 +11,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Party, Product, Warehouse } from "@/lib/types/database";
 import { type LineItemDraft, calcLineDiscount } from "@/lib/types/trading";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 
 export function ReturnForm({
   kind,
@@ -29,6 +29,23 @@ export function ReturnForm({
   warehouses: Warehouse[];
 }) {
   const router = useRouter();
+  const partyOptions = useMemo(() => {
+    if (kind === "purchase") {
+      return parties.filter(
+        (p) =>
+          p.party_subtype === "supplier" ||
+          p.party_subtype === "both" ||
+          p.party_type === "PARTY",
+      );
+    }
+    return parties.filter(
+      (p) =>
+        p.party_subtype === "customer" ||
+        p.party_subtype === "both" ||
+        p.party_type === "PARTY",
+    );
+  }, [kind, parties]);
+
   const [partyId, setPartyId] = useState("");
   const [warehouseId, setWarehouseId] = useState(warehouses[0]?.id || "");
   const [returnDate, setReturnDate] = useState(new Date().toISOString().slice(0, 10));
@@ -99,11 +116,14 @@ export function ReturnForm({
         <div className="sm:col-span-2 lg:col-span-2">
           <PartyCodePicker
             companyId={companyId}
-            parties={parties}
+            parties={partyOptions}
             value={partyId}
             required
             label={kind === "purchase" ? "Vendor code" : "Customer code"}
             emptyLabel={kind === "purchase" ? "Select vendor" : "Select customer"}
+            filterSubtype={
+              kind === "purchase" ? ["supplier", "both"] : ["customer", "both"]
+            }
             onChange={(id) => setPartyId(id)}
           />
         </div>

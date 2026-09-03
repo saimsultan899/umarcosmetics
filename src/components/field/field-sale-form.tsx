@@ -303,7 +303,7 @@ export function FieldSaleForm({
           <Label>Scheme</Label>
           <Input
             value={scheme}
-            placeholder="10+1"
+            placeholder="+1"
             onChange={(e) => applyScheme(e.target.value, qty, rate)}
           />
         </div>

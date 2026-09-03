@@ -31,21 +31,53 @@ function formatDateLabel(iso: string) {
   });
 }
 
+function formatTimeLabel(isoDateTime?: string | null) {
+  if (!isoDateTime) return "";
+  const d = new Date(isoDateTime);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
+/** Print scheme with a leading + when it's a free/bonus qty (e.g. 1 → +1). */
+function formatSchemeLabel(scheme?: string | null, bonus?: number) {
+  const raw = scheme?.trim();
+  if (raw) {
+    if (
+      raw.startsWith("+") ||
+      /\d+\s*\+\s*\d+/.test(raw) ||
+      raw.includes("%") ||
+      /rs|₨/i.test(raw)
+    ) {
+      return raw;
+    }
+    if (/^\d+(\.\d+)?$/.test(raw)) return `+${raw}`;
+    return raw;
+  }
+  if (bonus && bonus > 0) return `+${formatNumber(bonus, 0)}`;
+  return null;
+}
+
 /**
  * Half-A4 sale invoice print — matches classic distributor bill layout
  * (Sr / Qty / Item / Trade Price / Disc% / Disc Val / Amount + dual footer).
  */
 export function SaleInvoicePrint({
   companyName,
-  companyPhone,
+  companyPhone: _companyPhone,
   docNo,
   date,
+  printedAt,
   partyCode,
   partyName,
   partyOwner,
   partyPhone,
+  partyMobile,
   sector,
-  salesmanLabel,
+  salesmanLabel: _salesmanLabel,
   lines,
   subtotal,
   tradeDiscount,
@@ -62,10 +94,13 @@ export function SaleInvoicePrint({
   companyPhone?: string | null;
   docNo: string;
   date: string;
+  /** Invoice created_at — used for time on the bill. */
+  printedAt?: string | null;
   partyCode?: string | null;
   partyName?: string | null;
   partyOwner?: string | null;
   partyPhone?: string | null;
+  partyMobile?: string | null;
   sector?: string | null;
   salesmanLabel?: string | null;
   lines: SalePrintLine[];
@@ -90,6 +125,13 @@ export function SaleInvoicePrint({
     previousBalance === 0
       ? "0.00"
       : `${formatNumber(Math.abs(previousBalance), 2)} ${previousBalance >= 0 ? "Dr" : "Cr"}`;
+
+  const customerNumbers = Array.from(
+    new Set([partyMobile, partyPhone].filter(Boolean) as string[]),
+  );
+  const dateTimeLabel = [formatDateLabel(date), formatTimeLabel(printedAt)]
+    .filter(Boolean)
+    .join(" ");
 
   const savedTitle = useRef("");
 
@@ -129,11 +171,7 @@ export function SaleInvoicePrint({
 
       <div className="print-sheet si-half mx-auto">
         <div className="si-title">SALE INVOICE</div>
-        {(salesmanLabel || companyPhone) && (
-          <div className="si-salesman">
-            {[salesmanLabel, companyPhone].filter(Boolean).join("  ")}
-          </div>
-        )}
+        {companyName ? <div className="si-company">{companyName}</div> : null}
 
         <div className="si-meta">
           <div className="si-meta-left si-meta-block">
@@ -143,16 +181,17 @@ export function SaleInvoicePrint({
                 {[partyCode, partyName].filter(Boolean).join(" ")}
               </span>
             </div>
-            {(partyOwner || partyPhone) && (
+            {partyOwner ? (
               <div>
                 <span className="si-k">OWNER:</span>{" "}
-                <span className="si-v">
-                  {[partyOwner, partyPhone].filter(Boolean).join(" ")}
-                </span>
+                <span className="si-v">{partyOwner}</span>
               </div>
-            )}
-            {companyName ? (
-              <div className="si-co">{companyName}</div>
+            ) : null}
+            {customerNumbers.length > 0 ? (
+              <div>
+                <span className="si-k">Cust Mob No:</span>{" "}
+                <span className="si-v">{customerNumbers.join(" / ")}</span>
+              </div>
             ) : null}
           </div>
           <div className="si-meta-right si-meta-block">
@@ -168,7 +207,7 @@ export function SaleInvoicePrint({
             ) : null}
             <div>
               <span className="si-k">Date :</span>{" "}
-              <span className="si-v">{formatDateLabel(date)}</span>
+              <span className="si-v">{dateTimeLabel}</span>
             </div>
           </div>
         </div>
@@ -203,11 +242,7 @@ export function SaleInvoicePrint({
           <tbody>
             {lines.map((l, i) => {
               const pct = discPercent(l.qty, l.tradePrice, l.discount);
-              const schemeLabel =
-                l.scheme?.trim() ||
-                (l.bonus && l.bonus > 0
-                  ? `+${formatNumber(l.bonus, 0)} B`
-                  : null);
+              const schemeLabel = formatSchemeLabel(l.scheme, l.bonus);
               return (
                 <tr key={`${l.product_name}-${i}`}>
                   <td className="ctr">{i + 1}</td>
@@ -215,7 +250,9 @@ export function SaleInvoicePrint({
                   <td>{l.product_name}</td>
                   <td className="num">{schemeLabel || "—"}</td>
                   <td className="num">{formatNumber(l.tradePrice, 2)}</td>
-                  <td className="num">{pct > 0 ? `${formatNumber(pct, 1)} %` : "—"}</td>
+                  <td className="num">
+                    {pct > 0 ? `${formatNumber(pct, 1)} %` : "—"}
+                  </td>
                   <td className="num">
                     {l.discount > 0 ? formatNumber(l.discount, 2) : "—"}
                   </td>
@@ -244,7 +281,7 @@ export function SaleInvoicePrint({
               <span>Bill Amount</span>
               <span>{formatNumber(billAmount, 2)}</span>
             </div>
-            <p className="si-note" dir="rtl" lang="ur">
+            <p className="si-note" lang="ur">
               سابقہ بل کی ادائیگی پر نیا مال دیا جائے گا۔
             </p>
             <div className="si-prepared">
@@ -254,7 +291,7 @@ export function SaleInvoicePrint({
 
           <div className="si-foot-col si-foot-pay">
             <div className="si-row">
-              <span>Paid</span>
+              <span>Last Paid Amount</span>
               <span>{formatNumber(paidShown, 2)}</span>
             </div>
             <div className="si-row">

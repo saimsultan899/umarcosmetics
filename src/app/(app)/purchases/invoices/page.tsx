@@ -59,6 +59,7 @@ export default async function PurchaseInvoicesPage({
           summary={list.summary}
           warehouses={warehouses}
           partyColumnLabel="Vendor"
+          showPrint
         />
       </Suspense>
     </div>

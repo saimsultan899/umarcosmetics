@@ -4,17 +4,17 @@ import { ReportTable } from "@/components/reports/report-table";
 import { requireCompanyContext } from "@/lib/auth";
 import { fetchCompanySalesmen } from "@/lib/queries/salesmen";
 import { buildSalesmanLedger } from "@/lib/reports/salesman-ledger";
+import { localDateIso, monthStartLocal } from "@/lib/dates";
 import { formatPkr } from "@/lib/utils";
 import { HandCoins, Receipt, ShoppingCart, Wallet } from "lucide-react";
 import Link from "next/link";
 
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  return localDateIso();
 }
 
 function monthStart() {
-  const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+  return monthStartLocal();
 }
 
 export default async function SalesmanLedgerPage({

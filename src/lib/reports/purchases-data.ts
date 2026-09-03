@@ -36,7 +36,7 @@ export async function buildPurchaseReport(
   let query = supabase
     .from("purchase_invoices")
     .select(
-      "id, invoice_no, supplier_bill_no, invoice_date, grand_total, discount_total, subtotal, party_id, warehouse_id, parties(party_code, name_en, city), warehouses(name)",
+      "id, invoice_no, supplier_bill_no, invoice_date, grand_total, discount_total, extra_discount, subtotal, party_id, warehouse_id, parties(party_code, name_en, city), warehouses(name)",
     )
     .eq("company_id", filters.companyId)
     .eq("status", "posted")
@@ -157,7 +157,8 @@ export async function buildPurchaseReport(
       Vendor: party ? `${party.party_code} — ${party.name_en}` : "",
       Company: warehouse?.name || "",
       Subtotal: Number(inv.subtotal),
-      Discount: Number(inv.discount_total),
+      "Trade discount": Number(inv.discount_total),
+      "Extra discount": Number(inv.extra_discount || 0),
       Total: Number(inv.grand_total),
     };
   });

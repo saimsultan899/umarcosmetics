@@ -10,11 +10,7 @@
  *   never changes that. It only helps a user *think* in cartons: it converts a
  *   carton + loose-piece entry into a piece `qty`, and a per-carton price into a
  *   per-piece `rate`. Feed the results into the existing fields and the posting
- *   payload shape is unchanged. (See docs/phase-4-wiring-spec — persisting the
- *   chosen unit per line is a separate, DB-level change.)
- *
- * Pure and dependency-free on purpose, so it is trivially unit-testable and
- * reusable on both server and client.
+ *   payload shape is unchanged.
  */
 
 export type UomBreakdown = {
@@ -23,6 +19,8 @@ export type UomBreakdown = {
   /** leftover loose pieces (may be fractional if qty uses decimals) */
   pieces: number;
 };
+
+export type QtyUnitMode = "piece" | "carton";
 
 export const CARTON_LABEL = "CTN";
 export const PIECE_LABEL = "PCS";
@@ -53,6 +51,27 @@ export function hasCartonPacking(packing: unknown): boolean {
   return num(packing) > 1;
 }
 
+/** Short label for outer pack (Carton → CTN, Box → BOX). */
+export function cartonShortLabel(unitType?: string | null): string {
+  const raw = (unitType || "").trim();
+  if (!raw) return CARTON_LABEL;
+  const lower = raw.toLowerCase();
+  if (lower.startsWith("cart")) return "CTN";
+  if (lower.startsWith("box")) return "BOX";
+  if (lower.startsWith("pack")) return "PK";
+  return raw.slice(0, 3).toUpperCase();
+}
+
+/** Short label for base unit (Piece → PCS). */
+export function pieceShortLabel(baseUnit?: string | null): string {
+  const raw = (baseUnit || "").trim();
+  if (!raw) return PIECE_LABEL;
+  const lower = raw.toLowerCase();
+  if (lower.startsWith("piec") || lower === "pcs" || lower === "pc") return "PCS";
+  if (lower.startsWith("unit")) return "UNT";
+  return raw.slice(0, 3).toUpperCase();
+}
+
 /** cartons + loose pieces → total pieces (the value that goes into `qty`). */
 export function toPieces(
   cartons: unknown,
@@ -78,19 +97,36 @@ export function piecesToCartons(totalPieces: unknown, packing: unknown): number 
 }
 
 /**
- * Human label for a piece quantity, e.g. "20 CTN + 4 PCS", "20 CTN", "4 PCS".
+ * Human label for a piece quantity, e.g. "12 CTN + 4 PCS", "12 CTN", "4 PCS".
  * When the product has no carton packing (ppc<=1) it degrades to "N PCS".
  */
-export function formatUom(totalPieces: unknown, packing: unknown): string {
+export function formatUom(
+  totalPieces: unknown,
+  packing: unknown,
+  labels?: { unitType?: string | null; baseUnit?: string | null },
+): string {
   const ppc = piecesPerCarton(packing);
   const total = Math.max(0, num(totalPieces));
-  if (ppc <= 1) return `${roundMoney(total)} ${PIECE_LABEL}`;
+  const ctn = cartonShortLabel(labels?.unitType);
+  const pcs = pieceShortLabel(labels?.baseUnit);
+  if (ppc <= 1) return `${roundMoney(total)} ${pcs}`;
 
   const { cartons, pieces } = fromPieces(total, packing);
   const parts: string[] = [];
-  if (cartons > 0) parts.push(`${cartons} ${CARTON_LABEL}`);
-  if (pieces > 0 || cartons === 0) parts.push(`${pieces} ${PIECE_LABEL}`);
+  if (cartons > 0) parts.push(`${cartons} ${ctn}`);
+  if (pieces > 0 || cartons === 0) parts.push(`${pieces} ${pcs}`);
   return parts.join(" + ");
+}
+
+/** Compact display: "12 ctn 4 pcs" for stock lists. */
+export function formatUomCompact(
+  totalPieces: unknown,
+  packing: unknown,
+  labels?: { unitType?: string | null; baseUnit?: string | null },
+): string {
+  return formatUom(totalPieces, packing, labels)
+    .replace(/ \+ /g, " ")
+    .toLowerCase();
 }
 
 /** per-carton price → per-piece rate (the value that goes into `rate`). */

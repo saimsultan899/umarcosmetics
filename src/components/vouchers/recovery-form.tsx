@@ -255,14 +255,6 @@ export function RecoveryForm({
       </div>
 
       <div className="space-y-3" data-enter-own>
-        <div className="rounded-xl border border-[var(--brand)]/30 bg-[var(--brand-soft)]/40 px-3 py-2 text-xs text-[var(--brand-strong)]">
-          Keyboard: type customer{" "}
-          <kbd className="rounded bg-white px-1">code</kbd> →{" "}
-          <kbd className="rounded bg-white px-1">Enter</kbd> → amount → remarks →{" "}
-          <kbd className="rounded bg-white px-1">Enter</kbd> adds the line. No need
-          to click Add.
-        </div>
-
         <div className="table-grid">
           <table className="w-full min-w-[720px] text-sm">
             <thead>

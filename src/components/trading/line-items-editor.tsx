@@ -18,12 +18,11 @@ import {
   emptyLine,
   type LineItemDraft,
 } from "@/lib/types/trading";
+import { QtyUnitControl } from "@/components/trading/qty-unit-control";
 import {
-  formatUom,
-  fromPieces,
+  formatUomCompact,
   hasCartonPacking,
   perCartonRate,
-  toPieces,
 } from "@/lib/pricing/uom";
 import { computeLineScheme, purchaseDiscountPercentText } from "@/lib/pricing/discounts";
 import { formatPkr, cn } from "@/lib/utils";
@@ -59,6 +58,8 @@ export function LineItemsEditor({
   stockByProduct,
   /** Auto-selects stocked warehouse (sale) or product default warehouse (purchase). */
   onAutoPickWarehouse,
+  /** Show company control above product lines (sale invoice). */
+  showCompanyPicker = false,
   /** Optional invoice-level extra discount (sale invoice footer). */
   extraDiscount,
   onExtraDiscountChange,
@@ -76,6 +77,7 @@ export function LineItemsEditor({
   warehouses?: Warehouse[];
   stockByProduct?: Map<string, { warehouseId: string; qty: number }[]>;
   onAutoPickWarehouse?: (warehouseId: string) => void;
+  showCompanyPicker?: boolean;
   extraDiscount?: string;
   onExtraDiscountChange?: (value: string) => void;
 }) {
@@ -83,15 +85,22 @@ export function LineItemsEditor({
   const [hint, setHint] = useState<string | null>(null);
   const [lineHints, setLineHints] = useState<Record<string, string>>({});
   const [productOpen, setProductOpen] = useState(false);
+  /** Immediate company id while parent warehouseId catches up after auto-pick. */
+  const [pickedWarehouseId, setPickedWarehouseId] = useState<string | null>(
+    null,
+  );
 
   const linesRef = useRef(lines);
   const draftRef = useRef(draft);
+  const warehouseIdRef = useRef(warehouseId);
   const codeRef = useRef<HTMLInputElement>(null);
   const qtyRef = useRef<HTMLInputElement>(null);
   const schemeRef = useRef<HTMLInputElement>(null);
   const rateRef = useRef<HTMLInputElement>(null);
   const discountRef = useRef<HTMLInputElement>(null);
   const productSelectRef = useRef<SelectHandle>(null);
+
+  const effectiveWarehouseId = pickedWarehouseId || warehouseId;
 
   useEffect(() => {
     linesRef.current = lines;
@@ -102,10 +111,25 @@ export function LineItemsEditor({
   }, [draft]);
 
   useEffect(() => {
+    warehouseIdRef.current = warehouseId;
+    // Parent caught up — drop local override
+    if (pickedWarehouseId && pickedWarehouseId === warehouseId) {
+      setPickedWarehouseId(null);
+    }
+  }, [warehouseId, pickedWarehouseId]);
+
+  useEffect(() => {
     if (!autoFocus) return;
     const t = requestAnimationFrame(() => focusField(codeRef.current));
     return () => cancelAnimationFrame(t);
   }, [autoFocus]);
+
+  function pickWarehouse(nextId: string) {
+    if (!nextId || nextId === warehouseIdRef.current) return;
+    warehouseIdRef.current = nextId;
+    setPickedWarehouseId(nextId);
+    onAutoPickWarehouse?.(nextId);
+  }
 
   function schemeFields(scheme: string, qty: string, rate: string) {
     if (!enableBonus) return { scheme };
@@ -152,15 +176,6 @@ export function LineItemsEditor({
     onChange(next);
   }
 
-  function applyCartons(line: LineItemDraft, packing: number, cartonsRaw: string) {
-    const { pieces: loose } = fromPieces(line.qty, packing);
-    const cartons = Math.max(0, Math.floor(Number(cartonsRaw || 0)));
-    const qty = String(toPieces(cartons, loose, packing));
-    const p = products.find((x) => x.id === line.product_id);
-    const bonusFields = schemeFields(line.scheme, qty, line.rate);
-    patchLine(line.key, { qty, ...bonusFields });
-  }
-
   async function resolveRate(product: Product) {
     let rate = resolveProductRate(product, rateField);
     let sourceHint = rateSourceLabel(product, rateField, rate);
@@ -188,34 +203,113 @@ export function LineItemsEditor({
   const warehouseLabel = (id?: string) =>
     warehouses?.find((w) => w.id === id)?.name || "selected warehouse";
 
-  function formatStockQty(qty: number) {
+  function formatStockQty(qty: number, productId?: string) {
+    const p = productId ? productById.get(productId) : undefined;
+    if (p && hasCartonPacking(p.packing)) {
+      return formatUomCompact(qty, p.packing, {
+        unitType: p.unit_type,
+        baseUnit: p.base_unit,
+      });
+    }
     return Number.isInteger(qty)
       ? String(qty)
       : qty.toFixed(2).replace(/\.?0+$/, "");
   }
 
   type StockNote = { tone: "ok" | "warn" | "bad"; text: string };
-  /** Where a product is stocked, relative to the currently selected warehouse. */
+
+  function productCompanyId(productId?: string) {
+    if (!productId) return undefined;
+    return (
+      products.find((p) => p.id === productId)?.default_warehouse_id || undefined
+    );
+  }
+
+  /** Qty already committed on this invoice for a product (paid + free). */
+  function reservedQty(productId: string, exceptKey?: string) {
+    return linesRef.current
+      .filter((l) => l.product_id === productId && l.key !== exceptKey)
+      .reduce(
+        (s, l) => s + Number(l.qty || 0) + Number(l.bonus || 0),
+        0,
+      );
+  }
+
+  /** Remaining stock in a company after reserved lines. */
+  function availableInCompany(
+    productId: string,
+    companyId: string | undefined,
+    exceptKey?: string,
+  ) {
+    if (!stockByProduct || !companyId || !productId) return null;
+    const onHand =
+      stockByProduct
+        .get(productId)
+        ?.find((e) => e.warehouseId === companyId)?.qty ?? 0;
+    return Math.max(0, onHand - reservedQty(productId, exceptKey));
+  }
+
+  function availableInSelectedCompany(productId: string, exceptKey?: string) {
+    const companyId = productCompanyId(productId) || effectiveWarehouseId;
+    return availableInCompany(productId, companyId, exceptKey);
+  }
+
+  /**
+   * Stock hint — always for the product's own company when assigned.
+   */
   function stockNoteFor(productId: string): StockNote | null {
-    if (!stockByProduct || !productId) return null;
+    if (!productId || !stockByProduct) return null;
+
+    const productWh = productCompanyId(productId);
+    const activeWh = productWh || effectiveWarehouseId;
     const entries = stockByProduct.get(productId);
+
     if (!entries || entries.length === 0) {
-      return { tone: "bad", text: "Out of stock in every warehouse" };
-    }
-    const inCurrent = warehouseId
-      ? entries.find((e) => e.warehouseId === warehouseId)
-      : undefined;
-    if (inCurrent && inCurrent.qty > 0) {
       return {
-        tone: "ok",
-        text: `In stock: ${warehouseLabel(warehouseId)} · ${formatStockQty(inCurrent.qty)}`,
+        tone: "bad",
+        text: `Out of stock${activeWh ? ` in ${warehouseLabel(activeWh)}` : ""}`,
       };
     }
-    const best = entries[0];
+
+    const inOwn = activeWh
+      ? entries.find((e) => e.warehouseId === activeWh)
+      : undefined;
+    const ownQty = inOwn?.qty ?? 0;
+    const avail = availableInCompany(productId, activeWh);
+
+    if (ownQty > 0) {
+      const availText =
+        avail != null && avail < ownQty
+          ? ` · left ${formatStockQty(avail, productId)}`
+          : "";
+      return {
+        tone: "ok",
+        text: `In stock: ${warehouseLabel(activeWh)} · ${formatStockQty(ownQty, productId)}${availText}`,
+      };
+    }
+
     return {
-      tone: "warn",
-      text: `In ${warehouseLabel(best.warehouseId)} · ${formatStockQty(best.qty)} — not in ${warehouseLabel(warehouseId)}`,
+      tone: "bad",
+      text: `Out of stock in ${warehouseLabel(activeWh)}`,
     };
+  }
+
+  /** Alert when qty + scheme free exceeds remaining stock in the product's company. */
+  function overstockAlert(
+    productId: string,
+    qty: string,
+    bonus: string,
+    exceptKey?: string,
+  ): string | null {
+    if (!productId || !stockByProduct) return null;
+    const productWh = productCompanyId(productId);
+    const companyId = productWh || effectiveWarehouseId;
+    if (!companyId) return null;
+    const avail = availableInCompany(productId, companyId, exceptKey);
+    if (avail == null) return null;
+    const need = Number(qty || 0) + Number(bonus || 0);
+    if (!(need > avail)) return null;
+    return `Only ${formatStockQty(avail, productId)} available in ${warehouseLabel(companyId)} (need ${formatStockQty(need, productId)})`;
   }
 
   async function applyProductToDraft(p: Product | null) {
@@ -237,50 +331,22 @@ export function LineItemsEditor({
       ) ||
       p;
 
-    // Auto-pick warehouse when a product is chosen:
-    // 1) Sale flow — warehouse that currently stocks the product
-    // 2) Purchase / fallback — product.default_warehouse_id
-    if (onAutoPickWarehouse && catalog.id) {
-      let targetWarehouseId: string | null = null;
-
-      if (stockByProduct) {
-        const entries = stockByProduct.get(catalog.id);
-        const currentHasStock =
-          !!warehouseId &&
-          !!entries?.some((e) => e.warehouseId === warehouseId && e.qty > 0);
-        if (entries?.length && !currentHasStock) {
-          const best = entries[0];
-          const safe = linesRef.current
-            .filter((l) => l.product_id)
-            .every((l) =>
-              stockByProduct
-                .get(l.product_id)
-                ?.some((x) => x.warehouseId === best.warehouseId && x.qty > 0),
-            );
-          if (safe) targetWarehouseId = best.warehouseId;
-        }
-      }
-
-      if (
-        !targetWarehouseId &&
-        catalog.default_warehouse_id &&
-        catalog.default_warehouse_id !== warehouseId
-      ) {
-        const target = catalog.default_warehouse_id;
-        const safe = linesRef.current
-          .filter((l) => l.product_id)
-          .every((l) => {
-            const existing = products.find((x) => x.id === l.product_id);
-            return (
-              !existing?.default_warehouse_id ||
-              existing.default_warehouse_id === target
-            );
-          });
-        if (safe) targetWarehouseId = target;
-      }
-
-      if (targetWarehouseId && targetWarehouseId !== warehouseId) {
-        onAutoPickWarehouse(targetWarehouseId);
+    // Always switch Company to the product's assigned company (mixed bills OK).
+    if (onAutoPickWarehouse && catalog.id && catalog.default_warehouse_id) {
+      pickWarehouse(catalog.default_warehouse_id);
+    } else if (
+      onAutoPickWarehouse &&
+      catalog.id &&
+      !catalog.default_warehouse_id &&
+      stockByProduct
+    ) {
+      const currentWh = warehouseIdRef.current;
+      const entries = stockByProduct.get(catalog.id);
+      const currentHasStock =
+        !!currentWh &&
+        !!entries?.some((e) => e.warehouseId === currentWh && e.qty > 0);
+      if (entries?.length && !currentHasStock) {
+        pickWarehouse(entries[0].warehouseId);
       }
     }
 
@@ -320,12 +386,13 @@ export function LineItemsEditor({
     const trimmed = raw.trim();
     if (!trimmed) {
       await applyProductToDraft(null);
+      setHint(null);
       return null;
     }
 
-    const local = products.find(
-      (p) => p.code.toLowerCase() === trimmed.toLowerCase(),
-    );
+    const local =
+      products.find((p) => p.code.toLowerCase() === trimmed.toLowerCase()) ||
+      null;
     if (local) {
       await applyProductToDraft(local);
       return local;
@@ -351,7 +418,30 @@ export function LineItemsEditor({
   }
 
   function setCodeValue(value: string) {
-    patchDraft({ product_code: value });
+    if (
+      hint === "No product for this code" ||
+      hint === "Select a product and enter qty"
+    ) {
+      setHint(null);
+    }
+
+    const trimmed = value.trim();
+    const matched = trimmed
+      ? products.find((p) => p.code.toLowerCase() === trimmed.toLowerCase())
+      : null;
+
+    if (matched) {
+      void applyProductToDraft(matched);
+      return;
+    }
+
+    const prev = draftRef.current;
+    patchDraft({
+      product_code: value,
+      ...(prev.product_id
+        ? { product_id: "", product_name: "", rate: "0" }
+        : {}),
+    });
   }
 
   function resetDraft() {
@@ -367,6 +457,17 @@ export function LineItemsEditor({
     if (!current.product_id || Number(current.qty) <= 0) {
       setHint("Select a product and enter qty");
       focusField(codeRef.current);
+      return false;
+    }
+
+    const stockErr = overstockAlert(
+      current.product_id,
+      current.qty,
+      current.bonus || "0",
+    );
+    if (stockErr) {
+      setHint(stockErr);
+      focusField(qtyRef.current);
       return false;
     }
 
@@ -522,24 +623,32 @@ export function LineItemsEditor({
 
   return (
     <div className="space-y-3" data-enter-own>
-      <div className="rounded-xl border border-[var(--brand)]/30 bg-[var(--brand-soft)]/40 px-3 py-2 text-xs text-[var(--brand-strong)]">
-        Keyboard: type <kbd className="rounded bg-white px-1">code</kbd> →{" "}
-        <kbd className="rounded bg-white px-1">Enter</kbd> opens product → qty
-        {enableBonus ? (
-          <>
-            {" "}
-            → scheme (e.g. 10+1) → rate → discount % →{" "}
-            <kbd className="rounded bg-white px-1">Enter</kbd> adds the line
-          </>
-        ) : (
-          <>
-            {" "}
-            → rate → discount % →{" "}
-            <kbd className="rounded bg-white px-1">Enter</kbd> adds the line
-          </>
-        )}
-        . No need to click Add line.
-      </div>
+      {showCompanyPicker && warehouses && warehouses.length > 0 ? (
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="min-w-[12rem] flex-1 sm:max-w-xs">
+            <Label>Company</Label>
+            <Select
+              value={effectiveWarehouseId || ""}
+              onChange={(e) => {
+                const next = e.target.value;
+                warehouseIdRef.current = next;
+                setPickedWarehouseId(null);
+                onAutoPickWarehouse?.(next);
+              }}
+              options={[
+                { value: "", label: "Auto from product" },
+                ...warehouses.map((w) => ({
+                  value: w.id,
+                  label: w.name,
+                })),
+              ]}
+            />
+            <p className="mt-1 text-[11px] text-[var(--muted)]">
+              Fills automatically when you pick a product.
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       <div className="table-grid">
         <table className="w-full min-w-[960px] text-sm">
@@ -574,38 +683,52 @@ export function LineItemsEditor({
                   size="sm"
                   value={draft.product_id}
                   options={productOptions}
+                  maxVisible={12}
                   open={productOpen}
                   onOpenChange={setProductOpen}
                   onChange={(e) => void onProductPicked(e.target.value)}
                 />
                 {(() => {
                   const note = stockNoteFor(draft.product_id);
-                  if (!note) return null;
+                  const over = overstockAlert(
+                    draft.product_id,
+                    draft.qty,
+                    draft.bonus || "0",
+                  );
+                  if (!note && !over) return null;
                   return (
-                    <p
-                      className={cn(
-                        "mt-1 text-[10px]",
-                        note.tone === "ok"
-                          ? "text-[var(--brand)]"
-                          : note.tone === "warn"
-                            ? "text-amber-700"
-                            : "text-rose-600",
-                      )}
-                    >
-                      {note.text}
-                    </p>
+                    <>
+                      {note ? (
+                        <p
+                          className={cn(
+                            "mt-1 text-[10px]",
+                            note.tone === "ok"
+                              ? "text-[var(--brand)]"
+                              : note.tone === "warn"
+                                ? "text-amber-700"
+                                : "text-rose-600",
+                          )}
+                        >
+                          {note.text}
+                        </p>
+                      ) : null}
+                      {over ? (
+                        <p className="mt-1 text-[10px] font-medium text-rose-600">
+                          {over}
+                        </p>
+                      ) : null}
+                    </>
                   );
                 })()}
               </td>
               <td>
-                <Input
-                  ref={qtyRef}
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  value={draft.qty}
-                  onChange={(e) => {
-                    const qty = e.target.value;
+                <QtyUnitControl
+                  packing={productById.get(draft.product_id)?.packing ?? 1}
+                  unitType={productById.get(draft.product_id)?.unit_type}
+                  baseUnit={productById.get(draft.product_id)?.base_unit}
+                  qty={draft.qty}
+                  qtyInputRef={qtyRef}
+                  onQtyChange={(qty) => {
                     patchDraft({
                       qty,
                       ...schemeFields(
@@ -615,27 +738,19 @@ export function LineItemsEditor({
                       ),
                     });
                   }}
-                  onKeyDown={onQtyEnter}
+                  onQtyKeyDown={onQtyEnter}
+                  compact
                 />
-                {(() => {
-                  const p = productById.get(draft.product_id);
-                  if (!p || !hasCartonPacking(p.packing)) return null;
-                  return (
-                    <p className="mt-1 text-[10px] text-[var(--muted)]">
-                      {formatUom(draft.qty, p.packing)}
-                    </p>
-                  );
-                })()}
               </td>
               {enableBonus ? (
                 <td>
                   <Input
                     ref={schemeRef}
                     value={draft.scheme}
-                    placeholder="10+1"
+                    placeholder="+1"
                     onChange={(e) => patchDraftWithScheme(e.target.value)}
                     onKeyDown={onSchemeEnter}
-                    title="Item-wise shop scheme, e.g. 10+1"
+                    title="Item-wise shop scheme, e.g. +1 or 10+1"
                   />
                   {Number(draft.bonus) > 0 ? (
                     <p className="mt-1 text-[10px] text-[var(--muted)]">
@@ -732,6 +847,19 @@ export function LineItemsEditor({
                     </div>
                     {(() => {
                       const note = stockNoteFor(line.product_id);
+                      const over = overstockAlert(
+                        line.product_id,
+                        line.qty,
+                        line.bonus || "0",
+                        line.key,
+                      );
+                      if (over) {
+                        return (
+                          <p className="px-1 text-[10px] font-medium text-rose-600">
+                            {over}
+                          </p>
+                        );
+                      }
                       if (!note || note.tone === "ok") return null;
                       return (
                         <p
@@ -748,19 +876,18 @@ export function LineItemsEditor({
                     })()}
                   </td>
                   <td>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.1"
-                      value={line.qty}
-                      onChange={(e) => {
-                        const qty = e.target.value;
+                    <QtyUnitControl
+                      packing={productById.get(line.product_id)?.packing ?? 1}
+                      unitType={productById.get(line.product_id)?.unit_type}
+                      baseUnit={productById.get(line.product_id)?.base_unit}
+                      qty={line.qty}
+                      onQtyChange={(qty) => {
                         patchLine(line.key, {
                           qty,
                           ...schemeFields(line.scheme, qty, line.rate),
                         });
                       }}
-                      onKeyDown={(e) => {
+                      onQtyKeyDown={(e) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
                           e.stopPropagation();
@@ -778,37 +905,15 @@ export function LineItemsEditor({
                           focusField(next);
                         }
                       }}
+                      compact
                     />
-                    {(() => {
-                      const p = productById.get(line.product_id);
-                      if (!p || !hasCartonPacking(p.packing)) return null;
-                      return (
-                        <div className="mt-1 flex items-center gap-1">
-                          <input
-                            type="number"
-                            min="0"
-                            step="1"
-                            value={fromPieces(line.qty, p.packing).cartons}
-                            onChange={(e) =>
-                              applyCartons(line, p.packing, e.target.value)
-                            }
-                            className="h-6 w-12 rounded border border-[var(--border)] px-1 text-[11px]"
-                            aria-label="Cartons"
-                            title={`Cartons — ${p.packing}/ctn`}
-                          />
-                          <span className="text-[10px] text-[var(--muted)]">
-                            ctn · {formatUom(line.qty, p.packing)}
-                          </span>
-                        </div>
-                      );
-                    })()}
                   </td>
                   {enableBonus ? (
                     <td>
                       <Input
                         data-line-scheme="1"
                         value={line.scheme}
-                        placeholder="10+1"
+                        placeholder="+1"
                         onChange={(e) =>
                           patchLineWithScheme(
                             line.key,
@@ -870,7 +975,8 @@ export function LineItemsEditor({
                       if (!p || !hasCartonPacking(p.packing)) return null;
                       return (
                         <p className="mt-1 text-[10px] text-[var(--muted)]">
-                          {formatPkr(perCartonRate(line.rate, p.packing))}/ctn
+                          {formatPkr(perCartonRate(line.rate, p.packing))}/
+                          {(p.unit_type || "Carton").toLowerCase()}
                         </p>
                       );
                     })()}

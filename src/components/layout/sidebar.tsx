@@ -2,7 +2,13 @@
 
 import { mainNav, platformNav, type NavItem } from "@/lib/nav";
 import { cn } from "@/lib/utils";
-import { ChevronDown, Layers3, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
+import {
+  ChevronDown,
+  Layers3,
+  PanelLeftClose,
+  PanelLeftOpen,
+  X,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -32,7 +38,9 @@ function isHrefCandidate(
   const required = [...url.searchParams.entries()];
   if (required.length === 0) {
     if (searchParams.toString() !== "") return false;
-  } else if (!required.every(([key, value]) => searchParams.get(key) === value)) {
+  } else if (
+    !required.every(([key, value]) => searchParams.get(key) === value)
+  ) {
     return false;
   }
 
@@ -107,9 +115,10 @@ function NavGroup({
   const Icon = item.icon;
   const anchorRef = useRef<HTMLDivElement>(null);
   const [flyout, setFlyout] = useState(false);
-  const [flyoutPos, setFlyoutPos] = useState<{ top: number; left: number } | null>(
-    null,
-  );
+  const [flyoutPos, setFlyoutPos] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
 
   function openFlyout() {
     if (!collapsed || !anchorRef.current) return;
@@ -157,7 +166,10 @@ function NavGroup({
           <>
             {rowIcon}
             <span className="sidebar-link__label">{item.label}</span>
-            <span className="sidebar-link__chevron sidebar-link__chevron--empty" aria-hidden />
+            <span
+              className="sidebar-link__chevron sidebar-link__chevron--empty"
+              aria-hidden
+            />
           </>
         )}
         {collapsed ? <span className="sr-only">{item.label}</span> : null}
@@ -197,7 +209,10 @@ function NavGroup({
             {rowIcon}
             <span className="sidebar-link__label">{item.label}</span>
             <span
-              className={cn("sidebar-link__chevron", open && "sidebar-link__chevron--open")}
+              className={cn(
+                "sidebar-link__chevron",
+                open && "sidebar-link__chevron--open",
+              )}
               aria-hidden
             >
               <ChevronDown className="h-4 w-4" />
@@ -220,7 +235,10 @@ function NavGroup({
                   onHashChange?.(url.hash || "");
                   onNavigate?.();
                 }}
-                className={cn("sidebar-sublink", active && "sidebar-sublink--active")}
+                className={cn(
+                  "sidebar-sublink",
+                  active && "sidebar-sublink--active",
+                )}
               >
                 {child.label}
               </Link>
@@ -247,7 +265,10 @@ function NavGroup({
                   onNavigate?.();
                   closeFlyout();
                 }}
-                className={cn("sidebar-sublink", active && "sidebar-sublink--active")}
+                className={cn(
+                  "sidebar-sublink",
+                  active && "sidebar-sublink--active",
+                )}
               >
                 {child.label}
               </Link>
@@ -381,7 +402,9 @@ export function Sidebar({
       <nav
         className={cn(
           "flex flex-1 flex-col py-2",
-          iconMode ? "overflow-x-hidden overflow-y-auto px-1.5" : "overflow-y-auto px-2",
+          iconMode
+            ? "overflow-x-hidden overflow-y-auto px-1.5"
+            : "overflow-y-auto px-2",
         )}
       >
         <div className="flex flex-col gap-0.5">
@@ -428,7 +451,10 @@ export function Sidebar({
         <button
           type="button"
           onClick={onToggleCollapsed}
-          className={cn("sidebar-toggle", collapsed && "sidebar-toggle--collapsed")}
+          className={cn(
+            "sidebar-toggle",
+            collapsed && "sidebar-toggle--collapsed",
+          )}
           aria-label={collapsed ? "Open sidebar" : "Close sidebar"}
         >
           {collapsed ? (
