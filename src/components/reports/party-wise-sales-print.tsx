@@ -147,13 +147,13 @@ export function PartyWiseSalesPrint({
 
               <table>
                 <colgroup>
-                  <col className="w-[110px]" />
-                  <col className="w-[90px]" />
-                  <col className="w-[80px]" />
-                  <col />
-                  <col className="w-[90px]" />
-                  <col className="w-[80px]" />
-                  <col className="w-[110px]" />
+                  <col style={{ width: "10%" }} />
+                  <col style={{ width: "7%" }} />
+                  <col style={{ width: "7%" }} />
+                  <col style={{ width: "32%" }} />
+                  <col style={{ width: "14%" }} />
+                  <col style={{ width: "14%" }} />
+                  <col style={{ width: "16%" }} />
                 </colgroup>
                 <thead>
                   <tr>

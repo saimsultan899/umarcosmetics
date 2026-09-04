@@ -69,7 +69,6 @@ export const QtyUnitControl = forwardRef<HTMLInputElement, QtyUnitControlProps>(
     const [mode, setMode] = useState<QtyUnitMode>(
       defaultMode || (canCarton ? "carton" : "piece"),
     );
-    const [loose, setLoose] = useState("0");
     const groupId = useId();
 
     useEffect(() => {
@@ -80,33 +79,29 @@ export const QtyUnitControl = forwardRef<HTMLInputElement, QtyUnitControlProps>(
     const pcsLabel = pieceShortLabel(baseUnit);
     const breakdown = fromPieces(qty, packing);
 
+    // Always derive CTN / loose from stored pieces so fields stay in sync
+    // when lines are added/remounted (no stale local loose state).
     const displayQty =
       mode === "carton" && canCarton ? String(breakdown.cartons) : qty;
+    const looseQty = String(breakdown.pieces || 0);
 
     function setModeSafe(next: QtyUnitMode) {
       if (next === "carton" && !canCarton) return;
       setMode(next);
-      if (next === "carton") {
-        const { pieces } = fromPieces(qty, packing);
-        setLoose(String(pieces || 0));
-      }
     }
 
     function onDisplayQtyChange(raw: string) {
       if (mode === "carton" && canCarton) {
         const cartons = Math.max(0, Math.floor(Number(raw || 0)));
-        const loosePcs = Math.max(0, Number(loose || 0));
-        onQtyChange(String(toPieces(cartons, loosePcs, packing)));
+        onQtyChange(String(toPieces(cartons, breakdown.pieces, packing)));
         return;
       }
       onQtyChange(raw);
     }
 
     function onLooseChange(raw: string) {
-      setLoose(raw);
-      const cartons = breakdown.cartons;
       const loosePcs = Math.max(0, Number(raw || 0));
-      onQtyChange(String(toPieces(cartons, loosePcs, packing)));
+      onQtyChange(String(toPieces(breakdown.cartons, loosePcs, packing)));
     }
 
     return (
@@ -180,7 +175,7 @@ export const QtyUnitControl = forwardRef<HTMLInputElement, QtyUnitControlProps>(
               type="number"
               min="0"
               step="0.1"
-              value={loose}
+              value={looseQty}
               disabled={disabled}
               onChange={(e) => onLooseChange(e.target.value)}
               className={cn(compact ? "h-7 text-[11px]" : "h-8 w-20 text-xs")}

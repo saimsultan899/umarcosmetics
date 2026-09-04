@@ -85,6 +85,7 @@ export function SaleInvoicePrint({
   billAmount,
   paid = 0,
   previousPayment = 0,
+  lastPaidKind = null,
   previousBalance,
   creditDays = 21,
   preparedBy,
@@ -110,8 +111,10 @@ export function SaleInvoicePrint({
   billAmount: number;
   /** Cash received against this invoice. */
   paid?: number;
-  /** Last recovery / collection from this shop (already in previous balance). */
+  /** Last recovery / cash-on-sale from this shop (already in previous balance). */
   previousPayment?: number;
+  /** Cash vs Credit label for Last Paid Amount. */
+  lastPaidKind?: "Cash" | "Credit" | null;
   previousBalance: number;
   creditDays?: number;
   preparedBy?: string | null;
@@ -119,6 +122,7 @@ export function SaleInvoicePrint({
 }) {
   const paidOnBill = Math.max(0, paid);
   const paidShown = paidOnBill > 0 ? paidOnBill : previousPayment;
+  const paidKind = paidShown > 0 ? lastPaidKind : null;
   const billPayable = Math.max(0, billAmount - paidOnBill);
   const totalPayable = billPayable + previousBalance;
   const prevLabel =
@@ -215,13 +219,13 @@ export function SaleInvoicePrint({
         <table className="si-table">
           <thead>
             <tr>
-              <th className="ctr" style={{ width: "8%" }}>
+              <th className="ctr" style={{ width: "4%" }}>
                 Sr.
               </th>
-              <th className="num" style={{ width: "12%" }}>
+              <th className="num" style={{ width: "10%" }}>
                 Qty
               </th>
-              <th style={{ width: "28%" }}>ItemName</th>
+              <th style={{ width: "34%" }}>ItemName</th>
               <th className="num" style={{ width: "10%" }}>
                 Scheme
               </th>
@@ -291,7 +295,12 @@ export function SaleInvoicePrint({
 
           <div className="si-foot-col si-foot-pay">
             <div className="si-row">
-              <span>Last Paid Amount</span>
+              <span>
+                Last Paid Amount
+                {paidKind ? (
+                  <span className="si-paid-kind"> ({paidKind})</span>
+                ) : null}
+              </span>
               <span>{formatNumber(paidShown, 2)}</span>
             </div>
             <div className="si-row">

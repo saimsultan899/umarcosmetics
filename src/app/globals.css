@@ -1121,9 +1121,9 @@ button[aria-haspopup="listbox"]:focus-visible {
   background: #fff;
   color: #000;
   font-family: Arial, Helvetica, sans-serif;
-  padding: 0 0 12px;
-  border: none;
-  border-radius: 0;
+  padding: 12px 16px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
 }
 
 .classic-report-head {
@@ -1176,7 +1176,7 @@ button[aria-haspopup="listbox"]:focus-visible {
   border-top: 1px solid #111;
   border-bottom: 1px solid #111;
   border-left: 1px solid #111;
-  padding: 4px 8px;
+  padding: 4px 6px;
   background: #fff;
   color: #000;
   font-size: 12px;
@@ -1195,11 +1195,13 @@ button[aria-haspopup="listbox"]:focus-visible {
   border-left: 1px solid #111;
   border-top: none;
   border-bottom: none;
-  padding: 3px 8px;
+  padding: 3px 6px;
   background: #fff;
   color: #000;
   vertical-align: top;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .classic-report tbody td:last-child {
@@ -1210,16 +1212,25 @@ button[aria-haspopup="listbox"]:focus-visible {
   border-bottom: 1px solid #111;
 }
 
+/* ItemName — allow wrap, keep gap to Qty modest */
 .classic-report td:nth-child(4),
 .classic-report th:nth-child(4) {
   white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  padding-right: 10px;
 }
 
+/* Date / Inv / Item No — compact, left-aligned */
+.classic-report th:nth-child(1),
+.classic-report td:nth-child(1),
 .classic-report th:nth-child(2),
-.classic-report th:nth-child(3),
 .classic-report td:nth-child(2),
+.classic-report th:nth-child(3),
 .classic-report td:nth-child(3) {
-  text-align: right;
+  text-align: left;
+  padding-left: 6px;
+  padding-right: 4px;
 }
 
 .classic-report-num {
@@ -1237,10 +1248,19 @@ button[aria-haspopup="listbox"]:focus-visible {
 
 .classic-report-party-total td,
 .classic-report-grand td {
-  border: none !important;
+  border-left: none !important;
+  border-right: none !important;
+  border-top: none !important;
+  border-bottom: none !important;
   background: transparent;
   padding-top: 6px;
   padding-bottom: 2px;
+}
+
+/* Close the report with a bottom rule under Report Total */
+.classic-report-grand td {
+  border-bottom: 1px solid #111 !important;
+  padding-bottom: 10px !important;
 }
 
 .classic-report-box {
@@ -1260,6 +1280,71 @@ button[aria-haspopup="listbox"]:focus-visible {
   padding: 1px 4px;
   text-align: right;
   font-weight: 400;
+}
+
+/* Cash flow — company top customers */
+.cash-flow-company-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-bottom: 8px;
+}
+.cash-flow-company-total {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+}
+.cash-flow-party-block {
+  margin-bottom: 14px;
+}
+.cash-flow-party-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.cash-flow-rank {
+  display: inline-block;
+  min-width: 1.75rem;
+  color: #111;
+}
+.cash-flow-party-amt {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+.cash-flow-company-foot {
+  margin: 4px 0 0;
+  padding-top: 6px;
+  border-top: 1px solid #111;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: right;
+}
+.cash-flow-report-total {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-top: 18px;
+  padding: 8px 0 4px;
+  border-top: 1px solid #111;
+  border-bottom: 1px solid #111;
+  font-size: 13px;
+  font-weight: 600;
+}
+.cash-flow-report table thead th:nth-child(1),
+.cash-flow-report table thead th:nth-child(2),
+.cash-flow-report table thead th:nth-child(3),
+.cash-flow-report table tbody td:nth-child(1),
+.cash-flow-report table tbody td:nth-child(2),
+.cash-flow-report table tbody td:nth-child(3) {
+  text-align: left;
 }
 
 /* Print document (invoices, vouchers, delivery/transfer notes) — A4 B/W layout */
@@ -1743,6 +1828,9 @@ button[aria-haspopup="listbox"]:focus-visible {
   padding: 2px 4px;
   vertical-align: top;
 }
+.si-table tbody tr:last-child td {
+  border-bottom: 1.5px solid #111;
+}
 .si-table .num {
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -1750,6 +1838,16 @@ button[aria-haspopup="listbox"]:focus-visible {
 }
 .si-table .ctr {
   text-align: center;
+  padding-left: 2px;
+  padding-right: 2px;
+}
+.si-table th.num:nth-child(2),
+.si-table td.num:nth-child(2) {
+  padding-right: 10px;
+}
+.si-table th:nth-child(3),
+.si-table td:nth-child(3) {
+  padding-left: 8px;
 }
 .si-bonus {
   font-size: 9px;
@@ -1771,6 +1869,12 @@ button[aria-haspopup="listbox"]:focus-visible {
   justify-content: space-between;
   gap: 12px;
   padding: 1px 0;
+}
+.si-paid-kind {
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
 }
 .si-row.si-strong {
   font-weight: 600;
@@ -2171,6 +2275,10 @@ button[aria-haspopup="listbox"]:focus-visible {
     border: none !important;
     border-radius: 0 !important;
     padding: 0 !important;
+  }
+
+  .classic-report-grand td {
+    border-bottom: 1px solid #111 !important;
   }
 
   .no-print {

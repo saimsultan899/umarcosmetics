@@ -120,6 +120,7 @@ export function SaleInvoiceForm({
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (loading) return;
     setError(null);
 
     const valid = lines.filter((l) => l.product_id && Number(l.qty) > 0);
@@ -131,6 +132,8 @@ export function SaleInvoiceForm({
       setError("Select customer, add a product line, and ensure company is set.");
       return;
     }
+
+    setLoading(true);
 
     // Client-side stock check (qty + free) against each product's own company
     const needByProduct = new Map<string, number>();
@@ -151,6 +154,7 @@ export function SaleInvoiceForm({
       if (need > onHand + 1e-9) {
         const companyName =
           warehouses.find((w) => w.id === stockWh)?.name || "selected company";
+        setLoading(false);
         setError(
           `${product ? `${product.code} — ${product.name_en}` : "Product"}: only ${onHand} available in ${companyName} (need ${need}).`,
         );
@@ -158,9 +162,11 @@ export function SaleInvoiceForm({
       }
     }
 
+    const party = parties.find((p) => p.id === partyId);
     const { subtotal, discount_total, grand_total: linesTotal } = summarizeLines(valid);
     const extra = Math.max(0, Number(extraDiscount) || 0);
     if (extra > linesTotal + 0.005) {
+      setLoading(false);
       setError("Extra discount cannot exceed the bill amount after trade discount.");
       return;
     }
@@ -180,11 +186,13 @@ export function SaleInvoiceForm({
         const proceed = window.confirm(
           `This sale may exceed credit limit.\nProjected balance: ${projected.toLocaleString()}\nLimit: ${Number(party.credit_limit).toLocaleString()}\n\nContinue anyway?`,
         );
-        if (!proceed) return;
+        if (!proceed) {
+          setLoading(false);
+          return;
+        }
       }
     }
 
-    setLoading(true);
     const supabase = createClient();
 
     const { data, error: rpcError } = await supabase.rpc("create_sale_invoice", {

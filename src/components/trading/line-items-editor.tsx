@@ -651,28 +651,29 @@ export function LineItemsEditor({
       ) : null}
 
       <div className="table-grid">
-        <table className="w-full min-w-[960px] text-sm">
+        <table className="w-full min-w-[1080px] text-sm">
           <thead>
             <tr>
-              <th className="w-24">Code</th>
+              <th className="w-28 min-w-[7rem]">Code</th>
               <th>Product</th>
-              <th className="w-28">Qty</th>
-              {enableBonus ? <th className="w-28">Scheme</th> : null}
-              <th className="w-28">Rate</th>
-              <th className="w-28">Discount %</th>
-              <th className="w-28">Amount</th>
-              <th className="w-12" />
+              <th className="w-36 min-w-[9rem]">Qty</th>
+              {enableBonus ? <th className="w-28 min-w-[6.5rem]">Scheme</th> : null}
+              <th className="w-28 min-w-[6.5rem]">Rate</th>
+              <th className="w-28 min-w-[6.5rem]">Discount %</th>
+              <th className="w-28 min-w-[6.5rem]">Amount</th>
+              <th className="w-14 min-w-[3.5rem]" />
             </tr>
           </thead>
           <tbody>
             {/* Sticky quick-entry row */}
             <tr className="bg-[var(--brand-soft)]/25">
-              <td>
+              <td className="w-28 min-w-[7rem]">
                 <Input
                   ref={codeRef}
                   value={draft.product_code}
                   placeholder="Code"
                   autoComplete="off"
+                  className="px-2 font-medium tabular-nums"
                   onChange={(e) => setCodeValue(e.target.value)}
                   onKeyDown={onCodeEnter}
                 />
@@ -832,11 +833,11 @@ export function LineItemsEditor({
             ) : (
               lines.map((line, index) => (
                 <tr key={line.key}>
-                  <td>
+                  <td className="w-28 min-w-[7rem]">
                     <Input
                       value={line.product_code}
                       readOnly
-                      className="bg-[var(--surface-2)]"
+                      className="bg-[var(--surface-2)] px-2 font-medium tabular-nums"
                       tabIndex={-1}
                     />
                     <span className="sr-only">Line {index + 1}</span>

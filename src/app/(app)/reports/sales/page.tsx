@@ -1,6 +1,7 @@
 import { ChartCard } from "@/components/analytics/chart-card";
 import { CompareBarChart } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
+import { CashFlowSalesPrint } from "@/components/reports/cash-flow-sales-print";
 import { PartyWiseSalesPrint } from "@/components/reports/party-wise-sales-print";
 import { FilterMultiSelect, ReportFilters } from "@/components/reports/report-filters";
 import { ReportTypePills } from "@/components/reports/report-type-pills";
@@ -23,6 +24,20 @@ function monthStart() {
   return monthStartLocal();
 }
 
+function distinctSorted(values: Array<string | null | undefined>) {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of values) {
+    const v = (raw || "").trim();
+    if (!v) continue;
+    const key = v.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(v);
+  }
+  return out.sort((a, b) => a.localeCompare(b));
+}
+
 export default async function SaleReportsPage({
   searchParams,
 }: {
@@ -32,6 +47,8 @@ export default async function SaleReportsPage({
     to?: string;
     warehouse?: string;
     party?: string;
+    sector?: string;
+    city?: string;
     billFrom?: string;
     billTo?: string;
   }>;
@@ -55,7 +72,7 @@ export default async function SaleReportsPage({
       .order("name"),
     supabase
       .from("parties")
-      .select("id, party_code, name_en")
+      .select("id, party_code, name_en, city, route, head")
       .eq("company_id", company.id)
       .eq("is_active", true)
       .order("name_en")
@@ -64,6 +81,13 @@ export default async function SaleReportsPage({
 
   const warehouseIds = parseReportList(sp.warehouse);
   const partyIds = parseReportList(sp.party);
+  const sectors = parseReportList(sp.sector);
+  const cities = parseReportList(sp.city);
+
+  const sectorOptions = distinctSorted((parties || []).map((p) => p.route));
+  const cityOptions = distinctSorted(
+    (parties || []).map((p) => p.city || p.head),
+  );
 
   const reportSections: {
     type: SaleReportType;
@@ -80,6 +104,8 @@ export default async function SaleReportsPage({
         type,
         warehouseIds,
         partyIds,
+        routes: sectors,
+        cities,
         billFrom: sp.billFrom || undefined,
         billTo: sp.billTo || undefined,
       });
@@ -182,7 +208,19 @@ export default async function SaleReportsPage({
         </ChartCard>
       ) : null}
 
-      <ReportTypePills options={SALE_REPORT_TYPES} />
+      <ReportTypePills
+        options={SALE_REPORT_TYPES}
+        preserveKeys={[
+          "from",
+          "to",
+          "warehouse",
+          "party",
+          "sector",
+          "city",
+          "billFrom",
+          "billTo",
+        ]}
+      />
 
       <ReportFilters
         action="/reports/sales"
@@ -206,6 +244,18 @@ export default async function SaleReportsPage({
                 value: p.id,
                 label: `${p.party_code} — ${p.name_en}`,
               }))}
+            />
+            <FilterMultiSelect
+              name="sector"
+              label="Sector"
+              value={sp.sector}
+              options={sectorOptions.map((s) => ({ value: s, label: s }))}
+            />
+            <FilterMultiSelect
+              name="city"
+              label="Head / City"
+              value={sp.city}
+              options={cityOptions.map((c) => ({ value: c, label: c }))}
             />
             {types.includes("bill_range") ? (
               <>
@@ -250,6 +300,14 @@ export default async function SaleReportsPage({
         >
           {section.type === "party_wise" ? (
             <PartyWiseSalesPrint
+              companyName={company.name}
+              from={from}
+              to={to}
+              rows={section.rows}
+              filename={`sale-${section.type}-${from}-${to}`}
+            />
+          ) : section.type === "cash_flow" ? (
+            <CashFlowSalesPrint
               companyName={company.name}
               from={from}
               to={to}

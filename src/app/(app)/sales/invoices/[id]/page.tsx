@@ -2,6 +2,8 @@ import { SaleInvoicePrint } from "@/components/trading/sale-invoice-print";
 import { requireCompanyContext } from "@/lib/auth";
 import { notFound } from "next/navigation";
 
+type LastPaid = { amount: number; kind: "Cash" | "Credit"; at: number };
+
 export default async function SaleInvoiceDetailPage({
   params,
   searchParams,
@@ -31,58 +33,84 @@ export default async function SaleInvoiceDetailPage({
     .eq("sale_invoice_id", id)
     .order("sort_order");
 
-  const [{ data: balanceRaw }, { data: lastRecovery }, { data: lastCredit }] =
+  const [{ data: balanceBeforeRaw }, { data: paidSales }, { data: recoveryRows }] =
     await Promise.all([
-      supabase.rpc("get_party_balance", {
+      supabase.rpc("get_party_balance_before", {
         p_company_id: company.id,
         p_party_id: invoice.party_id,
         p_as_of: invoice.invoice_date,
+        p_before: invoice.created_at,
       }),
       supabase
+        .from("sale_invoices")
+        .select("id, invoice_date, created_at, amount_paid, payment_type")
+        .eq("company_id", company.id)
+        .eq("party_id", invoice.party_id)
+        .gt("amount_paid", 0)
+        .neq("id", id)
+        .lte("invoice_date", invoice.invoice_date)
+        .order("invoice_date", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(20),
+      supabase
         .from("recoveries")
-        .select("recovery_date, amount")
+        .select("recovery_date, amount, created_at")
         .eq("company_id", company.id)
         .eq("party_id", invoice.party_id)
         .lte("recovery_date", invoice.invoice_date)
         .order("recovery_date", { ascending: false })
         .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      supabase
-        .from("ledger_entries")
-        .select("entry_date, credit")
-        .eq("company_id", company.id)
-        .eq("party_id", invoice.party_id)
-        .gt("credit", 0)
-        .lte("entry_date", invoice.invoice_date)
-        .neq("ref_table", "sale_invoices")
-        .order("entry_date", { ascending: false })
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
+        .limit(20),
     ]);
 
-  let previousPayment = 0;
-  if (lastRecovery?.recovery_date) {
-    const { data: sameDay } = await supabase
-      .from("recoveries")
-      .select("amount")
-      .eq("company_id", company.id)
-      .eq("party_id", invoice.party_id)
-      .eq("recovery_date", lastRecovery.recovery_date);
-    previousPayment = (sameDay || []).reduce(
-      (s, r) => s + Number(r.amount || 0),
-      0,
-    );
-  } else if (lastCredit) {
-    previousPayment = Number(lastCredit.credit || 0);
+  const invoiceAt = new Date(invoice.created_at).getTime();
+
+  function isBeforeThisBill(entryDate: string, createdAt?: string | null) {
+    if (entryDate < invoice.invoice_date) return true;
+    if (entryDate > invoice.invoice_date) return false;
+    if (!createdAt) return true;
+    return new Date(createdAt).getTime() < invoiceAt;
   }
 
-  // Balance after this bill includes this invoice; previous = balance − bill
-  const balanceAsOf = Number(balanceRaw || 0);
+  let lastPaid: LastPaid | null = null;
+
+  for (const row of paidSales || []) {
+    if (!isBeforeThisBill(row.invoice_date, row.created_at)) continue;
+    lastPaid = {
+      amount: Number(row.amount_paid || 0),
+      kind: row.payment_type === "credit" ? "Credit" : "Cash",
+      at: new Date(row.created_at).getTime(),
+    };
+    break;
+  }
+
+  // Single latest recovery before this bill (not whole-day total)
+  for (const row of recoveryRows || []) {
+    if (!isBeforeThisBill(row.recovery_date, row.created_at)) continue;
+    const at = new Date(row.created_at).getTime();
+    const amount = Number(row.amount || 0);
+    if (amount > 0 && (!lastPaid || at >= lastPaid.at)) {
+      lastPaid = { amount, kind: "Cash", at };
+    }
+    break;
+  }
+
   const billAmount = Number(invoice.grand_total || 0);
-  const previousBalance = balanceAsOf - billAmount;
   const paidOnThisBill = Number(invoice.amount_paid || 0);
+  // Balance immediately before this invoice — ignores later same-day payments/returns.
+  const previousBalance = Number(balanceBeforeRaw || 0);
+
+  const paymentType = String(invoice.payment_type || "credit");
+  let lastPaidAmount = 0;
+  let lastPaidKind: "Cash" | "Credit" | null = null;
+  if (paidOnThisBill > 0) {
+    // Cash / partial on this bill
+    lastPaidAmount = paidOnThisBill;
+    lastPaidKind = paymentType === "credit" ? "Credit" : "Cash";
+  } else if (lastPaid && lastPaid.amount > 0) {
+    lastPaidAmount = lastPaid.amount;
+    lastPaidKind = lastPaid.kind;
+  }
 
   const party = invoice.parties as {
     name_en?: string;
@@ -142,7 +170,8 @@ export default async function SaleInvoiceDetailPage({
         extraDiscount={Number(invoice.extra_discount || 0)}
         billAmount={billAmount}
         paid={paidOnThisBill}
-        previousPayment={previousPayment}
+        previousPayment={lastPaidAmount}
+        lastPaidKind={lastPaidKind}
         previousBalance={previousBalance}
         preparedBy={salesman?.full_name || profile?.full_name}
         autoPrint={autoPrint}

@@ -211,7 +211,7 @@ export function ProductQtyLinesEditor({
         <table className="w-full min-w-[640px] text-sm">
           <thead>
             <tr className="bg-[var(--surface-2)] text-left text-[11px] uppercase tracking-wide text-[var(--muted)]">
-              <th className="w-24 px-3 py-2">Code</th>
+              <th className="w-28 min-w-[7rem] px-3 py-2">Code</th>
               <th className="px-3 py-2">Product</th>
               <th className="w-40 px-3 py-2">Qty</th>
               <th className="w-12 px-3 py-2" />
