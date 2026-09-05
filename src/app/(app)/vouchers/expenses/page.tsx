@@ -19,16 +19,30 @@ export default async function ExpensesPage({
   const sp = await searchParams;
   const { supabase, company } = await requireCompanyContext();
 
-  const [list, salesmen] = await Promise.all([
+  const [list, salesmen, warehouses, vendors] = await Promise.all([
     fetchExpenseList(supabase, company.id, sp),
     fetchCompanySalesmen(supabase, company.id),
+    supabase
+      .from("warehouses")
+      .select("*")
+      .eq("company_id", company.id)
+      .eq("is_active", true)
+      .order("name"),
+    supabase
+      .from("parties")
+      .select("*")
+      .eq("company_id", company.id)
+      .eq("is_active", true)
+      .or("party_subtype.in.(supplier,both),party_type.eq.PARTY")
+      .order("name_en")
+      .limit(500),
   ]);
 
   return (
     <div className="animate-rise space-y-6">
       <PageHeading
         title="Daily expenses & salary"
-        description="Record salesman salary and daily costs — fuel, food, rent, bills. Each entry posts to the expense ledger."
+        description="Record salesman salary and daily costs — fuel, food, rent, builty, bills. Each entry posts to the expense ledger."
         actions={
           <>
             <Link
@@ -47,6 +61,8 @@ export default async function ExpensesPage({
                 companyId={company.id}
                 organizationId={company.organization_id}
                 salesmen={salesmen}
+                warehouses={warehouses.data || []}
+                vendors={vendors.data || []}
               />
             </CreateDialogButton>
           </>

@@ -241,9 +241,47 @@ export async function fetchDocumentList(
   };
 }
 
+const EXPIRY_RECEIPT_CONFIG: DocumentTableConfig = {
+  table: "expiry_receipts",
+  partySelect: "parties(name_en, party_code)",
+  dateField: "receipt_date",
+  docNoField: "receipt_no",
+  hrefPrefix: "/inventory/expiry/receipts",
+  linesTable: "expiry_receipt_items",
+  linesFk: "receipt_id",
+  mapExtra: (row) =>
+    row.period_from && row.period_to
+      ? [
+          {
+            label: "Sold between",
+            value: `${row.period_from} → ${row.period_to}`,
+          },
+        ]
+      : [],
+};
+
+const EXPIRY_CLAIM_CONFIG: DocumentTableConfig = {
+  table: "expiry_claims",
+  partySelect: "parties(name_en, party_code)",
+  warehouseSelect: "warehouses(name)",
+  dateField: "claim_date",
+  docNoField: "claim_no",
+  hrefPrefix: "/inventory/expiry/claims",
+  linesTable: "expiry_claim_items",
+  linesFk: "claim_id",
+  mapExtra: (row) => [
+    {
+      label: "Claim status",
+      value: String(row.claim_status || "open"),
+    },
+  ],
+};
+
 export const documentListConfigs = {
   sale: SALE_CONFIG,
   purchase: PURCHASE_CONFIG,
   saleReturn: SALE_RETURN_CONFIG,
   purchaseReturn: PURCHASE_RETURN_CONFIG,
+  expiryReceipt: EXPIRY_RECEIPT_CONFIG,
+  expiryClaim: EXPIRY_CLAIM_CONFIG,
 };

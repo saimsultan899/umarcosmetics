@@ -13,7 +13,8 @@ export type SaleReportType =
   | "route_wise"
   | "salesman_wise"
   | "sale_profit"
-  | "cash_flow";
+  | "cash_flow"
+  | "expiry_credits";
 
 export const SALE_REPORT_TYPES: { key: SaleReportType; label: string }[] = [
   { key: "date_wise", label: "Date wise sales" },
@@ -22,12 +23,13 @@ export const SALE_REPORT_TYPES: { key: SaleReportType; label: string }[] = [
   { key: "bill_range", label: "Bill # range" },
   { key: "party_wise", label: "Item, Customer Wise Sales Detail" },
   { key: "item_wise", label: "Item wise sale detail" },
-  { key: "manufacturer_wise", label: "Manufacturer / category wise" },
+  { key: "manufacturer_wise", label: "Company wise" },
   { key: "city_wise", label: "Head / City sales" },
   { key: "route_wise", label: "Sector wise sales" },
   { key: "salesman_wise", label: "Salesman wise sales" },
   { key: "sale_profit", label: "Sale profit" },
   { key: "cash_flow", label: "Cash flow (company top customers)" },
+  { key: "expiry_credits", label: "Expiry customer credits" },
 ];
 
 type Filters = {
@@ -49,10 +51,14 @@ export async function buildSaleReport(
   supabase: SupabaseClient,
   filters: Filters,
 ) {
+  if (filters.type === "expiry_credits") {
+    return buildExpiryCreditReport(supabase, filters);
+  }
+
   let query = supabase
     .from("sale_invoices")
     .select(
-      "id, invoice_no, invoice_date, payment_type, grand_total, amount_paid, discount_total, subtotal, city, route, created_by, salesman_id, party_id, warehouse_id, parties(party_code, name_en, address, city, route, head), warehouses(name), salesman:salesmen!sale_invoices_salesman_id_fkey(id, full_name)",
+      "id, invoice_no, invoice_date, payment_type, grand_total, amount_paid, discount_total, extra_discount, subtotal, city, route, created_by, salesman_id, party_id, warehouse_id, parties(party_code, name_en, address, city, route, head), warehouses(name), salesman:salesmen!sale_invoices_salesman_id_fkey(id, full_name)",
     )
     .eq("company_id", filters.companyId)
     .eq("status", "posted")
@@ -104,7 +110,7 @@ export async function buildSaleReport(
     const { data: items } = await supabase
       .from("sale_invoice_items")
       .select(
-        "sale_invoice_id, product_code, product_name, qty, rate, discount, amount, product_id, products(manufacturer, category_group, purchase_rate, default_warehouse_id)",
+        "sale_invoice_id, product_code, product_name, qty, rate, discount, amount, product_id, products(purchase_rate, default_warehouse_id)",
       )
       .in("sale_invoice_id", ids);
 
@@ -321,20 +327,40 @@ export async function buildSaleReport(
     }
 
     if (filters.type === "manufacturer_wise") {
+      const whIds = new Set<string>();
+      for (const it of items || []) {
+        const product = one(it.products);
+        const inv = invMap.get(it.sale_invoice_id);
+        const wid = product?.default_warehouse_id || inv?.warehouse_id;
+        if (wid) whIds.add(wid);
+      }
+      const whNameById = new Map<string, string>();
+      if (whIds.size) {
+        const { data: whRows } = await supabase
+          .from("warehouses")
+          .select("id, name")
+          .in("id", [...whIds]);
+        for (const w of whRows || []) {
+          whNameById.set(w.id, w.name);
+        }
+      }
+
       const grouped = new Map<string, { qty: number; amount: number }>();
       for (const it of items || []) {
         const product = one(it.products);
+        const inv = invMap.get(it.sale_invoice_id);
+        const headerWh = one(inv?.warehouses);
+        const warehouseId =
+          product?.default_warehouse_id || inv?.warehouse_id || "";
         const key =
-          [product?.manufacturer, product?.category_group]
-            .filter(Boolean)
-            .join(" / ") || "Uncategorized";
+          whNameById.get(warehouseId) || headerWh?.name || "Unassigned";
         const cur = grouped.get(key) || { qty: 0, amount: 0 };
         cur.qty += Number(it.qty);
         cur.amount += Number(it.amount);
         grouped.set(key, cur);
       }
       return [...grouped.entries()].map(([key, v]) => ({
-        "Manufacturer / Category": key,
+        Company: key,
         Qty: v.qty,
         Amount: v.amount,
       }));
@@ -429,10 +455,90 @@ export async function buildSaleReport(
       City: inv.city || "",
       Sector: inv.route || "",
       Subtotal: Number(inv.subtotal),
-      Discount: Number(inv.discount_total),
+      "Trade discount": Number(inv.discount_total),
+      "Extra discount": Number(inv.extra_discount || 0),
       Total: Number(inv.grand_total),
       Paid: Number(inv.amount_paid),
       _href: `/sales/invoices/${inv.id}`,
     };
   });
 }
+
+async function buildExpiryCreditReport(
+  supabase: SupabaseClient,
+  filters: Filters,
+) {
+  let query = supabase
+    .from("expiry_receipts")
+    .select(
+      "id, receipt_no, receipt_date, grand_total, party_id, parties(party_code, name_en)",
+    )
+    .eq("company_id", filters.companyId)
+    .eq("status", "posted")
+    .gte("receipt_date", filters.from)
+    .lte("receipt_date", filters.to)
+    .order("receipt_date", { ascending: true })
+    .limit(2000);
+
+  if (filters.partyIds?.length) {
+    query = query.in("party_id", filters.partyIds);
+  }
+
+  const { data: receipts, error } = await query;
+  if (error) throw new Error(error.message);
+  if (!receipts?.length) return [];
+
+  const { data: items, error: itemError } = await supabase
+    .from("expiry_receipt_items")
+    .select(
+      "receipt_id, product_code, product_name, qty, rate, amount, products(default_warehouse_id)",
+    )
+    .in(
+      "receipt_id",
+      receipts.map((r) => r.id),
+    );
+  if (itemError) throw new Error(itemError.message);
+
+  const warehouseFilter = new Set(filters.warehouseIds || []);
+  const needNames = new Set<string>();
+  for (const it of items || []) {
+    const wid = one(it.products)?.default_warehouse_id;
+    if (wid) needNames.add(wid);
+  }
+  const whNameById = new Map<string, string>();
+  if (needNames.size) {
+    const { data: whRows } = await supabase
+      .from("warehouses")
+      .select("id, name")
+      .in("id", [...needNames]);
+    for (const w of whRows || []) {
+      whNameById.set(w.id, w.name);
+    }
+  }
+
+  const receiptMap = new Map(receipts.map((r) => [r.id, r]));
+  return (items || [])
+    .map((it) => {
+      const doc = receiptMap.get(it.receipt_id);
+      const product = one(it.products);
+      const warehouseId = product?.default_warehouse_id as string | null;
+      if (warehouseFilter.size && (!warehouseId || !warehouseFilter.has(warehouseId))) {
+        return null;
+      }
+      const party = one(doc?.parties);
+      return {
+        Date: doc?.receipt_date,
+        No: doc?.receipt_no,
+        Customer: party ? `${party.party_code} — ${party.name_en}` : "",
+        Company: (warehouseId && whNameById.get(warehouseId)) || "—",
+        Code: it.product_code,
+        Item: it.product_name,
+        Qty: Number(it.qty),
+        Rate: Number(it.rate),
+        Amount: Number(it.amount),
+        _href: doc?.id ? `/inventory/expiry/receipts/${doc.id}` : "",
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => row != null);
+}
+

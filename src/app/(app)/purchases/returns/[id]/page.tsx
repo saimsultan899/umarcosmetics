@@ -41,11 +41,18 @@ export default async function PurchaseReturnDetailPage({
         product_name: i.product_name,
         qty: Number(i.qty),
         rate: Number(i.rate),
+        discount: Number(i.discount || 0),
         amount: Number(i.amount),
       }))}
       totals={[
         { label: "Subtotal", value: formatPkr(doc.subtotal) },
-        { label: "Grand total", value: formatPkr(doc.grand_total) },
+        { label: "Trade discount", value: formatPkr(doc.discount_total) },
+        { label: "Extra discount", value: formatPkr(Number(doc.extra_discount || 0)) },
+        {
+          label: "Grand total",
+          value: formatPkr(doc.grand_total),
+          strong: true,
+        },
       ]}
     />
   );

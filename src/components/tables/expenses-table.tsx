@@ -53,7 +53,8 @@ export function ExpensesTable({
                 <th>No.</th>
                 <th>Date</th>
                 <th>Type</th>
-                <th>Salesman</th>
+                <th>Salesman / Company</th>
+                <th>Vendor</th>
                 <th>Amount</th>
                 <th>Remarks</th>
                 <th className="text-right">Actions</th>
@@ -67,7 +68,10 @@ export function ExpensesTable({
                     <td>{e.expense_date}</td>
                     <td>{expenseCategoryLabel(e.category)}</td>
                     <td className="text-[var(--muted)]">
-                      {e.salesman_name || "—"}
+                      {e.salesman_name || e.warehouse_name || "—"}
+                    </td>
+                    <td className="text-[var(--muted)]">
+                      {e.vendor_name || "—"}
                     </td>
                     <td>{formatPkr(e.amount)}</td>
                     <td className="text-[var(--muted)]">{e.remarks || "—"}</td>
@@ -82,6 +86,8 @@ export function ExpensesTable({
                             value: expenseCategoryLabel(e.category),
                           },
                           { label: "Salesman", value: e.salesman_name || "—" },
+                          { label: "Company", value: e.warehouse_name || "—" },
+                          { label: "Vendor", value: e.vendor_name || "—" },
                           { label: "Amount", value: formatPkr(e.amount) },
                           { label: "Remarks", value: e.remarks || "—" },
                         ]}
@@ -98,7 +104,7 @@ export function ExpensesTable({
               ) : (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="py-10 text-center text-[var(--muted)]"
                   >
                     No expenses yet. Click Add expense to record salary or a

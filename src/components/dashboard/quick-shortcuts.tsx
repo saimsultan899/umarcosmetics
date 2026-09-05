@@ -1,8 +1,8 @@
 import { cn } from "@/lib/utils";
 import {
+  Archive,
   BarChart3,
   Banknote,
-  ClipboardList,
   ShoppingCart,
   Truck,
   Wallet,
@@ -26,7 +26,7 @@ const shortcuts: {
 }[] = [
   { href: "/sales/invoices", label: "New sale", icon: ShoppingCart, tone: "primary" },
   { href: "/purchases/invoices", label: "Purchase", icon: Truck, tone: "accent" },
-  { href: "/purchases/gate-passes", label: "Gate Pass", icon: ClipboardList, tone: "blue" },
+  { href: "/inventory/expiry", label: "Expiry", icon: Archive, tone: "blue" },
   {
     href: "/reports/recovery",
     label: "Customer receivables",

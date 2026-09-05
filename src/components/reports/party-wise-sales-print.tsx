@@ -115,7 +115,11 @@ export function PartyWiseSalesPrint({
             {companyName} · {formatReportRange(from, to)} · {rows.length} lines
           </p>
         </div>
-        <ExportButtons rows={exportRows(rows)} filename={filename} />
+        <ExportButtons
+          rows={exportRows(rows)}
+          filename={filename}
+          title="Item, Customer Wise Sales Detail"
+        />
       </div>
 
       {!groups.length ? (

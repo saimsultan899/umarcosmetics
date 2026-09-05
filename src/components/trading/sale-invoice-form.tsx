@@ -85,6 +85,7 @@ export function SaleInvoiceForm({
   const [warehouseId, setWarehouseId] = useState("");
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10));
   const [paymentType, setPaymentType] = useState<PaymentType>("credit");
+  const [walkInCustomer, setWalkInCustomer] = useState(false);
   const [narration, setNarration] = useState("");
   const [extraDiscount, setExtraDiscount] = useState("");
   const [lines, setLines] = useState<LineItemDraft[]>([]);
@@ -93,6 +94,8 @@ export function SaleInvoiceForm({
   const [creditWarning, setCreditWarning] = useState<string | null>(null);
 
   const party = customers.find((p) => p.id === partyId);
+  const walkInActive = paymentType === "cash" && walkInCustomer;
+  const customerRequired = !walkInActive;
 
   async function checkCreditLimit(nextPartyId: string) {
     setCreditWarning(null);
@@ -128,8 +131,12 @@ export function SaleInvoiceForm({
       warehouseId ||
       products.find((p) => p.id === valid[0]?.product_id)?.default_warehouse_id ||
       "";
-    if (!partyId || !resolvedWarehouse || valid.length === 0) {
-      setError("Select customer, add a product line, and ensure company is set.");
+    if ((customerRequired && !partyId) || !resolvedWarehouse || valid.length === 0) {
+      setError(
+        customerRequired
+          ? "Select customer, add a product line, and ensure company is set."
+          : "Add a product line and ensure company is set.",
+      );
       return;
     }
 
@@ -200,7 +207,8 @@ export function SaleInvoiceForm({
         organization_id: organizationId,
         company_id: companyId,
         invoice_date: invoiceDate,
-        party_id: partyId,
+        party_id: partyId || null,
+        walk_in: walkInActive,
         warehouse_id: resolvedWarehouse,
         salesman_id: salesmanId || null,
         route: party?.route || null,
@@ -253,11 +261,12 @@ export function SaleInvoiceForm({
             companyId={companyId}
             parties={customers}
             value={partyId}
-            required
+            required={customerRequired}
             label="Customer code / shop"
             filterSubtype={["customer", "both"]}
             onChange={(id) => {
               setPartyId(id);
+              if (id) setWalkInCustomer(false);
               void checkCreditLimit(id);
             }}
           />
@@ -273,17 +282,58 @@ export function SaleInvoiceForm({
           <Label>Payment</Label>
           <Select
             value={paymentType}
-            onChange={(e) =>
-              setPaymentType((e.target.value as PaymentType) || "credit")
-            }
+            onChange={(e) => {
+              const next = (e.target.value as PaymentType) || "credit";
+              setPaymentType(next);
+              if (next !== "cash") setWalkInCustomer(false);
+            }}
           >
             <option value="credit">Credit</option>
             <option value="cash">Cash</option>
           </Select>
+          {paymentType === "cash" ? (
+            <label className="mt-2 flex cursor-pointer items-center gap-2 text-sm text-[var(--ink)]">
+              <input
+                type="checkbox"
+                checked={walkInCustomer}
+                onChange={(e) => {
+                  const on = e.target.checked;
+                  setWalkInCustomer(on);
+                  if (on) {
+                    setPartyId("");
+                    setCreditWarning(null);
+                  }
+                }}
+                className="h-4 w-4 rounded border-[var(--border)] accent-[var(--brand)]"
+              />
+              <span>Walk-in customer</span>
+            </label>
+          ) : null}
         </div>
-        <div className="sm:col-span-2 lg:col-span-3">
+        <div className="sm:col-span-2 lg:col-span-2">
           <Label>Narration</Label>
-          <Input value={narration} onChange={(e) => setNarration(e.target.value)} placeholder="Optional notes" />
+          <Input
+            value={narration}
+            onChange={(e) => setNarration(e.target.value)}
+            placeholder="Optional notes"
+          />
+        </div>
+        <div>
+          <Label>Company</Label>
+          <Select
+            value={warehouseId}
+            onChange={(e) => setWarehouseId(e.target.value)}
+            options={[
+              { value: "", label: "Auto from product" },
+              ...warehouses.map((w) => ({
+                value: w.id,
+                label: w.name,
+              })),
+            ]}
+          />
+          <p className="mt-1 text-[11px] text-[var(--muted)]">
+            Fills automatically when you pick a product.
+          </p>
         </div>
       </div>
 
@@ -299,7 +349,6 @@ export function SaleInvoiceForm({
         warehouses={warehouses}
         stockByProduct={stockByProduct}
         onAutoPickWarehouse={setWarehouseId}
-        showCompanyPicker
         extraDiscount={extraDiscount}
         onExtraDiscountChange={setExtraDiscount}
       />

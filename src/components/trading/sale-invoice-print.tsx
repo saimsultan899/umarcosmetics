@@ -2,10 +2,12 @@
 
 import { Button } from "@/components/ui/button";
 import { formatNumber, formatPkr } from "@/lib/utils";
-import { Printer } from "lucide-react";
+import { ArrowLeft, Printer } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 
 export type SalePrintLine = {
+  product_code?: string | null;
   product_name: string;
   qty: number;
   bonus?: number;
@@ -14,6 +16,10 @@ export type SalePrintLine = {
   discount: number;
   amount: number;
 };
+
+function itemLabel(code?: string | null, name?: string | null) {
+  return [code, name].filter(Boolean).join(" ");
+}
 
 function discPercent(qty: number, tradePrice: number, discount: number) {
   const gross = qty * tradePrice;
@@ -63,7 +69,7 @@ function formatSchemeLabel(scheme?: string | null, bonus?: number) {
 
 /**
  * Half-A4 sale invoice print — matches classic distributor bill layout
- * (Sr / Qty / Item / Trade Price / Disc% / Disc Val / Amount + dual footer).
+ * (Sr / Item / Qty / Trade Price / Disc% / Disc Val / Amount + dual footer).
  */
 export function SaleInvoicePrint({
   companyName,
@@ -86,7 +92,9 @@ export function SaleInvoicePrint({
   paid = 0,
   previousPayment = 0,
   lastPaidKind = null,
+  lastReceivedAmount = null,
   previousBalance,
+  hideLastPaidAsThisBill = false,
   creditDays = 21,
   preparedBy,
   autoPrint = false,
@@ -115,13 +123,22 @@ export function SaleInvoicePrint({
   previousPayment?: number;
   /** Cash vs Credit label for Last Paid Amount. */
   lastPaidKind?: "Cash" | "Credit" | null;
+  /** Latest field recovery for this shop before this bill. */
+  lastReceivedAmount?: number | null;
   previousBalance: number;
+  /** Walk-in cash: never treat this bill's cash as Last Paid Amount. */
+  hideLastPaidAsThisBill?: boolean;
   creditDays?: number;
   preparedBy?: string | null;
   autoPrint?: boolean;
 }) {
+  const router = useRouter();
   const paidOnBill = Math.max(0, paid);
-  const paidShown = paidOnBill > 0 ? paidOnBill : previousPayment;
+  const paidShown = hideLastPaidAsThisBill
+    ? previousPayment
+    : paidOnBill > 0
+      ? paidOnBill
+      : previousPayment;
   const paidKind = paidShown > 0 ? lastPaidKind : null;
   const billPayable = Math.max(0, billAmount - paidOnBill);
   const totalPayable = billPayable + previousBalance;
@@ -167,6 +184,20 @@ export function SaleInvoicePrint({
         <p className="mr-auto text-sm text-[var(--muted)]">
           Half A4 · loads on right side of paper
         </p>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => {
+            if (typeof window !== "undefined" && window.history.length > 1) {
+              router.back();
+            } else {
+              router.push("/sales/invoices");
+            }
+          }}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back
+        </Button>
         <Button type="button" onClick={() => window.print()}>
           <Printer className="h-4 w-4" />
           Print
@@ -174,15 +205,31 @@ export function SaleInvoicePrint({
       </div>
 
       <div className="print-sheet si-half mx-auto">
-        <div className="si-title">SALE INVOICE</div>
-        {companyName ? <div className="si-company">{companyName}</div> : null}
+        <div className="si-head">
+          <div className="si-doc-label">Sale Invoice</div>
+          {companyName ? (
+            <div className="si-title">{companyName}</div>
+          ) : (
+            <div className="si-title">Sale Invoice</div>
+          )}
+        </div>
 
         <div className="si-meta">
           <div className="si-meta-left si-meta-block">
             <div>
               <span className="si-k">A/C No :</span>{" "}
               <span className="si-v">
-                {[partyCode, partyName].filter(Boolean).join(" ")}
+                {String(partyCode || "").toUpperCase() === "WALKIN"
+                  ? partyName || "Walk-in Customer"
+                  : [partyCode, partyName].filter(Boolean).join(" ")}
+              </span>
+            </div>
+            <div>
+              <span className="si-k">Last received :</span>{" "}
+              <span className="si-v">
+                {lastReceivedAmount != null && lastReceivedAmount > 0.005
+                  ? formatNumber(lastReceivedAmount, 2)
+                  : "-"}
               </span>
             </div>
             {partyOwner ? (
@@ -222,10 +269,10 @@ export function SaleInvoicePrint({
               <th className="ctr" style={{ width: "4%" }}>
                 Sr.
               </th>
+              <th style={{ width: "34%" }}>ItemName</th>
               <th className="num" style={{ width: "10%" }}>
                 Qty
               </th>
-              <th style={{ width: "34%" }}>ItemName</th>
               <th className="num" style={{ width: "10%" }}>
                 Scheme
               </th>
@@ -248,10 +295,10 @@ export function SaleInvoicePrint({
               const pct = discPercent(l.qty, l.tradePrice, l.discount);
               const schemeLabel = formatSchemeLabel(l.scheme, l.bonus);
               return (
-                <tr key={`${l.product_name}-${i}`}>
+                <tr key={`${l.product_code || l.product_name}-${i}`}>
                   <td className="ctr">{i + 1}</td>
+                  <td>{itemLabel(l.product_code, l.product_name)}</td>
                   <td className="num">{formatNumber(l.qty, 2)}</td>
-                  <td>{l.product_name}</td>
                   <td className="num">{schemeLabel || "—"}</td>
                   <td className="num">{formatNumber(l.tradePrice, 2)}</td>
                   <td className="num">

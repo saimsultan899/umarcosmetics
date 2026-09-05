@@ -85,6 +85,11 @@ export default async function WarehousesPage() {
         description="Brand / stock companies — open one to see its products and stock."
         actions={
           <>
+            <Link href="/inventory/expiry">
+              <Button variant="secondary" size="sm">
+                Expiry warehouse
+              </Button>
+            </Link>
             <Link href="/warehouses/transfers">
               <Button variant="secondary" size="sm">
                 Stock transfer

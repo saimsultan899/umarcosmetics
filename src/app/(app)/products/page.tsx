@@ -8,6 +8,7 @@ import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { requireCompanyContext } from "@/lib/auth";
 import { fetchProductList } from "@/lib/queries/products";
 import type { Warehouse } from "@/lib/types/database";
+import Link from "next/link";
 import { Suspense } from "react";
 
 export default async function ProductsPage({
@@ -32,20 +33,28 @@ export default async function ProductsPage({
     <div className="animate-rise space-y-6">
       <PageHeading
         title="Products"
-        description="Inventory masters with rates, packing, and reorder levels. Stats follow table filters."
+        description="Inventory masters with rates, packing, and reorder levels. Expired customer returns are held in Expiry Warehouse, not saleable stock."
         actions={
-          <CreateDialogButton
-            label="Add product"
-            title="Add product"
-            description="Create a catalog item with rates and packing"
-            size="xl"
-          >
-            <ProductForm
-              companyId={company.id}
-              organizationId={company.organization_id}
-              warehouses={(warehouses as Warehouse[]) || []}
-            />
-          </CreateDialogButton>
+          <>
+            <Link
+              href="/inventory/expiry"
+              className="inline-flex h-8 items-center rounded-md border border-[var(--border)] bg-white px-3 text-xs font-semibold text-[var(--ink)] hover:border-[var(--brand)] hover:bg-[var(--brand-soft)] hover:text-[var(--brand-strong)]"
+            >
+              Expiry warehouse
+            </Link>
+            <CreateDialogButton
+              label="Add product"
+              title="Add product"
+              description="Create a catalog item with rates and packing"
+              size="xl"
+            >
+              <ProductForm
+                companyId={company.id}
+                organizationId={company.organization_id}
+                warehouses={(warehouses as Warehouse[]) || []}
+              />
+            </CreateDialogButton>
+          </>
         }
       />
 

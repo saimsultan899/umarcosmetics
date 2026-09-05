@@ -2,6 +2,10 @@
 
 import { cn, fieldControlClass } from "@/lib/utils";
 import { focusNextField } from "@/lib/keyboard/enter-nav";
+import {
+  floatingMenuStyleEqual,
+  getFloatingMenuStyle,
+} from "@/lib/ui/floating-menu";
 import { Check, ChevronsUpDown, Search } from "lucide-react";
 import {
   Children,
@@ -81,16 +85,6 @@ function scrollRowIntoList(list: HTMLElement, row: HTMLElement) {
   } else if (rowRect.top < listRect.top) {
     list.scrollTop -= listRect.top - rowRect.top;
   }
-}
-
-function menuStyleEqual(a: React.CSSProperties, b: React.CSSProperties) {
-  return (
-    a.left === b.left &&
-    a.width === b.width &&
-    a.top === b.top &&
-    a.bottom === b.bottom &&
-    a.zIndex === b.zIndex
-  );
 }
 
 /** Pick keyboard highlight index — skip empty placeholder while searching. */
@@ -334,20 +328,12 @@ export const Select = forwardRef<
     function position() {
       const el = rootRef.current;
       if (!el) return;
-      const rect = el.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const openUp = spaceBelow < 280 && rect.top > spaceBelow;
-      const next: React.CSSProperties = {
-        position: "fixed",
-        left: rect.left,
-        width: Math.max(rect.width, 220),
-        // Above dialogs (z-100) without fighting the page chrome.
+      const next = getFloatingMenuStyle(el.getBoundingClientRect(), {
+        minWidth: 220,
+        preferredMaxHeight: 288,
         zIndex: 220,
-        ...(openUp
-          ? { bottom: window.innerHeight - rect.top + 6, top: "auto" }
-          : { top: rect.bottom + 6, bottom: "auto" }),
-      };
-      if (menuStyleEqual(menuStyleRef.current, next)) return;
+      });
+      if (floatingMenuStyleEqual(menuStyleRef.current, next)) return;
       menuStyleRef.current = next;
       setMenuStyle(next);
     }
@@ -481,11 +467,11 @@ export const Select = forwardRef<
               id={listId}
               role="listbox"
               style={menuStyle}
-              className="overflow-hidden rounded-xl border border-[var(--border)] bg-white shadow-[0_18px_50px_rgba(11,25,21,0.18)] ring-1 ring-black/5"
+              className="flex flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-white shadow-[0_18px_50px_rgba(11,25,21,0.18)] ring-1 ring-black/5"
               data-enter-own
               onKeyDown={handleMenuKeyDown}
             >
-              <div className="border-b border-[var(--border)] p-2">
+              <div className="shrink-0 border-b border-[var(--border)] p-2">
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted)]" />
                   <input
@@ -499,7 +485,7 @@ export const Select = forwardRef<
                 </div>
               </div>
 
-              <div ref={optionsListRef} className="max-h-64 overflow-y-auto p-1">
+              <div ref={optionsListRef} className="min-h-0 flex-1 overflow-y-auto p-1">
                 {emptyOption ? (
                   <button
                     type="button"
@@ -564,12 +550,12 @@ export const Select = forwardRef<
               </div>
 
               {hiddenCount > 0 ? (
-                <p className="border-t border-[var(--border)] px-3 py-2 text-[11px] text-[var(--muted)]">
+                <p className="shrink-0 border-t border-[var(--border)] px-3 py-2 text-[11px] text-[var(--muted)]">
                   Showing {visible.length} of {filtered.length}. Type to narrow
                   results.
                 </p>
               ) : choosable.length > maxVisible && !query.trim() ? (
-                <p className="border-t border-[var(--border)] px-3 py-2 text-[11px] text-[var(--muted)]">
+                <p className="shrink-0 border-t border-[var(--border)] px-3 py-2 text-[11px] text-[var(--muted)]">
                   Showing top {maxVisible}. Search to find more.
                 </p>
               ) : null}

@@ -2,15 +2,17 @@
 
 import { PrintButton } from "@/components/ui/print-button";
 import { Button } from "@/components/ui/button";
-import { downloadCsv, downloadExcel } from "@/lib/reports/export";
-import { FileDown, FileSpreadsheet } from "lucide-react";
+import { downloadExcel, downloadPdf } from "@/lib/reports/export";
+import { FileSpreadsheet, FileText } from "lucide-react";
 
 export function ExportButtons({
   rows,
   filename,
+  title,
 }: {
   rows: Record<string, unknown>[];
   filename: string;
+  title?: string;
 }) {
   return (
     <div className="no-print flex flex-wrap gap-2">
@@ -29,10 +31,10 @@ export function ExportButtons({
         variant="secondary"
         size="sm"
         disabled={!rows.length}
-        onClick={() => downloadCsv(rows, filename)}
+        onClick={() => void downloadPdf(rows, filename, title)}
       >
-        <FileDown className="h-4 w-4" />
-        CSV
+        <FileText className="h-4 w-4" />
+        PDF
       </Button>
       <PrintButton label="Print" />
     </div>

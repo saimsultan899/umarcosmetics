@@ -180,7 +180,9 @@ export function PrintDocument({
               <div>
                 <span className="si-k">A/C No :</span>{" "}
                 <span className="si-v">
-                  {[partyCode, partyName].filter(Boolean).join(" ")}
+                  {String(partyCode || "").toUpperCase() === "WALKIN"
+                    ? partyName || "Walk-in Customer"
+                    : [partyCode, partyName].filter(Boolean).join(" ")}
                 </span>
               </div>
             ) : null}
@@ -219,19 +221,18 @@ export function PrintDocument({
               <th className="ctr" style={{ width: "7%" }}>
                 Sr.
               </th>
-              <th style={{ width: "12%" }}>Code</th>
               {hasLineCompany ? (
                 <th style={{ width: "14%" }}>Company</th>
               ) : null}
               <th>ItemName</th>
+              <th className="num" style={{ width: "12%" }}>
+                Qty
+              </th>
               {hasUom ? (
                 <th className="ctr" style={{ width: "10%" }}>
                   Carton
                 </th>
               ) : null}
-              <th className="num" style={{ width: "12%" }}>
-                Qty
-              </th>
               {hasRate ? <th className="num">Rate</th> : null}
               {hasDiscount ? <th className="num">Disc %</th> : null}
               {hasDiscount ? <th className="num">Disc Val</th> : null}
@@ -248,18 +249,19 @@ export function PrintDocument({
               return (
                 <tr key={`${l.product_code}-${i}`}>
                   <td className="ctr">{i + 1}</td>
-                  <td>{l.product_code}</td>
                   {hasLineCompany ? (
                     <td>{l.company || "—"}</td>
                   ) : null}
-                  <td>{l.product_name}</td>
-                  {hasUom ? <td className="ctr">{cartonValue}</td> : null}
+                  <td>
+                    {[l.product_code, l.product_name].filter(Boolean).join(" ")}
+                  </td>
                   <td className="num">
                     <div>{formatNumber(l.qty, 2)}</div>
                     {l.bonus && l.bonus > 0 ? (
                       <div className="si-bonus">+{formatNumber(l.bonus, 0)} B</div>
                     ) : null}
                   </td>
+                  {hasUom ? <td className="ctr">{cartonValue}</td> : null}
                   {hasRate ? (
                     <td className="num">
                       {l.rate != null ? formatNumber(l.rate, 2) : "—"}

@@ -89,7 +89,7 @@ export function Dialog({
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="overflow-y-auto bg-white px-5 py-4">{children}</div>
+        <div className="overflow-y-auto bg-white px-5 py-4 pb-6">{children}</div>
       </div>
     </div>,
     document.body,

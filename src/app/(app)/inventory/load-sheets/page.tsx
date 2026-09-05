@@ -1,5 +1,6 @@
 import { LoadSheetsTable } from "@/components/tables/load-sheets-table";
 import { LoadSheetForm } from "@/components/trading/load-sheet-form";
+import { Button } from "@/components/ui/button";
 import {
   CreateDialogButton,
   PageHeading,
@@ -8,6 +9,7 @@ import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { requireCompanyContext } from "@/lib/auth";
 import { fetchLoadSheetList } from "@/lib/queries/load-sheets";
 import { fetchCompanySalesmen } from "@/lib/queries/salesmen";
+import Link from "next/link";
 import { Suspense } from "react";
 
 export default async function LoadSheetsPage({
@@ -45,7 +47,13 @@ export default async function LoadSheetsPage({
         title="Van load sheets"
         description={`Issue stock to salesman vans before market — for ${company.name}`}
         actions={
-          <CreateDialogButton
+          <>
+            <Link href="/inventory/expiry">
+              <Button variant="secondary" size="sm">
+                Expiry warehouse
+              </Button>
+            </Link>
+            <CreateDialogButton
             label="Create load"
             title="Create load sheet"
             description="Issue van stock for a market sector"
@@ -60,7 +68,8 @@ export default async function LoadSheetsPage({
               warehouses={warehouses || []}
               salesmen={salesmen}
             />
-          </CreateDialogButton>
+            </CreateDialogButton>
+          </>
         }
       />
 

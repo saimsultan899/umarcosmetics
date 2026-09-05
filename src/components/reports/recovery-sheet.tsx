@@ -29,6 +29,15 @@ function sheetAmount(value: number | null | undefined) {
   return formatNumber(value, 0);
 }
 
+function saleDash(value: string | number | null | undefined) {
+  if (value == null || value === "") return "-";
+  if (typeof value === "number") {
+    if (Math.abs(value) < 0.005) return "-";
+    return formatNumber(value, 0);
+  }
+  return value;
+}
+
 /** DD/MM/YY like the printed recovery sheet. */
 function formatSheetDate(value: string | null | undefined) {
   if (!value) return "";
@@ -57,6 +66,18 @@ function formatPrintedAt(now: Date) {
   return { date, time };
 }
 
+function formatRangeDate(iso: string) {
+  if (!iso) return "";
+  const d = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: TZ,
+  }).format(d);
+}
+
 type Totals = { count: number; dueTotal: number; crTotal: number; finalTotal: number };
 
 type FlatRow = RecoverySheetRow & { sector: string };
@@ -73,8 +94,13 @@ function totalsOf(rows: RecoverySheetRow[]): Totals {
   return { count: rows.length, dueTotal, crTotal, finalTotal };
 }
 
+function lastReceivedLabel(amount: number | null | undefined) {
+  if (amount == null || amount <= 0.005) return "-";
+  return formatNumber(amount, 0);
+}
+
 function matchRow(r: RecoverySheetRow, term: string) {
-  return [r.party_code, r.name_en, r.city, r.route, r.last_sale_id]
+  return [r.party_code, r.name_en, r.city, r.route, r.head, r.last_sale_id]
     .filter(Boolean)
     .some((v) => String(v).toLowerCase().includes(term));
 }
@@ -112,6 +138,7 @@ export function RecoverySheet({
     useUrlTableState();
   const [localQuery, setLocalQuery] = useState(q);
   const [printedAt, setPrintedAt] = useState<Date | null>(null);
+  const [hideSaleCols, setHideSaleCols] = useState(false);
   const savedTitle = useRef("");
 
   useEffect(() => {
@@ -168,18 +195,26 @@ export function RecoverySheet({
   const totalRows = grand.count;
 
   const exportRows = filteredSections.flatMap((s) =>
-    s.rows.map((r) => ({
-      Sector: s.sector,
-      "Acc ID": r.party_code,
-      "Customer name": r.name_en,
-      "Prev. balance": r.prev_balance,
-      "Last sale ID": r.last_sale_id || "",
-      "Last sale": formatSheetDate(r.last_sale_date),
-      "Last sale value": r.last_sale_value ?? "",
-      "Final bal.": r.final_balance,
-      Received: "",
-      Remarks: "",
-    })),
+    s.rows.map((r) => {
+      const row: Record<string, unknown> = {
+        Sector: s.sector,
+        "Acc ID": r.party_code,
+        "Customer name": r.name_en,
+        "Last received": lastReceivedLabel(r.last_received_amount),
+      };
+      if (!hideSaleCols) {
+        row["Prev. balance"] = r.prev_balance;
+        row["Last sale ID"] = r.last_sale_id || "-";
+        row["Last sale"] = r.last_sale_date
+          ? formatSheetDate(r.last_sale_date)
+          : "-";
+        row["Last sale value"] = r.last_sale_value ?? "-";
+      }
+      row["Final bal."] = r.final_balance;
+      row.Received = "";
+      row.Remarks = "";
+      return row;
+    }),
   );
 
   const printed = printedAt ? formatPrintedAt(printedAt) : null;
@@ -200,6 +235,7 @@ export function RecoverySheet({
         <ExportButtons
           rows={exportRows}
           filename={`customer-receivables-${to}`}
+          title="Customer receivables"
         />
       </div>
 
@@ -214,6 +250,17 @@ export function RecoverySheet({
           placeholder="Search code, shop, sector..."
           resultCount={total}
           totalCount={totalRows}
+          filters={
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--ink)]">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-[var(--border)] accent-[var(--brand)]"
+                checked={hideSaleCols}
+                onChange={(e) => setHideSaleCols(e.target.checked)}
+              />
+              Hide prev. bal. & last sale
+            </label>
+          }
         />
       </div>
 
@@ -226,15 +273,26 @@ export function RecoverySheet({
           </p>
         </div>
         <TableScroll loading={isPending}>
-          <table className="recovery-balance-table">
+          <table
+            className={
+              hideSaleCols
+                ? "recovery-balance-table recovery-balance-table--compact"
+                : "recovery-balance-table"
+            }
+          >
             <colgroup>
               <col className="recovery-balance-table__col-sector" />
               <col className="recovery-balance-table__col-code" />
               <col className="recovery-balance-table__col-name" />
-              <col className="recovery-balance-table__col-prev" />
-              <col className="recovery-balance-table__col-sale-id" />
-              <col className="recovery-balance-table__col-sale-date" />
-              <col className="recovery-balance-table__col-sale-value" />
+              <col className="recovery-balance-table__col-received" />
+              {hideSaleCols ? null : (
+                <>
+                  <col className="recovery-balance-table__col-prev" />
+                  <col className="recovery-balance-table__col-sale-id" />
+                  <col className="recovery-balance-table__col-sale-date" />
+                  <col className="recovery-balance-table__col-sale-value" />
+                </>
+              )}
               <col className="recovery-balance-table__col-final" />
               <col className="recovery-balance-table__col-rec" />
               <col className="recovery-balance-table__col-remarks" />
@@ -244,10 +302,15 @@ export function RecoverySheet({
                 <th>Sector</th>
                 <th>Acc ID</th>
                 <th>Customer name</th>
-                <th>Prev. bal.</th>
-                <th>Last sale ID</th>
-                <th>Last sale</th>
-                <th>Last sale value</th>
+                <th>Last received</th>
+                {hideSaleCols ? null : (
+                  <>
+                    <th>Prev. bal.</th>
+                    <th>Last sale ID</th>
+                    <th>Last sale</th>
+                    <th>Last sale value</th>
+                  </>
+                )}
                 <th>Final bal.</th>
                 <th>Received</th>
                 <th>Remarks</th>
@@ -264,18 +327,32 @@ export function RecoverySheet({
                     <td className="recovery-balance-table__name" title={r.name_en}>
                       {r.name_en}
                     </td>
-                    <td className="recovery-balance-table__num">
-                      {sheetAmount(r.prev_balance)}
+                    <td
+                      className="recovery-balance-table__received"
+                      title={lastReceivedLabel(r.last_received_amount)}
+                    >
+                      {lastReceivedLabel(r.last_received_amount)}
                     </td>
-                    <td className="recovery-balance-table__sale-id">
-                      {r.last_sale_id ? formatReportInvNo(r.last_sale_id) : ""}
-                    </td>
-                    <td className="recovery-balance-table__sale-date">
-                      {formatSheetDate(r.last_sale_date)}
-                    </td>
-                    <td className="recovery-balance-table__num">
-                      {sheetAmount(r.last_sale_value)}
-                    </td>
+                    {hideSaleCols ? null : (
+                      <>
+                        <td className="recovery-balance-table__num">
+                          {sheetAmount(r.prev_balance)}
+                        </td>
+                        <td className="recovery-balance-table__sale-id">
+                          {r.last_sale_id
+                            ? formatReportInvNo(r.last_sale_id)
+                            : "-"}
+                        </td>
+                        <td className="recovery-balance-table__sale-date">
+                          {r.last_sale_date
+                            ? formatSheetDate(r.last_sale_date)
+                            : "-"}
+                        </td>
+                        <td className="recovery-balance-table__num">
+                          {saleDash(r.last_sale_value)}
+                        </td>
+                      </>
+                    )}
                     <td
                       className={
                         r.final_balance > 0.005
@@ -293,7 +370,10 @@ export function RecoverySheet({
                 ))
               ) : (
                 <tr>
-                  <td colSpan={10} className="py-8 text-center text-[var(--muted)]">
+                  <td
+                    colSpan={hideSaleCols ? 7 : 11}
+                    className="py-8 text-center text-[var(--muted)]"
+                  >
                     No shops match this filter.
                   </td>
                 </tr>
@@ -332,10 +412,12 @@ export function RecoverySheet({
             <p className="recovery-sheet-co">{companyName}</p>
             <div className="recovery-sheet-dates">
               <p>
-                <span>Printing Date</span> {printed?.date || formatSheetDate(to)}
+                <span>From</span> {formatRangeDate(from)}
+                <span className="recovery-sheet-dates__to">To</span>{" "}
+                {formatRangeDate(to)}
               </p>
-              <p>
-                <span>Printing Time</span> {printed?.time || ""}
+              <p className="recovery-sheet-printed">
+                {printed ? `${printed.date} ${printed.time}` : ""}
               </p>
             </div>
           </div>
@@ -351,10 +433,15 @@ export function RecoverySheet({
                   <colgroup>
                     <col className="recovery-sheet__col-id" />
                     <col className="recovery-sheet__col-name" />
-                    <col className="recovery-sheet__col-prev" />
-                    <col className="recovery-sheet__col-sale-id" />
-                    <col className="recovery-sheet__col-sale-date" />
-                    <col className="recovery-sheet__col-sale-value" />
+                    <col className="recovery-sheet__col-received" />
+                    {hideSaleCols ? null : (
+                      <>
+                        <col className="recovery-sheet__col-prev" />
+                        <col className="recovery-sheet__col-sale-id" />
+                        <col className="recovery-sheet__col-sale-date" />
+                        <col className="recovery-sheet__col-sale-value" />
+                      </>
+                    )}
                     <col className="recovery-sheet__col-final" />
                     <col className="recovery-sheet__col-rec" />
                     <col className="recovery-sheet__col-remarks" />
@@ -363,10 +450,15 @@ export function RecoverySheet({
                     <tr>
                       <th>Acc ID</th>
                       <th>Customer name</th>
-                      <th className="num">Prev. balance</th>
-                      <th className="num">Last sale ID</th>
-                      <th>Last sale</th>
-                      <th className="num">Last sale value</th>
+                      <th>Last received</th>
+                      {hideSaleCols ? null : (
+                        <>
+                          <th className="num">Prev. balance</th>
+                          <th className="num">Last sale ID</th>
+                          <th>Last sale</th>
+                          <th className="num">Last sale value</th>
+                        </>
+                      )}
                       <th className="num">Final bal.</th>
                       <th>Received</th>
                       <th>Remarks</th>
@@ -377,12 +469,23 @@ export function RecoverySheet({
                       <tr key={r.party_id}>
                         <td>{r.party_code}</td>
                         <td>{r.name_en}</td>
-                        <td className="num">{sheetAmount(r.prev_balance)}</td>
-                        <td className="num">
-                          {r.last_sale_id ? formatReportInvNo(r.last_sale_id) : ""}
-                        </td>
-                        <td>{formatSheetDate(r.last_sale_date)}</td>
-                        <td className="num">{sheetAmount(r.last_sale_value)}</td>
+                        <td>{lastReceivedLabel(r.last_received_amount)}</td>
+                        {hideSaleCols ? null : (
+                          <>
+                            <td className="num">{sheetAmount(r.prev_balance)}</td>
+                            <td className="num">
+                              {r.last_sale_id
+                                ? formatReportInvNo(r.last_sale_id)
+                                : "-"}
+                            </td>
+                            <td>
+                              {r.last_sale_date
+                                ? formatSheetDate(r.last_sale_date)
+                                : "-"}
+                            </td>
+                            <td className="num">{saleDash(r.last_sale_value)}</td>
+                          </>
+                        )}
                         <td className="num">{sheetAmount(r.final_balance)}</td>
                         <td />
                         <td />
@@ -391,7 +494,7 @@ export function RecoverySheet({
                   </tbody>
                   <tfoot>
                     <tr>
-                      <td colSpan={6} className="num">
+                      <td colSpan={hideSaleCols ? 3 : 7} className="num">
                         {section.sector} — {t.count} shops
                       </td>
                       <td className="num">{formatNumber(t.finalTotal, 0)}</td>

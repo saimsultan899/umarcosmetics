@@ -32,7 +32,7 @@ export default async function WarehouseDetailPage({
     supabase
       .from("products")
       .select(
-        "id, code, name_en, product_type, manufacturer, category_group, retail_rate, purchase_rate, packing, unit_type, base_unit, reorder_level, is_active",
+        "id, code, name_en, product_type, retail_rate, purchase_rate, packing, unit_type, base_unit, reorder_level, is_active",
       )
       .eq("company_id", company.id)
       .eq("is_active", true)
@@ -158,7 +158,7 @@ export default async function WarehouseDetailPage({
                 <tr>
                   <th>Code</th>
                   <th>Name</th>
-                  <th>Brand / Group</th>
+                  <th>Company</th>
                   <th>Pack</th>
                   <th>Sale rate</th>
                   <th>Stock</th>
@@ -174,11 +174,7 @@ export default async function WarehouseDetailPage({
                         {p.product_type || "—"}
                       </div>
                     </td>
-                    <td className="text-[var(--muted)]">
-                      {[p.manufacturer, p.category_group]
-                        .filter(Boolean)
-                        .join(" · ") || "—"}
-                    </td>
+                    <td className="text-[var(--muted)]">{warehouse.name}</td>
                     <td>
                       {formatNumber(p.packing, 0)}/
                       {(p.unit_type || "ctn").toLowerCase()}

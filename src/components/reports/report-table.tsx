@@ -58,13 +58,20 @@ function isNumericColumn(rows: Record<string, unknown>[], key: string) {
   return rows.some((r) => typeof r[key] === "number");
 }
 
-/** Additive columns get summed in the print totals row (money/qty, not rates). */
+/** Additive columns get summed in the totals row (money/qty, not rates). */
 function isAdditiveColumn(key: string) {
+  if (isClosingColumn(key)) return false;
+  if (/limit|avg|average|percent|margin|reorder|packing/i.test(key)) return false;
   return (
-    /amount|total|paid|value|balance|qty|cash|credit|debit|profit|subtotal|discount/i.test(
+    /amount|total|paid|value|balance|qty|cash|credit|debit|profit|subtotal|discount|sales|collected|recovered|salary|expense/i.test(
       key,
-    ) && !/rate|price|reorder|opening|running|\bper\b/i.test(key)
+    ) && !/rate|price|opening|running|\bper\b|\bnet\b|result/i.test(key)
   );
+}
+
+/** Running / closing columns: show the last row, never a sum. */
+function isClosingColumn(key: string) {
+  return /^balance$/i.test(key) || /running/i.test(key);
 }
 
 export function ReportTable({
@@ -134,6 +141,26 @@ export function ReportTable({
     return sums;
   }, [columns, numericCols, filtered]);
 
+  const closingByColumn = useMemo(() => {
+    const last = filtered[filtered.length - 1];
+    if (!last) return {} as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const c of columns) {
+      if (isClosingColumn(c)) out[c] = last[c];
+    }
+    return out;
+  }, [columns, filtered]);
+
+  const showTotals =
+    Boolean(totals) || Object.keys(closingByColumn).length > 0;
+
+  function totalsCell(c: string, colIndex: number) {
+    if (c in closingByColumn) return formatCell(c, closingByColumn[c]);
+    if (totals && c in totals) return formatCell(c, totals[c]);
+    if (colIndex === 0) return "Total";
+    return "";
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -148,6 +175,7 @@ export function ReportTable({
         <ExportButtons
           rows={filteredExport.length ? filteredExport : exportable}
           filename={filename}
+          title={title}
         />
       </div>
 
@@ -214,6 +242,18 @@ export function ReportTable({
                 </tr>
               )}
             </tbody>
+            {showTotals ? (
+              <tfoot>
+                <tr>
+                  {columns.map((c, i) => (
+                    <td key={c} className="font-semibold">
+                      {totalsCell(c, i)}
+                    </td>
+                  ))}
+                  {columns.length ? <td className="no-print" /> : null}
+                </tr>
+              </tfoot>
+            ) : null}
           </table>
         </TableScroll>
         <div className="no-print">
@@ -275,17 +315,13 @@ export function ReportTable({
                 </tr>
               ))}
             </tbody>
-            {totals ? (
+            {showTotals ? (
               <tfoot>
                 <tr>
                   <td />
                   {columns.map((c, i) => (
                     <td key={c} className={numericCols.has(c) ? "num" : undefined}>
-                      {c in totals
-                        ? formatCell(c, totals[c])
-                        : i === 0
-                          ? "Total"
-                          : ""}
+                      {totalsCell(c, i)}
                     </td>
                   ))}
                 </tr>

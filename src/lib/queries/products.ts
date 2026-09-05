@@ -129,7 +129,7 @@ export async function fetchProductList(
 
   const makers = new Map<string, number>();
   for (const p of products) {
-    const key = p.manufacturer || "Unbranded";
+    const key = p.default_warehouse_id || "unassigned";
     makers.set(key, (makers.get(key) || 0) + 1);
   }
 

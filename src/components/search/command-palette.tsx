@@ -15,6 +15,45 @@ type Hit = {
   href: string;
 };
 
+/** Escape a value for use inside a PostgREST `or=(col.ilike.val)` filter. */
+function orIlike(column: string, value: string) {
+  const escaped = value.replace(/[%_,]/g, " ").replace(/"/g, "");
+  return `${column}.ilike."%${escaped}%"`;
+}
+
+/**
+ * Receivables / reports show SI-0013 as SI-13 (leading zeros stripped).
+ * Expand a typed invoice query so both the display form and stored form match.
+ */
+function expandInvoiceQueries(raw: string): string[] {
+  const safe = raw.trim().replace(/[%_,]/g, " ");
+  if (!safe) return [];
+  const out = new Set<string>([safe]);
+
+  const prefixed = safe.match(/^([A-Za-z]+[-_/\s]*)(\d+)$/i);
+  const digitsOnly = /^\d+$/.test(safe) ? safe : null;
+  const num = prefixed
+    ? String(Number(prefixed[2]))
+    : digitsOnly
+      ? String(Number(digitsOnly))
+      : null;
+
+  if (num != null && Number.isFinite(Number(num))) {
+    const prefixes = prefixed
+      ? [prefixed[1]]
+      : ["SI-", "SI", "PR-", "SR-", "PI-", "EXR-", "CLM-"];
+    for (const prefix of prefixes) {
+      out.add(`${prefix}${num}`);
+      for (let width = 2; width <= 6; width++) {
+        out.add(`${prefix}${num.padStart(width, "0")}`);
+      }
+    }
+    out.add(num);
+  }
+
+  return [...out];
+}
+
 export function CommandPalette({ companyId }: { companyId?: string | null }) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -59,7 +98,12 @@ export function CommandPalette({ companyId }: { companyId?: string | null }) {
       const supabase = createClient();
       const safe = q.trim().replace(/[%_,]/g, " ");
       const term = `%${safe}%`;
-      const [{ data: parties }, { data: products }, { data: sales }] =
+      const invoiceTerms = expandInvoiceQueries(safe);
+      const salesOr = invoiceTerms
+        .map((t) => orIlike("invoice_no", t))
+        .join(",");
+
+      const [{ data: parties }, { data: products }, { data: sales }, { data: expiry }] =
         await Promise.all([
           supabase
             .from("parties")
@@ -79,7 +123,15 @@ export function CommandPalette({ companyId }: { companyId?: string | null }) {
             .from("sale_invoices")
             .select("id, invoice_no, invoice_date, grand_total")
             .eq("company_id", companyId)
-            .ilike("invoice_no", term)
+            .or(salesOr)
+            .order("invoice_date", { ascending: false })
+            .limit(8),
+          supabase
+            .from("expiry_receipts")
+            .select("id, receipt_no, receipt_date, grand_total")
+            .eq("company_id", companyId)
+            .ilike("receipt_no", term)
+            .order("receipt_date", { ascending: false })
             .limit(4),
         ]);
 
@@ -104,6 +156,13 @@ export function CommandPalette({ companyId }: { companyId?: string | null }) {
           title: s.invoice_no,
           subtitle: `${s.invoice_date} · ${s.grand_total}`,
           href: `/sales/invoices/${s.id}`,
+        })),
+        ...(expiry || []).map((s) => ({
+          id: s.id,
+          kind: "sale" as const,
+          title: s.receipt_no,
+          subtitle: `Expiry return · ${s.receipt_date}`,
+          href: `/inventory/expiry/receipts/${s.id}`,
         })),
       ];
       setHits(next);
@@ -143,8 +202,8 @@ export function CommandPalette({ companyId }: { companyId?: string | null }) {
               aria-label="Global search"
               className="relative z-[201] w-full max-w-xl overflow-hidden rounded-2xl border border-[var(--border)] bg-white shadow-2xl"
             >
-              <div className="flex items-center gap-2 border-b border-[var(--border)] px-4">
-                <Search className="h-4 w-4 text-[var(--muted)]" />
+              <div className="flex items-center gap-3 border-b border-[var(--border)] px-4 py-1">
+                <Search className="h-4 w-4 shrink-0 text-[var(--muted)]" />
                 <input
                   autoFocus
                   value={q}
@@ -166,11 +225,11 @@ export function CommandPalette({ companyId }: { companyId?: string | null }) {
                     }
                   }}
                   placeholder="Search parties, products, invoices..."
-                  className="h-12 w-full bg-transparent text-sm outline-none"
+                  className="!h-11 min-w-0 flex-1 !border-0 !bg-transparent px-0 text-sm leading-none !shadow-none outline-none ring-0 placeholder:text-[var(--muted)] focus:!border-0 focus:!shadow-none focus:outline-none focus:ring-0"
                 />
                 <button
                   type="button"
-                  className="text-xs text-[var(--muted)]"
+                  className="shrink-0 rounded-md px-1.5 py-1 text-xs leading-none text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
                   onClick={close}
                 >
                   Esc

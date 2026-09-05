@@ -100,18 +100,6 @@ export default async function SaleInvoiceDetailPage({
   // Balance immediately before this invoice — ignores later same-day payments/returns.
   const previousBalance = Number(balanceBeforeRaw || 0);
 
-  const paymentType = String(invoice.payment_type || "credit");
-  let lastPaidAmount = 0;
-  let lastPaidKind: "Cash" | "Credit" | null = null;
-  if (paidOnThisBill > 0) {
-    // Cash / partial on this bill
-    lastPaidAmount = paidOnThisBill;
-    lastPaidKind = paymentType === "credit" ? "Credit" : "Cash";
-  } else if (lastPaid && lastPaid.amount > 0) {
-    lastPaidAmount = lastPaid.amount;
-    lastPaidKind = lastPaid.kind;
-  }
-
   const party = invoice.parties as {
     name_en?: string;
     party_code?: string;
@@ -122,6 +110,37 @@ export default async function SaleInvoiceDetailPage({
     head?: string | null;
     city?: string | null;
   } | null;
+
+  // Shared cash walk-in shop — no account history on the print.
+  const isWalkIn =
+    String(party?.party_code || "").toUpperCase() === "WALKIN";
+
+  let lastReceivedAmount: number | null = null;
+  if (!isWalkIn) {
+    for (const row of recoveryRows || []) {
+      if (!isBeforeThisBill(row.recovery_date, row.created_at)) continue;
+      const amount = Number(row.amount || 0);
+      if (amount > 0.005) {
+        lastReceivedAmount = amount;
+        break;
+      }
+    }
+  }
+
+  const paymentType = String(invoice.payment_type || "credit");
+  let lastPaidAmount = 0;
+  let lastPaidKind: "Cash" | "Credit" | null = null;
+  if (isWalkIn) {
+    // Spot cash: do not show this bill's cash (or other walk-in sales) as Last Paid.
+    lastPaidAmount = 0;
+    lastPaidKind = null;
+  } else if (paidOnThisBill > 0) {
+    lastPaidAmount = paidOnThisBill;
+    lastPaidKind = paymentType === "credit" ? "Credit" : "Cash";
+  } else if (lastPaid && lastPaid.amount > 0) {
+    lastPaidAmount = lastPaid.amount;
+    lastPaidKind = lastPaid.kind;
+  }
 
   const salesman = invoice.salesman as {
     full_name?: string | null;
@@ -152,10 +171,12 @@ export default async function SaleInvoiceDetailPage({
         partyOwner={party?.contact_person}
         partyPhone={party?.phone}
         partyMobile={party?.mobile}
+        lastReceivedAmount={lastReceivedAmount}
         sector={sector || invoice.route || null}
         salesmanLabel={salesmanLabel || null}
         lines={(items || []).map((i) => {
           return {
+            product_code: i.product_code,
             product_name: i.product_name,
             qty: Number(i.qty),
             bonus: Number(i.bonus_qty || 0),
@@ -172,7 +193,8 @@ export default async function SaleInvoiceDetailPage({
         paid={paidOnThisBill}
         previousPayment={lastPaidAmount}
         lastPaidKind={lastPaidKind}
-        previousBalance={previousBalance}
+        previousBalance={isWalkIn ? 0 : previousBalance}
+        hideLastPaidAsThisBill={isWalkIn}
         preparedBy={salesman?.full_name || profile?.full_name}
         autoPrint={autoPrint}
       />

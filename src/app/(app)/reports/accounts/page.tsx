@@ -260,7 +260,9 @@ export default async function AccountsReportPage({
             title={`Customer ledger — ${selectedParty ? `${selectedParty.party_code} ${selectedParty.name_en}` : company.name}`}
             companyName={company.name}
             subtitle={
-              selectedParty ? `${ledgerRows.length} lines` : "Select a customer / vendor"
+              selectedParty
+                ? `${ledgerRows.length} lines · closing = total debit − total credit`
+                : "Select a customer / vendor"
             }
             rows={selectedParty ? ledgerRows : []}
             filename={`party-ledger-${sp.party || "none"}`}

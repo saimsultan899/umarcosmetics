@@ -93,6 +93,7 @@ export default async function SaleReturnDetailPage({
       brandCompany,
       qty: Number(i.qty),
       rate: Number(i.rate),
+      discount: Number(i.discount || 0),
       amount: Number(i.amount),
     };
   });
@@ -123,7 +124,13 @@ export default async function SaleReturnDetailPage({
       lines={lines.map(({ brandCompany: _brand, ...line }) => line)}
       totals={[
         { label: "Subtotal", value: formatPkr(doc.subtotal) },
-        { label: "Grand total", value: formatPkr(doc.grand_total) },
+        { label: "Trade discount", value: formatPkr(doc.discount_total) },
+        { label: "Extra discount", value: formatPkr(Number(doc.extra_discount || 0)) },
+        {
+          label: "Grand total",
+          value: formatPkr(doc.grand_total),
+          strong: true,
+        },
       ]}
       autoPrint={autoPrint}
     />

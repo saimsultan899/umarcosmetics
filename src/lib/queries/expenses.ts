@@ -17,6 +17,8 @@ export type ExpenseRow = {
   remarks: string | null;
   salesman_id: string | null;
   salesman_name: string | null;
+  warehouse_name: string | null;
+  vendor_name: string | null;
 };
 
 export type ExpenseListResult = {
@@ -38,7 +40,7 @@ export async function fetchExpenseList(
   let query = supabase
     .from("expenses")
     .select(
-      "id, expense_no, expense_date, category, amount, remarks, salesman_id, salesman:salesmen!expenses_salesman_id_fkey(full_name)",
+      "id, expense_no, expense_date, category, amount, remarks, salesman_id, salesman:salesmen!expenses_salesman_id_fkey(full_name), warehouse:warehouses!expenses_warehouse_id_fkey(name), vendor:parties!expenses_vendor_id_fkey(party_code, name_en)",
       { count: "exact" },
     )
     .eq("company_id", companyId);
@@ -68,6 +70,21 @@ export async function fetchExpenseList(
       const name = Array.isArray(salesmanRel)
         ? salesmanRel[0]?.full_name
         : salesmanRel?.full_name;
+      const warehouseRel = row.warehouse as
+        | { name: string | null }
+        | { name: string | null }[]
+        | null;
+      const warehouseName = Array.isArray(warehouseRel)
+        ? warehouseRel[0]?.name
+        : warehouseRel?.name;
+      const vendorRel = row.vendor as
+        | { party_code: string | null; name_en: string | null }
+        | { party_code: string | null; name_en: string | null }[]
+        | null;
+      const vendor = Array.isArray(vendorRel) ? vendorRel[0] : vendorRel;
+      const vendorName = vendor
+        ? [vendor.party_code, vendor.name_en].filter(Boolean).join(" — ")
+        : null;
       return {
         id: row.id,
         expense_no: row.expense_no,
@@ -77,6 +94,8 @@ export async function fetchExpenseList(
         remarks: row.remarks,
         salesman_id: row.salesman_id,
         salesman_name: name || null,
+        warehouse_name: warehouseName || null,
+        vendor_name: vendorName,
       };
     }),
     pagination: buildPaginationMeta(count ?? 0, paginationParams),

@@ -32,7 +32,7 @@ export default async function CashReceiptPage({
     <div className="animate-rise space-y-6">
       <PageHeading
         title="Cash Receipt"
-        description="Record money received from customers (reduces receivable)"
+        description="Record money received from customers (reduces receivable). Vendor expiry claim credits are also cleared here if the company pays cash."
         actions={
           <CreateDialogButton
             label="New receipt"

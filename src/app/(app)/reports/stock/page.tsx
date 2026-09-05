@@ -17,11 +17,11 @@ export default async function StockReportPage({
   const view = sp.view || "balances";
   const { supabase, company } = await requireCompanyContext();
 
-  const [{ data: rows }, { data: movements }, { data: products }] =
+  const [{ data: rows }, { data: movements }, { data: products }, { data: warehouses }] =
     await Promise.all([
       supabase
         .from("stock_balances")
-        .select("qty, products(code, name_en, reorder_level, purchase_rate, manufacturer, packing, unit_type, base_unit), warehouses(name)")
+        .select("qty, products(code, name_en, reorder_level, purchase_rate, packing, unit_type, base_unit), warehouses(name)")
         .eq("company_id", company.id)
         .order("qty", { ascending: false })
         .limit(1000),
@@ -33,12 +33,20 @@ export default async function StockReportPage({
         .limit(200),
       supabase
         .from("products")
-        .select("code, name_en, manufacturer, category_group, reorder_level, opening_qty, purchase_rate, retail_rate, packing, unit_type, base_unit")
+        .select("code, name_en, default_warehouse_id, reorder_level, opening_qty, purchase_rate, retail_rate, packing, unit_type, base_unit")
         .eq("company_id", company.id)
         .eq("is_active", true)
         .order("code")
         .limit(1000),
+      supabase
+        .from("warehouses")
+        .select("id, name")
+        .eq("company_id", company.id),
     ]);
+
+  const companyByWarehouse = new Map(
+    (warehouses || []).map((w) => [w.id, w.name]),
+  );
 
   const balanceRows = (rows || []).map((r) => {
     const product = Array.isArray(r.products) ? r.products[0] : r.products;
@@ -50,7 +58,6 @@ export default async function StockReportPage({
       Company: warehouse?.name || "—",
       Code: product?.code || "—",
       Product: product?.name_en || "—",
-      Manufacturer: product?.manufacturer || "—",
       Qty: qty,
       Packing: formatUomCompact(qty, packing, {
         unitType: product?.unit_type,
@@ -67,10 +74,9 @@ export default async function StockReportPage({
   });
 
   const analysisRows = (products || []).map((p) => ({
+    Company: companyByWarehouse.get(p.default_warehouse_id) || "—",
     Code: p.code,
     Product: p.name_en,
-    Manufacturer: p.manufacturer || "—",
-    Group: p.category_group || "—",
     "Opening qty": Number(p.opening_qty || 0),
     Packing: formatUomCompact(p.opening_qty, p.packing, {
       unitType: p.unit_type,
@@ -143,6 +149,12 @@ export default async function StockReportPage({
             {label}
           </Link>
         ))}
+        <Link
+          href="/reports/expiry"
+          className="rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-sm font-medium text-[var(--muted)]"
+        >
+          Expiry warehouse
+        </Link>
       </div>
 
       {(() => {

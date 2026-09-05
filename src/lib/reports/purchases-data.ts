@@ -7,15 +7,17 @@ export type PurchaseReportType =
   | "supplier_wise"
   | "detail"
   | "manufacturer_wise"
-  | "item_wise";
+  | "item_wise"
+  | "expiry_claims";
 
 export const PURCHASE_REPORT_TYPES: { key: PurchaseReportType; label: string }[] = [
   { key: "summary", label: "Purchase summary" },
   { key: "bill_wise", label: "Bill wise" },
-  { key: "supplier_wise", label: "Vendor / manufacturer wise" },
+  { key: "supplier_wise", label: "Vendor wise" },
   { key: "detail", label: "Purchase detail" },
   { key: "item_wise", label: "Item wise purchase" },
-  { key: "manufacturer_wise", label: "Manufacturer / group wise" },
+  { key: "manufacturer_wise", label: "Company wise" },
+  { key: "expiry_claims", label: "Expiry vendor claims" },
 ];
 
 type Filters = {
@@ -33,6 +35,10 @@ export async function buildPurchaseReport(
   supabase: SupabaseClient,
   filters: Filters,
 ) {
+  if (filters.type === "expiry_claims") {
+    return buildExpiryClaimPurchaseReport(supabase, filters);
+  }
+
   let query = supabase
     .from("purchase_invoices")
     .select(
@@ -73,27 +79,47 @@ export async function buildPurchaseReport(
     const { data: items } = await supabase
       .from("purchase_invoice_items")
       .select(
-        "purchase_invoice_id, product_code, product_name, qty, rate, discount, amount, products(manufacturer, category_group)",
+        "purchase_invoice_id, product_code, product_name, qty, rate, discount, amount, products(default_warehouse_id)",
       )
       .in("purchase_invoice_id", ids);
 
     const invMap = new Map(list.map((i) => [i.id, i]));
 
     if (filters.type === "manufacturer_wise") {
+      const whIds = new Set<string>();
+      for (const it of items || []) {
+        const product = one(it.products);
+        const inv = invMap.get(it.purchase_invoice_id);
+        const wid = product?.default_warehouse_id || inv?.warehouse_id;
+        if (wid) whIds.add(wid);
+      }
+      const whNameById = new Map<string, string>();
+      if (whIds.size) {
+        const { data: whRows } = await supabase
+          .from("warehouses")
+          .select("id, name")
+          .in("id", [...whIds]);
+        for (const w of whRows || []) {
+          whNameById.set(w.id, w.name);
+        }
+      }
+
       const grouped = new Map<string, { qty: number; amount: number }>();
       for (const it of items || []) {
         const product = one(it.products);
+        const inv = invMap.get(it.purchase_invoice_id);
+        const headerWh = one(inv?.warehouses);
+        const warehouseId =
+          product?.default_warehouse_id || inv?.warehouse_id || "";
         const key =
-          [product?.manufacturer, product?.category_group]
-            .filter(Boolean)
-            .join(" / ") || "Uncategorized";
+          whNameById.get(warehouseId) || headerWh?.name || "Unassigned";
         const cur = grouped.get(key) || { qty: 0, amount: 0 };
         cur.qty += Number(it.qty);
         cur.amount += Number(it.amount);
         grouped.set(key, cur);
       }
       return [...grouped.entries()].map(([key, v]) => ({
-        "Manufacturer / Group": key,
+        Company: key,
         Qty: v.qty,
         Amount: v.amount,
       }));
@@ -101,7 +127,6 @@ export async function buildPurchaseReport(
 
     return (items || []).map((it) => {
       const inv = invMap.get(it.purchase_invoice_id);
-      const product = one(it.products);
       const party = one(inv?.parties);
       const warehouse = one(inv?.warehouses);
       return {
@@ -113,8 +138,6 @@ export async function buildPurchaseReport(
         Company: warehouse?.name || "",
         Code: it.product_code,
         Item: it.product_name,
-        Manufacturer: product?.manufacturer || "",
-        Group: product?.category_group || "",
         Qty: Number(it.qty),
         Rate: Number(it.rate),
         Amount: Number(it.amount),
@@ -163,3 +186,61 @@ export async function buildPurchaseReport(
     };
   });
 }
+
+async function buildExpiryClaimPurchaseReport(
+  supabase: SupabaseClient,
+  filters: Filters,
+) {
+  let query = supabase
+    .from("expiry_claims")
+    .select(
+      "id, claim_no, claim_date, claim_status, grand_total, accepted_amount, rejected_amount, warehouse_id, party_id, parties(party_code, name_en), warehouses(name)",
+    )
+    .eq("company_id", filters.companyId)
+    .eq("status", "posted")
+    .gte("claim_date", filters.from)
+    .lte("claim_date", filters.to)
+    .order("claim_date", { ascending: true })
+    .limit(2000);
+
+  if (filters.warehouseIds?.length) {
+    query = query.in("warehouse_id", filters.warehouseIds);
+  }
+  if (filters.partyIds?.length) {
+    query = query.in("party_id", filters.partyIds);
+  }
+
+  const { data: claims, error } = await query;
+  if (error) throw new Error(error.message);
+  if (!claims?.length) return [];
+
+  const { data: items, error: itemError } = await supabase
+    .from("expiry_claim_items")
+    .select("claim_id, product_code, product_name, qty, rate, amount")
+    .in(
+      "claim_id",
+      claims.map((c) => c.id),
+    );
+  if (itemError) throw new Error(itemError.message);
+
+  const claimMap = new Map(claims.map((c) => [c.id, c]));
+  return (items || []).map((it) => {
+    const doc = claimMap.get(it.claim_id);
+    const party = one(doc?.parties);
+    const warehouse = one(doc?.warehouses);
+    return {
+      Date: doc?.claim_date,
+      No: doc?.claim_no,
+      Vendor: party ? `${party.party_code} — ${party.name_en}` : "",
+      Company: warehouse?.name || "—",
+      Status: doc?.claim_status || "open",
+      Code: it.product_code,
+      Item: it.product_name,
+      Qty: Number(it.qty),
+      Rate: Number(it.rate),
+      Amount: Number(it.amount),
+      _href: doc?.id ? `/inventory/expiry/claims/${doc.id}` : "",
+    };
+  });
+}
+

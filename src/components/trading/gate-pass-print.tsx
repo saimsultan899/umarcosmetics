@@ -168,13 +168,12 @@ export function GatePassPrint({
               <th className="ctr" style={{ width: "8%" }}>
                 S.No
               </th>
-              <th style={{ width: "16%" }}>Product Code</th>
               <th>Product Description</th>
-              <th className="ctr" style={{ width: "12%" }}>
-                Carton
-              </th>
               <th className="num" style={{ width: "12%" }}>
                 Qty
+              </th>
+              <th className="ctr" style={{ width: "12%" }}>
+                Carton
               </th>
             </tr>
           </thead>
@@ -184,20 +183,22 @@ export function GatePassPrint({
               return (
                 <tr key={`${l.product_code}-${i}`}>
                   <td className="ctr">{i + 1}</td>
-                  <td>{l.product_code}</td>
-                  <td>{l.product_name}</td>
-                  <td className="ctr">{formatCartonQty(l.qty, packing)}</td>
+                  <td>
+                    {[l.product_code, l.product_name].filter(Boolean).join(" ")}
+                  </td>
                   <td className="num">{formatNumber(l.qty, 2)}</td>
+                  <td className="ctr">{formatCartonQty(l.qty, packing)}</td>
                 </tr>
               );
             })}
             <tr>
-              <td colSpan={4} className="num" style={{ fontWeight: 700 }}>
+              <td colSpan={2} className="num" style={{ fontWeight: 700 }}>
                 Total qty
               </td>
               <td className="num" style={{ fontWeight: 700 }}>
                 {formatNumber(totalQty, 2)}
               </td>
+              <td />
             </tr>
           </tbody>
         </table>

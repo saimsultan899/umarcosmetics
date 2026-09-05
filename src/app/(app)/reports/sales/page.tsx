@@ -165,7 +165,7 @@ export default async function SaleReportsPage({
           Sale Reports
         </h1>
         <p className="mt-1 text-sm text-[var(--muted)]">
-          Filtered sales analytics with print / Excel / CSV export
+          Filtered sales analytics with print / Excel / PDF export
         </p>
       </div>
 

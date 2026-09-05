@@ -5,6 +5,8 @@ export type ProfitDailyRow = {
   day: string;
   sales: number;
   returns: number;
+  expiry_credits: number;
+  expiry_vendor: number;
   net_sales: number;
   expenses: number;
 };
@@ -14,6 +16,10 @@ export type ProfitSummary = {
   to: string;
   sales: number;
   returns: number;
+  expiry_credits: number;
+  expiry_claims: number;
+  expiry_rejects: number;
+  expiry_vendor_net: number;
   net_sales: number;
   cogs: number;
   gross_profit: number;
@@ -67,6 +73,8 @@ export async function buildProfitReport(
     day: String(d.day),
     sales: num(d.sales),
     returns: num(d.returns),
+    expiry_credits: num(d.expiry_credits),
+    expiry_vendor: num(d.expiry_vendor),
     net_sales: num(d.net_sales),
     expenses: num(d.expenses),
   }));
@@ -85,6 +93,10 @@ export async function buildProfitReport(
       to: String(raw.to || input.to),
       sales: num(raw.sales),
       returns: num(raw.returns),
+      expiry_credits: num(raw.expiry_credits),
+      expiry_claims: num(raw.expiry_claims),
+      expiry_rejects: num(raw.expiry_rejects),
+      expiry_vendor_net: num(raw.expiry_vendor_net),
       net_sales: num(raw.net_sales),
       cogs: num(raw.cogs),
       gross_profit: num(raw.gross_profit),
@@ -113,6 +125,10 @@ function emptySummary(from: string, to: string): ProfitSummary {
     to,
     sales: 0,
     returns: 0,
+    expiry_credits: 0,
+    expiry_claims: 0,
+    expiry_rejects: 0,
+    expiry_vendor_net: 0,
     net_sales: 0,
     cogs: 0,
     gross_profit: 0,

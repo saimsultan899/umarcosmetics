@@ -43,6 +43,7 @@ export const mainNav: NavItem[] = [
       { label: "Products", href: "/products" },
       { label: "Low / reorder stock", href: "/products?view=reorder" },
       { label: "Companies", href: "/warehouses" },
+      { label: "Expiry warehouse", href: "/inventory/expiry" },
       { label: "Stock transfer", href: "/warehouses/transfers" },
       { label: "Van load sheets", href: "/inventory/load-sheets" },
       { label: "Stock report", href: "/reports/stock" },
@@ -54,6 +55,7 @@ export const mainNav: NavItem[] = [
     children: [
       { label: "Sale invoice", href: "/sales/invoices" },
       { label: "Sale return", href: "/sales/returns" },
+      { label: "Expiry warehouse", href: "/inventory/expiry" },
       { label: "Salesmen", href: "/salesman" },
       { label: "Salesmen performance", href: "/sales/salesmen" },
     ],
@@ -65,6 +67,7 @@ export const mainNav: NavItem[] = [
       { label: "Purchase invoice", href: "/purchases/invoices" },
       { label: "Gate pass", href: "/purchases/gate-passes" },
       { label: "Purchase return", href: "/purchases/returns" },
+      { label: "Expiry warehouse", href: "/inventory/expiry?tab=claims" },
     ],
   },
   {
@@ -93,6 +96,7 @@ export const mainNav: NavItem[] = [
       { label: "Sales", href: "/reports/sales" },
       { label: "Purchases", href: "/reports/purchases" },
       { label: "Stock", href: "/reports/stock" },
+      { label: "Expiry warehouse", href: "/reports/expiry" },
       { label: "Profit summary", href: "/reports/profit" },
       { label: "Expense report", href: "/reports/expenses" },
       { label: "Customer balances", href: "/reports/accounts?view=receivable" },

@@ -24,14 +24,13 @@ import { formatNumber, formatPkr } from "@/lib/utils";
 import { AlertTriangle, Package, Tags } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-function productFields(p: Product): DetailField[] {
+function productFields(p: Product, companyName: string): DetailField[] {
   return [
     { label: "Code", value: p.code },
     { label: "Name", value: p.name_en },
     { label: "Urdu name", value: p.name_ur || "—" },
     { label: "Type", value: p.product_type || "—" },
-    { label: "Manufacturer", value: p.manufacturer || "—" },
-    { label: "Group", value: p.category_group || "—" },
+    { label: "Company", value: companyName },
     { label: "Barcode", value: p.barcode || "—" },
     { label: "Retail", value: formatPkr(p.retail_rate) },
     { label: "Purchase", value: formatPkr(p.purchase_rate) },
@@ -88,6 +87,23 @@ export function ProductsTable({
     useUrlTableState(["view", "warehouse"]);
   const [localQuery, setLocalQuery] = useState(q);
   const lowSet = useMemo(() => new Set(lowStockCodes || []), [lowStockCodes]);
+  const warehouseName = useMemo(() => {
+    const map = new Map(warehouses.map((w) => [w.id, w.name]));
+    return (id: string | null | undefined) =>
+      (id && map.get(id)) || "—";
+  }, [warehouses]);
+
+  const companyBars = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const p of products) {
+      const name = warehouseName(p.default_warehouse_id);
+      counts.set(name, (counts.get(name) || 0) + 1);
+    }
+    return [...counts.entries()]
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 6);
+  }, [products, warehouseName]);
 
   const view = (filters.view ||
     (initialView === "reorder" ? "reorder" : "all")) as ViewFilter;
@@ -154,8 +170,8 @@ export function ProductsTable({
             centerLabel="Value"
           />
         </ChartCard>
-        <ChartCard title="By manufacturer" subtitle="Current page">
-          <RankBars data={stats.makerBars} money={false} />
+        <ChartCard title="By company" subtitle="Current page">
+          <RankBars data={companyBars} money={false} />
         </ChartCard>
         <ChartCard title="Highest stock value" subtitle="Current page">
           <RankBars data={stats.topStock} />
@@ -170,7 +186,7 @@ export function ProductsTable({
             setQuery(value);
           }}
           loading={isPending}
-          placeholder="Search code, name, brand, group..."
+          placeholder="Search code, name, company..."
           resultCount={pagination.total}
           totalCount={pagination.total}
           filters={
@@ -211,7 +227,7 @@ export function ProductsTable({
                 <tr>
                   <th>Code</th>
                   <th>Name</th>
-                  <th>Brand / Group</th>
+                  <th>Company</th>
                   <th>Retail</th>
                   <th>Purchase</th>
                   <th>Reorder</th>
@@ -234,9 +250,7 @@ export function ProductsTable({
                         </div>
                       </td>
                       <td className="text-[var(--muted)]">
-                        {[p.manufacturer, p.category_group]
-                          .filter(Boolean)
-                          .join(" · ") || "—"}
+                        {warehouseName(p.default_warehouse_id)}
                       </td>
                       <td>{formatPkr(p.retail_rate)}</td>
                       <td>{formatPkr(p.purchase_rate)}</td>
@@ -253,7 +267,10 @@ export function ProductsTable({
                           editTitle={`Edit ${p.name_en}`}
                           deleteTitle={`Remove ${p.name_en}?`}
                           deleteDescription="Product will be removed from this list and hidden from new invoices."
-                          viewFields={productFields(p)}
+                          viewFields={productFields(
+                            p,
+                            warehouseName(p.default_warehouse_id),
+                          )}
                           onDelete={() => deactivate(p.id)}
                           editContent={(close) => (
                             <ProductForm

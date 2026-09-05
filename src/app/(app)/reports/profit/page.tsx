@@ -61,9 +61,11 @@ export default async function ProfitReportPage({
   const plRows = [
     { Item: "Gross sales (posted invoices)", Amount: summary.sales },
     { Item: "Less: sale returns", Amount: -summary.returns },
+    { Item: "Less: expiry customer credits", Amount: -summary.expiry_credits },
     { Item: "Net sales", Amount: summary.net_sales },
     { Item: "Less: estimated cost of goods", Amount: -summary.cogs },
     { Item: "Gross profit (before expenses)", Amount: summary.gross_profit },
+    { Item: "Plus: expiry vendor claims (net)", Amount: summary.expiry_vendor_net },
     { Item: "Purchases (before discounts)", Amount: purchaseGross },
     { Item: "Less: purchase trade discount", Amount: -summary.purchase_trade_discount },
     { Item: "Less: purchase extra discount", Amount: -summary.purchase_extra_discount },
@@ -105,7 +107,7 @@ export default async function ProfitReportPage({
           value={summary.net_sales}
           format="money"
           icon={ShoppingCart}
-          hint={`Invoices ${formatPkr(summary.sales)} · Returns ${formatPkr(summary.returns)}`}
+          hint={`Invoices ${formatPkr(summary.sales)} · Returns ${formatPkr(summary.returns)} · Expiry ${formatPkr(summary.expiry_credits)}`}
         />
         <StatCard
           label="Gross profit"
@@ -136,7 +138,7 @@ export default async function ProfitReportPage({
           value={summary.purchases}
           format="money"
           icon={ShoppingCart}
-          hint={`Bills ${formatPkr(summary.purchases_gross)} · Returns ${formatPkr(summary.purchase_returns)}`}
+          hint={`Bills ${formatPkr(summary.purchases_gross)} · Returns ${formatPkr(summary.purchase_returns)} · Expiry claims ${formatPkr(summary.expiry_vendor_net)}`}
         />
         <StatCard
           label="Gross margin"
@@ -195,7 +197,7 @@ export default async function ProfitReportPage({
           <TrendAreaChart
             data={summary.daily.map((d) => ({
               name: d.day.slice(5),
-              value: d.net_sales - d.expenses,
+              value: d.net_sales + d.expiry_vendor - d.expenses,
             }))}
             valueLabel="Daily result"
             height={240}
@@ -257,8 +259,9 @@ export default async function ProfitReportPage({
 
       <p className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2.5 text-xs leading-relaxed text-[var(--muted)]">
         <span className="font-medium text-[var(--ink)]">Note:</span> Gross profit uses
-        current product purchase rates (estimated cost). Recoveries, receivables, and
-        purchases are not included — this is trading margin minus daily expenses.
+        current product purchase rates (estimated cost). Expiry customer credits reduce
+        net sales; vendor expiry claims (net of rejects) recover cost. They are not mixed
+        into sale returns or purchase returns. Saleable stock is unchanged by expiry.
       </p>
 
       <ReportTable
@@ -269,9 +272,11 @@ export default async function ProfitReportPage({
           Date: d.day,
           Sales: d.sales,
           Returns: d.returns,
+          "Expiry credits": d.expiry_credits,
+          "Expiry vendor": d.expiry_vendor,
           "Net sales": d.net_sales,
           Expenses: d.expenses,
-          "Daily result (approx.)": d.net_sales - d.expenses,
+          "Daily result (approx.)": d.net_sales + d.expiry_vendor - d.expenses,
         }))}
         filename={`profit-${period.from}-${period.to}`}
       />

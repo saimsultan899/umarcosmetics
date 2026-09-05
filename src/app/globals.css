@@ -793,6 +793,17 @@ button[aria-haspopup="listbox"]:focus-visible {
     white;
 }
 
+.table-shell.table-shell--y-scroll > .table-scroll {
+  max-height: min(28rem, 55vh);
+  overflow-y: auto;
+}
+
+.table-shell.table-shell--y-scroll th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
 .table-shell > .table-pagination,
 .table-shell > .no-print > .table-pagination {
   width: 100%;
@@ -805,8 +816,12 @@ button[aria-haspopup="listbox"]:focus-visible {
 
 .recovery-balance-table {
   width: 100%;
-  min-width: 1180px;
+  min-width: 1320px;
   table-layout: fixed;
+}
+
+.recovery-balance-table--compact {
+  min-width: 900px;
 }
 
 .recovery-balance-table__col-sector {
@@ -818,11 +833,15 @@ button[aria-haspopup="listbox"]:focus-visible {
 }
 
 .recovery-balance-table__col-name {
-  width: 23%;
+  width: 18%;
+}
+
+.recovery-balance-table__col-received {
+  width: 12%;
 }
 
 .recovery-balance-table__col-prev {
-  width: 10%;
+  width: 8%;
 }
 
 .recovery-balance-table__col-sale-id {
@@ -862,6 +881,11 @@ button[aria-haspopup="listbox"]:focus-visible {
 .recovery-balance-table__name {
   font-size: 11px;
   font-weight: 500;
+  color: var(--ink);
+}
+
+.recovery-balance-table__received {
+  font-size: 11px;
   color: var(--ink);
 }
 
@@ -964,6 +988,17 @@ button[aria-haspopup="listbox"]:focus-visible {
   background:
     linear-gradient(var(--surface-2), var(--surface-2)) top left / 100% 2.625rem no-repeat,
     white;
+}
+
+.table-grid.table-grid--y-scroll {
+  max-height: min(24rem, 45vh);
+  overflow-y: auto;
+}
+
+.table-grid.table-grid--y-scroll th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .table-grid table {
@@ -1664,6 +1699,14 @@ button[aria-haspopup="listbox"]:focus-visible {
   font-weight: 600;
   text-align: left;
 }
+.recovery-sheet-dates__to {
+  margin-left: 6mm;
+}
+.recovery-sheet-printed {
+  margin-top: 3px !important;
+  font-size: 9px;
+  font-weight: 500;
+}
 .recovery-sheet-section {
   margin-top: 4px;
 }
@@ -1686,10 +1729,13 @@ button[aria-haspopup="listbox"]:focus-visible {
   width: 6%;
 }
 .recovery-sheet__col-name {
-  width: 24%;
+  width: 18%;
+}
+.recovery-sheet__col-received {
+  width: 12%;
 }
 .recovery-sheet__col-prev {
-  width: 10%;
+  width: 8%;
 }
 .recovery-sheet__col-sale-id {
   width: 9%;
@@ -1757,13 +1803,26 @@ button[aria-haspopup="listbox"]:focus-visible {
   font-size: 12px;
   line-height: 1.35;
 }
+.si-head {
+  margin-bottom: 2px;
+}
+.si-doc-label {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.2;
+  color: #333;
+}
 .si-title {
   text-align: center;
   font-size: 22px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  line-height: 1.15;
+  margin-top: 2px;
 }
 .si-salesman,
 .si-company {
@@ -2038,10 +2097,11 @@ button[aria-haspopup="listbox"]:focus-visible {
     margin: 10mm 12mm;
   }
 
-  /* Half A4 sheet on A4 portrait — bill sits on the right (feed-safe zone). */
+  /* Half A4 sheet on A4 portrait — bill sits on the right (feed-safe zone).
+     Keep small page margins so printer dialogs / non-printable edges don't clip. */
   @page si-half-page {
     size: A4 portrait;
-    margin: 0;
+    margin: 4mm 5mm 4mm 8mm;
   }
 
   body * {
@@ -2226,22 +2286,28 @@ button[aria-haspopup="listbox"]:focus-visible {
 
   .print-sheet.si-half {
     page: si-half-page;
-    left: auto !important;
+    /* Fill the page box from a safe left inset — avoid fixed mm width that
+       overflows the printable area and clips the left edge in print preview. */
+    left: 0 !important;
     right: 0 !important;
     top: 0 !important;
-    width: 198mm !important;
-    max-width: 198mm !important;
+    width: auto !important;
+    max-width: none !important;
     max-height: 146mm !important;
     overflow: hidden !important;
     box-sizing: border-box !important;
     border: none !important;
     border-radius: 0 !important;
-    padding: 4mm 6mm 3mm 12mm !important;
+    padding: 3mm 4mm 3mm 4mm !important;
     font-size: 11px !important;
     line-height: 1.25 !important;
   }
+  .print-sheet.si-half .si-doc-label {
+    font-size: 9.5px !important;
+  }
   .print-sheet.si-half .si-title {
     font-size: 18px !important;
+    margin-top: 1px !important;
   }
   .print-sheet.si-half .si-salesman,
   .print-sheet.si-half .si-company,

@@ -60,7 +60,7 @@ export function LineItemsEditor({
   onAutoPickWarehouse,
   /** Show company control above product lines (sale invoice). */
   showCompanyPicker = false,
-  /** Optional invoice-level extra discount (sale invoice footer). */
+  /** Optional document-level extra discount (invoice / return footer). */
   extraDiscount,
   onExtraDiscountChange,
 }: {

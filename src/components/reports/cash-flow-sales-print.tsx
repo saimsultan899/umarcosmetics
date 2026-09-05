@@ -143,7 +143,11 @@ export function CashFlowSalesPrint({
             invoices
           </p>
         </div>
-        <ExportButtons rows={exportRows(rows)} filename={filename} />
+        <ExportButtons
+          rows={exportRows(rows)}
+          filename={filename}
+          title="Cash flow (company top customers)"
+        />
       </div>
 
       {!groups.length ? (

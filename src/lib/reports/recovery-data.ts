@@ -27,13 +27,17 @@ export type RecoverySheetRow = {
   city: string | null;
   route: string | null;
   balance: number;
-  /** Balance before the most recent posted sale. */
+  /** Balance before the last unpaid sale (sale after last recovery). */
   prev_balance: number;
   last_sale_id: string | null;
   last_sale_date: string | null;
   last_sale_value: number | null;
   /** Same as balance — shown as FINAL BAL. on the paper sheet. */
   final_balance: number;
+  /** parties.head (town / head office label). */
+  head: string | null;
+  /** Latest posted recovery on or before `to`. */
+  last_received_amount: number | null;
 };
 
 export type RecoverySheetSection = {
@@ -121,7 +125,7 @@ export async function buildRecoverySheet(
   } = input;
 
   // Dropdown sources + balances + authoritative shop list + last sales, all in parallel.
-  const [manufacturers, warehouses, balanceSheet, partyRows, lastSales] =
+  const [manufacturers, warehouses, balanceSheet, partyRows, lastSales, lastRecoveries] =
     await Promise.all([
     supabase
       .from("products")
@@ -145,7 +149,7 @@ export async function buildRecoverySheet(
     (() => {
       let query = supabase
         .from("parties")
-        .select("id, party_code, name_en, city, route")
+        .select("id, party_code, name_en, city, route, head")
         .eq("company_id", companyId)
         .eq("is_active", true)
         .in("party_subtype", ["customer", "both"]);
@@ -154,6 +158,7 @@ export async function buildRecoverySheet(
       return query.order("name_en").limit(20000);
     })(),
     fetchLastSalesByParty(supabase, companyId, to),
+    fetchLastRecoveriesByParty(supabase, companyId, to),
   ]);
 
   if (balanceSheet.error) throw new Error(balanceSheet.error.message);
@@ -189,9 +194,9 @@ export async function buildRecoverySheet(
     const partyId = p.id as string;
     const balance = balanceByParty.get(partyId) ?? 0;
     const last = lastSales.get(partyId);
-    const lastSaleValue = last ? last.grand_total : null;
-    const prevBalance =
-      lastSaleValue != null ? balance - lastSaleValue : balance;
+    const lastReceived = lastRecoveries.get(partyId) ?? null;
+    const saleIsOpen = isLastSaleAfterRecovery(last, lastReceived);
+    const lastSaleValue = saleIsOpen && last ? last.grand_total : null;
 
     return {
       party_id: partyId,
@@ -199,12 +204,16 @@ export async function buildRecoverySheet(
       name_en: (p.name_en as string) || "",
       city: (p.city as string | null) ?? null,
       route: (p.route as string | null) ?? null,
+      head: ((p.head as string | null) || "").trim() || null,
       balance,
-      prev_balance: prevBalance,
-      last_sale_id: last?.invoice_no ?? null,
-      last_sale_date: last?.invoice_date ?? null,
+      prev_balance: saleIsOpen && lastSaleValue != null
+        ? balance - lastSaleValue
+        : balance,
+      last_sale_id: saleIsOpen ? last?.invoice_no ?? null : null,
+      last_sale_date: saleIsOpen ? last?.invoice_date ?? null : null,
       last_sale_value: lastSaleValue,
       final_balance: balance,
+      last_received_amount: lastReceived?.amount ?? null,
     };
   });
 
@@ -369,7 +378,12 @@ async function fetchLastSalesByParty(
 
   const map = new Map<
     string,
-    { invoice_no: string; invoice_date: string; grand_total: number }
+    {
+      invoice_no: string;
+      invoice_date: string;
+      grand_total: number;
+      created_at: string;
+    }
   >();
 
   for (const row of data || []) {
@@ -379,9 +393,81 @@ async function fetchLastSalesByParty(
       invoice_no: String(row.invoice_no || ""),
       invoice_date: String(row.invoice_date || ""),
       grand_total: Number(row.grand_total || 0),
+      created_at: String(row.created_at || ""),
     });
   }
 
+  return map;
+}
+
+type LastRecovery = {
+  amount: number;
+  recovery_date: string;
+  created_at: string;
+};
+
+function happenedAfter(
+  aDate: string,
+  aAt: string,
+  bDate: string,
+  bAt: string,
+) {
+  if (aDate > bDate) return true;
+  if (aDate < bDate) return false;
+  const aTime = new Date(aAt).getTime();
+  const bTime = new Date(bAt).getTime();
+  if (Number.isNaN(aTime) || Number.isNaN(bTime)) return aAt >= bAt;
+  return aTime > bTime;
+}
+
+/** Last sale only counts if it is newer than the last recovery (or there is no recovery). */
+function isLastSaleAfterRecovery(
+  sale:
+    | {
+        invoice_date: string;
+        created_at: string;
+      }
+    | undefined,
+  recovery: LastRecovery | null,
+) {
+  if (!sale) return false;
+  if (!recovery) return true;
+  return happenedAfter(
+    sale.invoice_date,
+    sale.created_at,
+    recovery.recovery_date,
+    recovery.created_at,
+  );
+}
+
+async function fetchLastRecoveriesByParty(
+  supabase: SupabaseClient,
+  companyId: string,
+  to: string,
+) {
+  const { data, error } = await supabase
+    .from("recoveries")
+    .select("party_id, amount, recovery_date, created_at")
+    .eq("company_id", companyId)
+    .lte("recovery_date", to)
+    .gt("amount", 0)
+    .not("party_id", "is", null)
+    .order("recovery_date", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(50000);
+
+  if (error) throw new Error(error.message);
+
+  const map = new Map<string, LastRecovery>();
+  for (const row of data || []) {
+    const partyId = row.party_id as string;
+    if (!partyId || map.has(partyId)) continue;
+    map.set(partyId, {
+      amount: Number(row.amount || 0),
+      recovery_date: String(row.recovery_date || ""),
+      created_at: String(row.created_at || ""),
+    });
+  }
   return map;
 }
 

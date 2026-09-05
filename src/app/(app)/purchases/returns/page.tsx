@@ -1,5 +1,6 @@
 import { DocumentListTable } from "@/components/tables/document-list-table";
 import { ReturnForm } from "@/components/trading/return-form";
+import { Button } from "@/components/ui/button";
 import {
   CreateDialogButton,
   PageHeading,
@@ -10,6 +11,7 @@ import {
   documentListConfigs,
   fetchDocumentList,
 } from "@/lib/queries/documents";
+import Link from "next/link";
 import { Suspense } from "react";
 
 export default async function PurchaseReturnsPage({
@@ -32,9 +34,15 @@ export default async function PurchaseReturnsPage({
     <div className="animate-rise space-y-6">
       <PageHeading
         title="Purchase Return"
-        description="Return stock to vendors and reduce company qty"
+        description="Return saleable stock to vendors. Expired claims use Expiry Warehouse."
         actions={
-          <CreateDialogButton
+          <>
+            <Link href="/inventory/expiry?tab=claims">
+              <Button variant="secondary" size="sm">
+                Expiry warehouse
+              </Button>
+            </Link>
+            <CreateDialogButton
             label="New return"
             title="New purchase return"
             description="Return stock to a vendor"
@@ -48,7 +56,8 @@ export default async function PurchaseReturnsPage({
               products={products}
               warehouses={warehouses}
             />
-          </CreateDialogButton>
+            </CreateDialogButton>
+          </>
         }
       />
 
