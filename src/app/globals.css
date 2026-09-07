@@ -1925,19 +1925,23 @@ button[aria-haspopup="listbox"]:focus-visible {
 .si-table th {
   border-top: 1.5px solid #111;
   border-bottom: 1.5px solid #111;
-  padding: 3px 3px;
+  padding: 3px 2px;
   font-weight: 700;
   text-align: left;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  text-overflow: clip;
 }
 .si-table td {
   border-bottom: 0.5px solid #ccc;
-  padding: 2px 3px;
+  padding: 2px 2px;
   vertical-align: top;
   font-weight: 400;
   overflow: hidden;
+}
+.si-table td.num,
+.si-table td.ctr {
+  overflow: visible;
 }
 .si-table .si-item {
   white-space: normal;
@@ -2465,6 +2469,8 @@ button[aria-haspopup="listbox"]:focus-visible {
   }
   .print-sheet.si-half .si-table th {
     font-weight: 700 !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
   }
   .print-sheet.si-half .si-table th,
   .print-sheet.si-half .si-table td {

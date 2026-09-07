@@ -255,12 +255,12 @@ export function SaleInvoicePrint({
 
         <table className="si-table">
           <colgroup>
-            <col style={{ width: "5%" }} />
-            <col style={{ width: "44%" }} />
+            <col style={{ width: "4%" }} />
+            <col style={{ width: "40%" }} />
             <col style={{ width: "7%" }} />
+            <col style={{ width: "11%" }} />
             <col style={{ width: "8%" }} />
-            <col style={{ width: "8%" }} />
-            <col style={{ width: "7%" }} />
+            <col style={{ width: "9%" }} />
             <col style={{ width: "8%" }} />
             <col style={{ width: "13%" }} />
           </colgroup>

@@ -239,7 +239,7 @@ export function PrintDocument({
                 </th>
               ) : null}
               {hasDiscount ? (
-                <th className="num" style={{ width: "7%" }}>
+                <th className="num" style={{ width: "9%" }}>
                   Disc %
                 </th>
               ) : null}
