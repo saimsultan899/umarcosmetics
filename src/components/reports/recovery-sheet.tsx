@@ -429,7 +429,11 @@ export function RecoverySheet({
             return (
               <section key={section.sector} className="recovery-sheet-section">
                 <p className="recovery-sheet-sector">{section.sector} Sector</p>
-                <table>
+                <table
+                  className={
+                    hideSaleCols ? "recovery-sheet-table--compact" : undefined
+                  }
+                >
                   <colgroup>
                     <col className="recovery-sheet__col-id" />
                     <col className="recovery-sheet__col-name" />
@@ -468,8 +472,12 @@ export function RecoverySheet({
                     {section.rows.map((r) => (
                       <tr key={r.party_id}>
                         <td>{r.party_code}</td>
-                        <td>{r.name_en}</td>
-                        <td>{lastReceivedLabel(r.last_received_amount)}</td>
+                        <td className="recovery-sheet__name" title={r.name_en}>
+                          {r.name_en}
+                        </td>
+                        <td className="recovery-sheet__received">
+                          {lastReceivedLabel(r.last_received_amount)}
+                        </td>
                         {hideSaleCols ? null : (
                           <>
                             <td className="num">{sheetAmount(r.prev_balance)}</td>
