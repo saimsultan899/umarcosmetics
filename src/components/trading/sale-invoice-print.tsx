@@ -92,7 +92,6 @@ export function SaleInvoicePrint({
   paid = 0,
   previousPayment = 0,
   lastPaidKind = null,
-  lastReceivedAmount = null,
   previousBalance,
   hideLastPaidAsThisBill = false,
   creditDays = 21,
@@ -123,8 +122,6 @@ export function SaleInvoicePrint({
   previousPayment?: number;
   /** Cash vs Credit label for Last Paid Amount. */
   lastPaidKind?: "Cash" | "Credit" | null;
-  /** Latest field recovery for this shop before this bill. */
-  lastReceivedAmount?: number | null;
   previousBalance: number;
   /** Walk-in cash: never treat this bill's cash as Last Paid Amount. */
   hideLastPaidAsThisBill?: boolean;
@@ -147,9 +144,8 @@ export function SaleInvoicePrint({
       ? "0.00"
       : `${formatNumber(Math.abs(previousBalance), 2)} ${previousBalance >= 0 ? "Dr" : "Cr"}`;
 
-  const customerNumbers = Array.from(
-    new Set([partyMobile, partyPhone].filter(Boolean) as string[]),
-  );
+  const customerNo = (partyMobile || "").trim();
+  const ownerNo = (partyPhone || "").trim();
   const dateTimeLabel = [formatDateLabel(date), formatTimeLabel(printedAt)]
     .filter(Boolean)
     .join(" ");
@@ -224,24 +220,22 @@ export function SaleInvoicePrint({
                   : [partyCode, partyName].filter(Boolean).join(" ")}
               </span>
             </div>
-            <div>
-              <span className="si-k">Last received :</span>{" "}
-              <span className="si-v">
-                {lastReceivedAmount != null && lastReceivedAmount > 0.005
-                  ? formatNumber(lastReceivedAmount, 2)
-                  : "-"}
-              </span>
-            </div>
             {partyOwner ? (
               <div>
                 <span className="si-k">OWNER:</span>{" "}
                 <span className="si-v">{partyOwner}</span>
               </div>
             ) : null}
-            {customerNumbers.length > 0 ? (
+            {customerNo ? (
               <div>
                 <span className="si-k">Cust Mob No:</span>{" "}
-                <span className="si-v">{customerNumbers.join(" / ")}</span>
+                <span className="si-v">{customerNo}</span>
+              </div>
+            ) : null}
+            {ownerNo && ownerNo !== customerNo ? (
+              <div>
+                <span className="si-k">Owner No:</span>{" "}
+                <span className="si-v">{ownerNo}</span>
               </div>
             ) : null}
           </div>
@@ -332,6 +326,21 @@ export function SaleInvoicePrint({
               <span>Bill Amount</span>
               <span>{formatNumber(billAmount, 2)}</span>
             </div>
+            <div className="si-row">
+              <span>Paid</span>
+              <span>{formatNumber(paidOnBill, 2)}</span>
+            </div>
+            {billPayable > 0.005 ? (
+              <div className="si-row">
+                <span>Remaining (credit)</span>
+                <span>{formatNumber(billPayable, 2)}</span>
+              </div>
+            ) : (
+              <div className="si-row">
+                <span>Paid in full</span>
+                <span>—</span>
+              </div>
+            )}
             <p className="si-note" lang="ur">
               سابقہ بل کی ادائیگی پر نیا مال دیا جائے گا۔
             </p>

@@ -115,18 +115,6 @@ export default async function SaleInvoiceDetailPage({
   const isWalkIn =
     String(party?.party_code || "").toUpperCase() === "WALKIN";
 
-  let lastReceivedAmount: number | null = null;
-  if (!isWalkIn) {
-    for (const row of recoveryRows || []) {
-      if (!isBeforeThisBill(row.recovery_date, row.created_at)) continue;
-      const amount = Number(row.amount || 0);
-      if (amount > 0.005) {
-        lastReceivedAmount = amount;
-        break;
-      }
-    }
-  }
-
   const paymentType = String(invoice.payment_type || "credit");
   let lastPaidAmount = 0;
   let lastPaidKind: "Cash" | "Credit" | null = null;
@@ -171,7 +159,6 @@ export default async function SaleInvoiceDetailPage({
         partyOwner={party?.contact_person}
         partyPhone={party?.phone}
         partyMobile={party?.mobile}
-        lastReceivedAmount={lastReceivedAmount}
         sector={sector || invoice.route || null}
         salesmanLabel={salesmanLabel || null}
         lines={(items || []).map((i) => {

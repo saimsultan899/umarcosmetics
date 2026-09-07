@@ -16,6 +16,7 @@ import {
   type PaymentType,
   calcLineDiscount,
 } from "@/lib/types/trading";
+import { formatPkr } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 
@@ -85,6 +86,7 @@ export function SaleInvoiceForm({
   const [warehouseId, setWarehouseId] = useState("");
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10));
   const [paymentType, setPaymentType] = useState<PaymentType>("credit");
+  const [amountPaidStr, setAmountPaidStr] = useState("");
   const [walkInCustomer, setWalkInCustomer] = useState(false);
   const [narration, setNarration] = useState("");
   const [extraDiscount, setExtraDiscount] = useState("");
@@ -96,6 +98,22 @@ export function SaleInvoiceForm({
   const party = customers.find((p) => p.id === partyId);
   const walkInActive = paymentType === "cash" && walkInCustomer;
   const customerRequired = !walkInActive;
+  const { grand_total: linesTotal } = summarizeLines(lines);
+  const extraPreview = Math.max(0, Number(extraDiscount) || 0);
+  const billPreview = Math.max(0, linesTotal - extraPreview);
+  const paidPreview =
+    paymentType === "cash"
+      ? Math.min(
+          billPreview,
+          Math.max(
+            0,
+            amountPaidStr.trim() === ""
+              ? billPreview
+              : Number(amountPaidStr) || 0,
+          ),
+        )
+      : 0;
+  const remainingPreview = Math.max(0, billPreview - paidPreview);
 
   async function checkCreditLimit(nextPartyId: string) {
     setCreditWarning(null);
@@ -179,9 +197,33 @@ export function SaleInvoiceForm({
     }
     const grand_total = Math.max(0, linesTotal - extra);
 
-    const amountPaid = paymentType === "cash" ? grand_total : 0;
+    let resolvedPayment: PaymentType = paymentType;
+    let amountPaid = 0;
+    if (paymentType === "cash") {
+      const rawPaid =
+        amountPaidStr.trim() === "" ? grand_total : Number(amountPaidStr);
+      if (!Number.isFinite(rawPaid) || rawPaid < 0) {
+        setLoading(false);
+        setError("Enter a valid amount received.");
+        return;
+      }
+      amountPaid = Math.min(grand_total, Math.round(rawPaid * 100) / 100);
+      const remaining = Math.max(0, grand_total - amountPaid);
+      if (walkInActive && remaining > 0.005) {
+        setLoading(false);
+        setError("Walk-in customer must pay the full bill. Remaining cannot go on credit.");
+        return;
+      }
+      if (amountPaid < 0.005) {
+        setLoading(false);
+        setError("Enter the amount received, or save the bill as Credit.");
+        return;
+      }
+      resolvedPayment = remaining > 0.005 ? "partial" : "cash";
+      if (resolvedPayment === "cash") amountPaid = grand_total;
+    }
 
-    if (paymentType !== "cash" && party && Number(party.credit_limit) > 0) {
+    if (grand_total - amountPaid > 0.005 && party && Number(party.credit_limit) > 0) {
       const supabaseCheck = createClient();
       const { data: balance } = await supabaseCheck.rpc("get_party_balance", {
         p_company_id: companyId,
@@ -213,7 +255,7 @@ export function SaleInvoiceForm({
         salesman_id: salesmanId || null,
         route: party?.route || null,
         city: party?.city || null,
-        payment_type: paymentType,
+        payment_type: resolvedPayment,
         amount_paid: amountPaid,
         subtotal,
         discount_total,
@@ -285,29 +327,67 @@ export function SaleInvoiceForm({
             onChange={(e) => {
               const next = (e.target.value as PaymentType) || "credit";
               setPaymentType(next);
-              if (next !== "cash") setWalkInCustomer(false);
+              if (next !== "cash") {
+                setWalkInCustomer(false);
+                setAmountPaidStr("");
+              }
             }}
           >
             <option value="credit">Credit</option>
-            <option value="cash">Cash</option>
+            <option value="cash">Paid</option>
           </Select>
           {paymentType === "cash" ? (
-            <label className="mt-2 flex cursor-pointer items-center gap-2 text-sm text-[var(--ink)]">
-              <input
-                type="checkbox"
-                checked={walkInCustomer}
-                onChange={(e) => {
-                  const on = e.target.checked;
-                  setWalkInCustomer(on);
-                  if (on) {
-                    setPartyId("");
-                    setCreditWarning(null);
+            <div className="mt-2 space-y-2">
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--ink)]">
+                <input
+                  type="checkbox"
+                  checked={walkInCustomer}
+                  onChange={(e) => {
+                    const on = e.target.checked;
+                    setWalkInCustomer(on);
+                    if (on) {
+                      setPartyId("");
+                      setCreditWarning(null);
+                      setAmountPaidStr("");
+                    }
+                  }}
+                  className="h-4 w-4 rounded border-[var(--border)] accent-[var(--brand)]"
+                />
+                <span>Walk-in customer</span>
+              </label>
+              <div>
+                <Label>Amount received</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  value={
+                    amountPaidStr.trim() === ""
+                      ? billPreview
+                        ? String(Math.round(billPreview * 100) / 100)
+                        : ""
+                      : amountPaidStr
                   }
-                }}
-                className="h-4 w-4 rounded border-[var(--border)] accent-[var(--brand)]"
-              />
-              <span>Walk-in customer</span>
-            </label>
+                  onChange={(e) => setAmountPaidStr(e.target.value)}
+                  disabled={walkInCustomer}
+                />
+                <p className="mt-1 text-sm text-[var(--ink)]">
+                  Paid {formatPkr(paidPreview)}
+                  {remainingPreview > 0.005 ? (
+                    <>
+                      {" · "}
+                      Remaining {formatPkr(remainingPreview)}
+                      <span className="block text-[13px] text-[var(--muted)]">
+                        Remaining posts to this shop receivables.
+                      </span>
+                    </>
+                  ) : billPreview > 0.005 ? (
+                    <span className="text-[var(--muted)]"> · Paid in full</span>
+                  ) : null}
+                </p>
+              </div>
+            </div>
           ) : null}
         </div>
         <div className="sm:col-span-2 lg:col-span-2">
