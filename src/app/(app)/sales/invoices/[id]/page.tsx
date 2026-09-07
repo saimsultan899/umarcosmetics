@@ -115,19 +115,13 @@ export default async function SaleInvoiceDetailPage({
   const isWalkIn =
     String(party?.party_code || "").toUpperCase() === "WALKIN";
 
-  const paymentType = String(invoice.payment_type || "credit");
   let lastPaidAmount = 0;
-  let lastPaidKind: "Cash" | "Credit" | null = null;
   if (isWalkIn) {
-    // Spot cash: do not show this bill's cash (or other walk-in sales) as Last Paid.
     lastPaidAmount = 0;
-    lastPaidKind = null;
   } else if (paidOnThisBill > 0) {
     lastPaidAmount = paidOnThisBill;
-    lastPaidKind = paymentType === "credit" ? "Credit" : "Cash";
   } else if (lastPaid && lastPaid.amount > 0) {
     lastPaidAmount = lastPaid.amount;
-    lastPaidKind = lastPaid.kind;
   }
 
   const salesman = invoice.salesman as {
@@ -179,7 +173,6 @@ export default async function SaleInvoiceDetailPage({
         billAmount={billAmount}
         paid={paidOnThisBill}
         previousPayment={lastPaidAmount}
-        lastPaidKind={lastPaidKind}
         previousBalance={isWalkIn ? 0 : previousBalance}
         hideLastPaidAsThisBill={isWalkIn}
         preparedBy={salesman?.full_name || profile?.full_name}

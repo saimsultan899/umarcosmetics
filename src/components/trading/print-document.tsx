@@ -225,17 +225,29 @@ export function PrintDocument({
                 <th style={{ width: "14%" }}>Company</th>
               ) : null}
               <th>ItemName</th>
-              <th className="num" style={{ width: "12%" }}>
+              <th className="num" style={{ width: "8%" }}>
                 Qty
               </th>
               {hasUom ? (
-                <th className="ctr" style={{ width: "10%" }}>
+                <th className="ctr" style={{ width: "8%" }}>
                   Carton
                 </th>
               ) : null}
-              {hasRate ? <th className="num">Rate</th> : null}
-              {hasDiscount ? <th className="num">Disc %</th> : null}
-              {hasDiscount ? <th className="num">Disc Val</th> : null}
+              {hasRate ? (
+                <th className="num" style={{ width: "8%" }}>
+                  T/P
+                </th>
+              ) : null}
+              {hasDiscount ? (
+                <th className="num" style={{ width: "7%" }}>
+                  Disc %
+                </th>
+              ) : null}
+              {hasDiscount ? (
+                <th className="num" style={{ width: "8%" }}>
+                  Disc
+                </th>
+              ) : null}
               {hasAmount ? <th className="num">Amount</th> : null}
             </tr>
           </thead>
@@ -252,7 +264,7 @@ export function PrintDocument({
                   {hasLineCompany ? (
                     <td>{l.company || "—"}</td>
                   ) : null}
-                  <td>
+                  <td className="si-item">
                     {[l.product_code, l.product_name].filter(Boolean).join(" ")}
                   </td>
                   <td className="num">

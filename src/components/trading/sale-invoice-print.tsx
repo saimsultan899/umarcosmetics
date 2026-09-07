@@ -91,7 +91,6 @@ export function SaleInvoicePrint({
   billAmount,
   paid = 0,
   previousPayment = 0,
-  lastPaidKind = null,
   previousBalance,
   hideLastPaidAsThisBill = false,
   creditDays = 21,
@@ -120,8 +119,6 @@ export function SaleInvoicePrint({
   paid?: number;
   /** Last recovery / cash-on-sale from this shop (already in previous balance). */
   previousPayment?: number;
-  /** Cash vs Credit label for Last Paid Amount. */
-  lastPaidKind?: "Cash" | "Credit" | null;
   previousBalance: number;
   /** Walk-in cash: never treat this bill's cash as Last Paid Amount. */
   hideLastPaidAsThisBill?: boolean;
@@ -136,7 +133,6 @@ export function SaleInvoicePrint({
     : paidOnBill > 0
       ? paidOnBill
       : previousPayment;
-  const paidKind = paidShown > 0 ? lastPaidKind : null;
   const billPayable = Math.max(0, billAmount - paidOnBill);
   const totalPayable = billPayable + previousBalance;
   const prevLabel =
@@ -260,13 +256,13 @@ export function SaleInvoicePrint({
         <table className="si-table">
           <colgroup>
             <col style={{ width: "5%" }} />
-            <col style={{ width: "30%" }} />
+            <col style={{ width: "44%" }} />
+            <col style={{ width: "7%" }} />
             <col style={{ width: "8%" }} />
-            <col style={{ width: "9%" }} />
-            <col style={{ width: "12%" }} />
-            <col style={{ width: "9%" }} />
-            <col style={{ width: "12%" }} />
-            <col style={{ width: "15%" }} />
+            <col style={{ width: "8%" }} />
+            <col style={{ width: "7%" }} />
+            <col style={{ width: "8%" }} />
+            <col style={{ width: "13%" }} />
           </colgroup>
           <thead>
             <tr>
@@ -274,7 +270,7 @@ export function SaleInvoicePrint({
               <th>ItemName</th>
               <th className="num">Qty</th>
               <th className="num">Scheme</th>
-              <th className="num">T.Price</th>
+              <th className="num">T/P</th>
               <th className="num">Disc %</th>
               <th className="num">Disc</th>
               <th className="num">Amount</th>
@@ -327,21 +323,6 @@ export function SaleInvoicePrint({
               <span>Bill Amount</span>
               <span>{formatNumber(billAmount, 2)}</span>
             </div>
-            <div className="si-row">
-              <span>Paid</span>
-              <span>{formatNumber(paidOnBill, 2)}</span>
-            </div>
-            {billPayable > 0.005 ? (
-              <div className="si-row">
-                <span>Remaining (credit)</span>
-                <span>{formatNumber(billPayable, 2)}</span>
-              </div>
-            ) : (
-              <div className="si-row">
-                <span>Paid in full</span>
-                <span>—</span>
-              </div>
-            )}
             <p className="si-note" lang="ur">
               سابقہ بل کی ادائیگی پر نیا مال دیا جائے گا۔
             </p>
@@ -352,12 +333,7 @@ export function SaleInvoicePrint({
 
           <div className="si-foot-col si-foot-pay">
             <div className="si-row">
-              <span>
-                Last Paid Amount
-                {paidKind ? (
-                  <span className="si-paid-kind"> ({paidKind})</span>
-                ) : null}
-              </span>
+              <span>Last Paid Amount</span>
               <span>{formatNumber(paidShown, 2)}</span>
             </div>
             <div className="si-row">
