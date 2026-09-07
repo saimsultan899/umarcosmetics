@@ -258,30 +258,26 @@ export function SaleInvoicePrint({
         </div>
 
         <table className="si-table">
+          <colgroup>
+            <col style={{ width: "5%" }} />
+            <col style={{ width: "30%" }} />
+            <col style={{ width: "8%" }} />
+            <col style={{ width: "9%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "9%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "15%" }} />
+          </colgroup>
           <thead>
             <tr>
-              <th className="ctr" style={{ width: "4%" }}>
-                Sr.
-              </th>
-              <th style={{ width: "34%" }}>ItemName</th>
-              <th className="num" style={{ width: "10%" }}>
-                Qty
-              </th>
-              <th className="num" style={{ width: "10%" }}>
-                Scheme
-              </th>
-              <th className="num" style={{ width: "12%" }}>
-                Trade Price
-              </th>
-              <th className="num" style={{ width: "10%" }}>
-                Disc %
-              </th>
-              <th className="num" style={{ width: "12%" }}>
-                Disc Val
-              </th>
-              <th className="num" style={{ width: "12%" }}>
-                Amount
-              </th>
+              <th className="ctr">Sr.</th>
+              <th>ItemName</th>
+              <th className="num">Qty</th>
+              <th className="num">Scheme</th>
+              <th className="num">T.Price</th>
+              <th className="num">Disc %</th>
+              <th className="num">Disc</th>
+              <th className="num">Amount</th>
             </tr>
           </thead>
           <tbody>
@@ -291,7 +287,12 @@ export function SaleInvoicePrint({
               return (
                 <tr key={`${l.product_code || l.product_name}-${i}`}>
                   <td className="ctr">{i + 1}</td>
-                  <td>{itemLabel(l.product_code, l.product_name)}</td>
+                  <td
+                    className="si-item"
+                    title={itemLabel(l.product_code, l.product_name)}
+                  >
+                    {itemLabel(l.product_code, l.product_name)}
+                  </td>
                   <td className="num">{formatNumber(l.qty, 2)}</td>
                   <td className="num">{schemeLabel || "—"}</td>
                   <td className="num">{formatNumber(l.tradePrice, 2)}</td>
