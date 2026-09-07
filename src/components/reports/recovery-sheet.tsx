@@ -401,7 +401,8 @@ export function RecoverySheet({
             <p className="recovery-sheet-title">Customers Receivables</p>
             <div className="recovery-sheet-meta">
               <p>
-                <span>Town</span> {townLabel}
+                <span>Town</span>{" "}
+                <strong className="recovery-sheet-town">{townLabel}</strong>
               </p>
               <p>
                 <span>Salesman</span> {salesmanLabel}
