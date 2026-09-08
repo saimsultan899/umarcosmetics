@@ -90,9 +90,9 @@ export function SaleInvoicePrint({
   extraDiscount = 0,
   billAmount,
   paid = 0,
+  paymentType = "credit",
   previousPayment = 0,
   previousBalance,
-  hideLastPaidAsThisBill = false,
   creditDays = 21,
   preparedBy,
   autoPrint = false,
@@ -115,24 +115,22 @@ export function SaleInvoicePrint({
   tradeDiscount: number;
   extraDiscount?: number;
   billAmount: number;
-  /** Cash received against this invoice. */
+  /** Cash received against this invoice (counter). */
   paid?: number;
-  /** Last recovery / cash-on-sale from this shop (already in previous balance). */
+  /** cash | credit | partial */
+  paymentType?: string;
+  /** Last recovery on this shop (receivable) — never this bill's cash. */
   previousPayment?: number;
   previousBalance: number;
-  /** Walk-in cash: never treat this bill's cash as Last Paid Amount. */
-  hideLastPaidAsThisBill?: boolean;
   creditDays?: number;
   preparedBy?: string | null;
   autoPrint?: boolean;
 }) {
   const router = useRouter();
   const paidOnBill = Math.max(0, paid);
-  const paidShown = hideLastPaidAsThisBill
-    ? previousPayment
-    : paidOnBill > 0
-      ? paidOnBill
-      : previousPayment;
+  const type = String(paymentType || "credit").toLowerCase();
+  const showCounterCash =
+    (type === "cash" || type === "partial") && paidOnBill > 0.005;
   const billPayable = Math.max(0, billAmount - paidOnBill);
   const totalPayable = billPayable + previousBalance;
   const prevLabel =
@@ -334,8 +332,14 @@ export function SaleInvoicePrint({
           <div className="si-foot-col si-foot-pay">
             <div className="si-row">
               <span>Last Paid Amount</span>
-              <span>{formatNumber(paidShown, 2)}</span>
+              <span>{formatNumber(previousPayment, 2)}</span>
             </div>
+            {showCounterCash ? (
+              <div className="si-row">
+                <span>Counter Cash Paid</span>
+                <span>{formatNumber(paidOnBill, 2)}</span>
+              </div>
+            ) : null}
             <div className="si-row">
               <span>Bill Payable</span>
               <span>{formatNumber(billPayable, 2)}</span>

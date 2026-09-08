@@ -45,7 +45,35 @@ type Filters = {
   cities?: string[];
   billFrom?: string;
   billTo?: string;
+  walkInOnly?: boolean;
+  walkInPartyId?: string | null;
 };
+
+/** Company filter is product warehouse, not the invoice header. */
+const LINE_COMPANY_TYPES: SaleReportType[] = [
+  "party_wise",
+  "item_wise",
+  "manufacturer_wise",
+  "sale_profit",
+  "cash_flow",
+];
+
+function lineCompanyId(
+  product: { default_warehouse_id?: string | null } | null,
+  warehouseId?: string | null,
+) {
+  return product?.default_warehouse_id || warehouseId || "";
+}
+
+function matchesCompanyFilter(
+  product: { default_warehouse_id?: string | null } | null,
+  warehouseId: string | null | undefined,
+  warehouseIds?: string[],
+) {
+  if (!warehouseIds?.length) return true;
+  const id = lineCompanyId(product, warehouseId);
+  return warehouseIds.includes(id);
+}
 
 export async function buildSaleReport(
   supabase: SupabaseClient,
@@ -67,10 +95,15 @@ export async function buildSaleReport(
     .order("invoice_date", { ascending: true })
     .limit(2000);
 
-  if (filters.warehouseIds?.length && filters.type !== "cash_flow") {
+  if (filters.warehouseIds?.length && !LINE_COMPANY_TYPES.includes(filters.type)) {
     query = query.in("warehouse_id", filters.warehouseIds);
   }
-  if (filters.partyIds?.length) {
+  if (filters.walkInOnly) {
+    if (!filters.walkInPartyId) {
+      return [];
+    }
+    query = query.eq("party_id", filters.walkInPartyId);
+  } else if (filters.partyIds?.length) {
     query = query.in("party_id", filters.partyIds);
   }
   if (filters.routes?.length) {
@@ -269,9 +302,19 @@ export async function buildSaleReport(
     }
 
     if (filters.type === "party_wise") {
+      const warehouseIds = filters.warehouseIds;
       const detail = (items || [])
         .map((it) => {
           const inv = invMap.get(it.sale_invoice_id);
+          if (
+            !matchesCompanyFilter(
+              one(it.products),
+              inv?.warehouse_id,
+              warehouseIds,
+            )
+          ) {
+            return null;
+          }
           const party = one(inv?.parties);
           const partyName = (party?.name_en || "Unknown").toUpperCase();
           const routePart = party?.route || party?.head;
@@ -295,8 +338,10 @@ export async function buildSaleReport(
             _party_id: inv?.party_id || party?.party_code || "unknown",
             _party_name: partyName,
             _party_line: partyLine,
+            _href: inv?.id ? `/sales/invoices/${inv.id}` : "",
           };
         })
+        .filter((row): row is NonNullable<typeof row> => row != null)
         .sort((a, b) => {
           const partyCmp = a._party_name.localeCompare(b._party_name);
           if (partyCmp) return partyCmp;
@@ -308,7 +353,16 @@ export async function buildSaleReport(
     }
 
     if (filters.type === "item_wise") {
-      return (items || []).map((it) => {
+      return (items || [])
+        .filter((it) => {
+          const inv = invMap.get(it.sale_invoice_id);
+          return matchesCompanyFilter(
+            one(it.products),
+            inv?.warehouse_id,
+            filters.warehouseIds,
+          );
+        })
+        .map((it) => {
         const inv = invMap.get(it.sale_invoice_id);
           const party = one(inv?.parties);
         return {
@@ -349,6 +403,15 @@ export async function buildSaleReport(
       for (const it of items || []) {
         const product = one(it.products);
         const inv = invMap.get(it.sale_invoice_id);
+        if (
+          !matchesCompanyFilter(
+            product,
+            inv?.warehouse_id,
+            filters.warehouseIds,
+          )
+        ) {
+          continue;
+        }
         const headerWh = one(inv?.warehouses);
         const warehouseId =
           product?.default_warehouse_id || inv?.warehouse_id || "";
@@ -367,7 +430,16 @@ export async function buildSaleReport(
     }
 
     if (filters.type === "sale_profit") {
-      return (items || []).map((it) => {
+      return (items || [])
+        .filter((it) => {
+          const inv = invMap.get(it.sale_invoice_id);
+          return matchesCompanyFilter(
+            one(it.products),
+            inv?.warehouse_id,
+            filters.warehouseIds,
+          );
+        })
+        .map((it) => {
         const inv = invMap.get(it.sale_invoice_id);
         const product = one(it.products);
         const cost = Number(product?.purchase_rate || 0) * Number(it.qty);
@@ -480,7 +552,12 @@ async function buildExpiryCreditReport(
     .order("receipt_date", { ascending: true })
     .limit(2000);
 
-  if (filters.partyIds?.length) {
+  if (filters.walkInOnly) {
+    if (!filters.walkInPartyId) {
+      return [];
+    }
+    query = query.eq("party_id", filters.walkInPartyId);
+  } else if (filters.partyIds?.length) {
     query = query.in("party_id", filters.partyIds);
   }
 

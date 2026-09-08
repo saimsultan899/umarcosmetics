@@ -5,7 +5,7 @@ import { TablePagination } from "@/components/tables/table-pagination";
 import { TableToolbar } from "@/components/tables/table-toolbar";
 import { useUrlTableState } from "@/hooks/use-url-table-state";
 import { formatPkr } from "@/lib/utils";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 export type SectorSheetRow = {
   party_id: string;
@@ -23,23 +23,19 @@ export function SectorSheetTable({
   rows: SectorSheetRow[];
   companyName: string;
 }) {
-  const { page, pageSize, q, isPending, setPage, setPageSize, setQuery } =
+  const { page, pageSize, isPending, setPage, setPageSize } =
     useUrlTableState();
-  const [localQuery, setLocalQuery] = useState(q);
-
-  useEffect(() => {
-    setLocalQuery(q);
-  }, [q]);
+  const [query, setQuery] = useState("");
 
   const filtered = useMemo(() => {
-    const term = q.trim().toLowerCase();
+    const term = query.trim().toLowerCase();
     if (!term) return rows;
     return rows.filter((r) =>
       [r.party_code, r.name_en, r.city, r.route, String(r.balance)]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(term)),
     );
-  }, [rows, q]);
+  }, [rows, query]);
 
   const total = filtered.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize) || 1);
@@ -53,12 +49,8 @@ export function SectorSheetTable({
     <div className="space-y-0">
       <div className="no-print border-b border-[var(--border)] px-4 py-3">
         <TableToolbar
-          query={localQuery}
-          onQueryChange={(value) => {
-            setLocalQuery(value);
-            setQuery(value);
-          }}
-          loading={isPending}
+          query={query}
+          onQueryChange={setQuery}
           placeholder="Search code, shop, sector..."
           resultCount={total}
           totalCount={rows.length}

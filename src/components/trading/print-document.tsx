@@ -192,7 +192,7 @@ export function PrintDocument({
             {partyCity ? <div className="si-co">{partyCity}</div> : null}
             {partyPhone ? <div className="si-co">Ph: {partyPhone}</div> : null}
           </div>
-          <div className="si-meta-right">
+          <div className="si-meta-right si-meta-block">
             <div>
               <span className="si-k">No :</span> <span className="si-v">{docNo}</span>
             </div>
@@ -207,7 +207,7 @@ export function PrintDocument({
               </div>
             ) : null}
             {(extraMeta ?? []).map((m) => (
-              <div key={m.label}>
+              <div key={m.label} className="si-meta-nowrap">
                 <span className="si-k">{m.label}:</span>{" "}
                 <span className="si-v">{m.value}</span>
               </div>
@@ -216,38 +216,41 @@ export function PrintDocument({
         </div>
 
         <table className="si-table">
+          <colgroup>
+            <col style={{ width: "5%" }} />
+            {hasLineCompany ? <col style={{ width: "11%" }} /> : null}
+            <col
+              style={{
+                width: (() => {
+                  // Remaining width for ItemName after fixed numeric cols.
+                  let used = 5; // Sr
+                  if (hasLineCompany) used += 11;
+                  used += 7; // Qty
+                  if (hasUom) used += 7;
+                  if (hasRate) used += 8;
+                  if (hasDiscount) used += 7 + 7;
+                  if (hasAmount) used += 16;
+                  return `${Math.max(36, 100 - used)}%`;
+                })(),
+              }}
+            />
+            <col style={{ width: "7%" }} />
+            {hasUom ? <col style={{ width: "7%" }} /> : null}
+            {hasRate ? <col style={{ width: "8%" }} /> : null}
+            {hasDiscount ? <col style={{ width: "7%" }} /> : null}
+            {hasDiscount ? <col style={{ width: "7%" }} /> : null}
+            {hasAmount ? <col style={{ width: "16%" }} /> : null}
+          </colgroup>
           <thead>
             <tr>
-              <th className="ctr" style={{ width: "7%" }}>
-                Sr.
-              </th>
-              {hasLineCompany ? (
-                <th style={{ width: "14%" }}>Company</th>
-              ) : null}
+              <th className="ctr">Sr.</th>
+              {hasLineCompany ? <th>Company</th> : null}
               <th>ItemName</th>
-              <th className="num" style={{ width: "8%" }}>
-                Qty
-              </th>
-              {hasUom ? (
-                <th className="ctr" style={{ width: "8%" }}>
-                  Carton
-                </th>
-              ) : null}
-              {hasRate ? (
-                <th className="num" style={{ width: "8%" }}>
-                  T/P
-                </th>
-              ) : null}
-              {hasDiscount ? (
-                <th className="num" style={{ width: "9%" }}>
-                  Disc %
-                </th>
-              ) : null}
-              {hasDiscount ? (
-                <th className="num" style={{ width: "8%" }}>
-                  Disc
-                </th>
-              ) : null}
+              <th className="num">Qty</th>
+              {hasUom ? <th className="ctr">Carton</th> : null}
+              {hasRate ? <th className="num">T/P</th> : null}
+              {hasDiscount ? <th className="num">Disc %</th> : null}
+              {hasDiscount ? <th className="num">Disc</th> : null}
               {hasAmount ? <th className="num">Amount</th> : null}
             </tr>
           </thead>

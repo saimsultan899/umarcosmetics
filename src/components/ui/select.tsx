@@ -180,6 +180,20 @@ export const Select = forwardRef<
     }
   }
 
+  useEffect(() => {
+    const form = rootRef.current?.closest("form");
+    if (!form) return;
+    function onClear(e: Event) {
+      const keep = (e as CustomEvent<{ keep?: string[] }>).detail?.keep || [];
+      if (name && keep.includes(name)) return;
+      if (value !== undefined) return;
+      setUncontrolled("");
+      setOpen(false);
+    }
+    form.addEventListener("report-filters-clear", onClear);
+    return () => form.removeEventListener("report-filters-clear", onClear);
+  }, [name, value]);
+
   const selectedValue = value !== undefined ? value : uncontrolled;
   const options = useMemo(
     () => optionsProp ?? extractOptions(children),

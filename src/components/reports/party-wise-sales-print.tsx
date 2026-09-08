@@ -1,8 +1,10 @@
+import { PrintOrgCompany } from "@/components/print/print-org-company";
 import { ExportButtons } from "@/components/reports/export-buttons";
 import {
   formatReportNumber,
   formatReportRange,
 } from "@/lib/reports/helpers";
+import Link from "next/link";
 
 type PartyGroup = {
   id: string;
@@ -89,12 +91,14 @@ function TotalBoxes({
 
 export function PartyWiseSalesPrint({
   companyName,
+  brandName,
   from,
   to,
   rows,
   filename,
 }: {
   companyName: string;
+  brandName?: string | null;
   from: string;
   to: string;
   rows: Record<string, unknown>[];
@@ -119,6 +123,7 @@ export function PartyWiseSalesPrint({
           rows={exportRows(rows)}
           filename={filename}
           title="Item, Customer Wise Sales Detail"
+          printId={filename}
         />
       </div>
 
@@ -130,6 +135,7 @@ export function PartyWiseSalesPrint({
       ) : null}
 
       <div
+        data-print-id={filename}
         className={
           groups.length
             ? "print-sheet classic-report"
@@ -137,7 +143,15 @@ export function PartyWiseSalesPrint({
         }
       >
         <div className="classic-report-head">
-          <p className="classic-report-title">Item, Customer Wise Sales Detail</p>
+          <div>
+            <PrintOrgCompany
+              companyName={companyName}
+              brandName={brandName}
+            />
+            <p className="classic-report-title">
+              Item, Customer Wise Sales Detail
+            </p>
+          </div>
           <p className="classic-report-dates">{formatReportRange(from, to)}</p>
         </div>
 
@@ -151,13 +165,13 @@ export function PartyWiseSalesPrint({
 
               <table>
                 <colgroup>
+                  <col style={{ width: "14%" }} />
+                  <col style={{ width: "9%" }} />
                   <col style={{ width: "10%" }} />
-                  <col style={{ width: "7%" }} />
-                  <col style={{ width: "7%" }} />
-                  <col style={{ width: "32%" }} />
-                  <col style={{ width: "14%" }} />
-                  <col style={{ width: "14%" }} />
-                  <col style={{ width: "16%" }} />
+                  <col style={{ width: "39%" }} />
+                  <col style={{ width: "8%" }} />
+                  <col style={{ width: "8%" }} />
+                  <col style={{ width: "12%" }} />
                 </colgroup>
                 <thead>
                   <tr>
@@ -172,16 +186,20 @@ export function PartyWiseSalesPrint({
                 </thead>
                 <tbody>
                   {group.rows.map((row, idx) => (
-                    <tr
-                      key={`${group.id}-${idx}`}
-                      className={
-                        idx === group.rows.length - 1
-                          ? "classic-report-last-data"
-                          : undefined
-                      }
-                    >
+                    <tr key={`${group.id}-${idx}`}>
                       <td>{String(row.Date || "")}</td>
-                      <td>{String(row["Inv No."] || "")}</td>
+                      <td>
+                        {typeof row._href === "string" && row._href ? (
+                          <Link
+                            href={row._href}
+                            className="text-[var(--brand)] underline-offset-2 hover:underline"
+                          >
+                            {String(row["Inv No."] || "")}
+                          </Link>
+                        ) : (
+                          String(row["Inv No."] || "")
+                        )}
+                      </td>
                       <td>{String(row["Item No"] || "")}</td>
                       <td>{String(row.ItemName || "")}</td>
                       <td className="classic-report-num">
@@ -195,6 +213,19 @@ export function PartyWiseSalesPrint({
                       </td>
                     </tr>
                   ))}
+                </tbody>
+              </table>
+              <table className="classic-report-totals">
+                <colgroup>
+                  <col style={{ width: "14%" }} />
+                  <col style={{ width: "9%" }} />
+                  <col style={{ width: "10%" }} />
+                  <col style={{ width: "39%" }} />
+                  <col style={{ width: "8%" }} />
+                  <col style={{ width: "8%" }} />
+                  <col style={{ width: "12%" }} />
+                </colgroup>
+                <tbody>
                   <TotalBoxes
                     label="Customer Total ="
                     qty={group.qty}

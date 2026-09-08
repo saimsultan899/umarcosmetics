@@ -2,7 +2,7 @@ import { ChartCard } from "@/components/analytics/chart-card";
 import { RankBars, TrendAreaChart } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { RecoverySheet } from "@/components/reports/recovery-sheet";
-import { FilterMultiSelect } from "@/components/reports/report-filters";
+import { FilterMultiSelect, ReportFilterActions } from "@/components/reports/report-filters";
 import { UrlFilterForm } from "@/components/reports/url-filter-form";
 import { CreateDialogButton } from "@/components/ui/create-dialog";
 import { PrintButton } from "@/components/ui/print-button";
@@ -268,14 +268,7 @@ export default async function RecoverySheetPage({
           </label>
           <Select name="scope" defaultValue={scopeToken} options={scopeOptions} />
         </div>
-        <div className="flex items-end">
-          <button
-            type="submit"
-            className="h-10 w-full rounded-lg bg-[var(--brand)] px-4 text-sm font-medium text-white"
-          >
-            Apply filters
-          </button>
-        </div>
+        <ReportFilterActions submitLabel="Apply filters" />
       </UrlFilterForm>
 
       <RecoverySheet

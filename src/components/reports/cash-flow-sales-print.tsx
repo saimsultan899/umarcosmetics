@@ -1,3 +1,4 @@
+import { PrintOrgCompany } from "@/components/print/print-org-company";
 import { ExportButtons } from "@/components/reports/export-buttons";
 import {
   formatReportNumber,
@@ -108,12 +109,14 @@ function exportRows(rows: Record<string, unknown>[]) {
  */
 export function CashFlowSalesPrint({
   companyName,
+  brandName,
   from,
   to,
   rows,
   filename,
 }: {
   companyName: string;
+  brandName?: string | null;
   from: string;
   to: string;
   rows: Record<string, unknown>[];
@@ -147,6 +150,7 @@ export function CashFlowSalesPrint({
           rows={exportRows(rows)}
           filename={filename}
           title="Cash flow (company top customers)"
+          printId={filename}
         />
       </div>
 
@@ -158,6 +162,7 @@ export function CashFlowSalesPrint({
       ) : null}
 
       <div
+        data-print-id={filename}
         className={
           groups.length
             ? "print-sheet classic-report cash-flow-report"
@@ -165,9 +170,15 @@ export function CashFlowSalesPrint({
         }
       >
         <div className="classic-report-head">
-          <p className="classic-report-title">
-            Cash flow (sales) — company top customers
-          </p>
+          <div>
+            <PrintOrgCompany
+              companyName={companyName}
+              brandName={brandName}
+            />
+            <p className="classic-report-title">
+              Cash flow (sales) — company top customers
+            </p>
+          </div>
           <p className="classic-report-dates">{formatReportRange(from, to)}</p>
         </div>
 
@@ -215,14 +226,7 @@ export function CashFlowSalesPrint({
                       </thead>
                       <tbody>
                         {party.invoices.map((inv, idx) => (
-                          <tr
-                            key={`${party.id}-${inv.invNo}-${idx}`}
-                            className={
-                              idx === party.invoices.length - 1
-                                ? "classic-report-last-data"
-                                : undefined
-                            }
-                          >
+                          <tr key={`${party.id}-${inv.invNo}-${idx}`}>
                             <td>{inv.date}</td>
                             <td>
                               {inv.href ? (
@@ -248,6 +252,18 @@ export function CashFlowSalesPrint({
                             </td>
                           </tr>
                         ))}
+                      </tbody>
+                    </table>
+                    <table className="classic-report-totals">
+                      <colgroup>
+                        <col style={{ width: "14%" }} />
+                        <col style={{ width: "14%" }} />
+                        <col style={{ width: "12%" }} />
+                        <col style={{ width: "20%" }} />
+                        <col style={{ width: "20%" }} />
+                        <col style={{ width: "20%" }} />
+                      </colgroup>
+                      <tbody>
                         <tr className="classic-report-party-total">
                           <td colSpan={3} className="classic-report-total-label">
                             Customer total =

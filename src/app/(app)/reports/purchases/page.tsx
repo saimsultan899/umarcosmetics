@@ -1,5 +1,4 @@
 import { FilterMultiSelect, ReportFilters } from "@/components/reports/report-filters";
-import { ReportTypePills } from "@/components/reports/report-type-pills";
 import { ReportTable } from "@/components/reports/report-table";
 import { requireCompanyContext } from "@/lib/auth";
 import { parseReportList } from "@/lib/reports/filter-params";
@@ -100,11 +99,10 @@ export default async function PurchaseReportsPage({
         </p>
       </div>
 
-      <ReportTypePills options={PURCHASE_REPORT_TYPES} />
-
       <ReportFilters
         action="/reports/purchases"
         defaults={{ from, to, type: types.join(",") }}
+        typeOptions={PURCHASE_REPORT_TYPES}
         extras={
           <>
             <FilterMultiSelect

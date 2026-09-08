@@ -13,7 +13,7 @@ import { TableScroll } from "@/components/tables/table-scroll";
 import { TablePagination } from "@/components/tables/table-pagination";
 import { TableToolbar } from "@/components/tables/table-toolbar";
 import { DetailField, RowActions } from "@/components/ui/row-actions";
-import { useUrlTableState } from "@/hooks/use-url-table-state";
+import { useSearchInput, useUrlTableState } from "@/hooks/use-url-table-state";
 import type { PaginationMeta } from "@/lib/pagination";
 import type { ProductListStats } from "@/lib/queries/products";
 import { createClient } from "@/lib/supabase/client";
@@ -22,7 +22,7 @@ import { formatProductPurchaseDiscount } from "@/lib/pricing/discounts";
 import { formatUomCompact } from "@/lib/pricing/uom";
 import { formatNumber, formatPkr } from "@/lib/utils";
 import { AlertTriangle, Package, Tags } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 
 function productFields(p: Product, companyName: string): DetailField[] {
   return [
@@ -85,7 +85,7 @@ export function ProductsTable({
 }) {
   const { q, isPending, setPage, setPageSize, setQuery, setFilter, filters } =
     useUrlTableState(["view", "warehouse"]);
-  const [localQuery, setLocalQuery] = useState(q);
+  const search = useSearchInput(q, setQuery);
   const lowSet = useMemo(() => new Set(lowStockCodes || []), [lowStockCodes]);
   const warehouseName = useMemo(() => {
     const map = new Map(warehouses.map((w) => [w.id, w.name]));
@@ -107,10 +107,6 @@ export function ProductsTable({
 
   const view = (filters.view ||
     (initialView === "reorder" ? "reorder" : "all")) as ViewFilter;
-
-  useEffect(() => {
-    setLocalQuery(q);
-  }, [q]);
 
   async function deactivate(id: string) {
     const supabase = createClient();
@@ -180,12 +176,10 @@ export function ProductsTable({
 
       <div>
         <TableToolbar
-          query={localQuery}
-          onQueryChange={(value) => {
-            setLocalQuery(value);
-            setQuery(value);
-          }}
-          loading={isPending}
+          query={search.query}
+          onQueryChange={search.onQueryChange}
+          onFocus={search.onFocus}
+          onBlur={search.onBlur}
           placeholder="Search code, name, company..."
           resultCount={pagination.total}
           totalCount={pagination.total}

@@ -12,7 +12,7 @@ import { TableScroll } from "@/components/tables/table-scroll";
 import { TablePagination } from "@/components/tables/table-pagination";
 import { TableToolbar } from "@/components/tables/table-toolbar";
 import { DetailField, RowActions } from "@/components/ui/row-actions";
-import { useUrlTableState } from "@/hooks/use-url-table-state";
+import { useSearchInput, useUrlTableState } from "@/hooks/use-url-table-state";
 import type { PartyListStats } from "@/lib/queries/parties";
 import { createClient } from "@/lib/supabase/client";
 import type { PaginationMeta } from "@/lib/pagination";
@@ -20,7 +20,6 @@ import type { Party, PartyType } from "@/lib/types/database";
 import { amountClass, formatPkr } from "@/lib/utils";
 import { Building2, Store, Truck, Users } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
 
 function partyTypeLabel(p: Party) {
   if (p.party_type !== "PARTY") return p.party_type;
@@ -77,16 +76,12 @@ export function PartiesTable({
 }) {
   const { q, isPending, setPage, setPageSize, setQuery, setFilter, filters } =
     useUrlTableState(["type", "city", "sector"]);
-  const [localQuery, setLocalQuery] = useState(q);
+  const search = useSearchInput(q, setQuery);
 
   const subtype = (filters.type ||
     (initialType === "customer" || initialType === "supplier"
       ? initialType
       : "all")) as SubFilter;
-
-  useEffect(() => {
-    setLocalQuery(q);
-  }, [q]);
 
   async function deactivate(id: string) {
     const supabase = createClient();
@@ -202,12 +197,10 @@ export function PartiesTable({
 
       <div>
         <TableToolbar
-          query={localQuery}
-          onQueryChange={(value) => {
-            setLocalQuery(value);
-            setQuery(value);
-          }}
-          loading={isPending}
+          query={search.query}
+          onQueryChange={search.onQueryChange}
+          onFocus={search.onFocus}
+          onBlur={search.onBlur}
           placeholder="Search code, name, city / head, sector, phone..."
           resultCount={pagination.total}
           totalCount={pagination.total}

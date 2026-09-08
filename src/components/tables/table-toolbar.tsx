@@ -11,6 +11,8 @@ export function TableToolbar({
   resultCount,
   totalCount,
   loading = false,
+  onFocus,
+  onBlur,
 }: {
   query: string;
   onQueryChange: (value: string) => void;
@@ -19,6 +21,8 @@ export function TableToolbar({
   resultCount: number;
   totalCount: number;
   loading?: boolean;
+  onFocus?: () => void;
+  onBlur?: () => void;
 }) {
   return (
     <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -27,9 +31,10 @@ export function TableToolbar({
         <Input
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
+          onFocus={onFocus}
+          onBlur={onBlur}
           placeholder={placeholder}
           className="pl-9"
-          disabled={loading}
           aria-busy={loading}
         />
       </div>

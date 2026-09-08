@@ -1,5 +1,6 @@
 "use client";
 
+import { PrintOrgCompany } from "@/components/print/print-org-company";
 import { ExportButtons } from "@/components/reports/export-buttons";
 import { TableScroll } from "@/components/tables/table-scroll";
 import { TablePagination } from "@/components/tables/table-pagination";
@@ -7,6 +8,7 @@ import { TableToolbar } from "@/components/tables/table-toolbar";
 import { DetailField, RowActions } from "@/components/ui/row-actions";
 import { useUrlTableState } from "@/hooks/use-url-table-state";
 import { formatNumber, formatPkr } from "@/lib/utils";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 function isMetaKey(key: string) {
@@ -78,32 +80,30 @@ export function ReportTable({
   title,
   subtitle,
   companyName,
+  brandName,
   rows,
   filename,
 }: {
   title: string;
   subtitle?: string;
   companyName?: string;
+  brandName?: string | null;
   rows: Record<string, unknown>[];
   filename: string;
 }) {
-  const { page, pageSize, q, isPending, setPage, setPageSize, setQuery } =
+  const { page, pageSize, isPending, setPage, setPageSize } =
     useUrlTableState();
-  const [localQuery, setLocalQuery] = useState(q);
+  const [query, setQuery] = useState("");
   const [printedAt, setPrintedAt] = useState("");
   const columns = visibleColumns(rows[0]);
   const exportable = useMemo(() => exportRows(rows), [rows]);
-
-  useEffect(() => {
-    setLocalQuery(q);
-  }, [q]);
 
   useEffect(() => {
     setPrintedAt(new Date().toLocaleString());
   }, []);
 
   const filtered = useMemo(() => {
-    const search = q.trim().toLowerCase();
+    const search = query.trim().toLowerCase();
     if (!search) return rows;
     return rows.filter((row) =>
       columns.some((c) =>
@@ -112,7 +112,7 @@ export function ReportTable({
           .includes(search),
       ),
     );
-  }, [rows, q, columns]);
+  }, [rows, query, columns]);
 
   const filteredExport = useMemo(() => exportRows(filtered), [filtered]);
 
@@ -176,16 +176,13 @@ export function ReportTable({
           rows={filteredExport.length ? filteredExport : exportable}
           filename={filename}
           title={title}
+          printId={filename}
         />
       </div>
 
       <TableToolbar
-        query={localQuery}
-        onQueryChange={(value) => {
-          setLocalQuery(value);
-          setQuery(value);
-        }}
-        loading={isPending}
+        query={query}
+        onQueryChange={setQuery}
         placeholder="Search report rows..."
         resultCount={filtered.length}
         totalCount={rows.length}
@@ -214,9 +211,25 @@ export function ReportTable({
                       : undefined;
                   return (
                     <tr key={`${from}-${idx}`}>
-                      {columns.map((c) => (
-                        <td key={c}>{formatCell(c, row[c])}</td>
-                      ))}
+                      {columns.map((c) => {
+                        const isInv =
+                          href &&
+                          /^(inv no\.?|invoice)$/i.test(c);
+                        return (
+                          <td key={c}>
+                            {isInv ? (
+                              <Link
+                                href={href}
+                                className="text-[var(--brand)] underline-offset-2 hover:underline"
+                              >
+                                {formatCell(c, row[c])}
+                              </Link>
+                            ) : (
+                              formatCell(c, row[c])
+                            )}
+                          </td>
+                        );
+                      })}
                       <td className="no-print">
                         <RowActions
                           viewTitle="Row details"
@@ -272,11 +285,28 @@ export function ReportTable({
       </div>
 
       {/* Full report, all filtered rows — print only */}
-      <div className="print-only print-sheet report-print">
+      <div
+        data-print-id={filename}
+        className="print-only print-sheet report-print"
+      >
         <div className="report-print-head">
           <div>
-            <p className="report-print-title">{title}</p>
-            {companyName ? <p className="report-print-co">{companyName}</p> : null}
+            {brandName ? (
+              <>
+                <PrintOrgCompany
+                  companyName={companyName}
+                  brandName={brandName}
+                />
+                <p className="report-print-title">{title}</p>
+              </>
+            ) : (
+              <>
+                <p className="report-print-title">{title}</p>
+                {companyName ? (
+                  <p className="report-print-co">{companyName}</p>
+                ) : null}
+              </>
+            )}
           </div>
           <p className="report-print-meta">
             {subtitle ? (

@@ -134,16 +134,12 @@ export function RecoverySheet({
   sections: RecoverySheetSection[];
   grand: RecoverySheetResult["grand"];
 }) {
-  const { page, pageSize, q, isPending, setPage, setPageSize, setQuery } =
+  const { page, pageSize, isPending, setPage, setPageSize } =
     useUrlTableState();
-  const [localQuery, setLocalQuery] = useState(q);
+  const [query, setQuery] = useState("");
   const [printedAt, setPrintedAt] = useState<Date | null>(null);
   const [hideSaleCols, setHideSaleCols] = useState(false);
   const savedTitle = useRef("");
-
-  useEffect(() => {
-    setLocalQuery(q);
-  }, [q]);
 
   useEffect(() => {
     setPrintedAt(new Date());
@@ -166,7 +162,7 @@ export function RecoverySheet({
     };
   }, []);
 
-  const term = q.trim().toLowerCase();
+  const term = query.trim().toLowerCase();
   const filteredSections = useMemo(
     () => filterSections(sections, term),
     [sections, term],
@@ -241,12 +237,8 @@ export function RecoverySheet({
 
       <div className="no-print">
         <TableToolbar
-          query={localQuery}
-          onQueryChange={(value) => {
-            setLocalQuery(value);
-            setQuery(value);
-          }}
-          loading={isPending}
+          query={query}
+          onQueryChange={setQuery}
           placeholder="Search code, shop, sector..."
           resultCount={total}
           totalCount={totalRows}
@@ -397,30 +389,26 @@ export function RecoverySheet({
       {/* Paper-matching Recovery Sheet — print / PDF only (all filtered rows) */}
       <div className="print-only print-sheet recovery-sheet">
         <div className="recovery-sheet-head">
-          <div className="recovery-sheet-head__left">
-            <p className="recovery-sheet-title">Customers Receivables</p>
-            <div className="recovery-sheet-meta">
-              <p>
-                <span>Town</span>{" "}
-                <strong className="recovery-sheet-town">{townLabel}</strong>
-              </p>
-              <p>
-                <span>Salesman</span> {salesmanLabel}
-              </p>
-            </div>
+          <p className="recovery-sheet-title">Customers Receivables</p>
+          <p className="recovery-sheet-co">{companyName}</p>
+          <div className="recovery-sheet-meta">
+            <p>
+              <span>Town</span>{" "}
+              <strong className="recovery-sheet-town">{townLabel}</strong>
+            </p>
+            <p>
+              <span>Salesman</span> {salesmanLabel}
+            </p>
           </div>
-          <div className="recovery-sheet-head__right">
-            <p className="recovery-sheet-co">{companyName}</p>
-            <div className="recovery-sheet-dates">
-              <p>
-                <span>From</span> {formatRangeDate(from)}
-                <span className="recovery-sheet-dates__to">To</span>{" "}
-                {formatRangeDate(to)}
-              </p>
-              <p className="recovery-sheet-printed">
-                {printed ? `${printed.date} ${printed.time}` : ""}
-              </p>
-            </div>
+          <div className="recovery-sheet-dates">
+            <p>
+              <span>From</span> {formatRangeDate(from)}
+              <span className="recovery-sheet-dates__to">To</span>{" "}
+              {formatRangeDate(to)}
+            </p>
+            <p className="recovery-sheet-printed">
+              {printed ? `${printed.date} ${printed.time}` : ""}
+            </p>
           </div>
         </div>
 
@@ -453,18 +441,38 @@ export function RecoverySheet({
                   </colgroup>
                   <thead>
                     <tr>
-                      <th>Acc ID</th>
-                      <th>Customer name</th>
-                      <th>Last received</th>
+                      <th>Acc<br />ID</th>
+                      <th>Customer<br />name</th>
+                      <th>Last<br />received</th>
                       {hideSaleCols ? null : (
                         <>
-                          <th className="num">Prev. balance</th>
-                          <th className="num">Last sale ID</th>
-                          <th>Last sale</th>
-                          <th className="num">Last sale value</th>
+                          <th className="num">
+                            Prev.
+                            <br />
+                            balance
+                          </th>
+                          <th className="num">
+                            Last sale
+                            <br />
+                            ID
+                          </th>
+                          <th>
+                            Last
+                            <br />
+                            sale
+                          </th>
+                          <th className="num">
+                            Last sale
+                            <br />
+                            value
+                          </th>
                         </>
                       )}
-                      <th className="num">Final bal.</th>
+                      <th className="num">
+                        Final
+                        <br />
+                        bal.
+                      </th>
                       <th>Received</th>
                       <th>Remarks</th>
                     </tr>

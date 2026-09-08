@@ -31,6 +31,22 @@ type Filters = {
   billTo?: string;
 };
 
+const LINE_COMPANY_TYPES: PurchaseReportType[] = [
+  "detail",
+  "item_wise",
+  "manufacturer_wise",
+];
+
+function matchesCompanyFilter(
+  product: { default_warehouse_id?: string | null } | null,
+  warehouseId: string | null | undefined,
+  warehouseIds?: string[],
+) {
+  if (!warehouseIds?.length) return true;
+  const id = product?.default_warehouse_id || warehouseId || "";
+  return warehouseIds.includes(id);
+}
+
 export async function buildPurchaseReport(
   supabase: SupabaseClient,
   filters: Filters,
@@ -51,7 +67,10 @@ export async function buildPurchaseReport(
     .order("invoice_date", { ascending: true })
     .limit(2000);
 
-  if (filters.warehouseIds?.length) {
+  if (
+    filters.warehouseIds?.length &&
+    !LINE_COMPANY_TYPES.includes(filters.type)
+  ) {
     query = query.in("warehouse_id", filters.warehouseIds);
   }
   if (filters.partyIds?.length) {
@@ -108,6 +127,15 @@ export async function buildPurchaseReport(
       for (const it of items || []) {
         const product = one(it.products);
         const inv = invMap.get(it.purchase_invoice_id);
+        if (
+          !matchesCompanyFilter(
+            product,
+            inv?.warehouse_id,
+            filters.warehouseIds,
+          )
+        ) {
+          continue;
+        }
         const headerWh = one(inv?.warehouses);
         const warehouseId =
           product?.default_warehouse_id || inv?.warehouse_id || "";
@@ -125,7 +153,16 @@ export async function buildPurchaseReport(
       }));
     }
 
-    return (items || []).map((it) => {
+    return (items || [])
+      .filter((it) => {
+        const inv = invMap.get(it.purchase_invoice_id);
+        return matchesCompanyFilter(
+          one(it.products),
+          inv?.warehouse_id,
+          filters.warehouseIds,
+        );
+      })
+      .map((it) => {
       const inv = invMap.get(it.purchase_invoice_id);
       const party = one(inv?.parties);
       const warehouse = one(inv?.warehouses);
@@ -141,6 +178,7 @@ export async function buildPurchaseReport(
         Qty: Number(it.qty),
         Rate: Number(it.rate),
         Amount: Number(it.amount),
+        _href: inv?.id ? `/purchases/invoices/${inv.id}` : "",
       };
     });
   }

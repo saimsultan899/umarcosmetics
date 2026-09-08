@@ -51,6 +51,19 @@ export function FilterMultiSelect({
   }, [value]);
 
   useEffect(() => {
+    const root = rootRef.current;
+    const form = root?.closest("form");
+    if (!form) return;
+    function onClear() {
+      setSelected([]);
+      setOpen(false);
+      setQuery("");
+    }
+    form.addEventListener("report-filters-clear", onClear);
+    return () => form.removeEventListener("report-filters-clear", onClear);
+  }, []);
+
+  useEffect(() => {
     if (!open) {
       setQuery("");
       return;
@@ -176,6 +189,9 @@ export function FilterMultiSelect({
                     onChange={(e) => setQuery(e.target.value)}
                     onKeyDown={(e) => {
                       e.stopPropagation();
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                      }
                       if (e.key === "Escape") {
                         e.preventDefault();
                         setOpen(false);
@@ -187,6 +203,16 @@ export function FilterMultiSelect({
                     className="!h-7 min-w-0 w-full !border-0 !bg-transparent px-0 text-sm outline-none !shadow-none placeholder:text-[var(--muted)] focus:!border-0 focus:!shadow-none"
                     aria-label={`Search ${label}`}
                   />
+                  {selected.length ? (
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => setSelected([])}
+                      className="shrink-0 text-xs font-medium text-[var(--muted)] hover:text-[var(--ink)]"
+                    >
+                      Clear
+                    </button>
+                  ) : null}
                 </div>
               ) : placeholder ? (
                 <p className="shrink-0 border-b border-[var(--border)] px-3 py-2 text-[11px] text-[var(--muted)]">

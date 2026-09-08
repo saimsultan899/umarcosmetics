@@ -4,7 +4,7 @@ import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { CashFlowSalesPrint } from "@/components/reports/cash-flow-sales-print";
 import { PartyWiseSalesPrint } from "@/components/reports/party-wise-sales-print";
 import { FilterMultiSelect, ReportFilters } from "@/components/reports/report-filters";
-import { ReportTypePills } from "@/components/reports/report-type-pills";
+import { FilterFlagPill } from "@/components/reports/report-type-pills";
 import { ReportTable } from "@/components/reports/report-table";
 import { requireCompanyContext } from "@/lib/auth";
 import { parseReportList } from "@/lib/reports/filter-params";
@@ -51,6 +51,7 @@ export default async function SaleReportsPage({
     city?: string;
     billFrom?: string;
     billTo?: string;
+    walkin?: string;
   }>;
 }) {
   const sp = await searchParams;
@@ -63,7 +64,8 @@ export default async function SaleReportsPage({
   const from = sp.from || monthStart();
   const to = sp.to || today();
 
-  const [{ data: warehouses }, { data: parties }] = await Promise.all([
+  const [{ data: warehouses }, { data: parties }, { data: walkInParty }] =
+    await Promise.all([
     supabase
       .from("warehouses")
       .select("id, name")
@@ -77,12 +79,26 @@ export default async function SaleReportsPage({
       .eq("is_active", true)
       .order("name_en")
       .limit(500),
+    supabase
+      .from("parties")
+      .select("id")
+      .eq("company_id", company.id)
+      .eq("party_code", "WALKIN")
+      .maybeSingle(),
   ]);
 
   const warehouseIds = parseReportList(sp.warehouse);
   const partyIds = parseReportList(sp.party);
   const sectors = parseReportList(sp.sector);
   const cities = parseReportList(sp.city);
+  const walkInOnly = sp.walkin === "1" || sp.walkin === "true";
+
+  const brandName = warehouseIds.length
+    ? (warehouses || [])
+        .filter((w) => warehouseIds.includes(w.id))
+        .map((w) => w.name)
+        .join(", ") || "All"
+    : "All";
 
   const sectorOptions = distinctSorted((parties || []).map((p) => p.route));
   const cityOptions = distinctSorted(
@@ -108,6 +124,8 @@ export default async function SaleReportsPage({
         cities,
         billFrom: sp.billFrom || undefined,
         billTo: sp.billTo || undefined,
+        walkInOnly,
+        walkInPartyId: walkInParty?.id || null,
       });
       reportSections.push({
         type,
@@ -208,23 +226,17 @@ export default async function SaleReportsPage({
         </ChartCard>
       ) : null}
 
-      <ReportTypePills
-        options={SALE_REPORT_TYPES}
-        preserveKeys={[
-          "from",
-          "to",
-          "warehouse",
-          "party",
-          "sector",
-          "city",
-          "billFrom",
-          "billTo",
-        ]}
-      />
-
       <ReportFilters
         action="/reports/sales"
-        defaults={{ from, to, type: types.join(",") }}
+        defaults={{ from, to, type: types.join(","), walkin: walkInOnly ? "1" : "" }}
+        typeOptions={SALE_REPORT_TYPES}
+        typeExtras={
+          <FilterFlagPill
+            name="walkin"
+            label="Walk-in customer"
+            value={walkInOnly ? "1" : ""}
+          />
+        }
         extras={
           <>
             <FilterMultiSelect
@@ -301,6 +313,7 @@ export default async function SaleReportsPage({
           {section.type === "party_wise" ? (
             <PartyWiseSalesPrint
               companyName={company.name}
+              brandName={brandName}
               from={from}
               to={to}
               rows={section.rows}
@@ -309,6 +322,7 @@ export default async function SaleReportsPage({
           ) : section.type === "cash_flow" ? (
             <CashFlowSalesPrint
               companyName={company.name}
+              brandName={brandName}
               from={from}
               to={to}
               rows={section.rows}
@@ -318,6 +332,7 @@ export default async function SaleReportsPage({
             <ReportTable
               title={section.label}
               companyName={company.name}
+              brandName={brandName}
               subtitle={`${from} to ${to} · ${section.rows.length} rows`}
               rows={section.rows}
               filename={`sale-${section.type}-${from}-${to}`}

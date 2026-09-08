@@ -3,6 +3,28 @@ import { requireCompanyContext } from "@/lib/auth";
 import { formatPkr } from "@/lib/utils";
 import { notFound } from "next/navigation";
 
+const SHORT_MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+/** Compact date for Sold between meta (10-Jun-26). */
+function formatPeriodShort(iso: string) {
+  const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(iso) ? `${iso}T00:00:00` : iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return `${String(d.getDate()).padStart(2, "0")}-${SHORT_MONTHS[d.getMonth()]}-${String(d.getFullYear()).slice(2)}`;
+}
+
 export default async function ExpiryReceiptDetailPage({
   params,
   searchParams,
@@ -44,7 +66,12 @@ export default async function ExpiryReceiptDetailPage({
       partyCode={party?.party_code}
       extraMeta={
         doc.period_from && doc.period_to
-          ? [{ label: "Sold between", value: `${doc.period_from} → ${doc.period_to}` }]
+          ? [
+              {
+                label: "Sold between",
+                value: `${formatPeriodShort(doc.period_from)} → ${formatPeriodShort(doc.period_to)}`,
+              },
+            ]
           : []
       }
       lines={(items || []).map((i) => ({

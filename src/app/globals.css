@@ -1163,7 +1163,7 @@ button[aria-haspopup="listbox"]:focus-visible {
 
 .classic-report-head {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 14px;
@@ -1171,8 +1171,29 @@ button[aria-haspopup="listbox"]:focus-visible {
 
 .classic-report-title {
   margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.print-brand-head {
+  margin-bottom: 8px;
+}
+
+.print-org-name,
+.print-distributor-name {
+  margin: 0 0 2px;
   font-size: 15px;
+  font-weight: 700;
+}
+
+.print-company-line {
+  margin: 0 0 8px;
+  font-size: 14px;
   font-weight: 400;
+}
+
+.print-company-line strong {
+  font-weight: 700;
 }
 
 .classic-report-dates {
@@ -1205,13 +1226,20 @@ button[aria-haspopup="listbox"]:focus-visible {
   border-collapse: collapse;
   table-layout: fixed;
   font-size: 12px;
+  border: 1px solid #111;
+}
+
+.classic-report table.classic-report-totals {
+  border: none;
+  margin-top: 0;
 }
 
 .classic-report thead th {
-  border-top: 1px solid #111;
+  border-top: none;
   border-bottom: 1px solid #111;
   border-left: 1px solid #111;
-  padding: 4px 6px;
+  border-right: none;
+  padding: 4px 5px;
   background: #fff;
   color: #000;
   font-size: 12px;
@@ -1220,17 +1248,23 @@ button[aria-haspopup="listbox"]:focus-visible {
   text-transform: none;
   vertical-align: middle;
   white-space: nowrap;
+  overflow: visible;
+}
+
+.classic-report thead th:first-child {
+  border-left: none;
 }
 
 .classic-report thead th:last-child {
-  border-right: 1px solid #111;
+  border-right: none;
 }
 
 .classic-report tbody td {
   border-left: 1px solid #111;
   border-top: none;
   border-bottom: none;
-  padding: 3px 6px;
+  border-right: none;
+  padding: 3px 5px;
   background: #fff;
   color: #000;
   vertical-align: top;
@@ -1239,12 +1273,14 @@ button[aria-haspopup="listbox"]:focus-visible {
   text-overflow: ellipsis;
 }
 
-.classic-report tbody td:last-child {
-  border-right: 1px solid #111;
+.classic-report tbody td:first-child {
+  border-left: none;
 }
 
-.classic-report-last-data td {
-  border-bottom: 1px solid #111;
+.classic-report-totals tbody td {
+  border: none;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 /* ItemName — allow wrap, keep gap to Qty modest */
@@ -1253,10 +1289,10 @@ button[aria-haspopup="listbox"]:focus-visible {
   white-space: normal;
   overflow: visible;
   text-overflow: clip;
-  padding-right: 10px;
+  padding-right: 8px;
 }
 
-/* Date / Inv / Item No — compact, left-aligned */
+/* Date / Inv / Item No — compact, left-aligned, never clip the date */
 .classic-report th:nth-child(1),
 .classic-report td:nth-child(1),
 .classic-report th:nth-child(2),
@@ -1266,11 +1302,15 @@ button[aria-haspopup="listbox"]:focus-visible {
   text-align: left;
   padding-left: 6px;
   padding-right: 4px;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .classic-report-num {
   text-align: right !important;
   font-variant-numeric: tabular-nums;
+  padding-left: 4px !important;
+  padding-right: 6px !important;
 }
 
 .classic-report-total-label {
@@ -1283,10 +1323,7 @@ button[aria-haspopup="listbox"]:focus-visible {
 
 .classic-report-party-total td,
 .classic-report-grand td {
-  border-left: none !important;
-  border-right: none !important;
-  border-top: none !important;
-  border-bottom: none !important;
+  border: none !important;
   background: transparent;
   padding-top: 6px;
   padding-bottom: 2px;
@@ -1300,16 +1337,16 @@ button[aria-haspopup="listbox"]:focus-visible {
 
 .classic-report-box {
   display: inline-block;
-  min-width: 92px;
+  min-width: 64px;
   border: 1px solid #111;
-  padding: 1px 6px;
+  padding: 1px 4px;
   text-align: right;
   font-weight: 400;
 }
 
 .classic-report-double {
   display: inline-block;
-  min-width: 92px;
+  min-width: 64px;
   border-top: 3px double #111;
   border-bottom: 3px double #111;
   padding: 1px 4px;
@@ -1389,7 +1426,7 @@ button[aria-haspopup="listbox"]:focus-visible {
   font-family: Arial, Helvetica, sans-serif;
   max-width: 200mm;
   margin: 0 auto;
-  padding: 12mm 12mm;
+  padding: 12mm 7px;
   border: 1px solid var(--border);
   border-radius: 14px;
   font-size: 17px;
@@ -1399,7 +1436,7 @@ button[aria-haspopup="listbox"]:focus-visible {
 }
 .doc--half {
   max-width: 190mm;
-  padding: 8mm 10mm;
+  padding: 8mm 7px;
   font-size: 16px;
 }
 .doc-head {
@@ -1640,18 +1677,12 @@ button[aria-haspopup="listbox"]:focus-visible {
 }
 .recovery-sheet-head {
   display: flex;
+  flex-direction: column;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 4px;
   border-bottom: 2px solid #111;
   padding-bottom: 6px;
   margin-bottom: 6px;
-}
-.recovery-sheet-head__left {
-  min-width: 0;
-}
-.recovery-sheet-head__right {
-  text-align: right;
 }
 .recovery-sheet-title {
   margin: 0;
@@ -1695,7 +1726,7 @@ button[aria-haspopup="listbox"]:focus-visible {
 .recovery-sheet-dates {
   margin: 0;
   font-size: 13px;
-  text-align: right;
+  text-align: left;
   line-height: 1.3;
   white-space: nowrap;
 }
@@ -1738,13 +1769,13 @@ button[aria-haspopup="listbox"]:focus-visible {
   width: 6%;
 }
 .recovery-sheet__col-name {
-  width: 26%;
+  width: 22%;
 }
 .recovery-sheet__col-received {
-  width: 8%;
+  width: 9%;
 }
 .recovery-sheet__col-prev {
-  width: 7%;
+  width: 8%;
 }
 .recovery-sheet__col-sale-id {
   width: 8%;
@@ -1753,16 +1784,16 @@ button[aria-haspopup="listbox"]:focus-visible {
   width: 8%;
 }
 .recovery-sheet__col-sale-value {
-  width: 8%;
+  width: 9%;
 }
 .recovery-sheet__col-final {
   width: 8%;
 }
 .recovery-sheet__col-rec {
-  width: 10%;
+  width: 9%;
 }
 .recovery-sheet__col-remarks {
-  width: 11%;
+  width: 13%;
 }
 .recovery-sheet-table--compact .recovery-sheet__col-id {
   width: 8%;
@@ -1785,10 +1816,14 @@ button[aria-haspopup="listbox"]:focus-visible {
 .recovery-sheet th {
   border: 1px solid #111;
   background: #eee;
-  padding: 3px 4px;
+  padding: 4px 3px;
   text-align: left;
   font-weight: 700;
-  white-space: nowrap;
+  white-space: normal;
+  overflow: hidden;
+  line-height: 1.15;
+  vertical-align: bottom;
+  hyphens: none;
 }
 .recovery-sheet td {
   border: 1px solid #111;
@@ -1803,6 +1838,10 @@ button[aria-haspopup="listbox"]:focus-visible {
 .recovery-sheet__received {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.recovery-sheet th.num {
+  text-align: left;
+  white-space: normal;
 }
 .recovery-sheet .num {
   text-align: right;
@@ -1833,7 +1872,7 @@ button[aria-haspopup="listbox"]:focus-visible {
   font-family: "Times New Roman", Times, Georgia, serif;
   max-width: 190mm;
   margin: 0 auto;
-  padding: 6mm 6mm;
+  padding: 6mm 7px;
   border: 1px solid var(--border);
   border-radius: 12px;
   font-size: 17px;
@@ -1842,8 +1881,18 @@ button[aria-haspopup="listbox"]:focus-visible {
   overflow: hidden;
   direction: ltr;
 }
-.si-head {
+.si-org {
+  text-align: center;
+  font-size: 16px;
+  font-weight: 400;
   margin-bottom: 2px;
+}
+.si-company-k {
+  font-size: 0.55em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-right: 0.35em;
 }
 .si-doc-label {
   text-align: left;
@@ -1875,6 +1924,11 @@ button[aria-haspopup="listbox"]:focus-visible {
   text-transform: none;
   letter-spacing: 0;
 }
+.si-company-line {
+  text-align: center;
+  font-size: 16px;
+  margin-top: 2px;
+}
 .si-distributor-addr {
   text-align: center;
   font-size: 15px;
@@ -1892,16 +1946,31 @@ button[aria-haspopup="listbox"]:focus-visible {
 }
 .si-meta-left,
 .si-meta-right {
-  flex: 1 1 0;
   min-width: 0;
 }
+.si-meta-left {
+  flex: 1.7 1 0;
+}
 .si-meta-right {
+  flex: 0.9 1 0;
   text-align: right;
 }
-.si-meta-block > div {
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* Document slips: give the right meta enough room for Sold between / dates */
+.cdoc .si-meta-left {
+  flex: 1.05 1 0;
+}
+.cdoc .si-meta-right {
+  flex: 1.35 1 0;
+  min-width: 0;
+}
+.si-meta-nowrap {
   white-space: nowrap;
+}
+.si-meta-block > div {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  word-break: break-word;
 }
 .si-k {
   font-weight: 700;
@@ -1921,9 +1990,11 @@ button[aria-haspopup="listbox"]:focus-visible {
   margin-top: 8px;
   font-size: 16px;
   table-layout: fixed;
+  border-top: 1.5px solid #111;
+  border-bottom: 1.5px solid #111;
 }
 .si-table th {
-  border-top: 1.5px solid #111;
+  border-top: none;
   border-bottom: 1.5px solid #111;
   padding: 3px 2px;
   font-weight: 700;
@@ -1939,6 +2010,16 @@ button[aria-haspopup="listbox"]:focus-visible {
   font-weight: 400;
   overflow: hidden;
 }
+/* Customer return / vendor claim / purchase slips — no lines under items */
+.cdoc .si-table {
+  border-bottom: none;
+}
+.cdoc .si-table td {
+  border-bottom: none;
+}
+.cdoc .si-table tbody tr:last-child td {
+  border-bottom: none;
+}
 .si-table td.num,
 .si-table td.ctr {
   overflow: visible;
@@ -1949,6 +2030,13 @@ button[aria-haspopup="listbox"]:focus-visible {
   text-overflow: clip;
   word-break: break-word;
   line-height: 1.2;
+}
+/* Expiry / purchase / return slips — full ItemName, no … dots */
+.cdoc .si-table td.si-item {
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+  word-break: normal;
 }
 .si-table tbody tr:last-child td {
   border-bottom: 1.5px solid #111;
@@ -2050,7 +2138,7 @@ button[aria-haspopup="listbox"]:focus-visible {
   font-family: "Times New Roman", Times, Georgia, serif;
   max-width: 200mm;
   margin: 0 auto;
-  padding: 10mm 12mm;
+  padding: 10mm 7px;
   border: 1px solid var(--border);
   border-radius: 12px;
   font-size: 17px;
@@ -2061,7 +2149,7 @@ button[aria-haspopup="listbox"]:focus-visible {
 }
 .cdoc--half {
   max-width: 190mm;
-  padding: 6mm 6mm;
+  padding: 6mm 7px;
   font-size: 17px;
 }
 .cdoc-totals {
@@ -2106,7 +2194,7 @@ button[aria-haspopup="listbox"]:focus-visible {
   font-family: "Times New Roman", Times, Georgia, serif;
   max-width: 200mm;
   margin: 0 auto;
-  padding: 10mm 12mm;
+  padding: 10mm 7px;
   border: 1px solid var(--border);
   border-radius: 12px;
   font-size: 17px;
@@ -2177,10 +2265,16 @@ button[aria-haspopup="listbox"]:focus-visible {
     margin: 10mm 12mm;
   }
 
-  /* A5 / half-A4 slips — modest equal side margins. */
+  /* Invoice slips — equal ~7px left/right. */
+  @page invoice-page {
+    size: A4 portrait;
+    margin: 5mm 2mm;
+  }
+
+  /* A5 / half-A4 slips — same tight equal side margins. */
   @page si-half-page {
     size: A4 portrait;
-    margin: 8mm 7mm;
+    margin: 4mm 2mm;
   }
 
   body * {
@@ -2216,6 +2310,12 @@ button[aria-haspopup="listbox"]:focus-visible {
     background: #fff !important;
   }
 
+  /* Other reports hidden when Print is scoped to one sheet */
+  .print-sheet.print-skip {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
   /* Force clean black-and-white for all printed documents */
   .print-sheet,
   .print-sheet * {
@@ -2225,17 +2325,19 @@ button[aria-haspopup="listbox"]:focus-visible {
   }
 
   .doc {
+    page: invoice-page;
     border: none !important;
     border-radius: 0 !important;
-    padding: 0 !important;
+    padding: 2px 0 !important;
     max-width: 100% !important;
     font-size: 17px;
   }
 
   .cdoc {
+    page: invoice-page;
     border: none !important;
     border-radius: 0 !important;
-    padding: 0 !important;
+    padding: 2px 0 !important;
     max-width: 100% !important;
     font-size: 17px;
   }
@@ -2272,9 +2374,10 @@ button[aria-haspopup="listbox"]:focus-visible {
   }
 
   .gp-sheet {
+    page: invoice-page;
     border: none !important;
     border-radius: 0 !important;
-    padding: 0 !important;
+    padding: 2px 0 !important;
     max-width: 100% !important;
     font-size: 17px;
   }
@@ -2361,7 +2464,11 @@ button[aria-haspopup="listbox"]:focus-visible {
     line-height: 1.2;
   }
   .recovery-sheet th {
-    padding: 3px 4px;
+    padding: 4px 3px;
+    white-space: normal !important;
+    overflow: hidden;
+    line-height: 1.15;
+    vertical-align: bottom;
   }
   .recovery-sheet td {
     padding: 2px 4px;
@@ -2425,7 +2532,7 @@ button[aria-haspopup="listbox"]:focus-visible {
     border: none !important;
     border-radius: 0 !important;
     margin: 0 auto !important;
-    padding: 3mm 3mm !important;
+    padding: 2px 0 !important;
     font-size: 17px !important;
     line-height: 1.3 !important;
   }

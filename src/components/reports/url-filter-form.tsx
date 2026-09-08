@@ -42,11 +42,7 @@ export function UrlFilterForm({
       method="get"
       onSubmit={onSubmit}
       aria-busy={isPending}
-      className={
-        isPending
-          ? `${className ?? ""} pointer-events-none opacity-60`.trim()
-          : className
-      }
+      className={className}
     >
       {children}
     </form>

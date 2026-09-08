@@ -12,7 +12,7 @@ import {
 import { TableScroll } from "@/components/tables/table-scroll";
 import { TablePagination } from "@/components/tables/table-pagination";
 import { TableToolbar } from "@/components/tables/table-toolbar";
-import { useUrlTableState } from "@/hooks/use-url-table-state";
+import { useSearchInput, useUrlTableState } from "@/hooks/use-url-table-state";
 import type {
   DocumentListRow,
   DocumentListSummary,
@@ -20,7 +20,7 @@ import type {
 import type { PaginationMeta } from "@/lib/pagination";
 import { formatPkr } from "@/lib/utils";
 import { Banknote, CreditCard, FileText, ShoppingCart } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 
 export type { DocumentListRow };
 
@@ -52,16 +52,12 @@ export function DocumentListTable({
   );
   const { q, isPending, setPage, setPageSize, setQuery, setFilter, filters } =
     useUrlTableState(filterKeys);
-  const [localQuery, setLocalQuery] = useState(q);
+  const search = useSearchInput(q, setQuery);
   const payment = (filters.payment || "all") as
     | "all"
     | "cash"
     | "credit"
     | "partial";
-
-  useEffect(() => {
-    setLocalQuery(q);
-  }, [q]);
 
   return (
     <div className="space-y-6">
@@ -157,12 +153,10 @@ export function DocumentListTable({
 
       <div>
         <TableToolbar
-          query={localQuery}
-          onQueryChange={(value) => {
-            setLocalQuery(value);
-            setQuery(value);
-          }}
-          loading={isPending}
+          query={search.query}
+          onQueryChange={search.onQueryChange}
+          onFocus={search.onFocus}
+          onBlur={search.onBlur}
           placeholder="Search doc #..."
           resultCount={pagination.total}
           totalCount={pagination.total}

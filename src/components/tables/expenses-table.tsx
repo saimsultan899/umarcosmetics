@@ -5,12 +5,11 @@ import { TableScroll } from "@/components/tables/table-scroll";
 import { TableToolbar } from "@/components/tables/table-toolbar";
 import { RowActions } from "@/components/ui/row-actions";
 import { expenseCategoryLabel } from "@/lib/expenses/categories";
-import { useUrlTableState } from "@/hooks/use-url-table-state";
+import { useSearchInput, useUrlTableState } from "@/hooks/use-url-table-state";
 import type { ExpenseRow } from "@/lib/queries/expenses";
 import type { PaginationMeta } from "@/lib/pagination";
 import { createClient } from "@/lib/supabase/client";
 import { formatPkr } from "@/lib/utils";
-import { useEffect, useState } from "react";
 
 export function ExpensesTable({
   expenses,
@@ -20,11 +19,7 @@ export function ExpensesTable({
   pagination: PaginationMeta;
 }) {
   const { q, isPending, setPage, setPageSize, setQuery } = useUrlTableState();
-  const [localQuery, setLocalQuery] = useState(q);
-
-  useEffect(() => {
-    setLocalQuery(q);
-  }, [q]);
+  const search = useSearchInput(q, setQuery);
 
   async function remove(id: string) {
     const supabase = createClient();
@@ -35,12 +30,10 @@ export function ExpensesTable({
   return (
     <div>
       <TableToolbar
-        query={localQuery}
-        onQueryChange={(value) => {
-          setLocalQuery(value);
-          setQuery(value);
-        }}
-        loading={isPending}
+        query={search.query}
+        onQueryChange={search.onQueryChange}
+        onFocus={search.onFocus}
+        onBlur={search.onBlur}
         placeholder="Search EXP no or remarks..."
         resultCount={pagination.total}
         totalCount={pagination.total}

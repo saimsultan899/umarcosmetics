@@ -2,8 +2,6 @@ import { SaleInvoicePrint } from "@/components/trading/sale-invoice-print";
 import { requireCompanyContext } from "@/lib/auth";
 import { notFound } from "next/navigation";
 
-type LastPaid = { amount: number; kind: "Cash" | "Credit"; at: number };
-
 export default async function SaleInvoiceDetailPage({
   params,
   searchParams,
@@ -33,7 +31,7 @@ export default async function SaleInvoiceDetailPage({
     .eq("sale_invoice_id", id)
     .order("sort_order");
 
-  const [{ data: balanceBeforeRaw }, { data: paidSales }, { data: recoveryRows }] =
+  const [{ data: balanceBeforeRaw }, { data: recoveryRows }] =
     await Promise.all([
       supabase.rpc("get_party_balance_before", {
         p_company_id: company.id,
@@ -41,17 +39,6 @@ export default async function SaleInvoiceDetailPage({
         p_as_of: invoice.invoice_date,
         p_before: invoice.created_at,
       }),
-      supabase
-        .from("sale_invoices")
-        .select("id, invoice_date, created_at, amount_paid, payment_type")
-        .eq("company_id", company.id)
-        .eq("party_id", invoice.party_id)
-        .gt("amount_paid", 0)
-        .neq("id", id)
-        .lte("invoice_date", invoice.invoice_date)
-        .order("invoice_date", { ascending: false })
-        .order("created_at", { ascending: false })
-        .limit(20),
       supabase
         .from("recoveries")
         .select("recovery_date, amount, created_at")
@@ -72,31 +59,9 @@ export default async function SaleInvoiceDetailPage({
     return new Date(createdAt).getTime() < invoiceAt;
   }
 
-  let lastPaid: LastPaid | null = null;
-
-  for (const row of paidSales || []) {
-    if (!isBeforeThisBill(row.invoice_date, row.created_at)) continue;
-    lastPaid = {
-      amount: Number(row.amount_paid || 0),
-      kind: row.payment_type === "credit" ? "Credit" : "Cash",
-      at: new Date(row.created_at).getTime(),
-    };
-    break;
-  }
-
-  // Single latest recovery before this bill (not whole-day total)
-  for (const row of recoveryRows || []) {
-    if (!isBeforeThisBill(row.recovery_date, row.created_at)) continue;
-    const at = new Date(row.created_at).getTime();
-    const amount = Number(row.amount || 0);
-    if (amount > 0 && (!lastPaid || at >= lastPaid.at)) {
-      lastPaid = { amount, kind: "Cash", at };
-    }
-    break;
-  }
-
   const billAmount = Number(invoice.grand_total || 0);
   const paidOnThisBill = Number(invoice.amount_paid || 0);
+  const paymentType = String(invoice.payment_type || "credit");
   // Balance immediately before this invoice — ignores later same-day payments/returns.
   const previousBalance = Number(balanceBeforeRaw || 0);
 
@@ -115,13 +80,17 @@ export default async function SaleInvoiceDetailPage({
   const isWalkIn =
     String(party?.party_code || "").toUpperCase() === "WALKIN";
 
+  // Last Paid Amount = last recovery on this shop (receivable), never this bill's cash.
   let lastPaidAmount = 0;
-  if (isWalkIn) {
-    lastPaidAmount = 0;
-  } else if (paidOnThisBill > 0) {
-    lastPaidAmount = paidOnThisBill;
-  } else if (lastPaid && lastPaid.amount > 0) {
-    lastPaidAmount = lastPaid.amount;
+  if (!isWalkIn) {
+    for (const row of recoveryRows || []) {
+      if (!isBeforeThisBill(row.recovery_date, row.created_at)) continue;
+      const amount = Number(row.amount || 0);
+      if (amount > 0) {
+        lastPaidAmount = amount;
+        break;
+      }
+    }
   }
 
   const salesman = invoice.salesman as {
@@ -172,9 +141,9 @@ export default async function SaleInvoiceDetailPage({
         extraDiscount={Number(invoice.extra_discount || 0)}
         billAmount={billAmount}
         paid={paidOnThisBill}
+        paymentType={paymentType}
         previousPayment={lastPaidAmount}
         previousBalance={isWalkIn ? 0 : previousBalance}
-        hideLastPaidAsThisBill={isWalkIn}
         preparedBy={salesman?.full_name || profile?.full_name}
         autoPrint={autoPrint}
       />

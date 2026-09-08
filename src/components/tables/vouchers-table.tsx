@@ -4,11 +4,10 @@ import { DocumentRowActions } from "@/components/tables/document-row-actions";
 import { TableScroll } from "@/components/tables/table-scroll";
 import { TablePagination } from "@/components/tables/table-pagination";
 import { TableToolbar } from "@/components/tables/table-toolbar";
-import { useUrlTableState } from "@/hooks/use-url-table-state";
+import { useSearchInput, useUrlTableState } from "@/hooks/use-url-table-state";
 import type { VoucherRow } from "@/lib/queries/vouchers";
 import type { PaginationMeta } from "@/lib/pagination";
 import { formatPkr } from "@/lib/utils";
-import { useEffect, useState } from "react";
 
 export function VouchersTable({
   vouchers,
@@ -22,21 +21,15 @@ export function VouchersTable({
   detailBasePath: string;
 }) {
   const { q, isPending, setPage, setPageSize, setQuery } = useUrlTableState();
-  const [localQuery, setLocalQuery] = useState(q);
-
-  useEffect(() => {
-    setLocalQuery(q);
-  }, [q]);
+  const search = useSearchInput(q, setQuery);
 
   return (
     <div>
       <TableToolbar
-        query={localQuery}
-        onQueryChange={(value) => {
-          setLocalQuery(value);
-          setQuery(value);
-        }}
-        loading={isPending}
+        query={search.query}
+        onQueryChange={search.onQueryChange}
+        onFocus={search.onFocus}
+        onBlur={search.onBlur}
         placeholder="Search vouchers..."
         resultCount={pagination.total}
         totalCount={pagination.total}

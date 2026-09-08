@@ -9,10 +9,13 @@ export function ExportButtons({
   rows,
   filename,
   title,
+  printId,
 }: {
   rows: Record<string, unknown>[];
   filename: string;
   title?: string;
+  /** When set, Print only outputs this report's print sheet. */
+  printId?: string;
 }) {
   return (
     <div className="no-print flex flex-wrap gap-2">
@@ -36,7 +39,7 @@ export function ExportButtons({
         <FileText className="h-4 w-4" />
         PDF
       </Button>
-      <PrintButton label="Print" />
+      <PrintButton label="Print" printId={printId} />
     </div>
   );
 }

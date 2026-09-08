@@ -8,10 +8,9 @@ import {
 } from "@/components/tables/table-filter-select";
 import { TablePagination } from "@/components/tables/table-pagination";
 import { TableToolbar } from "@/components/tables/table-toolbar";
-import { useUrlTableState } from "@/hooks/use-url-table-state";
+import { useSearchInput, useUrlTableState } from "@/hooks/use-url-table-state";
 import type { StockTransferRow } from "@/lib/queries/stock-transfers";
 import type { PaginationMeta } from "@/lib/pagination";
-import { useEffect, useState } from "react";
 
 export function TransfersTable({
   rows,
@@ -24,21 +23,15 @@ export function TransfersTable({
 }) {
   const { q, isPending, setPage, setPageSize, setQuery, setFilter, filters } =
     useUrlTableState(warehouses.length ? ["from", "to"] : []);
-  const [localQuery, setLocalQuery] = useState(q);
-
-  useEffect(() => {
-    setLocalQuery(q);
-  }, [q]);
+  const search = useSearchInput(q, setQuery);
 
   return (
     <div>
       <TableToolbar
-        query={localQuery}
-        onQueryChange={(value) => {
-          setLocalQuery(value);
-          setQuery(value);
-        }}
-        loading={isPending}
+        query={search.query}
+        onQueryChange={search.onQueryChange}
+        onFocus={search.onFocus}
+        onBlur={search.onBlur}
         placeholder="Search transfer #..."
         resultCount={pagination.total}
         totalCount={pagination.total}

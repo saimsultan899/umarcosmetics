@@ -2,6 +2,7 @@ import { ChartCard } from "@/components/analytics/chart-card";
 import { DonutChart, RankBars } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { ReportTable } from "@/components/reports/report-table";
+import { ReportFilterActions } from "@/components/reports/report-filters";
 import { UrlFilterForm } from "@/components/reports/url-filter-form";
 import { Select } from "@/components/ui/select";
 import { requireCompanyContext } from "@/lib/auth";
@@ -248,12 +249,10 @@ export default async function AccountsReportPage({
               />
             </div>
             <input type="hidden" name="view" value="ledger" />
-            <button
-              type="submit"
-              className="h-10 rounded-lg bg-[var(--brand)] px-4 text-sm font-medium text-white"
-            >
-              Load ledger
-            </button>
+            <ReportFilterActions
+              submitLabel="Load ledger"
+              className="w-full min-w-[220px] flex-none sm:w-auto"
+            />
           </UrlFilterForm>
 
           <ReportTable

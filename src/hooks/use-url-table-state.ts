@@ -6,7 +6,14 @@ import {
   type PageSize,
 } from "@/lib/pagination";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 
 export function useUrlTableState(extraFilterKeys: string[] = []) {
   const router = useRouter();
@@ -71,7 +78,7 @@ export function useUrlTableState(extraFilterKeys: string[] = []) {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         pushParams({ q: value.trim() || null, page: "1" });
-      }, 350);
+      }, 600);
     },
     [pushParams],
   );
@@ -94,5 +101,32 @@ export function useUrlTableState(extraFilterKeys: string[] = []) {
     setQuery,
     setFilter,
     pushParams,
+  };
+}
+
+/** Local search box that does not overwrite in-progress typing when the URL catches up. */
+export function useSearchInput(
+  committed: string,
+  onCommit?: (value: string) => void,
+) {
+  const [query, setQuery] = useState(committed);
+  const focusedRef = useRef(false);
+
+  useEffect(() => {
+    if (!focusedRef.current) setQuery(committed);
+  }, [committed]);
+
+  return {
+    query,
+    onQueryChange: (value: string) => {
+      setQuery(value);
+      onCommit?.(value);
+    },
+    onFocus: () => {
+      focusedRef.current = true;
+    },
+    onBlur: () => {
+      focusedRef.current = false;
+    },
   };
 }

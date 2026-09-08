@@ -8,7 +8,6 @@ export function TableFilterSelect({
   options,
   onChange,
   allLabel = "All",
-  loading = false,
 }: {
   label: string;
   value: string;
@@ -25,8 +24,7 @@ export function TableFilterSelect({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value || null)}
-        disabled={loading}
-        className="h-8 max-w-[180px] truncate rounded-lg border border-[var(--border)] bg-white px-2 text-sm disabled:opacity-60"
+        className="h-8 max-w-[180px] truncate rounded-lg border border-[var(--border)] bg-white px-2 text-sm"
       >
         <option value="">{allLabel}</option>
         {options.map((o) => (

@@ -8,12 +8,11 @@ import {
 import { TablePagination } from "@/components/tables/table-pagination";
 import { TableToolbar } from "@/components/tables/table-toolbar";
 import { DetailField, RowActions } from "@/components/ui/row-actions";
-import { useUrlTableState } from "@/hooks/use-url-table-state";
+import { useSearchInput, useUrlTableState } from "@/hooks/use-url-table-state";
 import type { RecoveryRow } from "@/lib/queries/recoveries";
 import type { PaginationMeta } from "@/lib/pagination";
 import { createClient } from "@/lib/supabase/client";
 import { formatPkr } from "@/lib/utils";
-import { useEffect, useState } from "react";
 
 export function RecoveriesTable({
   rows,
@@ -30,11 +29,7 @@ export function RecoveriesTable({
 }) {
   const { q, isPending, setPage, setPageSize, setQuery, setFilter, filters } =
     useUrlTableState(["city", "sector", "salesman"]);
-  const [localQuery, setLocalQuery] = useState(q);
-
-  useEffect(() => {
-    setLocalQuery(q);
-  }, [q]);
+  const search = useSearchInput(q, setQuery);
 
   async function remove(id: string) {
     const supabase = createClient();
@@ -45,12 +40,10 @@ export function RecoveriesTable({
   return (
     <div>
       <TableToolbar
-        query={localQuery}
-        onQueryChange={(value) => {
-          setLocalQuery(value);
-          setQuery(value);
-        }}
-        loading={isPending}
+        query={search.query}
+        onQueryChange={search.onQueryChange}
+        onFocus={search.onFocus}
+        onBlur={search.onBlur}
         placeholder="Search party, city, sector, remarks..."
         resultCount={pagination.total}
         totalCount={pagination.total}
