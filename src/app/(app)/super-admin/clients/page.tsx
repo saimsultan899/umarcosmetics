@@ -29,14 +29,16 @@ export default async function SuperAdminClientsPage() {
   ]);
 
   return (
-    <div className="animate-rise space-y-4">
-      <div>
-        <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold">
-          Clients
-        </h1>
-        <p className="mt-2 text-sm text-[var(--muted)]">
-          Create and manage distributor owner logins.
-        </p>
+    <div className="animate-rise min-w-0 space-y-4">
+      <div className="action-bar action-bar--split">
+        <div>
+          <h1 className="font-[family-name:var(--font-display)] text-2xl font-semibold sm:text-3xl">
+            Clients
+          </h1>
+          <p className="mt-1 text-sm text-[var(--muted)]">
+            Create and manage distributor owner logins.
+          </p>
+        </div>
       </div>
       {listError ? (
         <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">

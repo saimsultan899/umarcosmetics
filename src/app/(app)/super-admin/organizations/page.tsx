@@ -28,14 +28,16 @@ export default async function SuperAdminOrganizationsPage() {
   }, {});
 
   return (
-    <div className="animate-rise space-y-4">
-      <div>
-        <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold">
-          Organizations
-        </h1>
-        <p className="mt-2 text-sm text-[var(--muted)]">
-          Distributor groups that own one or more companies.
-        </p>
+    <div className="animate-rise min-w-0 space-y-4">
+      <div className="action-bar action-bar--split">
+        <div>
+          <h1 className="font-[family-name:var(--font-display)] text-2xl font-semibold sm:text-3xl">
+            Organizations
+          </h1>
+          <p className="mt-1 text-sm text-[var(--muted)]">
+            Distributor groups that own one or more companies.
+          </p>
+        </div>
       </div>
       <OrganizationsPanel
         organizations={organizations}

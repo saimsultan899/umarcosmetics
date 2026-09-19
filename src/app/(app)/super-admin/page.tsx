@@ -1,9 +1,17 @@
+import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { requireSuperAdmin } from "@/lib/auth";
 import type { Company, Organization } from "@/lib/types/database";
+import {
+  Boxes,
+  Building2,
+  ShieldCheck,
+  UserPlus,
+  Users,
+} from "lucide-react";
 import Link from "next/link";
 
 export default async function SuperAdminOverviewPage() {
-  const { supabase, offline } = await requireSuperAdmin();
+  const { supabase, offline, profile } = await requireSuperAdmin();
   if (offline) {
     const { renderOnlineOnlyModule } = await import(
       "@/lib/offline/render-offline-page"
@@ -19,164 +27,261 @@ export default async function SuperAdminOverviewPage() {
     { data: companies },
     { count: memberCount },
     { count: clientCount },
+    { count: activeCompanyCount },
+    { count: suspendedOrgCount },
   ] = await Promise.all([
-    supabase.from("organizations").select("*").order("created_at", { ascending: false }),
-    supabase.from("companies").select("*").order("created_at", { ascending: false }),
+    supabase
+      .from("organizations")
+      .select("*")
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("companies")
+      .select("*")
+      .order("created_at", { ascending: false }),
     supabase.from("company_members").select("*", { count: "exact", head: true }),
     supabase
       .from("profiles")
       .select("*", { count: "exact", head: true })
       .eq("is_super_admin", false),
+    supabase
+      .from("companies")
+      .select("*", { count: "exact", head: true })
+      .eq("is_active", true),
+    supabase
+      .from("organizations")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "suspended"),
   ]);
 
   const organizations = (orgs || []) as Organization[];
   const companyRows = (companies || []) as Company[];
+  const orgName = Object.fromEntries(organizations.map((o) => [o.id, o.name]));
   const companyCounts = companyRows.reduce<Record<string, number>>((acc, c) => {
     acc[c.organization_id] = (acc[c.organization_id] || 0) + 1;
     return acc;
   }, {});
 
+  const firstName =
+    profile?.full_name?.trim().split(/\s+/)[0] || "Admin";
+  const hour = new Date().getHours();
+  const greeting =
+    hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+
   return (
-    <div className="animate-rise space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--brand)]">
-            Platform control
+    <div className="animate-rise min-w-0 space-y-4">
+      <div className="action-bar action-bar--split">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-[var(--ink)]">
+            {greeting}, {firstName}
           </p>
-          <h1 className="mt-1 font-[family-name:var(--font-display)] text-3xl font-semibold">
-            Super Admin
-          </h1>
-          <p className="mt-2 text-sm text-[var(--muted)]">
-            Create client logins, single or multi-company tenants, and manage
-            the SaaS platform.
+          <p className="text-xs text-[var(--muted)]">
+            Provision tenants, clients, and companies from one place.
           </p>
         </div>
-        <Link
-          href="/super-admin/provision"
-          className="inline-flex rounded-lg bg-[var(--brand)] px-4 py-2.5 text-sm font-semibold !text-white shadow-sm"
-        >
-          New client setup
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/super-admin/provision"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--brand)] px-3 py-2 text-xs font-semibold !text-white"
+          >
+            <UserPlus className="h-3.5 w-3.5" />
+            New client setup
+          </Link>
+          <Link
+            href="/super-admin/organizations"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-xs font-medium text-[var(--ink)] hover:bg-[var(--surface-2)]"
+          >
+            <Building2 className="h-3.5 w-3.5" />
+            Organizations
+          </Link>
+        </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatTile
+      <StatsGrid fluid>
+        <StatCard
           label="Organizations"
           value={organizations.length}
+          hint={`${suspendedOrgCount || 0} suspended`}
+          icon={Building2}
           href="/super-admin/organizations"
+          tone="brand"
+          format="number"
         />
-        <StatTile
+        <StatCard
           label="Companies"
           value={companyRows.length}
+          hint={`${activeCompanyCount || 0} active`}
+          icon={Boxes}
           href="/super-admin/companies"
+          tone="ok"
+          format="number"
         />
-        <StatTile
+        <StatCard
           label="Clients"
           value={clientCount || 0}
+          hint="Owner logins"
+          icon={Users}
           href="/super-admin/clients"
+          tone="brand"
+          format="number"
         />
-        <StatTile
+        <StatCard
           label="Memberships"
           value={memberCount || 0}
+          hint="Company access rows"
+          icon={ShieldCheck}
           href="/super-admin/clients"
+          tone="neutral"
+          format="number"
         />
-      </div>
+      </StatsGrid>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="panel p-5">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
-              Recent organizations
-            </h2>
+      <div className="grid min-w-0 gap-4 lg:grid-cols-2">
+        <section className="panel overflow-hidden">
+          <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] px-5 py-4">
+            <div>
+              <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
+                Recent organizations
+              </h2>
+              <p className="text-xs text-[var(--muted)]">
+                Latest distributor groups on the platform
+              </p>
+            </div>
             <Link
               href="/super-admin/organizations"
-              className="text-xs font-medium text-[var(--brand)]"
+              className="text-xs font-semibold text-[var(--brand)]"
             >
               View all
             </Link>
           </div>
-          <div className="mt-4 space-y-2">
+          <div className="divide-y divide-[var(--border)]">
             {organizations.slice(0, 6).map((o) => (
               <div
                 key={o.id}
-                className="flex items-center justify-between rounded-xl border border-[var(--border)] px-3 py-3 text-sm"
+                className="flex items-center justify-between gap-3 px-5 py-3.5"
               >
-                <div>
-                  <p className="font-medium">{o.name}</p>
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-[var(--ink)]">
+                    {o.name}
+                  </p>
                   <p className="text-xs text-[var(--muted)]">
-                    {companyCounts[o.id] || 0} companies
+                    {companyCounts[o.id] || 0} compan
+                    {(companyCounts[o.id] || 0) === 1 ? "y" : "ies"}
                   </p>
                 </div>
-                <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold uppercase text-emerald-700">
+                <span
+                  className={
+                    o.status === "active"
+                      ? "rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700"
+                      : "rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-800"
+                  }
+                >
                   {o.status}
                 </span>
               </div>
             ))}
             {!organizations.length ? (
-              <p className="text-sm text-[var(--muted)]">
-                No organizations yet. Use New client setup.
+              <p className="px-5 py-8 text-sm text-[var(--muted)]">
+                No organizations yet. Start with New client setup.
               </p>
             ) : null}
           </div>
-        </div>
+        </section>
 
-        <div className="panel p-5">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
-              Recent companies
-            </h2>
+        <section className="panel overflow-hidden">
+          <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] px-5 py-4">
+            <div>
+              <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
+                Recent companies
+              </h2>
+              <p className="text-xs text-[var(--muted)]">
+                Workspaces ready for client owners
+              </p>
+            </div>
             <Link
               href="/super-admin/companies"
-              className="text-xs font-medium text-[var(--brand)]"
+              className="text-xs font-semibold text-[var(--brand)]"
             >
               View all
             </Link>
           </div>
-          <div className="mt-4 space-y-2">
+          <div className="divide-y divide-[var(--border)]">
             {companyRows.slice(0, 6).map((c) => (
               <div
                 key={c.id}
-                className="rounded-xl border border-[var(--border)] px-3 py-3 text-sm"
+                className="flex items-center justify-between gap-3 px-5 py-3.5"
               >
-                <p className="font-medium">{c.name}</p>
-                <p className="text-xs text-[var(--muted)]">
-                  {[c.code, c.city, c.is_active ? "Active" : "Inactive"]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </p>
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-[var(--ink)]">
+                    {c.name}
+                  </p>
+                  <p className="truncate text-xs text-[var(--muted)]">
+                    {[orgName[c.organization_id], c.city, c.code]
+                      .filter(Boolean)
+                      .join(" · ") || "No details"}
+                  </p>
+                </div>
+                <span
+                  className={
+                    c.is_active
+                      ? "rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700"
+                      : "rounded-full bg-rose-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-rose-700"
+                  }
+                >
+                  {c.is_active ? "Active" : "Inactive"}
+                </span>
               </div>
             ))}
             {!companyRows.length ? (
-              <p className="text-sm text-[var(--muted)]">No companies yet.</p>
+              <p className="px-5 py-8 text-sm text-[var(--muted)]">
+                No companies yet.
+              </p>
             ) : null}
           </div>
-        </div>
+        </section>
       </div>
+
+      <section className="panel p-5">
+        <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
+          Quick actions
+        </h2>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <QuickAction
+            href="/super-admin/provision"
+            title="Provision client"
+            description="Org + companies + owner login in one wizard"
+          />
+          <QuickAction
+            href="/super-admin/clients"
+            title="Manage clients"
+            description="Reset passwords, disable access, attach companies"
+          />
+          <QuickAction
+            href="/super-admin/companies"
+            title="Open company"
+            description="Jump into a tenant workspace as support"
+          />
+        </div>
+      </section>
     </div>
   );
 }
 
-function StatTile({
-  label,
-  value,
+function QuickAction({
   href,
+  title,
+  description,
 }: {
-  label: string;
-  value: number;
   href: string;
+  title: string;
+  description: string;
 }) {
   return (
-    <div className="stat-tile">
-      <p className="text-xs font-semibold uppercase text-[var(--muted)]">
-        {label}
-      </p>
-      <p className="mt-2 text-2xl font-semibold">{value}</p>
-      <Link
-        href={href}
-        className="mt-2 inline-block text-xs font-medium text-[var(--brand)]"
-      >
-        Manage →
-      </Link>
-    </div>
+    <Link
+      href={href}
+      className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 transition hover:border-[var(--brand)] hover:bg-white"
+    >
+      <p className="text-sm font-semibold text-[var(--ink)]">{title}</p>
+      <p className="mt-1 text-xs text-[var(--muted)]">{description}</p>
+    </Link>
   );
 }

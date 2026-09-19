@@ -23,7 +23,7 @@ BEGIN
   INSERT INTO public.organizations (name, status)
   VALUES (
     trim(p_name),
-    CASE WHEN p_status = 'suspended' THEN 'suspended'::public.organization_status ELSE 'active'::public.organization_status END
+    CASE WHEN p_status = 'suspended' THEN 'suspended'::public.org_status ELSE 'active'::public.org_status END
   )
   RETURNING id INTO v_id;
 
