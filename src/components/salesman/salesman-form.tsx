@@ -5,7 +5,7 @@ import { useCreateDialogClose } from "@/components/ui/create-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
-import { createClient } from "@/lib/supabase/client";
+import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
@@ -42,27 +42,36 @@ export function SalesmanForm({
     }
     setLoading(true);
     setError(null);
-    const supabase = createClient();
-    const payload = {
-      organization_id: organizationId,
-      company_id: companyId,
-      full_name: name,
-      phone: phone.trim() || null,
-      code: code.trim() || null,
-      is_active: true,
-      updated_at: new Date().toISOString(),
-    };
-    const { error: saveError } = initial
-      ? await supabase.from("salesmen").update(payload).eq("id", initial.id)
-      : await supabase.from("salesmen").insert(payload);
-    setLoading(false);
-    if (saveError) {
-      setError(saveError.message);
-      return;
+    try {
+      const id =
+        initial?.id ||
+        (typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `sm-${Date.now()}`);
+      await offlineAwareSubmit({
+        mutationType: initial ? "salesman_update" : "salesman_create",
+        companyId,
+        organizationId,
+        payload: {
+          id,
+          organization_id: organizationId,
+          company_id: companyId,
+          full_name: name,
+          name,
+          phone: phone.trim() || null,
+          code: code.trim() || null,
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        },
+      });
+      setLoading(false);
+      closeDialog?.();
+      onDone?.();
+      router.refresh();
+    } catch (err) {
+      setLoading(false);
+      setError(err instanceof Error ? err.message : String(err));
     }
-    closeDialog?.();
-    onDone?.();
-    router.refresh();
   }
 
   return (

@@ -15,7 +15,23 @@ export default async function StockReportPage({
 }) {
   const sp = await searchParams;
   const view = sp.view || "balances";
-  const { supabase, company } = await requireCompanyContext();
+  const ctx = await requireCompanyContext();
+  const { company, offline } = ctx;
+
+  if (offline) {
+    const { OfflineStockReportsPage } = await import(
+      "@/components/offline/offline-stock-reports"
+    );
+    return (
+      <OfflineStockReportsPage
+        companyId={company.id}
+        companyName={company.name}
+        searchParams={sp}
+      />
+    );
+  }
+
+  const { supabase } = ctx;
 
   const [{ data: rows }, { data: movements }, { data: products }, { data: warehouses }] =
     await Promise.all([

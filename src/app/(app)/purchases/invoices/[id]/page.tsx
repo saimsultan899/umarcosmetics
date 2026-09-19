@@ -13,7 +13,20 @@ export default async function PurchaseInvoiceDetailPage({
   const { id } = await params;
   const sp = await searchParams;
   const autoPrint = sp.print === "1" || sp.print === "true";
-  const { supabase, company } = await requireCompanyContext();
+  const { supabase, company, offline } = await requireCompanyContext();
+
+  if (offline) {
+    const { renderOfflineDocument } = await import(
+      "@/lib/offline/render-offline-page"
+    );
+    return renderOfflineDocument(
+      "purchase_invoice",
+      company,
+      id,
+      "/purchases/invoices",
+      autoPrint,
+    );
+  }
 
   const { data: invoice } = await supabase
     .from("purchase_invoices")

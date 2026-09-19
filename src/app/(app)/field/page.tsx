@@ -50,7 +50,18 @@ const actions: Array<{
 ];
 
 export default async function FieldHomePage() {
-  const { supabase, company, user } = await requireCompanyContext();
+  const { supabase, company, user, offline } = await requireCompanyContext();
+  if (offline) {
+    const { OfflineFieldHomePage } = await import(
+      "@/components/offline/offline-field-pages"
+    );
+    return (
+      <OfflineFieldHomePage
+        companyId={company.id}
+        companyName={company.name}
+      />
+    );
+  }
   const today = new Date().toISOString().slice(0, 10);
 
   const [{ data: shops }, { data: recoveries }, { data: sales }] =

@@ -33,8 +33,21 @@ export default async function AccountsReportPage({
   searchParams: Promise<{ view?: string; party?: string }>;
 }) {
   const sp = await searchParams;
-  const { supabase, company } = await requireCompanyContext();
+  const { supabase, company, offline } = await requireCompanyContext();
   const view = sp.view || "receivable";
+
+  if (offline) {
+    const { OfflineAccountsReportsPage } = await import(
+      "@/components/offline/offline-accounts-reports"
+    );
+    return (
+      <OfflineAccountsReportsPage
+        companyId={company.id}
+        companyName={company.name}
+        searchParams={sp}
+      />
+    );
+  }
 
   const { data: sheet } = await supabase.rpc("get_recovery_sheet", {
     p_company_id: company.id,

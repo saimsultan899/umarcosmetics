@@ -6,6 +6,8 @@ import {
   TrendAreaChart,
 } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
+import { OfflineDashboard } from "@/components/dashboard/offline-dashboard";
+import { QuickShortcuts } from "@/components/dashboard/quick-shortcuts";
 import { requireCompanyContext } from "@/lib/auth";
 import {
   compareByDay,
@@ -23,10 +25,21 @@ import {
   Wallet,
 } from "lucide-react";
 import Link from "next/link";
-import { QuickShortcuts } from "@/components/dashboard/quick-shortcuts";
 
 export default async function DashboardPage() {
-  const { supabase, company, profile } = await requireCompanyContext();
+  const ctx = await requireCompanyContext();
+  const { company, profile, offline } = ctx;
+
+  if (offline) {
+    return (
+      <OfflineDashboard
+        companyId={company.id}
+        userName={profile?.full_name}
+      />
+    );
+  }
+
+  const { supabase } = ctx;
   const today = new Date().toISOString().slice(0, 10);
   const from14 = lastNDates(14)[0];
   const firstName =
@@ -34,6 +47,72 @@ export default async function DashboardPage() {
   const hour = new Date().getHours();
   const greeting =
     hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+
+  const cloud = await Promise.race([
+    Promise.all([
+      supabase.rpc("get_dashboard_snapshot", {
+        p_company_id: company.id,
+        p_date: today,
+      }),
+      supabase.rpc("get_recovery_sheet", {
+        p_company_id: company.id,
+        p_as_of: today,
+        p_city: null,
+        p_route: null,
+      }),
+      supabase
+        .from("stock_balances")
+        .select("qty, products(code, name_en, reorder_level), warehouses(name)")
+        .eq("company_id", company.id)
+        .limit(80),
+      supabase
+        .from("sale_invoices")
+        .select("id, invoice_no, invoice_date, grand_total, parties(name_en)")
+        .eq("company_id", company.id)
+        .eq("status", "posted")
+        .order("created_at", { ascending: false })
+        .limit(6),
+      supabase
+        .from("sale_invoices")
+        .select("invoice_date, grand_total, payment_type, city")
+        .eq("company_id", company.id)
+        .eq("status", "posted")
+        .gte("invoice_date", from14),
+      supabase
+        .from("purchase_invoices")
+        .select("invoice_date, grand_total")
+        .eq("company_id", company.id)
+        .eq("status", "posted")
+        .gte("invoice_date", from14),
+      supabase
+        .from("recoveries")
+        .select("recovery_date, amount")
+        .eq("company_id", company.id)
+        .gte("recovery_date", from14),
+      supabase
+        .from("sale_invoices")
+        .select("payment_type, grand_total")
+        .eq("company_id", company.id)
+        .eq("status", "posted")
+        .gte("invoice_date", from14),
+      supabase
+        .from("expenses")
+        .select("expense_date, amount, category")
+        .eq("company_id", company.id)
+        .gte("expense_date", from14),
+    ]),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000)),
+  ]);
+
+  // Network down mid-session: don't leave the page on an infinite skeleton.
+  if (!cloud) {
+    return (
+      <OfflineDashboard
+        companyId={company.id}
+        userName={profile?.full_name}
+      />
+    );
+  }
 
   const [
     { data: snap },
@@ -45,58 +124,7 @@ export default async function DashboardPage() {
     { data: recoveryRows },
     { data: paymentMix },
     { data: expenseRows },
-  ] = await Promise.all([
-    supabase.rpc("get_dashboard_snapshot", {
-      p_company_id: company.id,
-      p_date: today,
-    }),
-    supabase.rpc("get_recovery_sheet", {
-      p_company_id: company.id,
-      p_as_of: today,
-      p_city: null,
-      p_route: null,
-    }),
-    supabase
-      .from("stock_balances")
-      .select("qty, products(code, name_en, reorder_level), warehouses(name)")
-      .eq("company_id", company.id)
-      .limit(80),
-    supabase
-      .from("sale_invoices")
-      .select("id, invoice_no, invoice_date, grand_total, parties(name_en)")
-      .eq("company_id", company.id)
-      .eq("status", "posted")
-      .order("created_at", { ascending: false })
-      .limit(6),
-    supabase
-      .from("sale_invoices")
-      .select("invoice_date, grand_total, payment_type, city")
-      .eq("company_id", company.id)
-      .eq("status", "posted")
-      .gte("invoice_date", from14),
-    supabase
-      .from("purchase_invoices")
-      .select("invoice_date, grand_total")
-      .eq("company_id", company.id)
-      .eq("status", "posted")
-      .gte("invoice_date", from14),
-    supabase
-      .from("recoveries")
-      .select("recovery_date, amount")
-      .eq("company_id", company.id)
-      .gte("recovery_date", from14),
-    supabase
-      .from("sale_invoices")
-      .select("payment_type, grand_total")
-      .eq("company_id", company.id)
-      .eq("status", "posted")
-      .gte("invoice_date", from14),
-    supabase
-      .from("expenses")
-      .select("expense_date, amount, category")
-      .eq("company_id", company.id)
-      .gte("expense_date", from14),
-  ]);
+  ] = cloud;
 
   const s = (snap || {}) as Record<string, number>;
   const debtors = ((topDebtors || []) as Array<{

@@ -1,6 +1,7 @@
 "use client";
 
 import { DetailField, RowActions } from "@/components/ui/row-actions";
+import { deleteCachedRow, type CacheStoreName } from "@/lib/offline/local-db";
 import { createClient } from "@/lib/supabase/client";
 
 export function DocumentRowActions({
@@ -25,16 +26,28 @@ export function DocumentRowActions({
   showPrint?: boolean;
 }) {
   async function remove() {
-    const supabase = createClient();
-    if (linesTable && linesFk) {
-      const { error: linesError } = await supabase
-        .from(linesTable)
-        .delete()
-        .eq(linesFk, id);
-      if (linesError) throw new Error(linesError.message);
+    try {
+      const supabase = createClient();
+      if (linesTable && linesFk) {
+        const { error: linesError } = await supabase
+          .from(linesTable)
+          .delete()
+          .eq(linesFk, id);
+        if (linesError) throw new Error(linesError.message);
+      }
+      const { error } = await supabase.from(table).delete().eq("id", id);
+      if (error) throw new Error(error.message);
+    } catch (err) {
+      if (typeof window !== "undefined" && !navigator.onLine) {
+        try {
+          await deleteCachedRow(table as CacheStoreName, id);
+        } catch {
+          // Ignore cache deletion failure
+        }
+        return;
+      }
+      throw err;
     }
-    const { error } = await supabase.from(table).delete().eq("id", id);
-    if (error) throw new Error(error.message);
   }
 
   return (

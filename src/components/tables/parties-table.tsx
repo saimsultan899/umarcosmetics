@@ -18,6 +18,9 @@ import { createClient } from "@/lib/supabase/client";
 import type { PaginationMeta } from "@/lib/pagination";
 import type { Party, PartyType } from "@/lib/types/database";
 import { amountClass, formatPkr } from "@/lib/utils";
+import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
+import { putCachedRow } from "@/lib/offline/local-db";
+import { hasLocalSqlite, localUpsertMaster } from "@/lib/offline/sqlite-client";
 import { Building2, Store, Truck, Users } from "lucide-react";
 import Link from "next/link";
 
@@ -84,12 +87,25 @@ export function PartiesTable({
       : "all")) as SubFilter;
 
   async function deactivate(id: string) {
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("parties")
-      .update({ is_active: false })
-      .eq("id", id);
-    if (error) throw new Error(error.message);
+    const party = parties.find((p) => p.id === id);
+    const payload = party
+      ? { ...party, is_active: false }
+      : { id, is_active: false, company_id: companyId };
+    try {
+      await offlineAwareSubmit({
+        mutationType: "party_update",
+        companyId,
+        organizationId,
+        cacheStore: "parties",
+        cacheRecord: payload,
+        payload,
+      });
+    } catch {
+      if (hasLocalSqlite() && party) {
+        await localUpsertMaster("parties", { ...party, is_active: false }).catch(() => {});
+      }
+      await putCachedRow("parties", companyId, payload).catch(() => {});
+    }
   }
 
   const isLedger = stats.mode === "ledger";

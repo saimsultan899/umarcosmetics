@@ -1,6 +1,10 @@
+import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { getVerifiedAuthUser } from "@/lib/supabase/session";
-import { NextResponse, type NextRequest } from "next/server";
+import {
+  OFFLINE_OK_COOKIE,
+  OFFLINE_SHELL_COOKIE,
+} from "@/lib/offline/offline-shell";
 
 function hasAuthCookie(request: NextRequest) {
   return request.cookies
@@ -13,6 +17,14 @@ function hasAuthCookie(request: NextRequest) {
     );
 }
 
+function hasOfflineBypass(request: NextRequest) {
+  return request.cookies.get(OFFLINE_OK_COOKIE)?.value === "1";
+}
+
+function hasOfflineShell(request: NextRequest) {
+  return Boolean(request.cookies.get(OFFLINE_SHELL_COOKIE)?.value);
+}
+
 function loginRedirect(request: NextRequest) {
   const url = request.nextUrl.clone();
   url.pathname = "/login";
@@ -21,13 +33,10 @@ function loginRedirect(request: NextRequest) {
 }
 
 /**
- * High-performance session gate for Next.js Proxy (middleware).
+ * Session gate for Next.js Proxy.
  *
- * Strategy (Supabase-recommended for SSR):
- * 1. No auth cookies on protected routes → redirect instantly (0 network).
- * 2. Auth cookies present → `getClaims()` verifies JWT via WebCrypto + cached
- *    JWKS (usually local). Refresh only when the access token is near expiry.
- * 3. Never call `getUser()` here — that hits the Auth API every request (~100ms–10s).
+ * Offline desktop: `umar-offline-ok` + shell snapshot cookie is enough to
+ * enter the app without Supabase auth cookies / JWT refresh.
  */
 export async function updateSession(request: NextRequest) {
   const path = request.nextUrl.pathname;
@@ -40,10 +49,22 @@ export async function updateSession(request: NextRequest) {
     isAuthRoute || path.startsWith("/setup") || path.startsWith("/join");
 
   const cookiesPresent = hasAuthCookie(request);
+  const offlineOk = hasOfflineBypass(request);
+  const shellPresent = hasOfflineShell(request);
+
+  // Offline unlock: shell snapshot is the local session (no sb-* cookies required).
+  if (!isPublic && offlineOk && shellPresent) {
+    return NextResponse.next({ request });
+  }
 
   // Fast reject: unauthenticated visitors never touch Supabase.
   if (!isPublic && !cookiesPresent) {
     return loginRedirect(request);
+  }
+
+  // Offline + leftover auth cookies: skip Auth API.
+  if (!isPublic && cookiesPresent && offlineOk) {
+    return NextResponse.next({ request });
   }
 
   // Public page, no session cookie — skip client create & verification entirely.
@@ -74,13 +95,22 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  // Local JWT verify (+ proactive refresh near expiry). Returns null if invalid.
-  const user = await getVerifiedAuthUser(supabase);
+  let user = null;
+  try {
+    user = await Promise.race([
+      getVerifiedAuthUser(supabase),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
+    ]);
+  } catch {
+    user = null;
+  }
 
   if (!user && !isPublic) {
+    if (offlineOk && (cookiesPresent || shellPresent)) {
+      return NextResponse.next({ request });
+    }
     return loginRedirect(request);
   }
 
-  // Signed-in users may stay on /login for company picking after sign-in.
   return supabaseResponse;
 }

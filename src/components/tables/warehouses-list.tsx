@@ -3,6 +3,9 @@
 import { WarehouseForm } from "@/components/forms/warehouse-form";
 import { DetailField, RowActions } from "@/components/ui/row-actions";
 import { formatNumber, formatPkr } from "@/lib/utils";
+import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
+import { putCachedRow } from "@/lib/offline/local-db";
+import { hasLocalSqlite, localUpsertMaster } from "@/lib/offline/sqlite-client";
 import { createClient } from "@/lib/supabase/client";
 import type { Warehouse } from "@/lib/types/database";
 import Link from "next/link";
@@ -49,12 +52,25 @@ export function WarehousesList({
   statsByWarehouse?: Record<string, WarehouseListStats>;
 }) {
   async function deactivate(id: string) {
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("warehouses")
-      .update({ is_active: false })
-      .eq("id", id);
-    if (error) throw new Error(error.message);
+    const warehouse = warehouses.find((w) => w.id === id);
+    const payload = warehouse
+      ? { ...warehouse, is_active: false }
+      : { id, is_active: false, company_id: companyId };
+    try {
+      await offlineAwareSubmit({
+        mutationType: "warehouse_update",
+        companyId,
+        organizationId,
+        cacheStore: "warehouses",
+        cacheRecord: payload,
+        payload,
+      });
+    } catch {
+      if (hasLocalSqlite() && warehouse) {
+        await localUpsertMaster("warehouses", { ...warehouse, is_active: false }).catch(() => {});
+      }
+      await putCachedRow("warehouses", companyId, payload).catch(() => {});
+    }
   }
 
   if (!warehouses.length) {

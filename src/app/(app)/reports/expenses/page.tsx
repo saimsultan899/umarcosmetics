@@ -32,9 +32,25 @@ export default async function ExpenseReportPage({
   }>;
 }) {
   const sp = await searchParams;
-  const { supabase, company } = await requireCompanyContext();
+  const ctx = await requireCompanyContext();
+  const { company, offline } = ctx;
   const from = sp.from || monthStart();
   const to = sp.to || today();
+
+  if (offline) {
+    const { OfflineExpenseReportsPage } = await import(
+      "@/components/offline/offline-expense-reports"
+    );
+    return (
+      <OfflineExpenseReportsPage
+        companyId={company.id}
+        companyName={company.name}
+        searchParams={sp}
+      />
+    );
+  }
+
+  const { supabase } = ctx;
   const categories = parseReportList(sp.category);
   const salesmanIds = parseReportList(sp.salesman);
 

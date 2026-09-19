@@ -4,8 +4,8 @@
   "description": "Multi-company distribution, accounts, inventory, salesman & recovery for Pakistan distributors.",
   "start_url": "/dashboard",
   "display": "standalone",
-  "background_color": "#f4f7f6",
-  "theme_color": "#0f766e",
+  "background_color": "#f4f6f8",
+  "theme_color": "#d65a42",
   "orientation": "any",
   "icons": [
     {

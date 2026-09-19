@@ -3,7 +3,19 @@ import { requireCompanyContext } from "@/lib/auth";
 import type { Product, Warehouse } from "@/lib/types/database";
 
 export default async function FieldSalePage() {
-  const { supabase, company } = await requireCompanyContext();
+  const ctx = await requireCompanyContext();
+  const { supabase, company, offline } = ctx;
+  if (offline) {
+    const { OfflineFieldSalePage } = await import(
+      "@/components/offline/offline-field-pages"
+    );
+    return (
+      <OfflineFieldSalePage
+        companyId={company.id}
+        organizationId={company.organization_id}
+      />
+    );
+  }
 
   const [{ data: shops }, { data: products }, { data: warehouses }] =
     await Promise.all([

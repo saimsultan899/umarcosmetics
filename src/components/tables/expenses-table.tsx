@@ -9,6 +9,7 @@ import { useSearchInput, useUrlTableState } from "@/hooks/use-url-table-state";
 import type { ExpenseRow } from "@/lib/queries/expenses";
 import type { PaginationMeta } from "@/lib/pagination";
 import { createClient } from "@/lib/supabase/client";
+import { deleteCachedRow } from "@/lib/offline/local-db";
 import { formatPkr } from "@/lib/utils";
 
 export function ExpensesTable({
@@ -22,9 +23,21 @@ export function ExpensesTable({
   const search = useSearchInput(q, setQuery);
 
   async function remove(id: string) {
-    const supabase = createClient();
-    const { error } = await supabase.rpc("delete_expense", { p_id: id });
-    if (error) throw new Error(error.message);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.rpc("delete_expense", { p_id: id });
+      if (error) throw new Error(error.message);
+    } catch (err) {
+      if (typeof window !== "undefined" && !navigator.onLine) {
+        try {
+          await deleteCachedRow("expenses", id);
+        } catch {
+          // Ignore cache deletion failure
+        }
+        return;
+      }
+      throw err;
+    }
   }
 
   return (

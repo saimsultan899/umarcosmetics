@@ -1,12 +1,7 @@
-import { VouchersTable } from "@/components/tables/vouchers-table";
-import {
-  CreateDialogButton,
-  PageHeading,
-} from "@/components/ui/create-dialog";
+import { VouchersView } from "@/components/vouchers/vouchers-view";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
-import { CashVoucherForm } from "@/components/vouchers/voucher-lines-form";
 import { requireCompanyContext } from "@/lib/auth";
-import { fetchVoucherList } from "@/lib/queries/vouchers";
+import { fetchVoucherList, type VoucherListResult } from "@/lib/queries/vouchers";
 import type { Party } from "@/lib/types/database";
 import { Suspense } from "react";
 
@@ -16,48 +11,33 @@ export default async function CashPaymentPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
-  const { supabase, company } = await requireCompanyContext();
+  const { supabase, company, offline } = await requireCompanyContext();
 
-  const [{ data: parties }, list] = await Promise.all([
-    supabase
-      .from("parties")
-      .select("*")
-      .eq("company_id", company.id)
-      .eq("is_active", true)
-      .order("name_en"),
-    fetchVoucherList(supabase, company.id, sp, "CP"),
-  ]);
+  let initialData: VoucherListResult | null = null;
+  let initialParties: Party[] = [];
+
+  if (!offline) {
+    try {
+      const [{ data: parties }, list] = await Promise.all([
+        supabase.from("parties").select("*").eq("company_id", company.id).eq("is_active", true).order("name_en"),
+        fetchVoucherList(supabase, company.id, sp, "CP"),
+      ]);
+      initialParties = (parties as Party[]) || [];
+      initialData = list;
+    } catch {
+      initialData = null;
+    }
+  }
 
   return (
-    <div className="animate-rise space-y-6">
-      <PageHeading
-        title="Cash Payment"
-        description="Record money paid to vendors / accounts"
-        actions={
-          <CreateDialogButton
-            label="New payment"
-            title="New cash payment"
-            description="Post money paid against vendors / accounts"
-            size="xl"
-          >
-            <CashVoucherForm
-              kind="CP"
-              companyId={company.id}
-              organizationId={company.organization_id}
-              parties={(parties || []) as Party[]}
-            />
-          </CreateDialogButton>
-        }
+    <Suspense fallback={<PageSkeleton />}>
+      <VouchersView
+        company={company}
+        kind="CP"
+        initialData={initialData}
+        initialParties={initialParties}
+        initialOffline={offline}
       />
-
-      <Suspense fallback={<PageSkeleton />}>
-        <VouchersTable
-          vouchers={list.vouchers}
-          pagination={list.pagination}
-          emptyLabel="No cash payments yet."
-          detailBasePath="/vouchers/cash-payment"
-        />
-      </Suspense>
-    </div>
+    </Suspense>
   );
 }

@@ -1,8 +1,6 @@
-import { PrintDocument } from "@/components/trading/print-document";
+import { ExpiryStockItemView } from "@/components/expiry/expiry-stock-item-view";
 import { requireCompanyContext } from "@/lib/auth";
-import { fetchExpiryStock } from "@/lib/queries/expiry";
-import { formatPkr } from "@/lib/utils";
-import { notFound } from "next/navigation";
+import { fetchExpiryStock, type ExpiryStockRow } from "@/lib/queries/expiry";
 
 export default async function ExpiryStockPrintPage({
   params,
@@ -14,33 +12,25 @@ export default async function ExpiryStockPrintPage({
   const { productId } = await params;
   const sp = await searchParams;
   const autoPrint = sp.print === "1" || sp.print === "true";
-  const { supabase, company } = await requireCompanyContext();
+  const { supabase, company, offline } = await requireCompanyContext();
 
-  const stock = await fetchExpiryStock(supabase, company.id);
-  const row = stock.find((r) => r.product_id === productId);
-  if (!row) notFound();
+  let initialRow: ExpiryStockRow | null = null;
 
-  const today = new Date().toISOString().slice(0, 10);
+  if (!offline) {
+    try {
+      const stock = await fetchExpiryStock(supabase, company.id);
+      initialRow = stock.find((r) => r.product_id === productId) || null;
+    } catch {
+      initialRow = null;
+    }
+  }
 
   return (
-    <PrintDocument
-      companyName={company.name}
-      companyAddress={[company.address, company.city].filter(Boolean).join(", ")}
-      title="Expiry Warehouse — On-hand"
-      docNo={row.product_code}
-      date={today}
-      printedAt={new Date().toISOString()}
-      extraMeta={[{ label: "Item", value: row.product_name }]}
-      lines={[
-        {
-          product_code: row.product_code,
-          product_name: row.product_name,
-          qty: row.qty,
-          rate: row.rate,
-          amount: row.amount,
-        },
-      ]}
-      totals={[{ label: "Value", value: formatPkr(row.amount), strong: true }]}
+    <ExpiryStockItemView
+      company={company}
+      productId={productId}
+      initialRow={initialRow}
+      initialOffline={offline}
       autoPrint={autoPrint}
     />
   );

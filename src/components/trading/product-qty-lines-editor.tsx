@@ -8,7 +8,9 @@ import { focusField } from "@/lib/keyboard/enter-nav";
 import type { Product } from "@/lib/types/database";
 import { Trash2 } from "lucide-react";
 import {
+  forwardRef,
   useEffect,
+  useImperativeHandle,
   useMemo,
   useRef,
   useState,
@@ -21,6 +23,11 @@ export type ProductQtyLine = {
   product_code: string;
   product_name: string;
   qty: string;
+};
+
+export type ProductQtyLinesEditorHandle = {
+  /** Commit the sticky draft row (if any) and return all lines for submit. */
+  flush: () => ProductQtyLine[];
 };
 
 export function emptyProductQtyLine(): ProductQtyLine {
@@ -38,17 +45,18 @@ export function emptyProductQtyLine(): ProductQtyLine {
  * Enter advances fields; Enter on qty commits the line and returns to code.
  * Qty supports PCS / CTN toggle when product packing > 1.
  */
-export function ProductQtyLinesEditor({
-  products,
-  lines,
-  onChange,
-  autoFocus = true,
-}: {
-  products: Product[];
-  lines: ProductQtyLine[];
-  onChange: (lines: ProductQtyLine[]) => void;
-  autoFocus?: boolean;
-}) {
+export const ProductQtyLinesEditor = forwardRef<
+  ProductQtyLinesEditorHandle,
+  {
+    products: Product[];
+    lines: ProductQtyLine[];
+    onChange: (lines: ProductQtyLine[]) => void;
+    autoFocus?: boolean;
+  }
+>(function ProductQtyLinesEditor(
+  { products, lines, onChange, autoFocus = true },
+  ref,
+) {
   const [draft, setDraft] = useState<ProductQtyLine>(emptyProductQtyLine);
   const [hint, setHint] = useState<string | null>(null);
   const [productOpen, setProductOpen] = useState(false);
@@ -148,12 +156,14 @@ export function ProductQtyLinesEditor({
     setProductOpen(false);
   }
 
-  function commitDraft() {
+  function commitDraft(opts?: { silent?: boolean }) {
     const current = draftRef.current;
     if (!current.product_id || Number(current.qty) <= 0) {
-      setHint("Select a product and enter qty");
-      focusField(codeRef.current);
-      return;
+      if (!opts?.silent) {
+        setHint("Select a product and enter qty");
+        focusField(codeRef.current);
+      }
+      return false;
     }
     const committed: ProductQtyLine = {
       ...current,
@@ -163,8 +173,20 @@ export function ProductQtyLinesEditor({
     linesRef.current = next;
     onChange(next);
     resetDraft();
-    requestAnimationFrame(() => focusField(codeRef.current));
+    if (!opts?.silent) {
+      requestAnimationFrame(() => focusField(codeRef.current));
+    }
+    return true;
   }
+
+  useImperativeHandle(ref, () => ({
+    flush() {
+      commitDraft({ silent: true });
+      return linesRef.current.filter(
+        (l) => l.product_id && Number(l.qty) > 0,
+      );
+    },
+  }));
 
   function onCodeEnter(e: ReactKeyboardEvent<HTMLInputElement>) {
     if (e.key !== "Enter") return;
@@ -327,4 +349,4 @@ export function ProductQtyLinesEditor({
       </div>
     </div>
   );
-}
+});

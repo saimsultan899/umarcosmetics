@@ -77,6 +77,7 @@ export function CompanyAdminForm({
         p_phone: phone.trim() || null,
         p_ntn: ntn.trim() || null,
         p_default_warehouse: warehouse.trim() || "MAIN",
+        p_attach_caller: false,
       });
       setLoading(false);
       if (rpcError) {
@@ -166,8 +167,9 @@ export function CompanyAdminForm({
       </div>
       {!initial ? (
         <p className="text-xs text-[var(--muted)]">
-          Creates the company, adds you as org admin, and seeds the default
-          stock company so the dashboard is ready.
+          Creates the company and default warehouse. Attach a client login from
+          Clients or the New client wizard — you keep platform access via Super
+          Admin.
         </p>
       ) : null}
       {error ? (

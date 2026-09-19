@@ -53,9 +53,26 @@ export default async function RecoverySheetPage({
   }>;
 }) {
   const sp = await searchParams;
-  const { supabase, company } = await requireCompanyContext();
+  const ctx = await requireCompanyContext();
+  const { company, offline } = ctx;
   const to = sp.to || today();
   const from = sp.from || monthStart();
+
+  if (offline) {
+    const { OfflineRecoverySheetPage } = await import(
+      "@/components/offline/offline-recovery-sheet"
+    );
+    return (
+      <OfflineRecoverySheetPage
+        companyId={company.id}
+        companyName={company.name}
+        organizationId={company.organization_id}
+        searchParams={sp}
+      />
+    );
+  }
+
+  const { supabase } = ctx;
   const sectors = parseReportList(sp.sector);
   const partyIds = parseReportList(sp.party);
   const scopeToken = sp.scope || "all";

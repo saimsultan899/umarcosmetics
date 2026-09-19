@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { enqueueMutation } from "@/lib/offline/db";
+import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { resolveProductRate } from "@/lib/product-rate";
 import { computeLineScheme } from "@/lib/pricing/discounts";
 import { createClient } from "@/lib/supabase/client";
@@ -168,28 +168,32 @@ export function FieldSaleForm({
 
     setLoading(true);
     try {
-      if (!online) {
-        await enqueueMutation({ companyId, type: "sale_invoice", payload });
-        await refreshPending();
-        setMessage("Sale saved offline. Sync later to post stock & ledger.");
+      const stockChanges = [
+        {
+          productId: product.id,
+          warehouseId,
+          delta: -(Number(qty) + Number(bonus || 0)),
+        },
+      ];
+
+      const res = await offlineAwareSubmit({
+        mutationType: "sale_invoice",
+        companyId,
+        organizationId,
+        stockChanges,
+        payload,
+      });
+
+      await refreshPending();
+      if (res.source === "offline") {
+        setMessage("Sale saved offline. Will sync when online.");
       } else {
-        const supabase = createClient();
-        const { error: rpcError } = await supabase.rpc("create_sale_invoice", {
-          p_payload: payload,
-        });
-        if (rpcError) throw new Error(rpcError.message);
         setMessage("Sale posted to main dashboard.");
         await runSync();
       }
       setQty("1");
-    } catch (err) {
-      if (online) {
-        await enqueueMutation({ companyId, type: "sale_invoice", payload });
-        await refreshPending();
-        setMessage("Network issue — sale queued offline.");
-      } else {
-        setError(err instanceof Error ? err.message : "Failed");
-      }
+    } catch (err: any) {
+      setError(err?.message || String(err));
     } finally {
       setLoading(false);
     }

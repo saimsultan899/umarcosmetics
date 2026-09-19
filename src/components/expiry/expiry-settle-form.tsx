@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
+import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { createClient } from "@/lib/supabase/client";
 import { formatNumber, formatPkr } from "@/lib/utils";
 import { useRouter } from "next/navigation";
@@ -67,29 +68,33 @@ export function ExpirySettleForm({
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const supabase = createClient();
-    const { error: rpcError } = await supabase.rpc("settle_expiry_claim", {
-      p_payload: {
-        organization_id: organizationId,
-        company_id: companyId,
-        claim_id: claimId,
-        settlement_date: settlementDate,
-        narration,
-        items: resolved.map((l) => ({
-          claim_item_id: l.id,
-          accepted_qty: l.acc,
-          rejected_qty: l.rej,
-          accepted_amount: l.accAmt,
-          rejected_amount: l.rejAmt,
-        })),
-      },
-    });
-    setLoading(false);
-    if (rpcError) {
-      setError(rpcError.message);
-      return;
+    try {
+      await offlineAwareSubmit({
+        mutationType: "expiry_settle",
+        companyId,
+        organizationId,
+        payload: {
+          organization_id: organizationId,
+          company_id: companyId,
+          claim_id: claimId,
+          settlement_date: settlementDate,
+          narration,
+          items: resolved.map((l) => ({
+            claim_item_id: l.id,
+            accepted_qty: l.acc,
+            rejected_qty: l.rej,
+            accepted_amount: l.accAmt,
+            rejected_amount: l.rejAmt,
+          })),
+        },
+      });
+
+      setLoading(false);
+      router.refresh();
+    } catch (err: any) {
+      setLoading(false);
+      setError(err?.message || String(err));
     }
-    router.refresh();
   }
 
   return (

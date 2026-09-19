@@ -7,6 +7,7 @@ import { useCreateDialogClose } from "@/components/ui/create-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { focusField, handleEnterAsNext } from "@/lib/keyboard/enter-nav";
+import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { createClient } from "@/lib/supabase/client";
 import type { Party } from "@/lib/types/database";
 import type { SalesmanOption } from "@/lib/queries/salesmen";
@@ -73,13 +74,28 @@ export function RecoveryForm({
         setBalance(null);
         return;
       }
-      const supabase = createClient();
-      const { data } = await supabase.rpc("get_party_balance", {
-        p_company_id: companyId,
-        p_party_id: id,
-        p_as_of: date,
-      });
-      if (!cancelled) setBalance(data == null ? null : Number(data));
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        setBalance(null);
+        return;
+      }
+      try {
+        const supabase = createClient();
+        const result = await Promise.race([
+          supabase.rpc("get_party_balance", {
+            p_company_id: companyId,
+            p_party_id: id,
+            p_as_of: date,
+          }),
+          new Promise<null>((r) => setTimeout(() => r(null), 3000)),
+        ]);
+        const data =
+          result && typeof result === "object" && "data" in result
+            ? (result as { data: unknown }).data
+            : null;
+        if (!cancelled) setBalance(data == null ? null : Number(data));
+      } catch {
+        if (!cancelled) setBalance(null);
+      }
     }
     void loadBalance(partyId);
     return () => {
@@ -176,29 +192,32 @@ export function RecoveryForm({
     }
 
     setLoading(true);
-    const supabase = createClient();
     const failedKeys = new Set<string>();
     const failedMsgs: string[] = [];
 
     for (const line of pending) {
       const lineParty = parties.find((p) => p.id === line.partyId);
-      const { error: rpcError } = await supabase.rpc("record_recovery", {
-        p_payload: {
-          organization_id: organizationId,
-          company_id: companyId,
-          party_id: line.partyId,
-          recovery_date: date,
-          amount: line.amount,
-          remarks: line.remarks,
-          salesman_id: salesmanId || null,
-          route: lineParty?.route || null,
-          city: lineParty?.city || null,
-        },
-      });
-      if (rpcError) {
+      try {
+        await offlineAwareSubmit({
+          mutationType: "recovery",
+          companyId,
+          organizationId,
+          payload: {
+            organization_id: organizationId,
+            company_id: companyId,
+            party_id: line.partyId,
+            recovery_date: date,
+            amount: line.amount,
+            remarks: line.remarks,
+            salesman_id: salesmanId || null,
+            route: lineParty?.route || null,
+            city: lineParty?.city || null,
+          },
+        });
+      } catch (err: any) {
         failedKeys.add(line.key);
         failedMsgs.push(
-          `${line.partyCode} — ${line.partyName}: ${rpcError.message}`,
+          `${line.partyCode} — ${line.partyName}: ${err?.message || String(err)}`,
         );
       }
     }

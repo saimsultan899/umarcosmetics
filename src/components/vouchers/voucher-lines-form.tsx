@@ -2,9 +2,11 @@
 
 import { PartyCodeCell } from "@/components/forms/party-code-cell";
 import { Button } from "@/components/ui/button";
+import { useCreateDialogClose } from "@/components/ui/create-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
+import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { createClient } from "@/lib/supabase/client";
 import type { Party } from "@/lib/types/database";
 import { formatPkr } from "@/lib/utils";
@@ -28,13 +30,16 @@ export function CashVoucherForm({
   companyId,
   organizationId,
   parties,
+  onDone,
 }: {
   kind: "CR" | "CP";
   companyId: string;
   organizationId: string;
   parties: Party[];
+  onDone?: () => void;
 }) {
   const router = useRouter();
+  const closeDialog = useCreateDialogClose();
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [narration, setNarration] = useState("");
   const [lines, setLines] = useState<Line[]>([emptyLine()]);
@@ -53,28 +58,38 @@ export function CashVoucherForm({
     }
 
     setLoading(true);
-    const supabase = createClient();
-    const rpc = kind === "CR" ? "create_cash_receipt" : "create_cash_payment";
-    const { data, error: rpcError } = await supabase.rpc(rpc, {
-      p_payload: {
-        organization_id: organizationId,
-        company_id: companyId,
-        voucher_date: date,
-        narration,
-        lines: valid.map((l) => ({
-          party_id: l.party_id,
-          amount: Number(l.amount),
-          narration: l.narration || null,
-        })),
-      },
-    });
-    setLoading(false);
-    if (rpcError) {
-      setError(rpcError.message);
-      return;
+    try {
+      const res = await offlineAwareSubmit({
+        mutationType: kind === "CR" ? "cash_receipt" : "cash_payment",
+        companyId,
+        organizationId,
+        payload: {
+          organization_id: organizationId,
+          company_id: companyId,
+          voucher_date: date,
+          narration,
+          lines: valid.map((l) => ({
+            party_id: l.party_id,
+            amount: Number(l.amount),
+            narration: l.narration || null,
+          })),
+        },
+      });
+
+      setLoading(false);
+      closeDialog?.();
+      onDone?.();
+      const slug = kind === "CR" ? "cash-receipt" : "cash-payment";
+      if (res.source === "offline") {
+        router.refresh();
+      } else {
+        router.push(`/vouchers/${slug}/${res.id}`);
+        router.refresh();
+      }
+    } catch (err: any) {
+      setLoading(false);
+      setError(err?.message || String(err));
     }
-    router.push(`/vouchers/${kind === "CR" ? "cash-receipt" : "cash-payment"}/${data}`);
-    router.refresh();
   }
 
   return (

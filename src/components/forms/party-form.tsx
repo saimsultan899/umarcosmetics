@@ -13,6 +13,7 @@ import {
   headFromCity,
   mergeLocationOptions,
 } from "@/lib/locations";
+import { offlineAwareSubmit, allocateNextPartyCode } from "@/lib/offline/offline-submit";
 import { createClient } from "@/lib/supabase/client";
 import type { Party, PartySubtype, PartyType, SaleChannel } from "@/lib/types/database";
 import { useRouter } from "next/navigation";
@@ -41,28 +42,29 @@ export function PartyForm({
   companyId,
   organizationId,
   initial,
+  onDone,
   cityOptions = [],
   sectorOptions = [],
   defaultSubtype,
   defaultPartyType,
-  onDone,
 }: {
   companyId: string;
   organizationId: string;
   initial?: Party | null;
+  onDone?: () => void;
   cityOptions?: string[];
   sectorOptions?: string[];
   /** Pre-select subtype when adding from Customers / Vendors views. */
   defaultSubtype?: PartySubtype;
   /** Pre-select ledger type when adding from Chart of Accounts. */
   defaultPartyType?: PartyType;
-  onDone?: () => void;
 }) {
   const router = useRouter();
   const closeDialog = useCreateDialogClose();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [autoCode, setAutoCode] = useState(!initial);
+
   const [form, setForm] = useState<PartyFormState>({
     party_code: initial?.party_code || "",
     name_en: initial?.name_en || "",
@@ -93,13 +95,42 @@ export function PartyForm({
     if (initial) return;
     let cancelled = false;
     (async () => {
-      const supabase = createClient();
-      const { data } = await supabase.rpc("peek_next_party_code", {
-        p_company_id: companyId,
-      });
-      if (!cancelled && data) {
-        setForm((f) => ({ ...f, party_code: String(data) }));
-        setAutoCode(true);
+      try {
+        if (typeof navigator !== "undefined" && !navigator.onLine) {
+          const code = await allocateNextPartyCode(companyId);
+          if (!cancelled) {
+            setForm((f) => ({ ...f, party_code: f.party_code || code }));
+            setAutoCode(true);
+          }
+          return;
+        }
+        const supabase = createClient();
+        const result = await Promise.race([
+          supabase.rpc("peek_next_party_code", { p_company_id: companyId }),
+          new Promise<null>((r) => setTimeout(() => r(null), 3000)),
+        ]);
+        const data =
+          result && typeof result === "object" && "data" in result
+            ? (result as { data: unknown }).data
+            : null;
+        if (!cancelled && data) {
+          setForm((f) => ({ ...f, party_code: String(data) }));
+          setAutoCode(true);
+        } else if (!cancelled) {
+          const code = await allocateNextPartyCode(companyId);
+          if (!cancelled) {
+            setForm((f) => ({ ...f, party_code: f.party_code || code }));
+            setAutoCode(true);
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          const code = await allocateNextPartyCode(companyId);
+          if (!cancelled) {
+            setForm((f) => ({ ...f, party_code: f.party_code || code }));
+            setAutoCode(true);
+          }
+        }
       }
     })();
     return () => {
@@ -144,30 +175,30 @@ export function PartyForm({
     const supabase = createClient();
 
     let partyCode = form.party_code.trim();
-    if (!initial && autoCode) {
-      const { data: allocated, error: allocError } = await supabase.rpc(
-        "next_party_code",
-        { p_company_id: companyId },
-      );
-      if (allocError) {
-        setLoading(false);
-        setError(allocError.message);
-        return;
+    if (!initial && autoCode && !partyCode) {
+      try {
+        const { data: allocated } = await supabase.rpc(
+          "next_party_code",
+          { p_company_id: companyId },
+        );
+        if (allocated) {
+          partyCode = String(allocated);
+          setForm((f) => ({ ...f, party_code: partyCode }));
+        }
+      } catch {
+        partyCode = await allocateNextPartyCode(companyId);
+        setForm((f) => ({ ...f, party_code: partyCode }));
       }
-      partyCode = String(allocated);
-      setForm((f) => ({ ...f, party_code: partyCode }));
     }
 
     if (!partyCode) {
-      setLoading(false);
-      setError("Code is required.");
-      return;
+      partyCode = await allocateNextPartyCode(companyId);
     }
 
     const city = form.city.trim() || null;
     const head = headFromCity(city);
     const route = form.route.trim() || null;
-    const payload = {
+    const payload: Record<string, unknown> = {
       organization_id: organizationId,
       company_id: companyId,
       party_code: partyCode,
@@ -189,36 +220,46 @@ export function PartyForm({
       is_active: true,
     };
 
-    const query = initial
-      ? supabase.from("parties").update(payload).eq("id", initial.id)
-      : supabase.from("parties").insert(payload);
-
-    const { error: saveError } = await query;
-    if (saveError) {
-      setLoading(false);
-      setError(saveError.message);
-      return;
+    if (initial) {
+      payload.id = initial.id;
     }
 
-    const remember = [
-      city ? { kind: "city" as const, name: city } : null,
-      head ? { kind: "head" as const, name: head } : null,
-      route ? { kind: "sector" as const, name: route } : null,
-    ].filter(Boolean) as Array<{ kind: "city" | "head" | "sector"; name: string }>;
-    for (const row of remember) {
-      await supabase.from("company_locations").insert({
-        organization_id: organizationId,
-        company_id: companyId,
-        kind: row.kind,
-        name: row.name,
+    try {
+      await offlineAwareSubmit({
+        mutationType: initial ? "party_update" : "party_create",
+        companyId,
+        organizationId,
+        cacheStore: "parties",
+        cacheRecord: payload,
+        payload,
       });
+
+      const remember = [
+        city ? { kind: "city" as const, name: city } : null,
+        head ? { kind: "head" as const, name: head } : null,
+        route ? { kind: "sector" as const, name: route } : null,
+      ].filter(Boolean) as Array<{ kind: "city" | "head" | "sector"; name: string }>;
+      for (const row of remember) {
+        try {
+          await supabase.from("company_locations").insert({
+            organization_id: organizationId,
+            company_id: companyId,
+            kind: row.kind,
+            name: row.name,
+          });
+        } catch {
+          // Non-critical if offline
+        }
+      }
+
+      setLoading(false);
+      onDone?.();
+      closeDialog?.();
+      router.refresh();
+    } catch (err: any) {
+      setLoading(false);
+      setError(err?.message || String(err));
     }
-
-    setLoading(false);
-
-    onDone?.();
-    closeDialog?.();
-    router.refresh();
   }
 
   const accountKind =

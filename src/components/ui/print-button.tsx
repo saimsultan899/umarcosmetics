@@ -1,7 +1,9 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { installDesktopPrint } from "@/lib/desktop-print";
 import { Printer } from "lucide-react";
+import { useEffect } from "react";
 
 /**
  * Print the page. When `printId` is set, only the matching
@@ -15,6 +17,10 @@ export function PrintButton({
   /** Match a print sheet's data-print-id so other reports stay out of the printout. */
   printId?: string;
 }) {
+  useEffect(() => {
+    installDesktopPrint();
+  }, []);
+
   function onPrint() {
     const sheets = Array.from(
       document.querySelectorAll<HTMLElement>(".print-sheet"),
@@ -38,9 +44,11 @@ export function PrintButton({
     }
 
     window.addEventListener("afterprint", cleanup);
-    window.print();
-    // Fallback if afterprint never fires (some browsers).
-    window.setTimeout(cleanup, 2000);
+    // Give the browser a tick to apply print-skip classes before capture.
+    window.setTimeout(() => {
+      window.print();
+      window.setTimeout(cleanup, 4000);
+    }, 50);
   }
 
   return (

@@ -24,7 +24,8 @@ export default async function ExpiryReportPage({
   }>;
 }) {
   const sp = await searchParams;
-  const { supabase, company } = await requireCompanyContext();
+  const ctx = await requireCompanyContext();
+  const { company, offline } = ctx;
   const viewRaw = typeof sp.view === "string" ? sp.view : "returns";
   const view = EXPIRY_REPORT_VIEWS.some((v) => v.key === viewRaw)
     ? (viewRaw as ExpiryReportView)
@@ -33,6 +34,22 @@ export default async function ExpiryReportPage({
   const to = sp.to || localDateIso();
   const warehouseId = sp.warehouse || "";
 
+  if (offline) {
+    const { OfflineReportPanel } = await import(
+      "@/components/offline/offline-report-panel"
+    );
+    return (
+      <OfflineReportPanel
+        kind="expiry"
+        companyId={company.id}
+        companyName={company.name}
+        from={from}
+        to={to}
+      />
+    );
+  }
+
+  const { supabase } = ctx;
   const [{ data: warehouses }, rows] = await Promise.all([
     supabase
       .from("warehouses")

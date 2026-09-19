@@ -2,12 +2,14 @@
 
 import { PartyCodePicker } from "@/components/forms/party-code-picker";
 import { SalesmanSelect } from "@/components/forms/salesman-select";
-import { LineItemsEditor, summarizeLines } from "@/components/trading/line-items-editor";
+import { LineItemsEditor, summarizeLines, type LineItemsEditorHandle } from "@/components/trading/line-items-editor";
 import { Button } from "@/components/ui/button";
+import { useCreateDialogClose } from "@/components/ui/create-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
+import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { createClient } from "@/lib/supabase/client";
 import type { Party, Product, Warehouse } from "@/lib/types/database";
 import type { SalesmanOption } from "@/lib/queries/salesmen";
@@ -18,7 +20,7 @@ import {
 } from "@/lib/types/trading";
 import { formatPkr } from "@/lib/utils";
 import { useRouter } from "next/navigation";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useMemo, useRef, useState } from "react";
 
 const UUID_RE =
   /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
@@ -51,6 +53,7 @@ export function SaleInvoiceForm({
   warehouses,
   stockBalances = [],
   salesmen = [],
+  onDone,
 }: {
   companyId: string;
   organizationId: string;
@@ -59,8 +62,11 @@ export function SaleInvoiceForm({
   warehouses: Warehouse[];
   stockBalances?: StockBalanceLite[];
   salesmen?: SalesmanOption[];
+  onDone?: () => void;
 }) {
   const router = useRouter();
+  const closeDialog = useCreateDialogClose();
+  const linesEditorRef = useRef<LineItemsEditorHandle>(null);
   const customers = useMemo(
     () => parties.filter((p) => p.party_subtype === "customer" || p.party_subtype === "both" || p.party_type === "PARTY"),
     [parties],
@@ -144,7 +150,8 @@ export function SaleInvoiceForm({
     if (loading) return;
     setError(null);
 
-    const valid = lines.filter((l) => l.product_id && Number(l.qty) > 0);
+    const flushed = linesEditorRef.current?.flush() || lines;
+    const valid = flushed.filter((l) => l.product_id && Number(l.qty) > 0);
     const resolvedWarehouse =
       warehouseId ||
       products.find((p) => p.id === valid[0]?.product_id)?.default_warehouse_id ||
@@ -224,66 +231,109 @@ export function SaleInvoiceForm({
     }
 
     if (grand_total - amountPaid > 0.005 && party && Number(party.credit_limit) > 0) {
-      const supabaseCheck = createClient();
-      const { data: balance } = await supabaseCheck.rpc("get_party_balance", {
-        p_company_id: companyId,
-        p_party_id: partyId,
-        p_as_of: invoiceDate,
-      });
-      const projected = Number(balance || 0) + grand_total - amountPaid;
-      if (projected > Number(party.credit_limit)) {
-        const proceed = window.confirm(
-          `This sale may exceed credit limit.\nProjected balance: ${projected.toLocaleString()}\nLimit: ${Number(party.credit_limit).toLocaleString()}\n\nContinue anyway?`,
-        );
-        if (!proceed) {
-          setLoading(false);
-          return;
+      // Skip cloud balance check when offline — don't block local save.
+      if (typeof navigator === "undefined" || navigator.onLine) {
+        try {
+          const supabaseCheck = createClient();
+          const balanceResult = await Promise.race([
+            supabaseCheck.rpc("get_party_balance", {
+              p_company_id: companyId,
+              p_party_id: partyId,
+              p_as_of: invoiceDate,
+            }),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
+          ]);
+          const balance =
+            balanceResult && "data" in balanceResult ? balanceResult.data : null;
+          const projected = Number(balance || 0) + grand_total - amountPaid;
+          if (projected > Number(party.credit_limit)) {
+            const proceed = window.confirm(
+              `This sale may exceed credit limit.\nProjected balance: ${projected.toLocaleString()}\nLimit: ${Number(party.credit_limit).toLocaleString()}\n\nContinue anyway?`,
+            );
+            if (!proceed) {
+              setLoading(false);
+              return;
+            }
+          }
+        } catch {
+          /* ignore credit check failures; allow save */
         }
       }
     }
 
-    const supabase = createClient();
+    try {
+      const stockChanges = valid.map((l) => ({
+        productId: l.product_id,
+        warehouseId: resolvedWarehouse,
+        delta: -(Number(l.qty) + Number(l.bonus || 0)),
+      }));
 
-    const { data, error: rpcError } = await supabase.rpc("create_sale_invoice", {
-      p_payload: {
-        organization_id: organizationId,
-        company_id: companyId,
-        invoice_date: invoiceDate,
-        party_id: partyId || null,
-        walk_in: walkInActive,
-        warehouse_id: resolvedWarehouse,
-        salesman_id: salesmanId || null,
-        route: party?.route || null,
-        city: party?.city || null,
-        payment_type: resolvedPayment,
-        amount_paid: amountPaid,
-        subtotal,
-        discount_total,
-        extra_discount: extra,
-        grand_total,
-        narration,
-        items: valid.map((l) => ({
-          product_id: l.product_id,
-          product_code: l.product_code,
-          product_name: l.product_name,
-          qty: Number(l.qty),
-          bonus_qty: Number(l.bonus || 0),
-          rate: Number(l.rate),
-          discount: calcLineDiscount(l.qty, l.rate, l.discount),
-          scheme: l.scheme || null,
-          amount: l.amount,
-        })),
-      },
-    });
+      const res = await offlineAwareSubmit({
+        mutationType: "sale_invoice",
+        companyId,
+        organizationId,
+        stockChanges,
+        payload: {
+          organization_id: organizationId,
+          company_id: companyId,
+          invoice_date: invoiceDate,
+          party_id: partyId || null,
+          party_name: party?.name_en || (walkInActive ? "Walk-in Customer" : null),
+          party_code: party?.party_code || (walkInActive ? "WALKIN" : null),
+          parties: party
+            ? {
+                name_en: party.name_en,
+                party_code: party.party_code,
+                address: party.address,
+                city: party.city,
+                phone: party.phone,
+                mobile: party.mobile,
+                contact_person: party.contact_person,
+                route: party.route,
+                head: party.head,
+              }
+            : walkInActive
+              ? { name_en: "Walk-in Customer", party_code: "WALKIN" }
+              : null,
+          walk_in: walkInActive,
+          warehouse_id: resolvedWarehouse,
+          salesman_id: salesmanId || null,
+          route: party?.route || null,
+          city: party?.city || null,
+          payment_type: resolvedPayment,
+          amount_paid: amountPaid,
+          subtotal,
+          discount_total,
+          extra_discount: extra,
+          grand_total,
+          narration,
+          items: valid.map((l) => ({
+            product_id: l.product_id,
+            product_code: l.product_code,
+            product_name: l.product_name,
+            qty: Number(l.qty),
+            bonus_qty: Number(l.bonus || 0),
+            rate: Number(l.rate),
+            discount: calcLineDiscount(l.qty, l.rate, l.discount),
+            scheme: l.scheme || null,
+            amount: l.amount,
+          })),
+        },
+      });
 
-    setLoading(false);
-    if (rpcError) {
-      setError(friendlyStockError(rpcError.message, products, warehouses));
-      return;
+      setLoading(false);
+      closeDialog?.();
+      onDone?.();
+      if (res.source === "offline") {
+        router.refresh();
+      } else {
+        router.push(`/sales/invoices/${res.id}`);
+        router.refresh();
+      }
+    } catch (err: any) {
+      setLoading(false);
+      setError(friendlyStockError(err?.message || String(err), products, warehouses));
     }
-
-    router.push(`/sales/invoices/${data}`);
-    router.refresh();
   }
 
   return (
@@ -418,6 +468,7 @@ export function SaleInvoiceForm({
       </div>
 
       <LineItemsEditor
+        ref={linesEditorRef}
         products={products}
         lines={lines}
         onChange={setLines}

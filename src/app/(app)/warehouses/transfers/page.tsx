@@ -1,11 +1,6 @@
-import { TransfersTable } from "@/components/tables/transfers-table";
-import { StockTransferForm } from "@/components/trading/stock-transfer-form";
-import {
-  CreateDialogButton,
-  PageHeading,
-} from "@/components/ui/create-dialog";
+import { StockTransfersView } from "@/components/inventory/stock-transfers-view";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
-import { fetchStockTransferList } from "@/lib/queries/stock-transfers";
+import { fetchStockTransferList, type StockTransferListResult } from "@/lib/queries/stock-transfers";
 import { loadTradingMasters } from "@/lib/trading-data";
 import { Suspense } from "react";
 
@@ -15,40 +10,27 @@ export default async function StockTransfersPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
-  const { company, products, warehouses, supabase } = await loadTradingMasters();
-  const list = await fetchStockTransferList(supabase, company.id, sp);
+  const { company, products, warehouses, supabase, offline } =
+    await loadTradingMasters();
+
+  let initialData: StockTransferListResult | null = null;
+  if (!offline) {
+    try {
+      initialData = await fetchStockTransferList(supabase, company.id, sp);
+    } catch {
+      initialData = null;
+    }
+  }
 
   return (
-    <div className="animate-rise space-y-6">
-      <PageHeading
-        title="Company transfer"
-        description="Move stock between companies / brand locations"
-        actions={
-          <CreateDialogButton
-            label="New transfer"
-            title="New company transfer"
-            description="Move stock between companies"
-            size="lg"
-            disabled={warehouses.length < 2}
-            disabledHint="Create at least two companies before transferring stock."
-          >
-            <StockTransferForm
-              companyId={company.id}
-              organizationId={company.organization_id}
-              products={products}
-              warehouses={warehouses}
-            />
-          </CreateDialogButton>
-        }
+    <Suspense fallback={<PageSkeleton />}>
+      <StockTransfersView
+        company={company}
+        initialData={initialData}
+        initialWarehouses={warehouses}
+        initialProducts={products}
+        initialOffline={offline}
       />
-
-      <Suspense fallback={<PageSkeleton />}>
-        <TransfersTable
-          rows={list.rows}
-          pagination={list.pagination}
-          warehouses={warehouses}
-        />
-      </Suspense>
-    </div>
+    </Suspense>
   );
 }

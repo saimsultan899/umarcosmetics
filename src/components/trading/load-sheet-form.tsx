@@ -3,16 +3,18 @@
 import {
   ProductQtyLinesEditor,
   type ProductQtyLine,
+  type ProductQtyLinesEditorHandle,
 } from "@/components/trading/product-qty-lines-editor";
 import { Button } from "@/components/ui/button";
+import { useCreateDialogClose } from "@/components/ui/create-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
-import { createClient } from "@/lib/supabase/client";
+import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import type { Product, Warehouse } from "@/lib/types/database";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 
 type SalesmanOpt = { user_id: string; full_name: string | null };
 
@@ -22,14 +24,18 @@ export function LoadSheetForm({
   products,
   warehouses,
   salesmen,
+  onDone,
 }: {
   companyId: string;
   organizationId: string;
   products: Product[];
   warehouses: Warehouse[];
   salesmen: SalesmanOpt[];
+  onDone?: () => void;
 }) {
   const router = useRouter();
+  const closeDialog = useCreateDialogClose();
+  const linesEditorRef = useRef<ProductQtyLinesEditorHandle>(null);
   const [sheetDate, setSheetDate] = useState(new Date().toISOString().slice(0, 10));
   const [warehouseId, setWarehouseId] = useState(warehouses[0]?.id || "");
   const [salesmanId, setSalesmanId] = useState(salesmen[0]?.user_id || "");
@@ -43,41 +49,50 @@ export function LoadSheetForm({
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    const valid = lines.filter((l) => l.product_id && Number(l.qty) > 0);
+    const flushed = linesEditorRef.current?.flush() || lines;
+    const valid = flushed.filter((l) => l.product_id && Number(l.qty) > 0);
     if (!warehouseId || valid.length === 0) {
-      setError("Select company and at least one product.");
+      setError("Select company and at least one product (Enter on qty to add the line).");
       return;
     }
 
     setLoading(true);
-    const supabase = createClient();
-    const { data, error: rpcError } = await supabase.rpc("create_load_sheet", {
-      p_payload: {
-        organization_id: organizationId,
-        company_id: companyId,
-        sheet_date: sheetDate,
-        warehouse_id: warehouseId,
-        salesman_id: salesmanId || null,
-        vehicle_no: vehicleNo,
-        route,
-        narration,
-        items: valid.map((l) => ({
-          product_id: l.product_id,
-          product_code: l.product_code,
-          product_name: l.product_name,
-          qty: Number(l.qty),
-        })),
-      },
-    });
-    setLoading(false);
+    try {
+      const res = await offlineAwareSubmit({
+        mutationType: "load_sheet",
+        companyId,
+        organizationId,
+        payload: {
+          organization_id: organizationId,
+          company_id: companyId,
+          sheet_date: sheetDate,
+          warehouse_id: warehouseId,
+          salesman_id: salesmanId || null,
+          vehicle_no: vehicleNo,
+          route,
+          narration,
+          items: valid.map((l) => ({
+            product_id: l.product_id,
+            product_code: l.product_code,
+            product_name: l.product_name,
+            qty: Number(l.qty),
+          })),
+        },
+      });
 
-    if (rpcError) {
-      setError(rpcError.message);
-      return;
+      setLoading(false);
+      closeDialog?.();
+      onDone?.();
+      if (res.source === "offline") {
+        router.refresh();
+      } else {
+        router.push(`/inventory/load-sheets/${res.id}`);
+        router.refresh();
+      }
+    } catch (err: unknown) {
+      setLoading(false);
+      setError(err instanceof Error ? err.message : String(err));
     }
-
-    router.push(`/inventory/load-sheets/${data}`);
-    router.refresh();
   }
 
   return (
@@ -150,6 +165,7 @@ export function LoadSheetForm({
       </div>
 
       <ProductQtyLinesEditor
+        ref={linesEditorRef}
         products={products}
         lines={lines}
         onChange={setLines}

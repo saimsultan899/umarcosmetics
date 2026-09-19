@@ -50,15 +50,19 @@ export function PartyCodeCell({
       setCode(local.party_code);
       return;
     }
-    const supabase = createClient();
-    const { data } = await supabase.rpc("get_party_by_code", {
-      p_company_id: companyId,
-      p_code: trimmed,
-    });
-    const party = Array.isArray(data) ? data[0] : data;
-    if (party) {
-      onChange(party.id);
-      setCode(party.party_code);
+    try {
+      const supabase = createClient();
+      const { data } = await supabase.rpc("get_party_by_code", {
+        p_company_id: companyId,
+        p_code: trimmed,
+      });
+      const party = Array.isArray(data) ? data[0] : data;
+      if (party) {
+        onChange(party.id);
+        setCode(party.party_code);
+      }
+    } catch {
+      // offline fallback
     }
   }
 

@@ -26,7 +26,22 @@ export default async function ProfitReportPage({
 }) {
   const sp = await searchParams;
   const period = resolveProfitPeriod(sp);
-  const { supabase, company } = await requireCompanyContext();
+  const { supabase, company, offline } = await requireCompanyContext();
+
+  if (offline) {
+    const { OfflineReportPanel } = await import(
+      "@/components/offline/offline-report-panel"
+    );
+    return (
+      <OfflineReportPanel
+        kind="profit"
+        companyId={company.id}
+        companyName={company.name}
+        from={period.from}
+        to={period.to}
+      />
+    );
+  }
 
   const { summary, error } = await buildProfitReport(supabase, {
     companyId: company.id,

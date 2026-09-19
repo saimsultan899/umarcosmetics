@@ -3,29 +3,35 @@
 import {
   ProductQtyLinesEditor,
   type ProductQtyLine,
+  type ProductQtyLinesEditorHandle,
 } from "@/components/trading/product-qty-lines-editor";
 import { Button } from "@/components/ui/button";
+import { useCreateDialogClose } from "@/components/ui/create-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
-import { createClient } from "@/lib/supabase/client";
+import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import type { Product, Warehouse } from "@/lib/types/database";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 
 export function StockTransferForm({
   companyId,
   organizationId,
   products,
   warehouses,
+  onDone,
 }: {
   companyId: string;
   organizationId: string;
   products: Product[];
   warehouses: Warehouse[];
+  onDone?: () => void;
 }) {
   const router = useRouter();
+  const closeDialog = useCreateDialogClose();
+  const linesEditorRef = useRef<ProductQtyLinesEditorHandle>(null);
   const [fromId, setFromId] = useState(warehouses[0]?.id || "");
   const [toId, setToId] = useState(warehouses[1]?.id || warehouses[0]?.id || "");
   const [transferDate, setTransferDate] = useState(
@@ -39,37 +45,65 @@ export function StockTransferForm({
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    const valid = lines.filter((l) => l.product_id && Number(l.qty) > 0);
+    const flushed = linesEditorRef.current?.flush() || lines;
+    const valid = flushed.filter((l) => l.product_id && Number(l.qty) > 0);
     if (!fromId || !toId || fromId === toId || valid.length === 0) {
-      setError("Choose different companies and at least one product.");
+      setError(
+        "Choose different companies and at least one product (Enter on qty to add the line).",
+      );
       return;
     }
 
     setLoading(true);
-    const supabase = createClient();
-    const { data, error: rpcError } = await supabase.rpc("create_stock_transfer", {
-      p_payload: {
-        organization_id: organizationId,
-        company_id: companyId,
-        transfer_date: transferDate,
-        from_warehouse_id: fromId,
-        to_warehouse_id: toId,
-        narration,
-        items: valid.map((l) => ({
-          product_id: l.product_id,
-          product_code: l.product_code,
-          product_name: l.product_name,
-          qty: Number(l.qty),
-        })),
-      },
-    });
-    setLoading(false);
-    if (rpcError) {
-      setError(rpcError.message);
-      return;
+    try {
+      const stockChanges: Array<{ productId: string; warehouseId: string; delta: number }> = [];
+      for (const l of valid) {
+        stockChanges.push({
+          productId: l.product_id,
+          warehouseId: fromId,
+          delta: -Number(l.qty),
+        });
+        stockChanges.push({
+          productId: l.product_id,
+          warehouseId: toId,
+          delta: Number(l.qty),
+        });
+      }
+
+      const res = await offlineAwareSubmit({
+        mutationType: "stock_transfer",
+        companyId,
+        organizationId,
+        stockChanges,
+        payload: {
+          organization_id: organizationId,
+          company_id: companyId,
+          transfer_date: transferDate,
+          from_warehouse_id: fromId,
+          to_warehouse_id: toId,
+          narration,
+          items: valid.map((l) => ({
+            product_id: l.product_id,
+            product_code: l.product_code,
+            product_name: l.product_name,
+            qty: Number(l.qty),
+          })),
+        },
+      });
+
+      setLoading(false);
+      closeDialog?.();
+      onDone?.();
+      if (res.source === "offline") {
+        router.refresh();
+      } else {
+        router.push(`/warehouses/transfers/${res.id}`);
+        router.refresh();
+      }
+    } catch (err: unknown) {
+      setLoading(false);
+      setError(err instanceof Error ? err.message : String(err));
     }
-    router.push(`/warehouses/transfers/${data}`);
-    router.refresh();
   }
 
   return (
@@ -118,6 +152,7 @@ export function StockTransferForm({
       </div>
 
       <ProductQtyLinesEditor
+        ref={linesEditorRef}
         products={products}
         lines={lines}
         onChange={setLines}

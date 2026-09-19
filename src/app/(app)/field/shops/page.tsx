@@ -3,7 +3,18 @@ import { formatPkr } from "@/lib/utils";
 import Link from "next/link";
 
 export default async function FieldShopsPage() {
-  const { supabase, company } = await requireCompanyContext();
+  const { supabase, company, offline } = await requireCompanyContext();
+  if (offline) {
+    const { OfflineFieldShopsPage } = await import(
+      "@/components/offline/offline-field-pages"
+    );
+    return (
+      <OfflineFieldShopsPage
+        companyId={company.id}
+        companyName={company.name}
+      />
+    );
+  }
   const { data: shops } = await supabase.rpc("get_salesman_shops", {
     p_company_id: company.id,
     p_as_of: new Date().toISOString().slice(0, 10),

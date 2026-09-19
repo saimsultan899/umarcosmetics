@@ -1,6 +1,8 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { installDesktopPrint } from "@/lib/desktop-print";
+import { formatReportInvNo } from "@/lib/reports/helpers";
 import { cn, formatNumber } from "@/lib/utils";
 import { Printer } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -111,6 +113,7 @@ export function PrintDocument({
   const [sheet, setSheet] = useState<"full" | "half">(size);
 
   useEffect(() => {
+    installDesktopPrint();
     if (!autoPrint) return;
     const t = window.setTimeout(() => window.print(), 250);
     return () => window.clearTimeout(t);
@@ -194,7 +197,8 @@ export function PrintDocument({
           </div>
           <div className="si-meta-right si-meta-block">
             <div>
-              <span className="si-k">No :</span> <span className="si-v">{docNo}</span>
+              <span className="si-k">No :</span>{" "}
+              <span className="si-v">{formatReportInvNo(docNo) || docNo}</span>
             </div>
             <div>
               <span className="si-k">Date :</span>{" "}

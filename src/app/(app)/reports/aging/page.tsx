@@ -30,8 +30,22 @@ export default async function AgingReportPage({
   searchParams: Promise<{ date?: string }>;
 }) {
   const sp = await searchParams;
-  const { supabase, company } = await requireCompanyContext();
+  const { supabase, company, offline } = await requireCompanyContext();
   const asOf = sp.date || localDateIso();
+
+  if (offline) {
+    const { OfflineReportPanel } = await import(
+      "@/components/offline/offline-report-panel"
+    );
+    return (
+      <OfflineReportPanel
+        kind="aging"
+        companyId={company.id}
+        companyName={company.name}
+        asOf={asOf}
+      />
+    );
+  }
 
   const { data } = await supabase.rpc("get_receivable_aging", {
     p_company_id: company.id,

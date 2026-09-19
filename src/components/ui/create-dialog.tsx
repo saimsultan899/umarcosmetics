@@ -27,10 +27,23 @@ export function CreateDialogButton({
   children: React.ReactNode;
   disabled?: boolean;
   disabledHint?: string;
-  size?: "md" | "lg" | "xl";
+  size?: "sm" | "md" | "lg" | "xl" | "2xl" | "full";
 }) {
   const [open, setOpen] = useState(false);
   const close = () => setOpen(false);
+
+  const sizeClass =
+    size === "full"
+      ? "max-w-[98vw] sm:max-w-[98vw] max-h-[96vh] w-full"
+      : size === "2xl"
+        ? "max-w-[98vw] sm:max-w-6xl lg:max-w-7xl xl:max-w-[1440px] w-full"
+        : size === "xl"
+          ? "max-w-[96vw] sm:max-w-6xl lg:max-w-7xl xl:max-w-[1360px] w-full"
+          : size === "lg"
+            ? "max-w-[94vw] sm:max-w-3xl lg:max-w-4xl w-full"
+            : size === "sm"
+              ? "max-w-md w-full"
+              : "max-w-[94vw] sm:max-w-2xl w-full";
 
   return (
     <>
@@ -51,13 +64,7 @@ export function CreateDialogButton({
         onClose={close}
         title={title}
         description={description}
-        className={
-          size === "xl"
-            ? "sm:max-w-5xl"
-            : size === "lg"
-              ? "sm:max-w-3xl"
-              : "sm:max-w-2xl"
-        }
+        className={sizeClass}
       >
         {disabled ? (
           <p className="text-sm text-[var(--muted)]">

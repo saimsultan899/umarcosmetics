@@ -4,16 +4,18 @@ import { PartyCodePicker } from "@/components/forms/party-code-picker";
 import {
   ProductQtyLinesEditor,
   type ProductQtyLine,
+  type ProductQtyLinesEditorHandle,
 } from "@/components/trading/product-qty-lines-editor";
 import { Button } from "@/components/ui/button";
+import { useCreateDialogClose } from "@/components/ui/create-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
-import { createClient } from "@/lib/supabase/client";
+import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import type { Party, Product, Warehouse } from "@/lib/types/database";
 import { useRouter } from "next/navigation";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useMemo, useRef, useState } from "react";
 
 export function GatePassForm({
   companyId,
@@ -24,6 +26,7 @@ export function GatePassForm({
   parties,
   products,
   warehouses,
+  onDone,
 }: {
   companyId: string;
   organizationId: string;
@@ -33,8 +36,11 @@ export function GatePassForm({
   parties: Party[];
   products: Product[];
   warehouses: Warehouse[];
+  onDone?: () => void;
 }) {
   const router = useRouter();
+  const closeDialog = useCreateDialogClose();
+  const linesEditorRef = useRef<ProductQtyLinesEditorHandle>(null);
   const suppliers = useMemo(
     () =>
       parties.filter(
@@ -85,44 +91,59 @@ export function GatePassForm({
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    const valid = lines.filter((l) => l.product_id && Number(l.qty) > 0);
+    const flushed = linesEditorRef.current?.flush() || lines;
+    const valid = flushed.filter((l) => l.product_id && Number(l.qty) > 0);
     if (valid.length === 0) {
-      setError("Add at least one existing product with quantity.");
+      setError(
+        "Add at least one product line (press Enter on qty, or click Save after selecting product + qty).",
+      );
+      return;
+    }
+    if (!warehouseId) {
+      setError("Select the receive warehouse / company.");
       return;
     }
 
     setLoading(true);
-    const supabase = createClient();
-    const { data, error: rpcError } = await supabase.rpc("create_gate_pass", {
-      p_payload: {
-        organization_id: organizationId,
-        company_id: companyId,
-        pass_date: passDate,
-        party_id: partyId || null,
-        warehouse_id: warehouseId || null,
-        manufacturer,
-        vehicle_no: vehicleNo,
-        transporter,
-        po_no: poNo,
-        bilty_no: biltyNo,
-        remarks,
-        items: valid.map((l) => ({
-          product_id: l.product_id,
-          product_code: l.product_code,
-          product_name: l.product_name,
-          qty: Number(l.qty),
-        })),
-      },
-    });
-    setLoading(false);
+    try {
+      const res = await offlineAwareSubmit({
+        mutationType: "gate_pass",
+        companyId,
+        organizationId,
+        payload: {
+          organization_id: organizationId,
+          company_id: companyId,
+          pass_date: passDate,
+          party_id: partyId || null,
+          warehouse_id: warehouseId || null,
+          manufacturer,
+          vehicle_no: vehicleNo,
+          transporter,
+          po_no: poNo,
+          bilty_no: biltyNo,
+          remarks,
+          items: valid.map((l) => ({
+            product_id: l.product_id,
+            product_code: l.product_code,
+            product_name: l.product_name,
+            qty: Number(l.qty),
+          })),
+        },
+      });
 
-    if (rpcError) {
-      setError(rpcError.message);
-      return;
+      setLoading(false);
+      closeDialog?.();
+      onDone?.();
+      if (res.source === "offline") {
+        router.refresh();
+      } else {
+        router.push(`/purchases/gate-passes/${res.id}`);
+        router.refresh();
+      }
+    } catch (err: unknown) {
+      setLoading(false);
+      setError(err instanceof Error ? err.message : String(err));
     }
-
-    router.push(`/purchases/gate-passes/${data}`);
-    router.refresh();
   }
 
   return (
@@ -234,6 +255,7 @@ export function GatePassForm({
       </div>
 
       <ProductQtyLinesEditor
+        ref={linesEditorRef}
         products={catalog}
         lines={lines}
         onChange={setLines}

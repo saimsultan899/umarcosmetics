@@ -33,6 +33,8 @@
   --shadow-lg: 0 8px 24px rgba(21, 34, 56, 0.08);
   --radius: 8px;
   --radius-sm: 6px;
+  --font-body: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-amount: "Roboto", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-display: var(--font-body);
 }
 
@@ -1678,11 +1680,17 @@ button[aria-haspopup="listbox"]:focus-visible {
 .recovery-sheet-head {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  width: 100%;
   gap: 4px;
   border-bottom: 2px solid #111;
   padding-bottom: 6px;
   margin-bottom: 6px;
+}
+.recovery-sheet-head-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  width: 100%;
 }
 .recovery-sheet-title {
   margin: 0;
@@ -1691,10 +1699,24 @@ button[aria-haspopup="listbox"]:focus-visible {
   letter-spacing: 0.01em;
   line-height: 1.15;
 }
+.recovery-sheet-co {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+  text-align: right;
+}
+.recovery-sheet-head-body {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  width: 100%;
+}
 .recovery-sheet-meta {
-  margin-top: 5px;
   font-size: 12.5px;
   line-height: 1.4;
+  text-align: left;
 }
 .recovery-sheet-meta p {
   margin: 0;
@@ -1710,13 +1732,6 @@ button[aria-haspopup="listbox"]:focus-visible {
   letter-spacing: 0.01em;
   line-height: 1.15;
 }
-.recovery-sheet-co {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 700;
-  line-height: 1.15;
-  letter-spacing: 0.01em;
-}
 .recovery-sheet-scope {
   margin: 1px 0 0;
   font-size: 9px;
@@ -1726,12 +1741,13 @@ button[aria-haspopup="listbox"]:focus-visible {
 .recovery-sheet-dates {
   margin: 0;
   font-size: 13px;
-  text-align: left;
-  line-height: 1.3;
+  text-align: right;
+  line-height: 1.4;
   white-space: nowrap;
 }
 .recovery-sheet-dates p {
   margin: 0;
+  text-align: right;
 }
 .recovery-sheet-dates span {
   display: inline-block;
@@ -1743,9 +1759,10 @@ button[aria-haspopup="listbox"]:focus-visible {
   margin-left: 6mm;
 }
 .recovery-sheet-printed {
-  margin-top: 3px !important;
+  margin-top: 2px !important;
   font-size: 12px;
   font-weight: 600;
+  text-align: right;
 }
 .recovery-sheet-section {
   margin-top: 4px;
@@ -1799,19 +1816,24 @@ button[aria-haspopup="listbox"]:focus-visible {
   width: 8%;
 }
 .recovery-sheet-table--compact .recovery-sheet__col-name {
-  width: 44%;
+  width: 40%;
 }
 .recovery-sheet-table--compact .recovery-sheet__col-received {
-  width: 10%;
+  width: 12%;
 }
 .recovery-sheet-table--compact .recovery-sheet__col-final {
-  width: 10%;
+  width: 12%;
 }
 .recovery-sheet-table--compact .recovery-sheet__col-rec {
   width: 14%;
 }
 .recovery-sheet-table--compact .recovery-sheet__col-remarks {
   width: 14%;
+}
+.recovery-sheet-table--compact th,
+.recovery-sheet-table--compact th.num {
+  white-space: nowrap;
+  vertical-align: middle;
 }
 .recovery-sheet th {
   border: 1px solid #111;

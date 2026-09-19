@@ -27,10 +27,26 @@ export default async function SalesmanLedgerPage({
   }>;
 }) {
   const sp = await searchParams;
-  const { supabase, company } = await requireCompanyContext();
+  const { supabase, company, offline } = await requireCompanyContext();
   const from = sp.from || monthStart();
   const to = sp.to || today();
   const salesmanId = sp.salesman || "";
+
+  if (offline) {
+    const { OfflineReportPanel } = await import(
+      "@/components/offline/offline-report-panel"
+    );
+    return (
+      <OfflineReportPanel
+        kind="salesman_ledger"
+        companyId={company.id}
+        companyName={company.name}
+        from={from}
+        to={to}
+        salesmanId={salesmanId}
+      />
+    );
+  }
 
   const [salesmen, ledger] = await Promise.all([
     fetchCompanySalesmen(supabase, company.id),

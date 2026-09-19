@@ -46,7 +46,7 @@ export function CompaniesPanel({
         <CreateDialogButton
           label="New company"
           title="New company"
-          description="Creates company, default warehouse, and your admin access"
+          description="Creates company and default warehouse — attach a client from Clients or New client setup"
           disabled={!organizations.length}
           disabledHint="Create an organization first"
         >

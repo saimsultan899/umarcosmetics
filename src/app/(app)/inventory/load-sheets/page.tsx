@@ -1,15 +1,9 @@
-import { LoadSheetsTable } from "@/components/tables/load-sheets-table";
-import { LoadSheetForm } from "@/components/trading/load-sheet-form";
-import { Button } from "@/components/ui/button";
-import {
-  CreateDialogButton,
-  PageHeading,
-} from "@/components/ui/create-dialog";
+import { LoadSheetsView } from "@/components/inventory/load-sheets-view";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { requireCompanyContext } from "@/lib/auth";
-import { fetchLoadSheetList } from "@/lib/queries/load-sheets";
-import { fetchCompanySalesmen } from "@/lib/queries/salesmen";
-import Link from "next/link";
+import { fetchLoadSheetList, type LoadSheetListResult } from "@/lib/queries/load-sheets";
+import { fetchCompanySalesmen, type SalesmanOption } from "@/lib/queries/salesmen";
+import type { Product, Warehouse } from "@/lib/types/database";
 import { Suspense } from "react";
 
 export default async function LoadSheetsPage({
@@ -18,68 +12,51 @@ export default async function LoadSheetsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
-  const { supabase, company } = await requireCompanyContext();
+  const { supabase, company, offline } = await requireCompanyContext();
 
-  const [{ data: products }, { data: warehouses }, salesmen, list] =
-    await Promise.all([
-      supabase
-        .from("products")
-        .select("*")
-        .eq("company_id", company.id)
-        .eq("is_active", true)
-        .order("code"),
-      supabase
-        .from("warehouses")
-        .select("*")
-        .eq("company_id", company.id)
-        .eq("is_active", true)
-        .order("name"),
-      fetchCompanySalesmen(supabase, company.id),
-      fetchLoadSheetList(supabase, company.id, sp),
-    ]);
+  let initialData: LoadSheetListResult | null = null;
+  let initialWarehouses: Warehouse[] = [];
+  let initialProducts: Product[] = [];
+  let initialSalesmen: SalesmanOption[] = [];
 
-  const canCreate =
-    (warehouses || []).length > 0 && (products || []).length > 0;
+  if (!offline) {
+    try {
+      const [{ data: products }, { data: warehouses }, salesmen, list] =
+        await Promise.all([
+          supabase
+            .from("products")
+            .select("*")
+            .eq("company_id", company.id)
+            .eq("is_active", true)
+            .order("code"),
+          supabase
+            .from("warehouses")
+            .select("*")
+            .eq("company_id", company.id)
+            .eq("is_active", true)
+            .order("name"),
+          fetchCompanySalesmen(supabase, company.id),
+          fetchLoadSheetList(supabase, company.id, sp),
+        ]);
+      initialProducts = (products as Product[]) || [];
+      initialWarehouses = (warehouses as Warehouse[]) || [];
+      initialSalesmen = salesmen;
+      initialData = list;
+    } catch {
+      initialData = null;
+    }
+  }
 
   return (
-    <div className="animate-rise space-y-6">
-      <PageHeading
-        title="Van load sheets"
-        description={`Issue stock to salesman vans before market — for ${company.name}`}
-        actions={
-          <>
-            <Link href="/inventory/expiry">
-              <Button variant="secondary" size="sm">
-                Expiry warehouse
-              </Button>
-            </Link>
-            <CreateDialogButton
-            label="Create load"
-            title="Create load sheet"
-            description="Issue van stock for a market sector"
-            size="xl"
-            disabled={!canCreate}
-            disabledHint="Add products and companies first, then create van loads."
-          >
-            <LoadSheetForm
-              companyId={company.id}
-              organizationId={company.organization_id}
-              products={products || []}
-              warehouses={warehouses || []}
-              salesmen={salesmen}
-            />
-            </CreateDialogButton>
-          </>
-        }
+    <Suspense fallback={<PageSkeleton />}>
+      <LoadSheetsView
+        company={company}
+        initialData={initialData}
+        initialWarehouses={initialWarehouses}
+        initialProducts={initialProducts}
+        initialSalesmen={initialSalesmen}
+        initialOffline={offline}
       />
-
-      <Suspense fallback={<PageSkeleton />}>
-        <LoadSheetsTable
-          rows={list.rows}
-          pagination={list.pagination}
-          warehouses={warehouses || []}
-        />
-      </Suspense>
-    </div>
+    </Suspense>
   );
 }

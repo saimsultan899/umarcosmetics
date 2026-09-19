@@ -2,10 +2,12 @@
 
 import { PartyCodePicker } from "@/components/forms/party-code-picker";
 import { Button } from "@/components/ui/button";
+import { useCreateDialogClose } from "@/components/ui/create-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
+import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { createClient } from "@/lib/supabase/client";
 import type { Party, Warehouse } from "@/lib/types/database";
 import type { ExpiryStockRow } from "@/lib/queries/expiry";
@@ -19,14 +21,17 @@ export function ExpiryClaimForm({
   parties,
   warehouses,
   stock,
+  onDone,
 }: {
   companyId: string;
   organizationId: string;
   parties: Party[];
   warehouses: Warehouse[];
   stock: ExpiryStockRow[];
+  onDone?: () => void;
 }) {
   const router = useRouter();
+  const closeDialog = useCreateDialogClose();
   const vendors = useMemo(
     () =>
       parties.filter(
@@ -67,33 +72,43 @@ export function ExpiryClaimForm({
       return;
     }
     setLoading(true);
-    const supabase = createClient();
-    const { data, error: rpcError } = await supabase.rpc("create_expiry_claim", {
-      p_payload: {
-        organization_id: organizationId,
-        company_id: companyId,
-        claim_date: claimDate,
-        party_id: partyId,
-        warehouse_id: warehouseId || null,
-        grand_total: grandTotal,
-        narration,
-        items: sendLines.map((l) => ({
-          product_id: l.product_id,
-          product_code: l.product_code,
-          product_name: l.product_name,
-          qty: l.sendQty,
-          rate: l.rate,
-          amount: l.sendAmount,
-        })),
-      },
-    });
-    setLoading(false);
-    if (rpcError) {
-      setError(rpcError.message);
-      return;
+    try {
+      const res = await offlineAwareSubmit({
+        mutationType: "expiry_claim",
+        companyId,
+        organizationId,
+        payload: {
+          organization_id: organizationId,
+          company_id: companyId,
+          claim_date: claimDate,
+          party_id: partyId,
+          warehouse_id: warehouseId || null,
+          grand_total: grandTotal,
+          narration,
+          items: sendLines.map((l) => ({
+            product_id: l.product_id,
+            product_code: l.product_code,
+            product_name: l.product_name,
+            qty: l.sendQty,
+            rate: l.rate,
+            amount: l.sendAmount,
+          })),
+        },
+      });
+
+      setLoading(false);
+      closeDialog?.();
+      onDone?.();
+      if (res.source === "offline") {
+        router.refresh();
+      } else {
+        router.push(`/inventory/expiry/claims/${res.id}`);
+        router.refresh();
+      }
+    } catch (err: any) {
+      setLoading(false);
+      setError(err?.message || String(err));
     }
-    router.push(`/inventory/expiry/claims/${data}`);
-    router.refresh();
   }
 
   return (

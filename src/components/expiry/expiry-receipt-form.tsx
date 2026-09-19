@@ -2,10 +2,12 @@
 
 import { PartyCodePicker } from "@/components/forms/party-code-picker";
 import { Button } from "@/components/ui/button";
+import { useCreateDialogClose } from "@/components/ui/create-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
+import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { createClient } from "@/lib/supabase/client";
 import type { Party, Product } from "@/lib/types/database";
 import { formatPkr } from "@/lib/utils";
@@ -33,13 +35,16 @@ export function ExpiryReceiptForm({
   organizationId,
   parties,
   products,
+  onDone,
 }: {
   companyId: string;
   organizationId: string;
   parties: Party[];
   products: Product[];
+  onDone?: () => void;
 }) {
   const router = useRouter();
+  const closeDialog = useCreateDialogClose();
   const customers = useMemo(
     () =>
       parties.filter(
@@ -184,41 +189,51 @@ export function ExpiryReceiptForm({
     }
 
     setLoading(true);
-    const supabase = createClient();
-    const { data, error: rpcError } = await supabase.rpc("create_expiry_receipt", {
-      p_payload: {
-        organization_id: organizationId,
-        company_id: companyId,
-        receipt_date: receiptDate,
-        party_id: partyId,
-        period_from: periodFrom,
-        period_to: periodTo,
-        subtotal: grandTotal,
-        grand_total: grandTotal,
-        narration,
-        items: valid.map((l) => {
-          const qty = Number(l.qty) || 0;
-          const amount = Number(l.amount) || 0;
-          return {
-            product_id: l.product_id,
-            product_code: l.product_code,
-            product_name: l.product_name,
-            history_qty: l.history_qty,
-            history_amount: l.history_amount,
-            qty,
-            rate: qty > 0 ? Math.round((amount / qty) * 100) / 100 : 0,
-            amount,
-          };
-        }),
-      },
-    });
-    setLoading(false);
-    if (rpcError) {
-      setError(rpcError.message);
-      return;
+    try {
+      const res = await offlineAwareSubmit({
+        mutationType: "expiry_receipt",
+        companyId,
+        organizationId,
+        payload: {
+          organization_id: organizationId,
+          company_id: companyId,
+          receipt_date: receiptDate,
+          party_id: partyId,
+          period_from: periodFrom,
+          period_to: periodTo,
+          subtotal: grandTotal,
+          grand_total: grandTotal,
+          narration,
+          items: valid.map((l) => {
+            const qty = Number(l.qty) || 0;
+            const amount = Number(l.amount) || 0;
+            return {
+              product_id: l.product_id,
+              product_code: l.product_code,
+              product_name: l.product_name,
+              history_qty: l.history_qty,
+              history_amount: l.history_amount,
+              qty,
+              rate: qty > 0 ? Math.round((amount / qty) * 100) / 100 : 0,
+              amount,
+            };
+          }),
+        },
+      });
+
+      setLoading(false);
+      closeDialog?.();
+      onDone?.();
+      if (res.source === "offline") {
+        router.refresh();
+      } else {
+        router.push(`/inventory/expiry/receipts/${res.id}`);
+        router.refresh();
+      }
+    } catch (err: any) {
+      setLoading(false);
+      setError(err?.message || String(err));
     }
-    router.push(`/inventory/expiry/receipts/${data}`);
-    router.refresh();
   }
 
   return (

@@ -28,7 +28,9 @@ import { computeLineScheme, purchaseDiscountPercentText } from "@/lib/pricing/di
 import { formatPkr, cn } from "@/lib/utils";
 import { Trash2 } from "lucide-react";
 import {
+  forwardRef,
   useEffect,
+  useImperativeHandle,
   useMemo,
   useRef,
   useState,
@@ -41,29 +43,11 @@ function blankDraft(): Draft {
   return emptyLine();
 }
 
-export function LineItemsEditor({
-  products,
-  lines,
-  onChange,
-  rateField = "sale_rate",
-  companyId,
-  partyId,
-  autoFocus = true,
-  /** Distributor→shop item-wise free goods (e.g. 10+1 from product bonus). */
-  enableBonus = false,
-  /** Currently selected header warehouse (sale invoice). */
-  warehouseId,
-  warehouses,
-  /** product_id → warehouses stocking it, highest qty first. Enables stock hints. */
-  stockByProduct,
-  /** Auto-selects stocked warehouse (sale) or product default warehouse (purchase). */
-  onAutoPickWarehouse,
-  /** Show company control above product lines (sale invoice). */
-  showCompanyPicker = false,
-  /** Optional document-level extra discount (invoice / return footer). */
-  extraDiscount,
-  onExtraDiscountChange,
-}: {
+export type LineItemsEditorHandle = {
+  flush: () => LineItemDraft[];
+};
+
+type LineItemsEditorProps = {
   products: Product[];
   lines: LineItemDraft[];
   onChange: (lines: LineItemDraft[]) => void;
@@ -80,7 +64,37 @@ export function LineItemsEditor({
   showCompanyPicker?: boolean;
   extraDiscount?: string;
   onExtraDiscountChange?: (value: string) => void;
-}) {
+};
+
+export const LineItemsEditor = forwardRef<
+  LineItemsEditorHandle,
+  LineItemsEditorProps
+>(function LineItemsEditor(
+  {
+    products,
+    lines,
+    onChange,
+    rateField = "sale_rate",
+    companyId,
+    partyId,
+    autoFocus = true,
+    /** Distributor→shop item-wise free goods (e.g. 10+1 from product bonus). */
+    enableBonus = false,
+    /** Currently selected header warehouse (sale invoice). */
+    warehouseId,
+    warehouses,
+    /** product_id → warehouses stocking it, highest qty first. Enables stock hints. */
+    stockByProduct,
+    /** Auto-selects stocked warehouse (sale) or product default warehouse (purchase). */
+    onAutoPickWarehouse,
+    /** Show company control above product lines (sale invoice). */
+    showCompanyPicker = false,
+    /** Optional document-level extra discount (invoice / return footer). */
+    extraDiscount,
+    onExtraDiscountChange,
+  },
+  ref,
+) {
   const [draft, setDraft] = useState<Draft>(blankDraft);
   const [hint, setHint] = useState<string | null>(null);
   const [lineHints, setLineHints] = useState<Record<string, string>>({});
@@ -452,11 +466,13 @@ export function LineItemsEditor({
     setProductOpen(false);
   }
 
-  function commitDraft() {
+  function commitDraft(opts?: { silent?: boolean }) {
     const current = draftRef.current;
     if (!current.product_id || Number(current.qty) <= 0) {
-      setHint("Select a product and enter qty");
-      focusField(codeRef.current);
+      if (!opts?.silent) {
+        setHint("Select a product and enter qty");
+        focusField(codeRef.current);
+      }
       return false;
     }
 
@@ -466,8 +482,10 @@ export function LineItemsEditor({
       current.bonus || "0",
     );
     if (stockErr) {
-      setHint(stockErr);
-      focusField(qtyRef.current);
+      if (!opts?.silent) {
+        setHint(stockErr);
+        focusField(qtyRef.current);
+      }
       return false;
     }
 
@@ -485,9 +503,20 @@ export function LineItemsEditor({
     linesRef.current = next;
     onChange(next);
     resetDraft();
-    requestAnimationFrame(() => focusField(codeRef.current));
+    if (!opts?.silent) {
+      requestAnimationFrame(() => focusField(codeRef.current));
+    }
     return true;
   }
+
+  useImperativeHandle(ref, () => ({
+    flush() {
+      commitDraft({ silent: true });
+      return linesRef.current.filter(
+        (l) => l.product_id && Number(l.qty) > 0,
+      );
+    },
+  }));
 
   async function onCodeEnter(e: ReactKeyboardEvent<HTMLInputElement>) {
     if (e.key !== "Enter") return;
@@ -651,23 +680,23 @@ export function LineItemsEditor({
       ) : null}
 
       <div className="table-grid">
-        <table className="w-full min-w-[1080px] text-sm">
+        <table className="w-full min-w-[920px] text-sm">
           <thead>
             <tr>
-              <th className="w-28 min-w-[7rem]">Code</th>
+              <th className="w-24 min-w-[5.5rem]">Code</th>
               <th>Product</th>
-              <th className="w-36 min-w-[9rem]">Qty</th>
-              {enableBonus ? <th className="w-28 min-w-[6.5rem]">Scheme</th> : null}
-              <th className="w-28 min-w-[6.5rem]">Rate</th>
-              <th className="w-28 min-w-[6.5rem]">Discount %</th>
-              <th className="w-28 min-w-[6.5rem]">Amount</th>
-              <th className="w-14 min-w-[3.5rem]" />
+              <th className="w-32 min-w-[7.5rem]">Qty</th>
+              {enableBonus ? <th className="w-24 min-w-[5rem]">Scheme</th> : null}
+              <th className="w-24 min-w-[5rem]">Rate</th>
+              <th className="w-24 min-w-[5rem]">Discount %</th>
+              <th className="w-24 min-w-[5.5rem]">Amount</th>
+              <th className="w-12 min-w-[3rem]" />
             </tr>
           </thead>
           <tbody>
             {/* Sticky quick-entry row */}
             <tr className="bg-[var(--brand-soft)]/25">
-              <td className="w-28 min-w-[7rem]">
+              <td className="w-24 min-w-[5.5rem]">
                 <Input
                   ref={codeRef}
                   value={draft.product_code}
@@ -833,7 +862,7 @@ export function LineItemsEditor({
             ) : (
               lines.map((line, index) => (
                 <tr key={line.key}>
-                  <td className="w-28 min-w-[7rem]">
+                  <td className="w-24 min-w-[5.5rem]">
                     <Input
                       value={line.product_code}
                       readOnly
@@ -1067,7 +1096,7 @@ export function LineItemsEditor({
       </div>
     </div>
   );
-}
+});
 
 export function summarizeLines(lines: LineItemDraft[]) {
   const subtotal = lines.reduce(

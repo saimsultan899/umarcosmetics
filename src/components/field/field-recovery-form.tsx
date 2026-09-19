@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { enqueueMutation } from "@/lib/offline/db";
+import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { createClient } from "@/lib/supabase/client";
 import { FormEvent, useState } from "react";
 
@@ -53,34 +53,24 @@ export function FieldRecoveryForm({
 
     setLoading(true);
     try {
-      if (!online) {
-        await enqueueMutation({
-          companyId,
-          type: "recovery",
-          payload,
-        });
-        await refreshPending();
+      const res = await offlineAwareSubmit({
+        mutationType: "recovery",
+        companyId,
+        organizationId,
+        payload,
+      });
+
+      await refreshPending();
+      if (res.source === "offline") {
         setMessage("Saved offline. Will sync when internet is available.");
       } else {
-        const supabase = createClient();
-        const { error: rpcError } = await supabase.rpc("record_recovery", {
-          p_payload: payload,
-        });
-        if (rpcError) throw new Error(rpcError.message);
         setMessage("Recovery posted to main dashboard.");
         await runSync();
       }
       setAmount("");
       setRemarks("");
-    } catch (err) {
-      // If online post fails, queue offline as fallback
-      if (online) {
-        await enqueueMutation({ companyId, type: "recovery", payload });
-        await refreshPending();
-        setMessage("Network issue — saved offline for later sync.");
-      } else {
-        setError(err instanceof Error ? err.message : "Failed to save");
-      }
+    } catch (err: any) {
+      setError(err?.message || String(err));
     } finally {
       setLoading(false);
     }

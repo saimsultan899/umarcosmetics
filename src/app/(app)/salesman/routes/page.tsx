@@ -3,7 +3,18 @@ import { requireCompanyContext } from "@/lib/auth";
 import { PrintButton } from "@/components/ui/print-button";
 
 export default async function RouteSheetsPage() {
-  const { supabase, company } = await requireCompanyContext();
+  const { supabase, company, offline } = await requireCompanyContext();
+  if (offline) {
+    const { OfflineSectorSheetsPage } = await import(
+      "@/components/offline/offline-field-pages"
+    );
+    return (
+      <OfflineSectorSheetsPage
+        companyId={company.id}
+        companyName={company.name}
+      />
+    );
+  }
   const { data: sheet } = await supabase.rpc("get_recovery_sheet", {
     p_company_id: company.id,
     p_as_of: new Date().toISOString().slice(0, 10),

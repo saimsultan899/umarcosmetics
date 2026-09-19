@@ -4,11 +4,28 @@ import { notFound } from "next/navigation";
 
 export default async function StockTransferDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
-  const { supabase, company } = await requireCompanyContext();
+  const sp = await searchParams;
+  const autoPrint = sp.print === "1" || sp.print === "true";
+  const { supabase, company, offline } = await requireCompanyContext();
+
+  if (offline) {
+    const { renderOfflineDocument } = await import(
+      "@/lib/offline/render-offline-page"
+    );
+    return renderOfflineDocument(
+      "stock_transfer",
+      company,
+      id,
+      "/warehouses/transfers",
+      autoPrint,
+    );
+  }
 
   const { data: doc } = await supabase
     .from("stock_transfers")
@@ -40,6 +57,7 @@ export default async function StockTransferDetailPage({
         product_name: i.product_name,
         qty: Number(i.qty),
       }))}
+      autoPrint={autoPrint}
     />
   );
 }

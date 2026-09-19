@@ -3,7 +3,20 @@ import { formatPkr } from "@/lib/utils";
 import Link from "next/link";
 
 export default async function NightClosingPage() {
-  const { supabase, company } = await requireCompanyContext();
+  const { supabase, company, offline } = await requireCompanyContext();
+
+  if (offline) {
+    const { OfflineNightClosingPage } = await import(
+      "@/components/offline/offline-night-closing"
+    );
+    return (
+      <OfflineNightClosingPage
+        companyId={company.id}
+        companyName={company.name}
+      />
+    );
+  }
+
   const today = new Date().toISOString().slice(0, 10);
 
   const [{ data: summary }, { data: closings }] = await Promise.all([

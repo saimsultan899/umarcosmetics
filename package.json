@@ -1,16 +1,25 @@
 {
   "name": "umar-distributor",
   "version": "0.1.0",
+  "description": "Umar Distribution Software — offline-first multi-company distribution ERP",
+  "author": "Saim Sultan, Umar Irfan",
   "private": true,
+  "main": "electron/main.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "electron:dev": "electron .",
+    "electron:package": "node scripts/prepare-standalone.js && electron-builder --win",
+    "electron:build": "next build && node scripts/prepare-standalone.js && electron-builder --win",
+    "electron:build:all": "next build && node scripts/prepare-standalone.js && electron-builder --win --mac --linux",
+    "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.2",
+    "better-sqlite3": "^13.0.3",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
     "idb": "^8.0.3",
@@ -27,9 +36,12 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "electron": "^44.3.0",
+    "electron-builder": "^26.15.3",
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
     "tailwindcss": "^4",

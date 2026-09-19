@@ -94,15 +94,22 @@ export function PartyCodePicker({
     }
 
     setLooking(true);
-    const supabase = createClient();
-    const { data, error } = await supabase.rpc("get_party_by_code", {
-      p_company_id: companyId,
-      p_code: trimmed,
-    });
+    let party: any = null;
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase.rpc("get_party_by_code", {
+        p_company_id: companyId,
+        p_code: trimmed,
+      });
+      if (!error && data) {
+        party = Array.isArray(data) ? data[0] : data;
+      }
+    } catch {
+      // offline fallback
+    }
     setLooking(false);
 
-    const party = Array.isArray(data) ? data[0] : data;
-    if (error || !party) {
+    if (!party) {
       onChange("", null);
       setStatus("No account found for this code");
       return;

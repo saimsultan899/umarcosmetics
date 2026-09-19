@@ -10,6 +10,7 @@ import {
   normalizePurchaseDiscountInput,
   purchaseDiscountPercentText,
 } from "@/lib/pricing/discounts";
+import { offlineAwareSubmit, allocateNextProductCode } from "@/lib/offline/offline-submit";
 import { createClient } from "@/lib/supabase/client";
 import type { Product, Warehouse } from "@/lib/types/database";
 import { useRouter } from "next/navigation";
@@ -63,13 +64,42 @@ export function ProductForm({
     if (initial) return;
     let cancelled = false;
     (async () => {
-      const supabase = createClient();
-      const { data } = await supabase.rpc("peek_next_product_code", {
-        p_company_id: companyId,
-      });
-      if (!cancelled && data) {
-        setForm((f) => ({ ...f, code: String(data) }));
-        setAutoCode(true);
+      try {
+        if (typeof navigator !== "undefined" && !navigator.onLine) {
+          const code = await allocateNextProductCode(companyId);
+          if (!cancelled) {
+            setForm((f) => ({ ...f, code: f.code || code }));
+            setAutoCode(true);
+          }
+          return;
+        }
+        const supabase = createClient();
+        const result = await Promise.race([
+          supabase.rpc("peek_next_product_code", { p_company_id: companyId }),
+          new Promise<null>((r) => setTimeout(() => r(null), 3000)),
+        ]);
+        const data =
+          result && typeof result === "object" && "data" in result
+            ? (result as { data: unknown }).data
+            : null;
+        if (!cancelled && data) {
+          setForm((f) => ({ ...f, code: String(data) }));
+          setAutoCode(true);
+        } else if (!cancelled) {
+          const code = await allocateNextProductCode(companyId);
+          if (!cancelled) {
+            setForm((f) => ({ ...f, code: f.code || code }));
+            setAutoCode(true);
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          const code = await allocateNextProductCode(companyId);
+          if (!cancelled) {
+            setForm((f) => ({ ...f, code: f.code || code }));
+            setAutoCode(true);
+          }
+        }
       }
     })();
     return () => {
@@ -84,18 +114,24 @@ export function ProductForm({
     const supabase = createClient();
 
     let code = form.code.trim();
-    if (!initial && autoCode) {
-      const { data: allocated, error: allocError } = await supabase.rpc(
-        "next_product_code",
-        { p_company_id: companyId },
-      );
-      if (allocError) {
-        setLoading(false);
-        setError(allocError.message);
-        return;
+    if (!initial && autoCode && !code) {
+      try {
+        const { data: allocated } = await supabase.rpc(
+          "next_product_code",
+          { p_company_id: companyId },
+        );
+        if (allocated) {
+          code = String(allocated);
+          setForm((f) => ({ ...f, code }));
+        }
+      } catch {
+        code = await allocateNextProductCode(companyId);
+        setForm((f) => ({ ...f, code }));
       }
-      code = String(allocated);
-      setForm((f) => ({ ...f, code }));
+    }
+
+    if (!code) {
+      code = await allocateNextProductCode(companyId);
     }
 
     const openingQty = Number(form.opening_qty || 0);
@@ -114,10 +150,7 @@ export function ProductForm({
       return;
     }
 
-    // Persist via RPC so opening_qty also seeds/adjusts stock_balances
-    // Hidden fields keep existing values on edit; new products get safe defaults.
-    // sale_rate mirrors trade price so invoices still auto-fill correctly.
-    const payload = {
+    const payload: Record<string, unknown> = {
       organization_id: organizationId,
       company_id: companyId,
       code,
@@ -141,21 +174,28 @@ export function ProductForm({
       scheme: normalizedDiscount,
     };
 
-    const { error: saveError } = initial
-      ? await supabase.rpc("update_product", {
-          p_id: initial.id,
-          p_payload: payload,
-        })
-      : await supabase.rpc("create_product", { p_payload: payload });
-
-    setLoading(false);
-    if (saveError) {
-      setError(saveError.message);
-      return;
+    if (initial) {
+      payload.id = initial.id;
     }
-    onDone?.();
-    closeDialog?.();
-    router.refresh();
+
+    try {
+      await offlineAwareSubmit({
+        mutationType: initial ? "product_update" : "product_create",
+        companyId,
+        organizationId,
+        cacheStore: "products",
+        cacheRecord: payload,
+        payload,
+      });
+
+      setLoading(false);
+      onDone?.();
+      closeDialog?.();
+      router.refresh();
+    } catch (err: any) {
+      setLoading(false);
+      setError(err?.message || String(err));
+    }
   }
 
   return (

@@ -1,10 +1,13 @@
 "use client";
 
+import { PlatformShell } from "@/components/admin/platform-shell";
 import { NavigationProgress } from "@/components/layout/navigation-progress";
 import { PageTransition } from "@/components/layout/page-transition";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
+import { OfflineBanner } from "@/components/offline/offline-banner";
 import { SyncProvider } from "@/components/offline/sync-provider";
+import { installDesktopPrint } from "@/lib/desktop-print";
 import type { Company } from "@/lib/types/database";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -14,17 +17,22 @@ export function AppShell({
   company,
   userName,
   isSuperAdmin,
+  profileData,
+  membershipsData,
 }: {
   children: React.ReactNode;
   company?: Company | null;
   userName?: string | null;
   isSuperAdmin?: boolean;
+  profileData?: Record<string, unknown> | null;
+  membershipsData?: Record<string, unknown>[] | null;
 }) {
   const pathname = usePathname();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
+    installDesktopPrint();
     try {
       setSidebarCollapsed(localStorage.getItem("umar-sidebar-collapsed") === "1");
     } catch {
@@ -44,9 +52,10 @@ export function AppShell({
     });
   }
 
-  // Company picker is a focused screen — no sidebar/topbar until a company is chosen
-  const bareShell =
+  const selectShell =
     pathname === "/select-company" || pathname.startsWith("/select-company/");
+  const platformShell =
+    pathname === "/super-admin" || pathname.startsWith("/super-admin/");
 
   useEffect(() => {
     setMobileNavOpen(false);
@@ -61,7 +70,7 @@ export function AppShell({
     };
   }, [mobileNavOpen]);
 
-  if (bareShell) {
+  if (selectShell) {
     return (
       <div className="min-h-screen overflow-y-auto bg-white">
         <NavigationProgress />
@@ -70,10 +79,25 @@ export function AppShell({
     );
   }
 
+  if (platformShell) {
+    return (
+      <div className="min-h-screen overflow-y-auto">
+        <NavigationProgress />
+        <PlatformShell userName={userName}>
+          <PageTransition>{children}</PageTransition>
+        </PlatformShell>
+      </div>
+    );
+  }
+
   return (
     <SyncProvider
       companyId={company?.id}
       organizationId={company?.organization_id}
+      userName={userName}
+      profileData={profileData}
+      companyData={company as unknown as Record<string, unknown> | null}
+      membershipsData={membershipsData}
     >
       <div className="flex h-screen overflow-hidden">
         <NavigationProgress />
@@ -101,6 +125,7 @@ export function AppShell({
             userName={userName}
             onMenuClick={() => setMobileNavOpen(true)}
           />
+          <OfflineBanner companyId={company?.id} />
           <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-[var(--background)] p-4 sm:p-6">
             <PageTransition>{children}</PageTransition>
           </main>

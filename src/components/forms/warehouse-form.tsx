@@ -5,6 +5,7 @@ import { useCreateDialogClose } from "@/components/ui/create-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
+import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { createClient } from "@/lib/supabase/client";
 import type { Warehouse } from "@/lib/types/database";
 import { useRouter } from "next/navigation";
@@ -33,37 +34,45 @@ export function WarehouseForm({
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const supabase = createClient();
-    const { error: saveError } = initial
-      ? await supabase
-          .from("warehouses")
-          .update({
-            name: name.trim(),
-            code: code.trim() || null,
-            address: address.trim() || null,
-          })
-          .eq("id", initial.id)
-      : await supabase.from("warehouses").insert({
+    const payload: Record<string, unknown> = initial
+      ? {
+          id: initial.id,
+          name: name.trim(),
+          code: code.trim() || null,
+          address: address.trim() || null,
+        }
+      : {
           organization_id: organizationId,
           company_id: companyId,
           name: name.trim(),
           code: code.trim() || null,
           address: address.trim() || null,
           is_active: true,
-        });
-    setLoading(false);
-    if (saveError) {
-      setError(saveError.message);
-      return;
+        };
+
+    try {
+      await offlineAwareSubmit({
+        mutationType: initial ? "warehouse_update" : "warehouse_create",
+        companyId,
+        organizationId,
+        cacheStore: "warehouses",
+        cacheRecord: payload,
+        payload,
+      });
+
+      setLoading(false);
+      if (!initial) {
+        setName("");
+        setCode("");
+        setAddress("");
+      }
+      onDone?.();
+      closeDialog?.();
+      router.refresh();
+    } catch (err: any) {
+      setLoading(false);
+      setError(err?.message || String(err));
     }
-    if (!initial) {
-      setName("");
-      setCode("");
-      setAddress("");
-    }
-    onDone?.();
-    closeDialog?.();
-    router.refresh();
   }
 
   return (

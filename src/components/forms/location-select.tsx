@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { headFromCity } from "@/lib/locations";
+import { putCachedRow } from "@/lib/offline/local-db";
+import { hasLocalSqlite, localUpsertMaster } from "@/lib/offline/sqlite-client";
 import { createClient } from "@/lib/supabase/client";
 import { Plus, X } from "lucide-react";
 import { useState } from "react";
@@ -53,29 +55,52 @@ export function LocationSelect({
     }
     setSaving(true);
     setError(null);
-    const supabase = createClient();
-    const { error: saveError } = await supabase.from("company_locations").insert({
+    try {
+      const supabase = createClient();
+      const { error: saveError } = await supabase.from("company_locations").insert({
+        organization_id: organizationId,
+        company_id: companyId,
+        kind,
+        name,
+      });
+      if (saveError && !/duplicate|unique/i.test(saveError.message)) {
+        if (!saveError.message?.toLowerCase().includes("fetch")) {
+          setSaving(false);
+          setError(saveError.message);
+          return;
+        }
+      }
+      if (kind === "city") {
+        const headName = headFromCity(name);
+        if (headName) {
+          await supabase.from("company_locations").insert({
+            organization_id: organizationId,
+            company_id: companyId,
+            kind: "head",
+            name: headName,
+          });
+        }
+      }
+    } catch {
+      // Offline fallback: ignore network failure
+    }
+
+    if (hasLocalSqlite()) {
+      await localUpsertMaster("company_locations", {
+        organization_id: organizationId,
+        company_id: companyId,
+        kind,
+        name,
+      }).catch(() => {});
+    }
+    await putCachedRow("company_locations", companyId, {
       organization_id: organizationId,
       company_id: companyId,
       kind,
       name,
-    });
-    if (saveError && !/duplicate|unique/i.test(saveError.message)) {
-      setSaving(false);
-      setError(saveError.message);
-      return;
-    }
-    if (kind === "city") {
-      const headName = headFromCity(name);
-      if (headName) {
-        await supabase.from("company_locations").insert({
-          organization_id: organizationId,
-          company_id: companyId,
-          kind: "head",
-          name: headName,
-        });
-      }
-    }
+      id: `loc-${kind}-${name}`,
+    }).catch(() => {});
+
     setSaving(false);
     onAdded?.(name);
     onChange(name);

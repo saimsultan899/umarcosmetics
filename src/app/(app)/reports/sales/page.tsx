@@ -1,3 +1,4 @@
+import { OfflineSaleReportsPage } from "@/components/offline/offline-sale-reports";
 import { ChartCard } from "@/components/analytics/chart-card";
 import { CompareBarChart } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
@@ -55,14 +56,27 @@ export default async function SaleReportsPage({
   }>;
 }) {
   const sp = await searchParams;
-  const { supabase, company } = await requireCompanyContext();
+  const ctx = await requireCompanyContext();
+  const { company, offline } = ctx;
+  const from = sp.from || monthStart();
+  const to = sp.to || today();
+
+  if (offline) {
+    return (
+      <OfflineSaleReportsPage
+        companyId={company.id}
+        companyName={company.name}
+        searchParams={sp}
+      />
+    );
+  }
+
+  const { supabase } = ctx;
   const selectedTypes = parseReportList(sp.type) as SaleReportType[];
   const types: SaleReportType[] = selectedTypes.length
     ? selectedTypes
     : ["date_wise"];
   const primaryType = types[0];
-  const from = sp.from || monthStart();
-  const to = sp.to || today();
 
   const [{ data: warehouses }, { data: parties }, { data: walkInParty }] =
     await Promise.all([

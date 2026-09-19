@@ -25,14 +25,18 @@ export function AlertsMenu({ companyId }: { companyId?: string | null }) {
 
   async function load() {
     if (!companyId) return;
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("notifications")
-      .select("*")
-      .eq("company_id", companyId)
-      .order("created_at", { ascending: false })
-      .limit(12);
-    setNotes((data as Note[]) || []);
+    try {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false })
+        .limit(12);
+      if (data) setNotes((data as Note[]) || []);
+    } catch {
+      // offline silent fallback
+    }
   }
 
   useEffect(() => {
@@ -76,17 +80,25 @@ export function AlertsMenu({ companyId }: { companyId?: string | null }) {
 
   async function refreshAlerts() {
     if (!companyId) return;
-    const supabase = createClient();
-    await supabase.rpc("refresh_company_alerts", { p_company_id: companyId });
-    await load();
+    try {
+      const supabase = createClient();
+      await supabase.rpc("refresh_company_alerts", { p_company_id: companyId });
+      await load();
+    } catch {
+      // offline fallback
+    }
   }
 
   async function markRead(id: string) {
-    const supabase = createClient();
-    await supabase.from("notifications").update({ is_read: true }).eq("id", id);
     setNotes((prev) =>
       prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)),
     );
+    try {
+      const supabase = createClient();
+      await supabase.from("notifications").update({ is_read: true }).eq("id", id);
+    } catch {
+      // offline fallback
+    }
   }
 
   const panel =

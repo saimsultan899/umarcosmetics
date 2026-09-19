@@ -13,8 +13,17 @@ import { ShieldCheck, UserCheck, Users, Wallet } from "lucide-react";
 const MANAGER_ROLES: AppRole[] = ["company_admin", "org_admin", "super_admin"];
 
 export default async function UsersPage() {
-  const { supabase, user, company, membership, profile } =
-    await requireCompanyContext();
+  const ctx = await requireCompanyContext();
+  const { supabase, user, company, membership, profile, offline } = ctx;
+  if (offline) {
+    const { renderOnlineOnlyModule } = await import(
+      "@/lib/offline/render-offline-page"
+    );
+    return renderOnlineOnlyModule(
+      "User management needs internet",
+      "Inviting and editing users requires Supabase while online.",
+    );
+  }
 
   const { data } = await supabase
     .from("company_members")

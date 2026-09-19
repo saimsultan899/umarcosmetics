@@ -14,7 +14,20 @@ export default async function ExpiryClaimDetailPage({
   const { id } = await params;
   const sp = await searchParams;
   const autoPrint = sp.print === "1" || sp.print === "true";
-  const { supabase, company } = await requireCompanyContext();
+  const { supabase, company, offline } = await requireCompanyContext();
+
+  if (offline) {
+    const { renderOfflineDocument } = await import(
+      "@/lib/offline/render-offline-page"
+    );
+    return renderOfflineDocument(
+      "expiry_claim",
+      company,
+      id,
+      "/inventory/expiry/claims",
+      autoPrint,
+    );
+  }
 
   const { data: doc } = await supabase
     .from("expiry_claims")

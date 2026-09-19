@@ -1,17 +1,22 @@
 "use client";
 
 import { PartyCodePicker } from "@/components/forms/party-code-picker";
-import { LineItemsEditor, summarizeLines } from "@/components/trading/line-items-editor";
+import {
+  LineItemsEditor,
+  summarizeLines,
+  type LineItemsEditorHandle,
+} from "@/components/trading/line-items-editor";
 import { Button } from "@/components/ui/button";
+import { useCreateDialogClose } from "@/components/ui/create-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
-import { createClient } from "@/lib/supabase/client";
+import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import type { Party, Product, Warehouse } from "@/lib/types/database";
 import { type LineItemDraft, calcLineDiscount } from "@/lib/types/trading";
 import { useRouter } from "next/navigation";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useMemo, useRef, useState } from "react";
 
 export function PurchaseInvoiceForm({
   companyId,
@@ -19,14 +24,18 @@ export function PurchaseInvoiceForm({
   parties,
   products,
   warehouses,
+  onDone,
 }: {
   companyId: string;
   organizationId: string;
   parties: Party[];
   products: Product[];
   warehouses: Warehouse[];
+  onDone?: () => void;
 }) {
   const router = useRouter();
+  const closeDialog = useCreateDialogClose();
+  const linesEditorRef = useRef<LineItemsEditorHandle>(null);
   const suppliers = useMemo(
     () =>
       parties.filter(
@@ -51,9 +60,12 @@ export function PurchaseInvoiceForm({
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    const valid = lines.filter((l) => l.product_id && Number(l.qty) > 0);
+    const flushed = linesEditorRef.current?.flush() || lines;
+    const valid = flushed.filter((l) => l.product_id && Number(l.qty) > 0);
     if (!partyId || !warehouseId || valid.length === 0) {
-      setError("Select vendor, company, and at least one product line.");
+      setError(
+        "Select vendor, company, and at least one product line (press Enter / Add on the draft row).",
+      );
       return;
     }
 
@@ -66,38 +78,61 @@ export function PurchaseInvoiceForm({
     const grand_total = Math.max(0, linesTotal - extra);
 
     setLoading(true);
-    const supabase = createClient();
-    const { data, error: rpcError } = await supabase.rpc("create_purchase_invoice", {
-      p_payload: {
-        organization_id: organizationId,
-        company_id: companyId,
-        invoice_date: invoiceDate,
-        supplier_bill_no: supplierBillNo,
-        party_id: partyId,
-        warehouse_id: warehouseId,
-        subtotal,
-        discount_total,
-        extra_discount: extra,
-        grand_total,
-        narration,
-        items: valid.map((l) => ({
-          product_id: l.product_id,
-          product_code: l.product_code,
-          product_name: l.product_name,
-          qty: Number(l.qty),
-          rate: Number(l.rate),
-          discount: calcLineDiscount(l.qty, l.rate, l.discount),
-          amount: l.amount,
-        })),
-      },
-    });
-    setLoading(false);
-    if (rpcError) {
-      setError(rpcError.message);
-      return;
+    try {
+      const stockChanges = valid.map((l) => ({
+        productId: l.product_id,
+        warehouseId,
+        delta: Number(l.qty),
+      }));
+
+      const vendor = suppliers.find((s) => s.id === partyId);
+      const res = await offlineAwareSubmit({
+        mutationType: "purchase_invoice",
+        companyId,
+        organizationId,
+        stockChanges,
+        payload: {
+          organization_id: organizationId,
+          company_id: companyId,
+          invoice_date: invoiceDate,
+          supplier_bill_no: supplierBillNo,
+          party_id: partyId,
+          party_name: vendor?.name_en || null,
+          party_code: vendor?.party_code || null,
+          parties: vendor
+            ? { name_en: vendor.name_en, party_code: vendor.party_code }
+            : null,
+          warehouse_id: warehouseId,
+          subtotal,
+          discount_total,
+          extra_discount: extra,
+          grand_total,
+          narration,
+          items: valid.map((l) => ({
+            product_id: l.product_id,
+            product_code: l.product_code,
+            product_name: l.product_name,
+            qty: Number(l.qty),
+            rate: Number(l.rate),
+            discount: calcLineDiscount(l.qty, l.rate, l.discount),
+            amount: l.amount,
+          })),
+        },
+      });
+
+      setLoading(false);
+      closeDialog?.();
+      onDone?.();
+      if (res.source === "offline") {
+        router.refresh();
+      } else {
+        router.push(`/purchases/invoices/${res.id}`);
+        router.refresh();
+      }
+    } catch (err: any) {
+      setLoading(false);
+      setError(err?.message || String(err));
     }
-    router.push(`/purchases/invoices/${data}`);
-    router.refresh();
   }
 
   return (
@@ -142,6 +177,7 @@ export function PurchaseInvoiceForm({
       </div>
 
       <LineItemsEditor
+        ref={linesEditorRef}
         products={products}
         lines={lines}
         onChange={setLines}

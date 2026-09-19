@@ -7,12 +7,27 @@ export async function VoucherDetail({
   id,
   expectedType,
   title,
+  autoPrint = false,
 }: {
   id: string;
   expectedType: "CR" | "CP" | "JV";
   title: string;
+  autoPrint?: boolean;
 }) {
-  const { supabase, company } = await requireCompanyContext();
+  const { supabase, company, offline } = await requireCompanyContext();
+
+  if (offline) {
+    const listHref =
+      expectedType === "CR"
+        ? "/vouchers/cash-receipt"
+        : expectedType === "CP"
+          ? "/vouchers/cash-payment"
+          : "/vouchers/journal";
+    const { renderOfflineDocument } = await import(
+      "@/lib/offline/render-offline-page"
+    );
+    return renderOfflineDocument("voucher", company, id, listHref, autoPrint);
+  }
 
   const { data: voucher } = await supabase
     .from("vouchers")
@@ -74,6 +89,7 @@ export async function VoucherDetail({
       }
       lines={printLines}
       totals={[{ label: "Total amount", value: formatPkr(voucher.total_amount) }]}
+      autoPrint={autoPrint}
     />
   );
 }

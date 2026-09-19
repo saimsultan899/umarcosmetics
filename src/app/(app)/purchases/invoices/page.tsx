@@ -1,4 +1,5 @@
 import { DocumentListTable } from "@/components/tables/document-list-table";
+import { OfflineTradingListPage } from "@/components/offline/offline-trading-list";
 import { PurchaseInvoiceForm } from "@/components/trading/purchase-invoice-form";
 import {
   CreateDialogButton,
@@ -18,8 +19,18 @@ export default async function PurchaseInvoicesPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
-  const { company, parties, products, warehouses, supabase } =
-    await loadTradingMasters();
+  const masters = await loadTradingMasters();
+  const { company, parties, products, warehouses, supabase, offline } = masters;
+
+  if (offline) {
+    return (
+      <OfflineTradingListPage
+        kind="purchase"
+        companyId={company.id}
+        organizationId={company.organization_id}
+      />
+    );
+  }
 
   const list = await fetchDocumentList(
     supabase,

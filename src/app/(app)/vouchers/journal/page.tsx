@@ -1,12 +1,7 @@
-import { VouchersTable } from "@/components/tables/vouchers-table";
-import {
-  CreateDialogButton,
-  PageHeading,
-} from "@/components/ui/create-dialog";
+import { VouchersView } from "@/components/vouchers/vouchers-view";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
-import { JournalVoucherForm } from "@/components/vouchers/journal-form";
 import { requireCompanyContext } from "@/lib/auth";
-import { fetchVoucherList } from "@/lib/queries/vouchers";
+import { fetchVoucherList, type VoucherListResult } from "@/lib/queries/vouchers";
 import type { Party } from "@/lib/types/database";
 import { Suspense } from "react";
 
@@ -16,47 +11,33 @@ export default async function JournalVoucherPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
-  const { supabase, company } = await requireCompanyContext();
+  const { supabase, company, offline } = await requireCompanyContext();
 
-  const [{ data: parties }, list] = await Promise.all([
-    supabase
-      .from("parties")
-      .select("*")
-      .eq("company_id", company.id)
-      .eq("is_active", true)
-      .order("name_en"),
-    fetchVoucherList(supabase, company.id, sp, "JV"),
-  ]);
+  let initialData: VoucherListResult | null = null;
+  let initialParties: Party[] = [];
+
+  if (!offline) {
+    try {
+      const [{ data: parties }, list] = await Promise.all([
+        supabase.from("parties").select("*").eq("company_id", company.id).eq("is_active", true).order("name_en"),
+        fetchVoucherList(supabase, company.id, sp, "JV"),
+      ]);
+      initialParties = (parties as Party[]) || [];
+      initialData = list;
+    } catch {
+      initialData = null;
+    }
+  }
 
   return (
-    <div className="animate-rise space-y-6">
-      <PageHeading
-        title="Journal Voucher"
-        description="Transfer amounts between debit and credit accounts"
-        actions={
-          <CreateDialogButton
-            label="New journal"
-            title="New journal voucher"
-            description="Post balanced debit / credit lines"
-            size="xl"
-          >
-            <JournalVoucherForm
-              companyId={company.id}
-              organizationId={company.organization_id}
-              parties={(parties || []) as Party[]}
-            />
-          </CreateDialogButton>
-        }
+    <Suspense fallback={<PageSkeleton />}>
+      <VouchersView
+        company={company}
+        kind="JV"
+        initialData={initialData}
+        initialParties={initialParties}
+        initialOffline={offline}
       />
-
-      <Suspense fallback={<PageSkeleton />}>
-        <VouchersTable
-          vouchers={list.vouchers}
-          pagination={list.pagination}
-          emptyLabel="No journal vouchers yet."
-          detailBasePath="/vouchers/journal"
-        />
-      </Suspense>
-    </div>
+    </Suspense>
   );
 }

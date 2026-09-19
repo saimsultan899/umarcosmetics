@@ -12,6 +12,7 @@ import {
   type ExpenseCategory,
 } from "@/lib/expenses/categories";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
+import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import type { SalesmanOption } from "@/lib/queries/salesmen";
 import { createClient } from "@/lib/supabase/client";
 import type { Party, Warehouse } from "@/lib/types/database";
@@ -48,12 +49,14 @@ export function ExpenseForm({
   salesmen,
   warehouses,
   vendors,
+  onDone,
 }: {
   companyId: string;
   organizationId: string;
   salesmen: SalesmanOption[];
   warehouses: Warehouse[];
   vendors: Party[];
+  onDone?: () => void;
 }) {
   const router = useRouter();
   const closeDialog = useCreateDialogClose();
@@ -120,29 +123,34 @@ export function ExpenseForm({
     }
 
     setLoading(true);
-    const supabase = createClient();
-    const { error: rpcError } = await supabase.rpc("create_expenses", {
-      p_payload: {
-        organization_id: organizationId,
-        company_id: companyId,
-        expense_date: date,
-        lines: valid.map((l) => ({
-          category: l.category,
-          amount: Number(l.amount),
-          salesman_id: isSalaryCategory(l.category) ? l.salesman_id : null,
-          warehouse_id: isBuiltyCategory(l.category) ? l.warehouse_id : null,
-          vendor_id: isBuiltyCategory(l.category) ? l.vendor_id : null,
-          remarks: l.remarks || null,
-        })),
-      },
-    });
-    setLoading(false);
-    if (rpcError) {
-      setError(rpcError.message);
-      return;
+    try {
+      await offlineAwareSubmit({
+        mutationType: "expense",
+        companyId,
+        organizationId,
+        payload: {
+          organization_id: organizationId,
+          company_id: companyId,
+          expense_date: date,
+          lines: valid.map((l) => ({
+            category: l.category,
+            amount: Number(l.amount),
+            salesman_id: isSalaryCategory(l.category) ? l.salesman_id : null,
+            warehouse_id: isBuiltyCategory(l.category) ? l.warehouse_id : null,
+            vendor_id: isBuiltyCategory(l.category) ? l.vendor_id : null,
+            remarks: l.remarks || null,
+          })),
+        },
+      });
+
+      setLoading(false);
+      closeDialog?.();
+      onDone?.();
+      router.refresh();
+    } catch (err: any) {
+      setLoading(false);
+      setError(err?.message || String(err));
     }
-    closeDialog?.();
-    router.refresh();
   }
 
   return (

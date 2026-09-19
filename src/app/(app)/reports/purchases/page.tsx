@@ -31,13 +31,29 @@ export default async function PurchaseReportsPage({
   }>;
 }) {
   const sp = await searchParams;
-  const { supabase, company } = await requireCompanyContext();
+  const ctx = await requireCompanyContext();
+  const { company, offline } = ctx;
+  const from = sp.from || monthStart();
+  const to = sp.to || today();
+
+  if (offline) {
+    const { OfflinePurchaseReportsPage } = await import(
+      "@/components/offline/offline-purchase-reports"
+    );
+    return (
+      <OfflinePurchaseReportsPage
+        companyId={company.id}
+        companyName={company.name}
+        searchParams={sp}
+      />
+    );
+  }
+
+  const { supabase } = ctx;
   const selectedTypes = parseReportList(sp.type) as PurchaseReportType[];
   const types: PurchaseReportType[] = selectedTypes.length
     ? selectedTypes
     : ["summary"];
-  const from = sp.from || monthStart();
-  const to = sp.to || today();
 
   const [{ data: warehouses }, { data: parties }] = await Promise.all([
     supabase

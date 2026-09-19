@@ -18,7 +18,20 @@ export default async function SaleReturnDetailPage({
   const { id } = await params;
   const sp = await searchParams;
   const autoPrint = sp.print === "1" || sp.print === "true";
-  const { supabase, company } = await requireCompanyContext();
+  const { supabase, company, offline } = await requireCompanyContext();
+
+  if (offline) {
+    const { renderOfflineDocument } = await import(
+      "@/lib/offline/render-offline-page"
+    );
+    return renderOfflineDocument(
+      "sale_return",
+      company,
+      id,
+      "/sales/returns",
+      autoPrint,
+    );
+  }
 
   const { data: doc } = await supabase
     .from("sale_returns")

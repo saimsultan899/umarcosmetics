@@ -1,18 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Poppins, Roboto } from "next/font/google";
 import "./globals.css";
-
-const body = Poppins({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-body",
-});
-
-const amount = Roboto({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-amount",
-});
 
 export const metadata: Metadata = {
   title: "Umar Distribution Software",
@@ -28,7 +15,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#152238",
+  themeColor: "#d65a42",
   width: "device-width",
   initialScale: 1,
 };
@@ -44,7 +31,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
       </head>
       <body
-        className={`${body.variable} ${amount.variable} antialiased`}
+        className="antialiased"
         suppressHydrationWarning
       >
         {children}

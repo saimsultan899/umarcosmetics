@@ -3,7 +3,16 @@ import { requireCompanyContext } from "@/lib/auth";
 
 export async function loadTradingMasters() {
   const ctx = await requireCompanyContext();
-  const { supabase, company } = ctx;
+  const { supabase, company, offline } = ctx;
+
+  if (offline) {
+    return {
+      ...ctx,
+      parties: [] as Party[],
+      products: [] as Product[],
+      warehouses: [] as Warehouse[],
+    };
+  }
 
   const [{ data: parties }, { data: products }, { data: warehouses }] =
     await Promise.all([

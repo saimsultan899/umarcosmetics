@@ -129,23 +129,33 @@ export const salesmanNav: NavItem[] = [
 
 export const adminNav: NavItem[] = [
   {
-    label: "Super Admin",
+    label: "Platform home",
     href: "/super-admin",
     icon: Shield,
   },
   {
+    label: "New client",
+    href: "/super-admin/provision",
+    icon: Building2,
+  },
+  {
+    label: "Clients",
+    href: "/super-admin/clients",
+    icon: Users,
+  },
+  {
     label: "Organizations",
-    href: "/super-admin?tab=orgs",
+    href: "/super-admin/organizations",
     icon: Building2,
   },
   {
     label: "Companies",
-    href: "/super-admin?tab=companies",
+    href: "/super-admin/companies",
     icon: Boxes,
   },
 ];
 
-/** Super-admin links grouped under one sidebar dropdown. */
+/** Super-admin links grouped under one sidebar dropdown (ERP shell only). */
 export const platformNav: NavItem = {
   label: "Platform",
   icon: Shield,

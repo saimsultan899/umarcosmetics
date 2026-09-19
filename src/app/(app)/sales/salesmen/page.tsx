@@ -40,9 +40,26 @@ export default async function SalesmenPerformancePage({
   }>;
 }) {
   const sp = await searchParams;
-  const { supabase, company } = await requireCompanyContext();
+  const { supabase, company, offline } = await requireCompanyContext();
   const from = sp.from || monthStart();
   const to = sp.to || today();
+
+  if (offline) {
+    const { OfflineSalesmanReportPage } = await import(
+      "@/components/offline/offline-salesman-report"
+    );
+    return (
+      <OfflineSalesmanReportPage
+        companyId={company.id}
+        companyName={company.name}
+        from={from}
+        to={to}
+        salesman={sp.salesman}
+        sector={sp.sector}
+      />
+    );
+  }
+
   const salesmanIds = parseReportList(sp.salesman);
   const sectors = parseReportList(sp.sector);
 

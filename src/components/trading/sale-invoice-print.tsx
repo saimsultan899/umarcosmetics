@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { formatReportInvNo } from "@/lib/reports/helpers";
 import { formatNumber, formatPkr } from "@/lib/utils";
 import { ArrowLeft, Printer } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -236,7 +237,7 @@ export function SaleInvoicePrint({
           <div className="si-meta-right si-meta-block">
             <div>
               <span className="si-k">Bill No :</span>{" "}
-              <span className="si-v">{docNo}</span>
+              <span className="si-v">{formatReportInvNo(docNo) || docNo}</span>
             </div>
             {sector ? (
               <div>

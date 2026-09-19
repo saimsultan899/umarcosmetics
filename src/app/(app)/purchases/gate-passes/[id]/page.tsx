@@ -13,7 +13,20 @@ export default async function GatePassDetailPage({
   const { id } = await params;
   const sp = await searchParams;
   const autoPrint = sp.print === "1" || sp.print === "true";
-  const { supabase, company, profile } = await requireCompanyContext();
+  const { supabase, company, profile, offline } = await requireCompanyContext();
+
+  if (offline) {
+    const { renderOfflineDocument } = await import(
+      "@/lib/offline/render-offline-page"
+    );
+    return renderOfflineDocument(
+      "gate_pass",
+      company,
+      id,
+      "/purchases/gate-passes",
+      autoPrint,
+    );
+  }
 
   const { data: pass } = await supabase
     .from("gate_passes")

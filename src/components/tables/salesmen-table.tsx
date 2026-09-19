@@ -9,6 +9,9 @@ import { DetailField, RowActions } from "@/components/ui/row-actions";
 import { useClientPagination } from "@/hooks/use-client-pagination";
 import { createClient } from "@/lib/supabase/client";
 import { formatNumber, formatPkr } from "@/lib/utils";
+import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
+import { putCachedRow } from "@/lib/offline/local-db";
+import { hasLocalSqlite, localUpsertMaster } from "@/lib/offline/sqlite-client";
 import { HandCoins, ScrollText, ShoppingCart, TrendingUp, Users } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -66,12 +69,25 @@ export function SalesmenTable({
   );
 
   async function deactivate(id: string) {
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("salesmen")
-      .update({ is_active: false, updated_at: new Date().toISOString() })
-      .eq("id", id);
-    if (error) throw new Error(error.message);
+    const salesman = rows.find((r) => r.id === id);
+    const payload = salesman
+      ? { ...salesman, is_active: false }
+      : { id, is_active: false, company_id: companyId };
+    try {
+      await offlineAwareSubmit({
+        mutationType: "salesman_update",
+        companyId,
+        organizationId,
+        cacheStore: "salesmen",
+        cacheRecord: payload,
+        payload,
+      });
+    } catch {
+      if (hasLocalSqlite() && salesman) {
+        await localUpsertMaster("salesmen", { ...salesman, is_active: false }).catch(() => {});
+      }
+      await putCachedRow("salesmen", companyId, payload).catch(() => {});
+    }
   }
 
   function fields(r: SalesmanListRow): DetailField[] {

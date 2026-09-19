@@ -5,11 +5,28 @@ import { notFound } from "next/navigation";
 
 export default async function LoadSheetDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
-  const { supabase, company } = await requireCompanyContext();
+  const sp = await searchParams;
+  const autoPrint = sp.print === "1" || sp.print === "true";
+  const { supabase, company, offline } = await requireCompanyContext();
+
+  if (offline) {
+    const { renderOfflineDocument } = await import(
+      "@/lib/offline/render-offline-page"
+    );
+    return renderOfflineDocument(
+      "load_sheet",
+      company,
+      id,
+      "/inventory/load-sheets",
+      autoPrint,
+    );
+  }
 
   const { data: sheet } = await supabase
     .from("load_sheets")
@@ -68,6 +85,7 @@ export default async function LoadSheetDetailPage({
         }))}
         signatures={["Storekeeper", "Driver / Salesman"]}
         footerNote={sheet.narration ? `Note: ${sheet.narration}` : undefined}
+        autoPrint={autoPrint}
       />
     </div>
   );

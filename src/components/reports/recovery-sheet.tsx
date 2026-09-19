@@ -138,7 +138,7 @@ export function RecoverySheet({
     useUrlTableState();
   const [query, setQuery] = useState("");
   const [printedAt, setPrintedAt] = useState<Date | null>(null);
-  const [hideSaleCols, setHideSaleCols] = useState(false);
+  const [hideSaleCols, setHideSaleCols] = useState(true);
   const savedTitle = useRef("");
 
   useEffect(() => {
@@ -389,26 +389,30 @@ export function RecoverySheet({
       {/* Paper-matching Recovery Sheet — print / PDF only (all filtered rows) */}
       <div className="print-only print-sheet recovery-sheet">
         <div className="recovery-sheet-head">
-          <p className="recovery-sheet-title">Customers Receivables</p>
-          <p className="recovery-sheet-co">{companyName}</p>
-          <div className="recovery-sheet-meta">
-            <p>
-              <span>Town</span>{" "}
-              <strong className="recovery-sheet-town">{townLabel}</strong>
-            </p>
-            <p>
-              <span>Salesman</span> {salesmanLabel}
-            </p>
+          <div className="recovery-sheet-head-top">
+            <p className="recovery-sheet-title">Customers Receivables</p>
+            <p className="recovery-sheet-co">{companyName}</p>
           </div>
-          <div className="recovery-sheet-dates">
-            <p>
-              <span>From</span> {formatRangeDate(from)}
-              <span className="recovery-sheet-dates__to">To</span>{" "}
-              {formatRangeDate(to)}
-            </p>
-            <p className="recovery-sheet-printed">
-              {printed ? `${printed.date} ${printed.time}` : ""}
-            </p>
+          <div className="recovery-sheet-head-body">
+            <div className="recovery-sheet-meta">
+              <p>
+                <span>Town</span>{" "}
+                <strong className="recovery-sheet-town">{townLabel}</strong>
+              </p>
+              <p>
+                <span>Salesman</span> {salesmanLabel}
+              </p>
+            </div>
+            <div className="recovery-sheet-dates">
+              <p>
+                <span>From</span> {formatRangeDate(from)}
+                <span className="recovery-sheet-dates__to">To</span>{" "}
+                {formatRangeDate(to)}
+              </p>
+              <p className="recovery-sheet-printed">
+                {printed ? `${printed.date} ${printed.time}` : ""}
+              </p>
+            </div>
           </div>
         </div>
 
@@ -441,11 +445,32 @@ export function RecoverySheet({
                   </colgroup>
                   <thead>
                     <tr>
-                      <th>Acc<br />ID</th>
-                      <th>Customer<br />name</th>
-                      <th>Last<br />received</th>
-                      {hideSaleCols ? null : (
+                      {hideSaleCols ? (
                         <>
+                          <th>Acc ID</th>
+                          <th>Customer name</th>
+                          <th>Last received</th>
+                          <th className="num">Final bal.</th>
+                          <th>Received</th>
+                          <th>Remarks</th>
+                        </>
+                      ) : (
+                        <>
+                          <th>
+                            Acc
+                            <br />
+                            ID
+                          </th>
+                          <th>
+                            Customer
+                            <br />
+                            name
+                          </th>
+                          <th>
+                            Last
+                            <br />
+                            received
+                          </th>
                           <th className="num">
                             Prev.
                             <br />
@@ -466,15 +491,15 @@ export function RecoverySheet({
                             <br />
                             value
                           </th>
+                          <th className="num">
+                            Final
+                            <br />
+                            bal.
+                          </th>
+                          <th>Received</th>
+                          <th>Remarks</th>
                         </>
                       )}
-                      <th className="num">
-                        Final
-                        <br />
-                        bal.
-                      </th>
-                      <th>Received</th>
-                      <th>Remarks</th>
                     </tr>
                   </thead>
                   <tbody>

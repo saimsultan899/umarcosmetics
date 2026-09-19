@@ -4,6 +4,8 @@ import { LocationSelect, type LocationKind } from "@/components/forms/location-s
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { headFromCity } from "@/lib/locations";
+import { putCachedRow, deleteCachedRow } from "@/lib/offline/local-db";
+import { hasLocalSqlite, localUpsertMaster } from "@/lib/offline/sqlite-client";
 import { createClient } from "@/lib/supabase/client";
 import { Pencil, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -333,60 +335,72 @@ async function renameLocation({
   from: string;
   to: string;
 }) {
-  const supabase = createClient();
-  const { data: existing, error: findError } = await supabase
-    .from("company_locations")
-    .select("id")
-    .eq("company_id", companyId)
-    .eq("kind", kind)
-    .eq("name", from)
-    .maybeSingle();
-  if (findError) throw new Error(findError.message);
-
-  if (existing) {
-    const { error } = await supabase
+  try {
+    const supabase = createClient();
+    const { data: existing } = await supabase
       .from("company_locations")
-      .update({ name: to })
-      .eq("id", existing.id);
-    if (error) throw new Error(error.message);
-  } else {
-    const { error } = await supabase.from("company_locations").insert({
+      .select("id")
+      .eq("company_id", companyId)
+      .eq("kind", kind)
+      .eq("name", from)
+      .maybeSingle();
+
+    if (existing) {
+      await supabase
+        .from("company_locations")
+        .update({ name: to })
+        .eq("id", existing.id);
+    } else {
+      await supabase.from("company_locations").insert({
+        organization_id: organizationId,
+        company_id: companyId,
+        kind,
+        name: to,
+      });
+    }
+
+    if (kind === "city") {
+      const oldHead = headFromCity(from);
+      const newHead = headFromCity(to);
+      if (oldHead && newHead && oldHead !== newHead) {
+        await supabase
+          .from("company_locations")
+          .update({ name: newHead })
+          .eq("company_id", companyId)
+          .eq("kind", "head")
+          .eq("name", oldHead);
+      }
+      await supabase
+        .from("parties")
+        .update({ city: to, head: newHead })
+        .eq("company_id", companyId)
+        .eq("city", from);
+    } else {
+      await supabase
+        .from("parties")
+        .update({ route: to })
+        .eq("company_id", companyId)
+        .eq("route", from);
+    }
+  } catch {
+    // Non-critical if offline
+  }
+
+  if (hasLocalSqlite()) {
+    await localUpsertMaster("company_locations", {
       organization_id: organizationId,
       company_id: companyId,
       kind,
       name: to,
-    });
-    if (error && !/duplicate|unique/i.test(error.message)) {
-      throw new Error(error.message);
-    }
+    }).catch(() => {});
   }
-
-  if (kind === "city") {
-    const oldHead = headFromCity(from);
-    const newHead = headFromCity(to);
-    if (oldHead && newHead && oldHead !== newHead) {
-      await supabase
-        .from("company_locations")
-        .update({ name: newHead })
-        .eq("company_id", companyId)
-        .eq("kind", "head")
-        .eq("name", oldHead);
-    }
-    const { error } = await supabase
-      .from("parties")
-      .update({ city: to, head: newHead })
-      .eq("company_id", companyId)
-      .eq("city", from);
-    if (error) throw new Error(error.message);
-    return;
-  }
-
-  const { error } = await supabase
-    .from("parties")
-    .update({ route: to })
-    .eq("company_id", companyId)
-    .eq("route", from);
-  if (error) throw new Error(error.message);
+  await putCachedRow("company_locations", companyId, {
+    organization_id: organizationId,
+    company_id: companyId,
+    kind,
+    name: to,
+    id: `loc-${kind}-${to}`,
+  }).catch(() => {});
 }
 
 async function deleteLocation({
@@ -398,38 +412,40 @@ async function deleteLocation({
   kind: "city" | "sector";
   name: string;
 }) {
-  const supabase = createClient();
-  const { error: locError } = await supabase
-    .from("company_locations")
-    .delete()
-    .eq("company_id", companyId)
-    .eq("kind", kind)
-    .eq("name", name);
-  if (locError) throw new Error(locError.message);
-
-  if (kind === "city") {
-    const head = headFromCity(name);
-    if (head) {
-      await supabase
-        .from("company_locations")
-        .delete()
-        .eq("company_id", companyId)
-        .eq("kind", "head")
-        .eq("name", head);
-    }
-    const { error } = await supabase
-      .from("parties")
-      .update({ city: null, head: null })
+  try {
+    const supabase = createClient();
+    await supabase
+      .from("company_locations")
+      .delete()
       .eq("company_id", companyId)
-      .eq("city", name);
-    if (error) throw new Error(error.message);
-    return;
+      .eq("kind", kind)
+      .eq("name", name);
+
+    if (kind === "city") {
+      const head = headFromCity(name);
+      if (head) {
+        await supabase
+          .from("company_locations")
+          .delete()
+          .eq("company_id", companyId)
+          .eq("kind", "head")
+          .eq("name", head);
+      }
+      await supabase
+        .from("parties")
+        .update({ city: null, head: null })
+        .eq("company_id", companyId)
+        .eq("city", name);
+    } else {
+      await supabase
+        .from("parties")
+        .update({ route: null })
+        .eq("company_id", companyId)
+        .eq("route", name);
+    }
+  } catch {
+    // Non-critical if offline
   }
 
-  const { error } = await supabase
-    .from("parties")
-    .update({ route: null })
-    .eq("company_id", companyId)
-    .eq("route", name);
-  if (error) throw new Error(error.message);
+  await deleteCachedRow("company_locations", `loc-${kind}-${name}`).catch(() => {});
 }

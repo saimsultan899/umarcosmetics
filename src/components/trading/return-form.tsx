@@ -1,17 +1,22 @@
 "use client";
 
+import {
+  LineItemsEditor,
+  summarizeLines,
+  type LineItemsEditorHandle,
+} from "@/components/trading/line-items-editor";
 import { PartyCodePicker } from "@/components/forms/party-code-picker";
-import { LineItemsEditor, summarizeLines } from "@/components/trading/line-items-editor";
 import { Button } from "@/components/ui/button";
+import { useCreateDialogClose } from "@/components/ui/create-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
-import { createClient } from "@/lib/supabase/client";
+import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import type { Party, Product, Warehouse } from "@/lib/types/database";
 import { type LineItemDraft, calcLineDiscount } from "@/lib/types/trading";
 import { useRouter } from "next/navigation";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useMemo, useRef, useState } from "react";
 
 export function ReturnForm({
   kind,
@@ -20,6 +25,7 @@ export function ReturnForm({
   parties,
   products,
   warehouses,
+  onDone,
 }: {
   kind: "sale" | "purchase";
   companyId: string;
@@ -27,8 +33,11 @@ export function ReturnForm({
   parties: Party[];
   products: Product[];
   warehouses: Warehouse[];
+  onDone?: () => void;
 }) {
   const router = useRouter();
+  const closeDialog = useCreateDialogClose();
+  const linesEditorRef = useRef<LineItemsEditorHandle>(null);
   const partyOptions = useMemo(() => {
     if (kind === "purchase") {
       return parties.filter(
@@ -58,12 +67,13 @@ export function ReturnForm({
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    const valid = lines.filter((l) => l.product_id && Number(l.qty) > 0);
+    const flushed = linesEditorRef.current?.flush() || lines;
+    const valid = flushed.filter((l) => l.product_id && Number(l.qty) > 0);
     if (!partyId || !warehouseId || valid.length === 0) {
       setError(
         kind === "purchase"
-          ? "Select vendor, company, and at least one line."
-          : "Select customer, company, and at least one line.",
+          ? "Select vendor, company, and at least one line (Enter/Add on the draft row)."
+          : "Select customer, company, and at least one line (Enter/Add on the draft row).",
       );
       return;
     }
@@ -77,38 +87,55 @@ export function ReturnForm({
     const grand_total = Math.max(0, linesTotal - extra);
 
     setLoading(true);
-    const supabase = createClient();
-    const rpc = kind === "sale" ? "create_sale_return" : "create_purchase_return";
-    const { data, error: rpcError } = await supabase.rpc(rpc, {
-      p_payload: {
-        organization_id: organizationId,
-        company_id: companyId,
-        return_date: returnDate,
-        party_id: partyId,
-        warehouse_id: warehouseId,
-        subtotal,
-        discount_total,
-        extra_discount: extra,
-        grand_total,
-        narration,
-        items: valid.map((l) => ({
-          product_id: l.product_id,
-          product_code: l.product_code,
-          product_name: l.product_name,
-          qty: Number(l.qty),
-          rate: Number(l.rate),
-          discount: calcLineDiscount(l.qty, l.rate, l.discount),
-          amount: l.amount,
-        })),
-      },
-    });
-    setLoading(false);
-    if (rpcError) {
-      setError(rpcError.message);
-      return;
+    try {
+      const stockChanges = valid.map((l) => ({
+        productId: l.product_id,
+        warehouseId,
+        delta: kind === "sale" ? Number(l.qty) : -Number(l.qty),
+      }));
+
+      const res = await offlineAwareSubmit({
+        mutationType: kind === "sale" ? "sale_return" : "purchase_return",
+        companyId,
+        organizationId,
+        stockChanges,
+        payload: {
+          organization_id: organizationId,
+          company_id: companyId,
+          return_date: returnDate,
+          party_id: partyId,
+          warehouse_id: warehouseId,
+          subtotal,
+          discount_total,
+          extra_discount: extra,
+          grand_total,
+          narration,
+          items: valid.map((l) => ({
+            product_id: l.product_id,
+            product_code: l.product_code,
+            product_name: l.product_name,
+            qty: Number(l.qty),
+            rate: Number(l.rate),
+            discount: calcLineDiscount(l.qty, l.rate, l.discount),
+            amount: l.amount,
+          })),
+        },
+      });
+
+      setLoading(false);
+      closeDialog?.();
+      onDone?.();
+      const basePath = kind === "sale" ? "/sales/returns" : "/purchases/returns";
+      if (res.source === "offline") {
+        router.refresh();
+      } else {
+        router.push(`${basePath}/${res.id}`);
+        router.refresh();
+      }
+    } catch (err: unknown) {
+      setLoading(false);
+      setError(err instanceof Error ? err.message : String(err));
     }
-    router.push(kind === "sale" ? `/sales/returns/${data}` : `/purchases/returns/${data}`);
-    router.refresh();
   }
 
   return (
@@ -117,7 +144,8 @@ export function ReturnForm({
       className="space-y-5"
       data-enter-root
       onKeyDown={(e) => handleEnterAsNext(e)}
-    >      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    >
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <Label>Date</Label>
           <Input type="date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} required />
@@ -151,6 +179,7 @@ export function ReturnForm({
       </div>
 
       <LineItemsEditor
+        ref={linesEditorRef}
         products={products}
         lines={lines}
         onChange={setLines}

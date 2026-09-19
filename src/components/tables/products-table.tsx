@@ -21,6 +21,9 @@ import type { Product, Warehouse } from "@/lib/types/database";
 import { formatProductPurchaseDiscount } from "@/lib/pricing/discounts";
 import { formatUomCompact } from "@/lib/pricing/uom";
 import { formatNumber, formatPkr } from "@/lib/utils";
+import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
+import { putCachedRow } from "@/lib/offline/local-db";
+import { hasLocalSqlite, localUpsertMaster } from "@/lib/offline/sqlite-client";
 import { AlertTriangle, Package, Tags } from "lucide-react";
 import { useMemo } from "react";
 
@@ -109,12 +112,25 @@ export function ProductsTable({
     (initialView === "reorder" ? "reorder" : "all")) as ViewFilter;
 
   async function deactivate(id: string) {
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("products")
-      .update({ is_active: false })
-      .eq("id", id);
-    if (error) throw new Error(error.message);
+    const product = products.find((p) => p.id === id);
+    const payload = product
+      ? { ...product, is_active: false }
+      : { id, is_active: false, company_id: companyId };
+    try {
+      await offlineAwareSubmit({
+        mutationType: "product_update",
+        companyId,
+        organizationId,
+        cacheStore: "products",
+        cacheRecord: payload,
+        payload,
+      });
+    } catch {
+      if (hasLocalSqlite() && product) {
+        await localUpsertMaster("products", { ...product, is_active: false }).catch(() => {});
+      }
+      await putCachedRow("products", companyId, payload).catch(() => {});
+    }
   }
 
   return (

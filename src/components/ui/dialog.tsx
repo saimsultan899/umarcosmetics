@@ -62,7 +62,7 @@ export function Dialog({
         aria-modal="true"
         aria-labelledby={titleId}
         className={cn(
-          "relative z-[101] flex max-h-[min(90vh,880px)] w-full max-w-2xl flex-col overflow-hidden",
+          "relative z-[101] flex max-h-[min(94vh,960px)] w-full max-w-2xl flex-col overflow-hidden",
           "animate-[dialog-rise_180ms_ease-out] rounded-lg bg-white",
           "shadow-[0_16px_48px_rgba(30,58,95,0.2)] ring-1 ring-black/5",
           className,
