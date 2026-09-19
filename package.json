@@ -12,9 +12,9 @@
     "lint": "eslint",
     "electron:dev": "electron .",
     "electron:package": "node scripts/prepare-standalone.js && electron-builder --win",
-    "electron:build": "next build && node scripts/prepare-standalone.js && electron-builder --win",
-    "electron:build:all": "next build && node scripts/prepare-standalone.js && electron-builder --win --mac --linux",
-    "postinstall": "electron-builder install-app-deps"
+    "electron:build": "node scripts/build-electron.js --win",
+    "electron:build:all": "node scripts/build-electron.js --win --mac --linux",
+    "postinstall": "node scripts/postinstall.js"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
