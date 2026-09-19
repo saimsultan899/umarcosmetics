@@ -28,6 +28,7 @@ import {
   type OfflineShellSnapshot,
 } from "@/lib/offline/offline-shell";
 import { networkErrorMessage, setupServiceWorker } from "@/lib/offline/service-worker";
+import { filterUsableMemberships } from "@/lib/super-admin/access";
 import { getCachedSessionData, cacheSessionData } from "@/lib/offline/cache-manager";
 import { createClient } from "@/lib/supabase/client";
 import { withTimeout } from "@/lib/offline/fetch-timeout";
@@ -120,14 +121,16 @@ function LoginForm() {
         const { data } = await withTimeout(
           supabase
             .from("company_members")
-            .select("*, companies(*)")
+            .select("*, companies(*, organizations(status))")
             .eq("user_id", user.id)
             .eq("is_active", true),
           8000,
           "memberships",
         );
 
-        const memberships = (data as CompanyMembership[]) || [];
+        const memberships = filterUsableMemberships(
+          (data as CompanyMembership[]) || [],
+        );
         if (!memberships.length) return;
 
         if (memberships.length === 1 && memberships[0].companies?.id) {
@@ -366,7 +369,7 @@ function LoginForm() {
       const { data, error: memError } = await withTimeout(
         supabase
           .from("company_members")
-          .select("*, companies(*)")
+          .select("*, companies(*, organizations(status))")
           .eq("user_id", authData.user.id)
           .eq("is_active", true),
         10000,
@@ -384,7 +387,7 @@ function LoginForm() {
         authData.user.id,
         authData.user.email || email,
         password,
-        (data as CompanyMembership[]) || [],
+        filterUsableMemberships((data as CompanyMembership[]) || []),
       );
     } catch (err) {
       setLoading(false);
@@ -482,13 +485,15 @@ function LoginForm() {
             const { data } = await withTimeout(
               supabase
                 .from("company_members")
-                .select("*, companies(*)")
+                .select("*, companies(*, organizations(status))")
                 .eq("user_id", authData.user.id)
                 .eq("is_active", true),
               10000,
               "memberships",
             );
-            const memberships = (data as CompanyMembership[]) || [];
+            const memberships = filterUsableMemberships(
+              (data as CompanyMembership[]) || [],
+            );
             setRows(memberships);
 
             const targetCompanyId =

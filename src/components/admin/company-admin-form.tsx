@@ -54,14 +54,28 @@ export function CompanyAdminForm({
           address: address.trim() || null,
           phone: phone.trim() || null,
           ntn: ntn.trim() || null,
-          is_active: isActive,
         })
         .eq("id", initial.id);
-      setLoading(false);
       if (saveError) {
+        setLoading(false);
         setError(saveError.message);
         return;
       }
+      if (isActive !== initial.is_active) {
+        const { error: statusError } = await supabase.rpc(
+          "admin_set_company_active",
+          {
+            p_company_id: initial.id,
+            p_is_active: isActive,
+          },
+        );
+        if (statusError) {
+          setLoading(false);
+          setError(statusError.message);
+          return;
+        }
+      }
+      setLoading(false);
     } else {
       if (!organizationId) {
         setLoading(false);

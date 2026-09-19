@@ -166,7 +166,7 @@ export async function getMemberships() {
   const result = await withTimeout(
     supabase
       .from("company_members")
-      .select("*, companies(*)")
+      .select("*, companies(*, organizations(status))")
       .eq("user_id", user.id)
       .eq("is_active", true),
     5000,
@@ -185,11 +185,27 @@ export async function getMemberships() {
     }
   }
 
+  const raw = (result?.data || []) as CompanyMember[];
+  const memberships = raw.filter((m) => {
+    const company = m.companies as
+      | (Company & {
+          organizations?: { status?: string } | { status?: string }[] | null;
+        })
+      | null
+      | undefined;
+    if (!company || company.is_active === false) return false;
+    const org = Array.isArray(company.organizations)
+      ? company.organizations[0]
+      : company.organizations;
+    if (org?.status === "suspended") return false;
+    return true;
+  });
+
   return {
     supabase,
     user,
     profile,
-    memberships: (result?.data || []) as CompanyMember[],
+    memberships,
     offline: false as const,
   };
 }
@@ -257,7 +273,7 @@ export async function requireCompanyContext() {
   const result = await withTimeout(
     supabase
       .from("companies")
-      .select("*")
+      .select("*, organizations(status)")
       .eq("id", profile.active_company_id)
       .single(),
     5000,
@@ -286,7 +302,20 @@ export async function requireCompanyContext() {
     redirect("/select-company");
   }
 
-  const company = result.data as Company;
+  const company = result.data as Company & {
+    organizations?: { status?: string } | { status?: string }[] | null;
+  };
+  const orgRel = Array.isArray(company.organizations)
+    ? company.organizations[0]
+    : company.organizations;
+  const orgSuspended = orgRel?.status === "suspended";
+
+  if (!company.is_active || orgSuspended) {
+    await supabase.rpc("clear_active_company").then(() => undefined).catch(() => undefined);
+    if (profile?.is_super_admin) redirect("/super-admin");
+    redirect("/select-company");
+  }
+
   const membership = memberships.find((m) => m.company_id === company.id);
 
   return {

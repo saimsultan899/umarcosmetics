@@ -94,17 +94,20 @@ export function OrganizationsPanel({
                           }
                           deleteDescription={
                             o.status === "active"
-                              ? "Organization will be marked suspended. Companies stay in the database."
+                              ? "Organization will be suspended. All its companies become locked and active sessions are cleared."
                               : "Organization will be set back to active."
                           }
                           onDelete={async () => {
                             const supabase = createClient();
                             const next =
                               o.status === "active" ? "suspended" : "active";
-                            const { error } = await supabase
-                              .from("organizations")
-                              .update({ status: next })
-                              .eq("id", o.id);
+                            const { error } = await supabase.rpc(
+                              "admin_set_organization_status",
+                              {
+                                p_organization_id: o.id,
+                                p_status: next,
+                              },
+                            );
                             if (error) throw new Error(error.message);
                           }}
                         />

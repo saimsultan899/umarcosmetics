@@ -33,15 +33,32 @@ export function OrganizationForm({
     const supabase = createClient();
 
     if (initial) {
-      const { error: saveError } = await supabase
-        .from("organizations")
-        .update({ name: name.trim(), status })
-        .eq("id", initial.id);
-      setLoading(false);
-      if (saveError) {
-        setError(saveError.message);
-        return;
+      if (name.trim() !== initial.name) {
+        const { error: saveError } = await supabase
+          .from("organizations")
+          .update({ name: name.trim() })
+          .eq("id", initial.id);
+        if (saveError) {
+          setLoading(false);
+          setError(saveError.message);
+          return;
+        }
       }
+      if (status !== initial.status) {
+        const { error: statusError } = await supabase.rpc(
+          "admin_set_organization_status",
+          {
+            p_organization_id: initial.id,
+            p_status: status,
+          },
+        );
+        if (statusError) {
+          setLoading(false);
+          setError(statusError.message);
+          return;
+        }
+      }
+      setLoading(false);
     } else {
       const { error: rpcError } = await supabase.rpc(
         "admin_create_organization",

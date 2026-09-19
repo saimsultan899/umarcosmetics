@@ -253,7 +253,7 @@ export default function SelectCompanyPage() {
 
         const { data, error: qError } = await supabase
           .from("company_members")
-          .select("*, companies(*)")
+          .select("*, companies(*, organizations(status))")
           .eq("user_id", user.id)
           .eq("is_active", true);
 
@@ -263,7 +263,25 @@ export default function SelectCompanyPage() {
           return;
         }
 
-        setRows((data as CompanyMembership[]) || []);
+        const usable = ((data as CompanyMembership[]) || []).filter((m) => {
+          const c = m.companies as
+            | (NonNullable<CompanyMembership["companies"]> & {
+                is_active?: boolean;
+                organizations?:
+                  | { status?: string }
+                  | { status?: string }[]
+                  | null;
+              })
+            | null
+            | undefined;
+          if (!c || c.is_active === false) return false;
+          const org = Array.isArray(c.organizations)
+            ? c.organizations[0]
+            : c.organizations;
+          return org?.status !== "suspended";
+        });
+
+        setRows(usable);
         setLoading(false);
       } catch (err) {
         const ok = await loadOfflineFallback();
