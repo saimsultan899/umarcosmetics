@@ -172,7 +172,6 @@ export default function SelectCompanyPage() {
   const [loading, setLoading] = useState(true);
   const [picking, setPicking] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [userLabel, setUserLabel] = useState<string>("");
   const [preferredId, setPreferredId] = useState<string | null>(null);
 
@@ -181,9 +180,12 @@ export default function SelectCompanyPage() {
 
     async function loadOfflineFallback() {
       const shell = readOfflineShellCookie();
+      if (shell?.isSuperAdmin) {
+        router.replace("/super-admin");
+        return true;
+      }
       if (shell?.memberships?.length) {
         setUserLabel(shell.fullName || shell.email || "Signed in");
-        setIsSuperAdmin(shell.isSuperAdmin);
         setRows(membershipsFromShell(shell));
         // Clear working company locally so sidebar stays hidden until pick
         writeOfflineShellCookie({
@@ -198,12 +200,15 @@ export default function SelectCompanyPage() {
       }
 
       const cached = await getCachedSessionData();
+      if (cached?.profile?.is_super_admin) {
+        router.replace("/super-admin");
+        return true;
+      }
       if (cached?.memberships?.length) {
         const profile = cached.profile;
         setUserLabel(
           String(profile.full_name || profile.email || "Signed in"),
         );
-        setIsSuperAdmin(Boolean(profile.is_super_admin));
         setRows(membershipsFromCache(cached.userId, cached.memberships));
         setOfflineSessionCookie(true);
         setLoading(false);
@@ -240,15 +245,21 @@ export default function SelectCompanyPage() {
 
         setUserLabel(user.email || "Signed in");
 
-        await supabase.rpc("clear_active_company");
-
         const { data: profile } = await supabase
           .from("profiles")
           .select("is_super_admin, full_name")
           .eq("id", user.id)
           .single();
 
-        setIsSuperAdmin(Boolean(profile?.is_super_admin));
+        // Superadmin is a platform account, not a tenant. It must never see
+        // the company selector — send it straight to the platform console.
+        if (profile?.is_super_admin) {
+          router.replace("/super-admin");
+          return;
+        }
+
+        await supabase.rpc("clear_active_company");
+
         if (profile?.full_name) setUserLabel(profile.full_name);
 
         const { data, error: qError } = await supabase
@@ -389,14 +400,6 @@ export default function SelectCompanyPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {isSuperAdmin ? (
-              <a
-                href="/super-admin"
-                className="inline-flex items-center gap-2 rounded-xl bg-[var(--brand)] px-3 py-2 text-sm font-semibold !text-white"
-              >
-                Super Admin
-              </a>
-            ) : null}
             <button
               type="button"
               onClick={() => void signOut()}
@@ -429,16 +432,8 @@ export default function SelectCompanyPage() {
 
         {!loading && rows.length === 0 ? (
           <div className="panel mt-4 p-6 text-sm text-[var(--muted)]">
-            No company membership found.{" "}
-            {isSuperAdmin ? (
-              <a className="font-semibold text-[var(--brand)]" href="/super-admin">
-                Open Super Admin
-              </a>
-            ) : (
-              <a className="font-semibold text-[var(--brand)]" href="/setup">
-                Run setup
-              </a>
-            )}
+            No company membership found. Contact your administrator to be added
+            to a company.
           </div>
         ) : null}
       </div>

@@ -311,7 +311,11 @@ export async function requireCompanyContext() {
   const orgSuspended = orgRel?.status === "suspended";
 
   if (!company.is_active || orgSuspended) {
-    await supabase.rpc("clear_active_company").then(() => undefined).catch(() => undefined);
+    try {
+      await supabase.rpc("clear_active_company");
+    } catch {
+      /* best-effort: cookie/redirect below still enforces the guard */
+    }
     if (profile?.is_super_admin) redirect("/super-admin");
     redirect("/select-company");
   }

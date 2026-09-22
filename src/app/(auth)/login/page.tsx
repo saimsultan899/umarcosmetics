@@ -482,6 +482,26 @@ function LoginForm() {
             await persistSessionTokens();
             setOfflineSessionCookie(false);
 
+            // Superadmin is a platform account, not a tenant — skip company flow.
+            try {
+              const { data: profile } = await withTimeout(
+                supabase
+                  .from("profiles")
+                  .select("is_super_admin")
+                  .eq("id", authData.user.id)
+                  .single(),
+                5000,
+                "pin-profile",
+              );
+              if (profile?.is_super_admin) {
+                router.push("/super-admin");
+                router.refresh();
+                return;
+              }
+            } catch {
+              /* fall through to tenant flow */
+            }
+
             const { data } = await withTimeout(
               supabase
                 .from("company_members")
