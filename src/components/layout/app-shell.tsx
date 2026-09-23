@@ -9,7 +9,7 @@ import { OfflineBanner } from "@/components/offline/offline-banner";
 import { SyncProvider } from "@/components/offline/sync-provider";
 import { installDesktopPrint } from "@/lib/desktop-print";
 import type { Company } from "@/lib/types/database";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 export function AppShell({
@@ -28,6 +28,7 @@ export function AppShell({
   membershipsData?: Record<string, unknown>[] | null;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
@@ -56,6 +57,13 @@ export function AppShell({
     pathname === "/select-company" || pathname.startsWith("/select-company/");
   const platformShell =
     pathname === "/super-admin" || pathname.startsWith("/super-admin/");
+
+  // Platform accounts must never sit in the tenant ERP shell.
+  useEffect(() => {
+    if (isSuperAdmin && !platformShell && !selectShell) {
+      router.replace("/super-admin");
+    }
+  }, [isSuperAdmin, platformShell, selectShell, router]);
 
   useEffect(() => {
     setMobileNavOpen(false);
@@ -90,6 +98,14 @@ export function AppShell({
     );
   }
 
+  if (isSuperAdmin) {
+    return (
+      <div className="min-h-screen overflow-y-auto bg-white">
+        <NavigationProgress />
+      </div>
+    );
+  }
+
   return (
     <SyncProvider
       companyId={company?.id}
@@ -112,7 +128,7 @@ export function AppShell({
 
         <Sidebar
           companyName={company?.name}
-          isSuperAdmin={isSuperAdmin}
+          isSuperAdmin={false}
           mobileOpen={mobileNavOpen}
           collapsed={sidebarCollapsed}
           onMobileClose={() => setMobileNavOpen(false)}

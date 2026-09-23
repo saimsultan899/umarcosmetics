@@ -142,6 +142,15 @@ export async function getMemberships() {
   const shell = await readOfflineShell();
   if (shell) {
     const supabase = await createClient();
+    if (shell.isSuperAdmin) {
+      return {
+        supabase,
+        user: userFromShell(shell),
+        profile: { ...profileFromShell(shell), active_company_id: null },
+        memberships: [],
+        offline: true as const,
+      };
+    }
     return {
       supabase,
       user: userFromShell(shell),
@@ -154,12 +163,37 @@ export async function getMemberships() {
   const { supabase, user, profile, offline } = await getProfile();
   if (offline) {
     const fallback = await readShellCookieOnly();
+    // Superadmins never carry tenant memberships in the offline shell.
+    if (profile?.is_super_admin || fallback?.isSuperAdmin) {
+      return {
+        supabase,
+        user,
+        profile: profile
+          ? { ...profile, active_company_id: null }
+          : fallback
+            ? { ...profileFromShell(fallback), active_company_id: null }
+            : null,
+        memberships: [],
+        offline: true as const,
+      };
+    }
     return {
       supabase,
       user,
       profile,
       memberships: fallback ? membershipsFromShell(fallback) : [],
       offline: true as const,
+    };
+  }
+
+  // Platform console accounts are not company members.
+  if (profile?.is_super_admin) {
+    return {
+      supabase,
+      user,
+      profile: { ...profile, active_company_id: null },
+      memberships: [],
+      offline: false as const,
     };
   }
 
@@ -244,12 +278,13 @@ export async function requireCompanyContext() {
   const ctx = await getMemberships();
   const { profile, memberships, supabase, offline } = ctx;
 
-  if (profile?.is_super_admin && !profile.active_company_id) {
-    // Super admin can still open super-admin without company
+  // Platform accounts are never tenant users — even a leftover
+  // active_company_id must not open a distributor dashboard.
+  if (profile?.is_super_admin) {
+    redirect("/super-admin");
   }
 
   if (!profile?.active_company_id) {
-    if (profile?.is_super_admin) redirect("/super-admin");
     redirect("/select-company");
   }
 
@@ -316,7 +351,6 @@ export async function requireCompanyContext() {
     } catch {
       /* best-effort: cookie/redirect below still enforces the guard */
     }
-    if (profile?.is_super_admin) redirect("/super-admin");
     redirect("/select-company");
   }
 

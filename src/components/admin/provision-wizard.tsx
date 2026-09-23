@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 
 type CompanyDraft = {
   key: string;
@@ -47,6 +47,7 @@ export function ProvisionWizard() {
     companies: Array<{ id: string; name: string }>;
     client: { id: string; email: string; password: string; full_name: string };
   } | null>(null);
+  const submittingRef = useRef(false);
 
   function updateCompany(key: string, patch: Partial<CompanyDraft>) {
     setCompanies((rows) =>
@@ -56,6 +57,9 @@ export function ProvisionWizard() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    // Guard against double-clicks creating duplicate orgs/companies.
+    if (submittingRef.current || loading) return;
+    submittingRef.current = true;
     setLoading(true);
     setError(null);
     try {
@@ -86,6 +90,7 @@ export function ProvisionWizard() {
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed");
+      submittingRef.current = false;
     } finally {
       setLoading(false);
     }
@@ -173,7 +178,8 @@ export function ProvisionWizard() {
               required
             />
             <p className="mt-2 text-xs text-[var(--muted)]">
-              Single-company clients still get one organization with one company.
+              One organization can hold many companies. The owner login below is
+              shared — they switch companies without entering the password again.
             </p>
           </div>
         ) : null}
@@ -321,7 +327,9 @@ export function ProvisionWizard() {
               {email}
             </p>
             <p className="text-xs text-[var(--muted)]">
-              Owner will be org admin on every company listed above.
+              Owner will be org admin on every company listed above. Same email
+              + password opens any of them; use Switch company in the app header
+              (no re-login).
             </p>
           </div>
         ) : null}
@@ -349,7 +357,7 @@ export function ProvisionWizard() {
               Continue
             </Button>
           ) : (
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading || submittingRef.current}>
               {loading ? "Creating..." : "Create tenant + login"}
             </Button>
           )}

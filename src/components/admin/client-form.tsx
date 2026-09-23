@@ -25,7 +25,13 @@ export function ClientForm({
   const [organizationId, setOrganizationId] = useState(
     organizations[0]?.id || "",
   );
-  const [companyIds, setCompanyIds] = useState<string[]>([]);
+  const [companyIds, setCompanyIds] = useState<string[]>(() => {
+    const firstOrg = organizations[0]?.id;
+    if (!firstOrg) return [];
+    return companies
+      .filter((c) => c.organization_id === firstOrg)
+      .map((c) => c.id);
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createdCreds, setCreatedCreds] = useState<{
@@ -38,6 +44,10 @@ export function ClientForm({
     [companies, organizationId],
   );
 
+  function selectAllCompanies() {
+    setCompanyIds(orgCompanies.map((c) => c.id));
+  }
+
   function toggleCompany(id: string) {
     setCompanyIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
@@ -46,6 +56,7 @@ export function ClientForm({
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
     setError(null);
     try {
@@ -135,8 +146,14 @@ export function ClientForm({
           <Select
             value={organizationId}
             onChange={(e) => {
-              setOrganizationId(e.target.value);
-              setCompanyIds([]);
+              const nextOrg = e.target.value;
+              setOrganizationId(nextOrg);
+              // Default: one shared login for every company in the org.
+              setCompanyIds(
+                companies
+                  .filter((c) => c.organization_id === nextOrg)
+                  .map((c) => c.id),
+              );
             }}
           >
             <option value="">None</option>
@@ -151,7 +168,22 @@ export function ClientForm({
 
       {organizationId ? (
         <div>
-          <Label>Assign companies (org admin)</Label>
+          <div className="flex items-center justify-between gap-2">
+            <Label>Assign companies (shared login)</Label>
+            {orgCompanies.length ? (
+              <button
+                type="button"
+                className="text-xs font-semibold text-[var(--brand)]"
+                onClick={selectAllCompanies}
+              >
+                Select all
+              </button>
+            ) : null}
+          </div>
+          <p className="mt-1 text-xs text-[var(--muted)]">
+            One email/password for every checked company. After login they use
+            Switch company — no password again.
+          </p>
           <div className="mt-2 max-h-40 space-y-2 overflow-y-auto rounded-lg border border-[var(--border)] p-3">
             {orgCompanies.length ? (
               orgCompanies.map((c) => (
@@ -162,6 +194,11 @@ export function ClientForm({
                     onChange={() => toggleCompany(c.id)}
                   />
                   {c.name}
+                  {!c.is_active ? (
+                    <span className="text-[10px] uppercase text-rose-600">
+                      inactive
+                    </span>
+                  ) : null}
                 </label>
               ))
             ) : (

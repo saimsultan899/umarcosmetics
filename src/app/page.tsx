@@ -15,6 +15,9 @@ export default async function HomePage() {
 
   if (shellRaw && isOfflineOk) {
     const shell = decodeOfflineShell(shellRaw);
+    if (shell?.isSuperAdmin) {
+      redirect("/super-admin");
+    }
     if (shell?.activeCompanyId) {
       redirect("/dashboard");
     }
@@ -30,6 +33,20 @@ export default async function HomePage() {
       getVerifiedAuthUser(supabase),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
     ]);
+
+    if (user) {
+      const profileResult = await Promise.race([
+        supabase
+          .from("profiles")
+          .select("is_super_admin")
+          .eq("id", user.id)
+          .maybeSingle(),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
+      ]);
+      if (profileResult?.data?.is_super_admin) {
+        redirect("/super-admin");
+      }
+    }
   } catch {
     user = null;
   }

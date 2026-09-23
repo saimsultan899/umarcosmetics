@@ -166,6 +166,8 @@ export default async function SuperAdminOverviewPage() {
                   <p className="text-xs text-[var(--muted)]">
                     {companyCounts[o.id] || 0} compan
                     {(companyCounts[o.id] || 0) === 1 ? "y" : "ies"}
+                    {" · "}
+                    {new Date(o.created_at).toLocaleDateString()}
                   </p>
                 </div>
                 <span

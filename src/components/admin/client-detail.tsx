@@ -169,6 +169,51 @@ export function ClientDetailPanel({
   );
   const available = companies.filter((c) => !attachedIds.has(c.id));
 
+  const availableByOrg = available.reduce<
+    Array<{ organizationId: string; companies: Company[] }>
+  >((acc, c) => {
+    const orgId = c.organization_id;
+    let bucket = acc.find((b) => b.organizationId === orgId);
+    if (!bucket) {
+      bucket = { organizationId: orgId, companies: [] };
+      acc.push(bucket);
+    }
+    bucket.companies.push(c);
+    return acc;
+  }, []);
+
+  async function attachMany(companyIds: string[]) {
+    if (!companyIds.length) return;
+    setLoading(true);
+    setError(null);
+    try {
+      for (const id of companyIds) {
+        const res = await fetch(
+          `/api/super-admin/clients/${client.id}/memberships`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "attach",
+              companyId: id,
+              role: "org_admin",
+            }),
+          },
+        );
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed");
+      }
+      setMessage(
+        `Attached ${companyIds.length} compan${companyIds.length === 1 ? "y" : "ies"} — same login can Switch company without re-entering password`,
+      );
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -314,10 +359,25 @@ export function ClientDetailPanel({
               ))}
             </Select>
           </div>
-          <div className="sm:col-span-3">
+          <div className="sm:col-span-3 flex flex-wrap gap-2">
             <Button type="submit" disabled={loading || !companyId}>
               Attach company
             </Button>
+            {availableByOrg
+              .filter((b) => b.companies.length > 1)
+              .map((b) => (
+                <Button
+                  key={b.organizationId}
+                  type="button"
+                  variant="secondary"
+                  disabled={loading}
+                  onClick={() =>
+                    void attachMany(b.companies.map((c) => c.id))
+                  }
+                >
+                  Attach all ({b.companies.length}) from same org
+                </Button>
+              ))}
           </div>
         </form>
       </div>

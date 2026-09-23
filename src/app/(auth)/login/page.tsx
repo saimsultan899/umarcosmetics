@@ -168,12 +168,15 @@ function LoginForm() {
     memberships: CompanyMembership[],
     isSuperAdmin = false,
   ) {
-    const picked = memberships.find((m) => m.companies?.id === companyId);
+    // Platform accounts never stash tenant companies in the offline shell.
+    const safeCompanyId = isSuperAdmin ? null : companyId;
+    const safeMemberships = isSuperAdmin ? [] : memberships;
+    const picked = safeMemberships.find((m) => m.companies?.id === safeCompanyId);
     const snapshot: OfflineShellSnapshot = {
       userId,
       email: userEmail,
       fullName: fullName || userEmail,
-      activeCompanyId: companyId,
+      activeCompanyId: safeCompanyId,
       isSuperAdmin,
       company: picked?.companies
         ? {
@@ -184,7 +187,7 @@ function LoginForm() {
             city: (picked.companies as { city?: string | null }).city ?? null,
           }
         : null,
-      memberships: memberships.map((m) => ({
+      memberships: safeMemberships.map((m) => ({
         company_id: m.companies?.id || (m as { company_id?: string }).company_id || "",
         role: m.role,
         companies: m.companies
@@ -206,11 +209,11 @@ function LoginForm() {
         id: userId,
         email: userEmail,
         full_name: fullName,
-        active_company_id: companyId,
+        active_company_id: safeCompanyId,
         is_super_admin: isSuperAdmin,
       },
       company: snapshot.company,
-      memberships: memberships as unknown as Record<string, unknown>[],
+      memberships: safeMemberships as unknown as Record<string, unknown>[],
     });
   }
 
@@ -218,6 +221,16 @@ function LoginForm() {
     companyId: string,
     memberships: CompanyMembership[],
   ) {
+    // Never attach a platform account to a tenant company from the picker.
+    try {
+      const shell = readOfflineShellCookie();
+      if (shell?.isSuperAdmin) {
+        router.replace("/super-admin");
+        return;
+      }
+    } catch {
+      /* continue */
+    }
     setPicking(companyId);
     setError(null);
     const online = await isAppOnline();
@@ -320,6 +333,11 @@ function LoginForm() {
     }
 
     if (isSuperAdmin) {
+      try {
+        await withTimeout(supabase.rpc("clear_active_company"), 5000, "clear_company");
+      } catch {
+        /* non-critical — redirect still lands on platform console */
+      }
       router.push("/super-admin");
       router.refresh();
       return;
@@ -420,6 +438,11 @@ function LoginForm() {
             .eq("id", userData.user.id)
             .single();
           if (profile?.is_super_admin) {
+            try {
+              await supabase.rpc("clear_active_company");
+            } catch {
+              /* ignore */
+            }
             router.push("/super-admin");
             router.refresh();
             return;
@@ -494,6 +517,15 @@ function LoginForm() {
                 "pin-profile",
               );
               if (profile?.is_super_admin) {
+                try {
+                  await withTimeout(
+                    supabase.rpc("clear_active_company"),
+                    5000,
+                    "clear_company",
+                  );
+                } catch {
+                  /* ignore */
+                }
                 router.push("/super-admin");
                 router.refresh();
                 return;

@@ -21,3 +21,11 @@ export function filterUsableMemberships<T extends MembershipLike>(rows: T[]): T[
     return org?.status !== "suspended";
   });
 }
+
+/**
+ * Platform console accounts (`profiles.is_super_admin`) are never tenants.
+ * Callers should route them to `/super-admin` and skip company pickers.
+ */
+export function isPlatformSuperAdmin(profile: { is_super_admin?: boolean } | null | undefined) {
+  return Boolean(profile?.is_super_admin);
+}
