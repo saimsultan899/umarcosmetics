@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { AppUpdateBanner } from "@/components/offline/update-banner";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -34,6 +35,7 @@ export default function RootLayout({
         className="antialiased"
         suppressHydrationWarning
       >
+        <AppUpdateBanner />
         {children}
       </body>
     </html>

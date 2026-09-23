@@ -193,7 +193,11 @@ interface UmarOfflineDB extends DBSchema {
 // ── Singleton database connection ───────────────────────────────────
 
 const DB_NAME = "umar-offline";
-const DB_VERSION = 2; // Bumped from v1 (which only had mutations + meta)
+// Version-gated IndexedDB schema. Bump only when adding stores/indexes.
+// Upgrade steps MUST be additive — never delete the `mutations` outbox or
+// locally-modified cache rows. App-shell updates (service worker / Electron)
+// must not bump this unless the new code needs a new store.
+const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBPDatabase<UmarOfflineDB>> | null = null;
 

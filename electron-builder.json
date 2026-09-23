@@ -15,6 +15,13 @@
     "output": "dist-electron",
     "buildResources": "electron/assets"
   },
+  "publish": [
+    {
+      "provider": "generic",
+      "url": "https://updates.umardistribution.app/latest",
+      "channel": "latest"
+    }
+  ],
   "asarUnpack": [
     "**/node_modules/better-sqlite3/**/*"
   ],
@@ -24,6 +31,22 @@
     "node_modules/better-sqlite3/**/*",
     "node_modules/bindings/**/*",
     "node_modules/file-uri-to-path/**/*",
+    "node_modules/electron-updater/**/*",
+    "node_modules/builder-util-runtime/**/*",
+    "node_modules/fs-extra/**/*",
+    "node_modules/graceful-fs/**/*",
+    "node_modules/jsonfile/**/*",
+    "node_modules/universalify/**/*",
+    "node_modules/js-yaml/**/*",
+    "node_modules/argparse/**/*",
+    "node_modules/lazy-val/**/*",
+    "node_modules/lodash.escaperegexp/**/*",
+    "node_modules/lodash.isequal/**/*",
+    "node_modules/semver/**/*",
+    "node_modules/tiny-typed-emitter/**/*",
+    "node_modules/debug/**/*",
+    "node_modules/ms/**/*",
+    "node_modules/sax/**/*",
     "!node_modules/**/{CHANGELOG.md,README.md,README,readme.md,readme}",
     "!node_modules/**/{test,tests,__tests__,docs}/**"
   ],
@@ -57,6 +80,7 @@
     "oneClick": false,
     "perMachine": false,
     "allowToChangeInstallationDirectory": true,
+    "deleteAppDataOnUninstall": false,
     "installerIcon": "electron/assets/icon.ico",
     "uninstallerIcon": "electron/assets/icon.ico",
     "installerHeaderIcon": "electron/assets/icon.ico",

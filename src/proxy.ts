@@ -15,6 +15,6 @@ export const config = {
      * Document navigations only. Skip static assets and Next internals so
      * JWT work never runs for icons/chunks/fonts.
      */
-    "/((?!_next/static|_next/image|_next/data|favicon.ico|icons/|manifest\\.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|webmanifest|css|js|map|txt|xml)$).*)",
+    "/((?!_next/static|_next/image|_next/data|favicon.ico|icons/|manifest\\.webmanifest|api/app-version|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|webmanifest|css|js|map|txt|xml)$).*)",
   ],
 };

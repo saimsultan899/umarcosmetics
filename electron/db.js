@@ -174,29 +174,8 @@ CREATE INDEX IF NOT EXISTS idx_outbox_status ON sync_outbox(company_id, status);
 CREATE INDEX IF NOT EXISTS idx_outbox_entity ON sync_outbox(entity_id);
 `;
 
-function openDb() {
-  if (db) return db;
-  const DB = tryLoadDatabase();
-  const file = dbPath();
-  db = new DB(file);
-  db.pragma("journal_mode = WAL");
-  db.pragma("foreign_keys = ON");
-  db.exec(SCHEMA_SQL);
-  migrateSchema(db);
-  db.prepare(
-    `INSERT INTO meta(key, value) VALUES(?, ?)
-     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-  ).run("schema_version", "2");
-  db.prepare(
-    `INSERT INTO meta(key, value) VALUES(?, ?)
-     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-  ).run("opened_at", new Date().toISOString());
-  logFn(`[sqlite] opened ${file}`);
-  return db;
-}
-
-function migrateSchema(database) {
-  database.exec(`
+// SQL for migration step 2 (introduced local_documents + extra masters).
+const MIGRATION_V2_SQL = `
 CREATE TABLE IF NOT EXISTS local_documents (
   id TEXT PRIMARY KEY,
   company_id TEXT NOT NULL,
@@ -236,7 +215,103 @@ CREATE TABLE IF NOT EXISTS company_locations (
   sync_status TEXT DEFAULT 'synced'
 );
 CREATE INDEX IF NOT EXISTS idx_locations_company ON company_locations(company_id);
-`);
+`;
+
+/**
+ * Ordered, version-gated schema migrations.
+ *
+ * CRITICAL — offline data safety:
+ *  - Each step must be strictly additive / idempotent (CREATE TABLE IF NOT
+ *    EXISTS, CREATE INDEX IF NOT EXISTS, or ALTER TABLE ADD COLUMN guarded by
+ *    `addColumnIfMissing`). Never DROP or rewrite rows that may hold unsynced
+ *    offline writes (sync_status = 'pending').
+ *  - Steps run in ascending order inside a single transaction each, so a failed
+ *    migration rolls back cleanly and the app can retry on next launch.
+ *  - When an app update ships a schema change, append a new entry here and bump
+ *    CURRENT_SCHEMA_VERSION. The runner applies only the steps newer than the
+ *    version already stored in the local DB.
+ */
+const MIGRATIONS = [
+  { version: 1, up: (database) => database.exec(SCHEMA_SQL) },
+  { version: 2, up: (database) => database.exec(MIGRATION_V2_SQL) },
+];
+
+const CURRENT_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
+
+/** Add a column only if it does not already exist (safe on populated tables). */
+function addColumnIfMissing(database, table, column, definition) {
+  const cols = database.prepare(`PRAGMA table_info(${table})`).all();
+  if (!cols.some((c) => c.name === column)) {
+    database.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+// Exposed for future migration steps that need conditional column adds.
+void addColumnIfMissing;
+
+function readSchemaVersion(database) {
+  database.exec(
+    `CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
+  );
+  const row = database
+    .prepare(`SELECT value FROM meta WHERE key = 'schema_version'`)
+    .get();
+  const parsed = Number.parseInt(row?.value ?? "0", 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function writeSchemaVersion(database, version) {
+  database
+    .prepare(
+      `INSERT INTO meta(key, value) VALUES('schema_version', ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+    )
+    .run(String(version));
+}
+
+/**
+ * Apply any pending migrations. Runs each step in its own transaction so a
+ * partial failure never leaves the local ledger (and its unsynced writes) in a
+ * corrupt state. Returns the resulting schema version.
+ */
+function runMigrations(database) {
+  const startVersion = readSchemaVersion(database);
+  let current = startVersion;
+  for (const migration of MIGRATIONS) {
+    if (migration.version <= current) continue;
+    const tx = database.transaction(() => {
+      migration.up(database);
+      writeSchemaVersion(database, migration.version);
+    });
+    tx();
+    current = migration.version;
+    logFn(`[sqlite] migrated schema ${startVersion} -> v${migration.version}`);
+  }
+  return current;
+}
+
+function openDb() {
+  if (db) return db;
+  const DB = tryLoadDatabase();
+  const file = dbPath();
+  db = new DB(file);
+  db.pragma("journal_mode = WAL");
+  db.pragma("foreign_keys = ON");
+  const version = runMigrations(db);
+  const stamp = db.transaction(() => {
+    db.prepare(
+      `INSERT INTO meta(key, value) VALUES(?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+    ).run("opened_at", new Date().toISOString());
+    try {
+      db.prepare(
+        `INSERT INTO meta(key, value) VALUES(?, ?)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      ).run("app_version", app.getVersion());
+    } catch (_) {}
+  });
+  stamp();
+  logFn(`[sqlite] opened ${file} (schema v${version})`);
+  return db;
 }
 
 function closeDb() {
@@ -293,6 +368,34 @@ function enqueueOutbox(database, row) {
       created_at: now,
       updated_at: now,
     });
+}
+
+/**
+ * Total count of unsynced local writes across the outbox and any documents
+ * still marked pending. Used by the auto-updater to avoid restarting the app
+ * (to apply an update) while offline data has not yet reached the server.
+ * Returns 0 on any error so a transient DB issue never blocks updates outright.
+ */
+function getPendingSyncCount() {
+  try {
+    const database = openDb();
+    const outbox = database
+      .prepare(`SELECT COUNT(*) AS c FROM sync_outbox WHERE status = 'pending'`)
+      .get().c;
+    const pendingDocs = database
+      .prepare(
+        `SELECT
+           (SELECT COUNT(*) FROM sale_invoices WHERE sync_status = 'pending') +
+           (SELECT COUNT(*) FROM purchase_invoices WHERE sync_status = 'pending') +
+           (SELECT COUNT(*) FROM local_documents WHERE sync_status = 'pending')
+         AS c`,
+      )
+      .get().c;
+    return Number(outbox || 0) + Number(pendingDocs || 0);
+  } catch (err) {
+    logFn(`[sqlite] getPendingSyncCount failed: ${err instanceof Error ? err.message : String(err)}`);
+    return 0;
+  }
 }
 
 function getStatus() {
@@ -1446,5 +1549,6 @@ module.exports = {
   closeDb,
   dbPath,
   getStatus,
+  getPendingSyncCount,
   registerDbIpc,
 };

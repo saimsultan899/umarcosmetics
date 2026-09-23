@@ -46,7 +46,13 @@ export async function updateSession(request: NextRequest) {
     path.startsWith("/auth") ||
     path === "/";
   const isPublic =
-    isAuthRoute || path.startsWith("/setup") || path.startsWith("/join");
+    isAuthRoute ||
+    path.startsWith("/setup") ||
+    path.startsWith("/join") ||
+    // Version probe must work on the login screen and before a session exists
+    // so an offline shop can detect a newer build the moment it reconnects.
+    path === "/api/app-version" ||
+    path.startsWith("/api/app-version/");
 
   const cookiesPresent = hasAuthCookie(request);
   const offlineOk = hasOfflineBypass(request);

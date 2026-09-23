@@ -6,7 +6,12 @@ const netTcp = require("net");
 const fs = require("fs");
 const { registerVaultIpc } = require("./vault");
 const { registerPrintIpc } = require("./print");
-const { registerDbIpc } = require("./db");
+const { registerDbIpc, getPendingSyncCount } = require("./db");
+const {
+  registerUpdaterIpc,
+  initAutoUpdater,
+  checkForUpdates,
+} = require("./updater");
 
 // Cloudflare / HTTP3 can intermittently fail inside Electron on some Windows networks
 app.commandLine.appendSwitch("disable-quic");
@@ -47,6 +52,8 @@ function log(msg) {
 
 registerPrintIpc(ipcMain, log);
 registerDbIpc(ipcMain, log);
+registerUpdaterIpc(ipcMain);
+ipcMain.handle("app:getVersion", () => app.getVersion());
 
 // Only one desktop instance — extra launches focus the existing window.
 const gotLock = app.requestSingleInstanceLock();
@@ -469,6 +476,22 @@ if (gotLock) {
       }
 
       await loadAppUi();
+
+      // Auto-update: safe no-op in dev / when unconfigured. The local SQLite
+      // ledger lives in userData and survives reinstalls, so applying an
+      // update never disturbs unsynced offline writes.
+      try {
+        initAutoUpdater({
+          getWindow: () => mainWindow,
+          log,
+          getPendingSyncCount,
+          isPackaged: app.isPackaged,
+        });
+        // Initial check shortly after the UI settles.
+        setTimeout(() => void checkForUpdates("startup"), 8000);
+      } catch (updErr) {
+        log(`auto-updater init failed: ${updErr instanceof Error ? updErr.message : String(updErr)}`);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       log(`Startup failed: ${message}`);

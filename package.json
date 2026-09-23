@@ -14,6 +14,7 @@
     "electron:package": "node scripts/prepare-standalone.js && electron-builder --win",
     "electron:build": "node scripts/build-electron.js --win",
     "electron:build:all": "node scripts/build-electron.js --win --mac --linux",
+    "electron:release": "node scripts/build-electron.js --win && node scripts/publish-update.js",
     "postinstall": "node scripts/postinstall.js"
   },
   "dependencies": {
@@ -22,6 +23,7 @@
     "better-sqlite3": "^13.0.3",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
+    "electron-updater": "^6.8.9",
     "idb": "^8.0.3",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",

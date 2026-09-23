@@ -14,7 +14,15 @@
  *               never intercept Supabase API calls
  */
 
-const CACHE_NAME = "umar-shell-v1";
+/**
+ * Cache version — keep aligned with package.json. Changing these bytes is
+ * what makes the browser install a new worker; `activate` then purges the
+ * old cache. The client also probes /api/app-version on reconnect, so a
+ * deploy that bumps NEXT_PUBLIC_APP_VERSION still prompts even if this
+ * string was forgotten.
+ */
+const CACHE_VERSION = "0.1.0";
+const CACHE_NAME = `umar-shell-${CACHE_VERSION}`;
 
 /** Assets to pre-cache on install (app shell). */
 const PRECACHE_URLS = [
@@ -28,12 +36,22 @@ const PRECACHE_URLS = [
 // ── Install ──────────────────────────────────────────────────────────
 
 self.addEventListener("install", (event) => {
+  // Note: we do NOT skipWaiting() automatically here. The new worker waits so
+  // that in-flight offline writes are never interrupted mid-session. The app
+  // shell decides when to activate it (via the SKIP_WAITING message below),
+  // typically prompting the user or applying on the next launch.
   event.waitUntil(
     caches
       .open(CACHE_NAME)
       .then((cache) => cache.addAll(PRECACHE_URLS))
-      .then(() => self.skipWaiting())
   );
+});
+
+// ── Message: allow the app to activate a waiting worker on demand ────
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });
 
 // ── Activate ─────────────────────────────────────────────────────────
@@ -58,9 +76,11 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
-  // Never intercept Supabase API, auth, or realtime calls
+  // Never intercept Supabase, app APIs (version check, sync), auth, or realtime.
+  // App-version must always hit the network so a reconnect can detect a new deploy.
   if (
     url.hostname.includes("supabase") ||
+    url.pathname.startsWith("/api/") ||
     url.pathname.startsWith("/auth") ||
     url.pathname.startsWith("/rest") ||
     url.pathname.startsWith("/realtime")

@@ -77,6 +77,24 @@ type DesktopApi = {
   dbMigrateLegacyDocNos?: (
     companyId: string,
   ) => Promise<{ ok: boolean; error?: string; count?: number }>;
+  appVersion?: () => Promise<string>;
+  checkForUpdates?: () => Promise<{ ok: boolean; error?: string }>;
+  applyUpdate?: () => Promise<{ ok: boolean; error?: string }>;
+  updaterState?: () => Promise<{
+    configured?: boolean;
+    downloaded?: boolean;
+    version?: string | null;
+    pendingUnsynced?: number;
+  }>;
+  onUpdaterEvent?: (
+    cb: (payload: {
+      status: string;
+      version?: string;
+      percent?: number;
+      pendingUnsynced?: number;
+      message?: string;
+    }) => void,
+  ) => () => void;
 };
 
 declare global {

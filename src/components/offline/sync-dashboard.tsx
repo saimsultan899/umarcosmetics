@@ -13,7 +13,9 @@ import {
   Loader2,
   Trash2,
   HardDrive,
+  Download,
 } from "lucide-react";
+import { useAppUpdate } from "@/hooks/use-app-update";
 import { useEffect, useState } from "react";
 import {
   listPendingMutations,
@@ -42,6 +44,12 @@ export function SyncDashboard({
     runSync,
     refreshPending,
   } = useSyncStatus();
+  const {
+    state: updateState,
+    applying: applyingUpdate,
+    checkNow: checkForAppUpdate,
+    apply: applyAppUpdate,
+  } = useAppUpdate();
 
   const [mutations, setMutations] = useState<OfflineMutation[]>([]);
   const [cacheStatus, setCacheStatus] = useState<{
@@ -262,6 +270,68 @@ export function SyncDashboard({
             <RefreshCw className={`h-3 w-3 ${refreshingCache ? "animate-spin" : ""}`} />
             Refresh caches
           </button>
+        </div>
+      </div>
+
+      {/* ── App version (code updates, not data sync) ─────────────── */}
+      <div className="rounded-lg border border-[var(--border)] bg-white p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 text-sm text-[var(--ink-muted)]">
+              <Download className="h-4 w-4" />
+              App version
+            </div>
+            <p className="mt-1 text-2xl font-semibold text-[var(--ink)]">
+              {updateState.currentVersion}
+            </p>
+            <p className="mt-1 text-xs text-[var(--ink-muted)]">
+              Code updates are separate from data sync. Offline writes stay in
+              the local ledger across an update.
+            </p>
+            {updateState.status === "ready" && updateState.availableVersion ? (
+              <p className="mt-1 text-xs text-[var(--brand-strong)]">
+                Version {updateState.availableVersion} is downloaded and ready.
+              </p>
+            ) : updateState.status === "downloading" ? (
+              <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                Downloading {updateState.availableVersion || "update"}… {updateState.percent}%
+              </p>
+            ) : updateState.status === "available" && updateState.availableVersion ? (
+              <p className="mt-1 text-xs text-[var(--brand-strong)]">
+                Version {updateState.availableVersion} is available.
+              </p>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={!online || updateState.status === "checking" || updateState.status === "downloading"}
+              onClick={() => void checkForAppUpdate()}
+              className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-medium text-[var(--ink)] hover:bg-[var(--surface-2)] disabled:opacity-50"
+            >
+              {updateState.status === "checking" ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5" />
+              )}
+              Check for updates
+            </button>
+            {updateState.status === "ready" ? (
+              <button
+                type="button"
+                disabled={applyingUpdate}
+                onClick={() => void applyAppUpdate()}
+                className="flex items-center gap-1.5 rounded-lg bg-[var(--brand)] px-3 py-2 text-xs font-medium text-white hover:bg-[var(--brand-strong)] disabled:opacity-50"
+              >
+                {applyingUpdate ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Download className="h-3.5 w-3.5" />
+                )}
+                {updateState.source === "desktop" ? "Restart & update" : "Reload"}
+              </button>
+            ) : null}
+          </div>
         </div>
       </div>
 

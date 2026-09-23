@@ -48,4 +48,25 @@ contextBridge.exposeInMainWorld("umarDesktop", {
     ipcRenderer.invoke("db:batchQuery", specs),
   dbMigrateLegacyDocNos: (companyId) =>
     ipcRenderer.invoke("db:migrateLegacyDocNos", companyId),
+
+  // ── Auto-update ────────────────────────────────────────────────
+  /** Installed desktop app version (from package.json). */
+  appVersion: () => ipcRenderer.invoke("app:getVersion"),
+  /** Force an update check now (bypasses throttle). */
+  checkForUpdates: () => ipcRenderer.invoke("updater:check"),
+  /** Apply a downloaded update: quit, install, relaunch. */
+  applyUpdate: () => ipcRenderer.invoke("updater:quitAndInstall"),
+  /** Current updater state: { configured, downloaded, version, pendingUnsynced }. */
+  updaterState: () => ipcRenderer.invoke("updater:getState"),
+  /**
+   * Subscribe to updater lifecycle events. `cb` receives a payload like
+   * { status: "checking" | "available" | "downloading" | "downloaded" |
+   *   "up-to-date" | "error", version?, percent?, pendingUnsynced?, message? }.
+   * Returns an unsubscribe function.
+   */
+  onUpdaterEvent: (cb) => {
+    const listener = (_e, payload) => cb(payload);
+    ipcRenderer.on("updater:event", listener);
+    return () => ipcRenderer.removeListener("updater:event", listener);
+  },
 });
