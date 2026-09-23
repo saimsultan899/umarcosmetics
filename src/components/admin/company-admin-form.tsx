@@ -159,7 +159,7 @@ export function CompanyAdminForm({
         </div>
         {initial ? (
           <div>
-            <Label>Status</Label>
+            <Label>Status (Active / Inactive)</Label>
             <Select
               value={isActive ? "active" : "inactive"}
               onChange={(e) => setIsActive(e.target.value === "active")}
@@ -167,6 +167,9 @@ export function CompanyAdminForm({
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
             </Select>
+            <p className="mt-1 text-xs text-[var(--muted)]">
+              Inactive locks the workspace without deleting data.
+            </p>
           </div>
         ) : (
           <div>

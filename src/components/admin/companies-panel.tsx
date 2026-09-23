@@ -57,7 +57,8 @@ export function CompaniesPanel({
             Companies
           </h2>
           <p className="text-sm text-[var(--muted)]">
-            Inactive or suspended companies cannot be opened in the ERP
+            Use Edit for Active / Inactive. Trash permanently deletes empty
+            companies (blocked if they have invoices).
           </p>
         </div>
         <CreateDialogButton
@@ -178,24 +179,13 @@ export function CompaniesPanel({
                                 onDone={close}
                               />
                             )}
-                            deleteTitle={
-                              c.is_active
-                                ? `Deactivate ${c.name}?`
-                                : `Activate ${c.name}?`
-                            }
-                            deleteDescription={
-                              c.is_active
-                                ? "Company will be locked. Anyone currently in it will be signed out of that workspace."
-                                : "Company will be available again in the company selector."
-                            }
+                            deleteTitle={`Permanently delete ${c.name}?`}
+                            deleteDescription="This permanently removes the company and its empty masters (parties, products, warehouses). If it has invoices or vouchers, deletion is blocked — set Inactive from Edit instead. This cannot be undone."
                             onDelete={async () => {
                               const supabase = createClient();
                               const { error: rpcError } = await supabase.rpc(
-                                "admin_set_company_active",
-                                {
-                                  p_company_id: c.id,
-                                  p_is_active: !c.is_active,
-                                },
+                                "admin_delete_company",
+                                { p_company_id: c.id },
                               );
                               if (rpcError) throw new Error(rpcError.message);
                             }}

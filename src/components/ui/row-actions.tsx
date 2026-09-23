@@ -192,7 +192,7 @@ export function RowActions({
             disabled={busy}
             onClick={() => void confirmDelete()}
           >
-            {busy ? "Deleting..." : "Confirm delete"}
+            {busy ? "Deleting..." : "Delete permanently"}
           </Button>
         </div>
       </Dialog>

@@ -91,7 +91,7 @@ export function OrganizationForm({
         />
       </div>
       <div>
-        <Label>Status</Label>
+        <Label>Status (Active / Suspended)</Label>
         <Select
           value={status}
           onChange={(e) =>
@@ -101,6 +101,9 @@ export function OrganizationForm({
           <option value="active">Active</option>
           <option value="suspended">Suspended</option>
         </Select>
+        <p className="mt-1 text-xs text-[var(--muted)]">
+          Suspend locks every company under this org without deleting them.
+        </p>
       </div>
       {error ? (
         <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">

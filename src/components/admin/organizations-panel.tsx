@@ -23,7 +23,8 @@ export function OrganizationsPanel({
             Organizations
           </h2>
           <p className="text-sm text-[var(--muted)]">
-            Distributor groups that own one or more companies
+            Distributor groups that own one or more companies. Use Edit to
+            Active / Suspend; trash permanently deletes.
           </p>
         </div>
         <CreateDialogButton
@@ -87,26 +88,13 @@ export function OrganizationsPanel({
                               onDone={close}
                             />
                           )}
-                          deleteTitle={
-                            o.status === "active"
-                              ? `Suspend ${o.name}?`
-                              : `Reactivate ${o.name}?`
-                          }
-                          deleteDescription={
-                            o.status === "active"
-                              ? "Organization will be suspended. All its companies become locked and active sessions are cleared."
-                              : "Organization will be set back to active."
-                          }
+                          deleteTitle={`Permanently delete ${o.name}?`}
+                          deleteDescription="This permanently removes the organization and every empty company under it. Companies with invoices cannot be deleted — set them Inactive from Edit first. This cannot be undone."
                           onDelete={async () => {
                             const supabase = createClient();
-                            const next =
-                              o.status === "active" ? "suspended" : "active";
                             const { error } = await supabase.rpc(
-                              "admin_set_organization_status",
-                              {
-                                p_organization_id: o.id,
-                                p_status: next,
-                              },
+                              "admin_delete_organization",
+                              { p_organization_id: o.id },
                             );
                             if (error) throw new Error(error.message);
                           }}

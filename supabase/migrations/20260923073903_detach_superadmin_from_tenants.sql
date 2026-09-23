@@ -2,39 +2,43 @@
 -- Detach every is_super_admin profile from company memberships and clear
 -- their active company so login never lands on a distributor dashboard.
 
-delete from public.company_members cm
-using public.profiles p
-where cm.user_id = p.id
-  and p.is_super_admin = true;
+DELETE FROM public.company_members cm
+USING public.profiles p
+WHERE cm.user_id = p.id
+  AND p.is_super_admin = true;
 
-update public.profiles
-set
-  active_company_id = null,
-  organization_id = null
-where is_super_admin = true;
+UPDATE public.profiles
+SET
+  active_company_id = NULL,
+  organization_id = NULL
+WHERE is_super_admin = true;
 
 -- Keep platform accounts out of tenant membership going forward.
-create or replace function private.block_superadmin_company_membership()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  if exists (
-    select 1
-    from public.profiles p
-    where p.id = new.user_id
-      and p.is_super_admin = true
-  ) then
-    raise exception 'Platform superadmin accounts cannot join companies';
-  end if;
-  return new;
-end;
+CREATE OR REPLACE FUNCTION private.block_superadmin_company_membership()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM public.profiles p
+    WHERE p.id = NEW.user_id
+      AND p.is_super_admin = true
+  ) THEN
+    RAISE EXCEPTION 'Platform superadmin accounts cannot join companies';
+  END IF;
+  RETURN NEW;
+END;
 $$;
 
-drop trigger if exists trg_block_superadmin_company_membership on public.company_members;
-create trigger trg_block_superadmin_company_membership
-  before insert or update of user_id on public.company_members
-  for each row
-  execute function private.block_superadmin_company_membership();
+DROP TRIGGER IF EXISTS trg_block_superadmin_company_membership ON public.company_members;
+CREATE TRIGGER trg_block_superadmin_company_membership
+  BEFORE INSERT OR UPDATE OF user_id ON public.company_members
+  FOR EACH ROW
+  EXECUTE FUNCTION private.block_superadmin_company_membership();
+
+-- Private helper: no direct client execute.
+REVOKE ALL ON FUNCTION private.block_superadmin_company_membership() FROM PUBLIC;
+REVOKE ALL ON FUNCTION private.block_superadmin_company_membership() FROM anon, authenticated;
