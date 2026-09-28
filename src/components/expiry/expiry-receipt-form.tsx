@@ -365,7 +365,7 @@ export function ExpiryReceiptForm({
                     <Input
                       type="number"
                       min="0"
-                      step="0.001"
+                      step="1"
                       value={l.qty}
                       onChange={(e) => onReturnQtyChange(l, e.target.value)}
                     />
@@ -374,7 +374,7 @@ export function ExpiryReceiptForm({
                     <Input
                       type="number"
                       min="0"
-                      step="0.01"
+                      step="1"
                       value={l.amount}
                       onChange={(e) =>
                         patchLine(l.product_id, { amount: e.target.value })

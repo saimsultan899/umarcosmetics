@@ -184,7 +184,7 @@ export function ExpirySettleForm({
                       type="number"
                       min="0"
                       max={l.qty}
-                      step="0.001"
+                      step="1"
                       value={acceptedQty[l.id] ?? ""}
                       onChange={(e) =>
                         setAcceptedQty((prev) => ({

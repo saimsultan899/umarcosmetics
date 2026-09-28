@@ -2,12 +2,17 @@
 
 import { Button } from "@/components/ui/button";
 import { installDesktopPrint } from "@/lib/desktop-print";
+import {
+  clearPrintPaper,
+  preparePrintPaper,
+} from "@/lib/print/paper-size";
 import { Printer } from "lucide-react";
 import { useEffect, useState } from "react";
 
 /**
  * Print the page. When `printId` is set, only the matching
  * `.print-sheet[data-print-id="..."]` is included (other sheets are skipped).
+ * Paper size (A4 / A5 / thermal) is set from the invoice layout automatically.
  */
 export function PrintButton({
   label = "Print",
@@ -43,12 +48,14 @@ export function PrintButton({
       for (const sheet of skipped) {
         sheet.classList.remove("print-skip");
       }
+      clearPrintPaper();
       window.removeEventListener("afterprint", cleanup);
     }
 
     window.addEventListener("afterprint", cleanup);
     // Give the browser a tick to apply print-skip classes before capture.
     window.setTimeout(() => {
+      preparePrintPaper();
       window.print();
       window.setTimeout(cleanup, 4000);
       window.setTimeout(() => setPrinting(false), 600);

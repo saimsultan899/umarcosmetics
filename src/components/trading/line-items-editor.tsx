@@ -21,6 +21,7 @@ import {
   type LineItemDraft,
 } from "@/lib/types/trading";
 import { QtyUnitControl } from "@/components/trading/qty-unit-control";
+import { ExtraDiscountControl } from "@/components/trading/extra-discount-control";
 import {
   formatUomCompact,
   hasCartonPacking,
@@ -994,7 +995,7 @@ export const LineItemsEditor = forwardRef<
                   ref={rateRef}
                   type="number"
                   min="0"
-                  step="0.01"
+                  step="1"
                   value={draft.rate}
                   onChange={(e) => {
                     const rate = e.target.value;
@@ -1019,7 +1020,7 @@ export const LineItemsEditor = forwardRef<
                   type="number"
                   min="0"
                   max="100"
-                  step="0.1"
+                  step="1"
                   value={draft.discount}
                   onChange={(e) => patchDraft({ discount: e.target.value })}
                   onKeyDown={onDiscountEnter}
@@ -1182,7 +1183,7 @@ export const LineItemsEditor = forwardRef<
                       data-line-rate="1"
                       type="number"
                       min="0"
-                      step="0.01"
+                      step="1"
                       value={line.rate}
                       onChange={(e) =>
                         patchLine(line.key, { rate: e.target.value })
@@ -1222,7 +1223,7 @@ export const LineItemsEditor = forwardRef<
                       type="number"
                       min="0"
                       max="100"
-                      step="0.1"
+                      step="1"
                       value={line.discount}
                       onChange={(e) =>
                         patchLine(line.key, { discount: e.target.value })
@@ -1274,24 +1275,11 @@ export const LineItemsEditor = forwardRef<
               </span>
             </div>
             {onExtraDiscountChange ? (
-              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                <Label className="text-xs uppercase tracking-wide text-[var(--muted)]">
-                  Extra discount
-                </Label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  inputMode="decimal"
-                  value={extraDiscount ?? ""}
-                  onChange={(e) => onExtraDiscountChange(e.target.value)}
-                  placeholder="0"
-                  className="h-9 w-28 text-right tabular-nums"
-                />
-                <span className="min-w-[5rem] text-right text-[var(--muted)]">
-                  {formatPkr(extra)}
-                </span>
-              </div>
+              <ExtraDiscountControl
+                baseAmount={grand}
+                value={extraDiscount ?? ""}
+                onChange={onExtraDiscountChange}
+              />
             ) : null}
             <span className="font-semibold">
               Bill amount {formatPkr(onExtraDiscountChange ? billTotal : grand)}

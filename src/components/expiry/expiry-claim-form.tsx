@@ -199,7 +199,7 @@ export function ExpiryClaimForm({
                         type="number"
                         min="0"
                         max={row.qty}
-                        step="0.001"
+                        step="1"
                         value={qtyByProduct[row.product_id] ?? ""}
                         onChange={(e) =>
                           setQtyByProduct((prev) => ({

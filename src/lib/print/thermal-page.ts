@@ -9,6 +9,8 @@
  * drops the user gesture and Chromium skips the dialog.
  */
 
+import { preparePrintPaper } from "@/lib/print/paper-size";
+
 const STYLE_ID = "umar-thermal-page-size";
 
 /** ~2 line feeds before the cutter live in `.th-cut-feed` (2em). Do not add more. */
@@ -246,6 +248,7 @@ function printViaIframe(slip: HTMLElement) {
 }
 
 function printViaDesktopShell(slip: HTMLElement, pageMm: number) {
+  preparePrintPaper("thermal");
   installThermalPageStyle(pageMm);
   const root = document.documentElement;
   root.classList.add("thermal-print-mode");

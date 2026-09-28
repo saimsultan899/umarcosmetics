@@ -422,7 +422,7 @@ export function SaleInvoiceForm({
                 <Input
                   type="number"
                   min="0"
-                  step="0.01"
+                  step="1"
                   inputMode="decimal"
                   value={
                     amountPaidStr.trim() === ""

@@ -75,7 +75,7 @@ function ExpiryQtyForm({
           id="expiry-qty"
           type="number"
           min={0}
-          step="0.01"
+          step="1"
           value={qty}
           onChange={(e) => setQty(e.target.value)}
           required

@@ -153,7 +153,7 @@ export const QtyUnitControl = forwardRef<HTMLInputElement, QtyUnitControlProps>(
             ref={qtyInputRef}
             type="number"
             min="0"
-            step={mode === "carton" ? "1" : "0.1"}
+            step="1"
             value={displayQty}
             disabled={disabled}
             onChange={(e) => onDisplayQtyChange(e.target.value)}
@@ -174,7 +174,7 @@ export const QtyUnitControl = forwardRef<HTMLInputElement, QtyUnitControlProps>(
             <Input
               type="number"
               min="0"
-              step="0.1"
+              step="1"
               value={looseQty}
               disabled={disabled}
               onChange={(e) => onLooseChange(e.target.value)}

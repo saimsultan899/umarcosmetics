@@ -320,7 +320,7 @@ export function RecoveryForm({
                     id={amountId}
                     type="number"
                     min="0"
-                    step="0.01"
+                    step="1"
                     inputMode="decimal"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}

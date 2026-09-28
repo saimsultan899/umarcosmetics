@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { installDesktopPrint } from "@/lib/desktop-print";
+import { preparePrintPaper, clearPrintPaper } from "@/lib/print/paper-size";
 import { formatReportInvNo } from "@/lib/reports/helpers";
 import { cn, formatNumber } from "@/lib/utils";
 import { Printer } from "lucide-react";
@@ -115,9 +116,23 @@ export function PrintDocument({
   useEffect(() => {
     installDesktopPrint();
     if (!autoPrint) return;
-    const t = window.setTimeout(() => window.print(), 250);
+    const t = window.setTimeout(() => {
+      preparePrintPaper(sheet === "half" ? "a5" : "a4");
+      window.print();
+    }, 250);
     return () => window.clearTimeout(t);
-  }, [autoPrint]);
+  }, [autoPrint, sheet]);
+
+  function printNow() {
+    preparePrintPaper(sheet === "half" ? "a5" : "a4");
+    const cleanup = () => {
+      clearPrintPaper();
+      window.removeEventListener("afterprint", cleanup);
+    };
+    window.addEventListener("afterprint", cleanup);
+    window.setTimeout(cleanup, 60_000);
+    window.print();
+  }
 
   const hasRate = lines.some((l) => l.rate != null);
   /** Show Disc. column whenever any line includes a discount field (incl. 0). */
@@ -157,13 +172,16 @@ export function PrintDocument({
             Half page
           </button>
         </div>
-        <Button type="button" onClick={() => window.print()}>
+        <Button type="button" onClick={printNow}>
           <Printer className="h-4 w-4" />
           Print
         </Button>
       </div>
 
-      <div className={cn("print-sheet cdoc mx-auto", sheet === "half" && "cdoc--half")}>
+      <div
+        className={cn("print-sheet cdoc mx-auto", sheet === "half" && "cdoc--half")}
+        data-paper={sheet === "half" ? "a5" : "a4"}
+      >
         <div className="si-title">{title}</div>
         {companyName ? <div className="si-company">{companyName}</div> : null}
         {companyAddress ? (

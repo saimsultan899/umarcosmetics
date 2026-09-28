@@ -385,7 +385,7 @@ export function PartyForm({
         <Label>Opening balance</Label>
         <Input
           type="number"
-          step="0.01"
+          step="1"
           value={form.opening_balance}
           onChange={(e) => set("opening_balance", e.target.value)}
         />
@@ -394,7 +394,7 @@ export function PartyForm({
         <Label>Credit limit</Label>
         <Input
           type="number"
-          step="0.01"
+          step="1"
           value={form.credit_limit}
           onChange={(e) => set("credit_limit", e.target.value)}
         />

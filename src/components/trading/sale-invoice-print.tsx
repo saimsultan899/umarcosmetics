@@ -10,6 +10,7 @@ import {
   type WalkInSlipLayout,
 } from "@/lib/print/walk-in-slip";
 import { printThermalSlip } from "@/lib/print/thermal-page";
+import { preparePrintPaper, clearPrintPaper } from "@/lib/print/paper-size";
 import { formatReportInvNo } from "@/lib/reports/helpers";
 import { formatNumber, formatPkr } from "@/lib/utils";
 import { ArrowLeft, Printer } from "lucide-react";
@@ -182,6 +183,13 @@ export function SaleInvoicePrint({
       );
       return;
     }
+    preparePrintPaper("a5");
+    const cleanup = () => {
+      clearPrintPaper();
+      window.removeEventListener("afterprint", cleanup);
+    };
+    window.addEventListener("afterprint", cleanup);
+    window.setTimeout(cleanup, 60_000);
     window.print();
   }
 
@@ -224,6 +232,7 @@ export function SaleInvoicePrint({
         );
         return;
       }
+      preparePrintPaper("a5");
       window.print();
     }, 300);
     return () => window.clearTimeout(t);
@@ -299,7 +308,7 @@ export function SaleInvoicePrint({
       </div>
 
       {showSheet && showThermal ? (
-        <div className="print-sheet thermal-80 mx-auto">
+        <div className="print-sheet thermal-80 mx-auto" data-paper="thermal">
           <div className="th-shop">{companyName || "Sale"}</div>
           {_companyPhone ? <div className="th-sub">{_companyPhone}</div> : null}
           <div className="th-eq">{THERMAL_EQ}</div>
@@ -384,7 +393,7 @@ export function SaleInvoicePrint({
       ) : null}
 
       {showSheet && !showThermal ? (
-      <div className="print-sheet si-half mx-auto">
+      <div className="print-sheet si-half mx-auto" data-paper="a5">
         <div className="si-head">
           <div className="si-doc-label">Sale Invoice</div>
           {companyName ? (

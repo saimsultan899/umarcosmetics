@@ -278,15 +278,15 @@ export function ProductForm({
       </div>
       <div>
         <Label>Trade price</Label>
-        <Input type="number" step="0.01" value={form.retail_rate} onChange={(e) => set("retail_rate", e.target.value)} />
+        <Input type="number" step="1" value={form.retail_rate} onChange={(e) => set("retail_rate", e.target.value)} />
       </div>
       <div>
         <Label>Purchase rate</Label>
-        <Input type="number" step="0.01" value={form.purchase_rate} onChange={(e) => set("purchase_rate", e.target.value)} />
+        <Input type="number" step="1" value={form.purchase_rate} onChange={(e) => set("purchase_rate", e.target.value)} />
       </div>
       <div>
         <Label>Opening qty (base units)</Label>
-        <Input type="number" step="0.1" value={form.opening_qty} onChange={(e) => set("opening_qty", e.target.value)} />
+        <Input type="number" step="1" value={form.opening_qty} onChange={(e) => set("opening_qty", e.target.value)} />
         <p className="mt-1 text-[11px] text-[var(--muted)]">
           Always stored in {BASE_UNIT.toLowerCase()}s. Use packing below to convert cartons.
         </p>
@@ -318,7 +318,7 @@ export function ProductForm({
           type="number"
           min="0"
           max="100"
-          step="0.1"
+          step="1"
           value={form.purchase_discount}
           onChange={(e) => set("purchase_discount", e.target.value)}
           placeholder="5"

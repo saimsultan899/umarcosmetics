@@ -1,6 +1,8 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { installDesktopPrint } from "@/lib/desktop-print";
+import { preparePrintPaper, clearPrintPaper } from "@/lib/print/paper-size";
 import { formatNumber } from "@/lib/utils";
 import { Printer } from "lucide-react";
 import { useEffect } from "react";
@@ -63,10 +65,25 @@ export function GatePassPrint({
   const totalQty = lines.reduce((s, l) => s + Number(l.qty || 0), 0);
 
   useEffect(() => {
+    installDesktopPrint();
     if (!autoPrint) return;
-    const t = window.setTimeout(() => window.print(), 250);
+    const t = window.setTimeout(() => {
+      preparePrintPaper("a4");
+      window.print();
+    }, 250);
     return () => window.clearTimeout(t);
   }, [autoPrint]);
+
+  function printNow() {
+    preparePrintPaper("a4");
+    const cleanup = () => {
+      clearPrintPaper();
+      window.removeEventListener("afterprint", cleanup);
+    };
+    window.addEventListener("afterprint", cleanup);
+    window.setTimeout(cleanup, 60_000);
+    window.print();
+  }
 
   return (
     <div className="space-y-4">
@@ -74,13 +91,13 @@ export function GatePassPrint({
         <p className="mr-auto text-sm text-[var(--muted)]">
           Incoming load sheet · does not update inventory
         </p>
-        <Button type="button" onClick={() => window.print()}>
+        <Button type="button" onClick={printNow}>
           <Printer className="h-4 w-4" />
           Print
         </Button>
       </div>
 
-      <div className="print-sheet gp-sheet mx-auto">
+      <div className="print-sheet gp-sheet mx-auto" data-paper="a4">
         <div className="gp-head">
           <div className="gp-co">
             <p className="gp-co-name">{companyName}</p>

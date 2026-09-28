@@ -293,7 +293,7 @@ export function FieldSaleForm({
           <Input
             type="number"
             min="0"
-            step="0.1"
+            step="1"
             value={qty}
             onChange={(e) => {
               const nextQty = e.target.value;
@@ -316,7 +316,7 @@ export function FieldSaleForm({
           <Input
             type="number"
             min="0"
-            step="0.1"
+            step="1"
             value={bonus}
             readOnly
             className="bg-[var(--surface-2)]"
@@ -329,7 +329,7 @@ export function FieldSaleForm({
           <Input
             type="number"
             min="0"
-            step="0.01"
+            step="1"
             value={rate}
             onChange={(e) => {
               setRate(e.target.value);

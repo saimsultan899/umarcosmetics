@@ -2,7 +2,14 @@
  * In Electron, replace window.print() with a PDF preview flow so Windows
  * does not show “This app doesn’t support print preview”.
  * Walk-in thermal slips do not use this path. They print from their own 80mm page.
+ *
+ * Before printing, paper size is fixed from the invoice layout (A4 / A5 / thermal).
  */
+
+import {
+  clearPrintPaper,
+  preparePrintPaper,
+} from "@/lib/print/paper-size";
 
 type DesktopPrintBridge = {
   isDesktop?: boolean;
@@ -22,6 +29,14 @@ export function installDesktopPrint() {
   const nativePrint = window.print.bind(window);
 
   window.print = () => {
+    preparePrintPaper();
+    const cleanup = () => {
+      clearPrintPaper();
+      window.removeEventListener("afterprint", cleanup);
+    };
+    window.addEventListener("afterprint", cleanup);
+    window.setTimeout(cleanup, 60_000);
+
     const run = async () => {
       try {
         if (desktop.printPreview) {
