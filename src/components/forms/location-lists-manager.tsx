@@ -266,7 +266,7 @@ function OptionRow({
               }
             }}
           />
-          <Button type="button" size="sm" disabled={busy} onClick={() => void saveRename()}>
+          <Button type="button" size="sm" loading={busy} onClick={() => void saveRename()}>
             {busy ? "..." : "Save"}
           </Button>
           <Button
@@ -310,11 +310,11 @@ function OptionRow({
           variant="ghost"
           size="sm"
           className="h-7 w-7 shrink-0 px-0 text-rose-600 hover:text-rose-700"
-          disabled={busy}
+          loading={busy}
           aria-label={`Delete ${name}`}
           onClick={() => void remove()}
         >
-          <Trash2 className="h-3.5 w-3.5" />
+          {busy ? null : <Trash2 className="h-3.5 w-3.5" />}
         </Button>
       </div>
       {error ? <p className="text-xs text-rose-700">{error}</p> : null}

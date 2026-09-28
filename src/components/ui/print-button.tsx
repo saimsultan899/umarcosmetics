@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { installDesktopPrint } from "@/lib/desktop-print";
 import { Printer } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 /**
  * Print the page. When `printId` is set, only the matching
@@ -17,11 +17,14 @@ export function PrintButton({
   /** Match a print sheet's data-print-id so other reports stay out of the printout. */
   printId?: string;
 }) {
+  const [printing, setPrinting] = useState(false);
+
   useEffect(() => {
     installDesktopPrint();
   }, []);
 
   function onPrint() {
+    setPrinting(true);
     const sheets = Array.from(
       document.querySelectorAll<HTMLElement>(".print-sheet"),
     );
@@ -48,6 +51,7 @@ export function PrintButton({
     window.setTimeout(() => {
       window.print();
       window.setTimeout(cleanup, 4000);
+      window.setTimeout(() => setPrinting(false), 600);
     }, 50);
   }
 
@@ -56,9 +60,10 @@ export function PrintButton({
       type="button"
       variant="secondary"
       className="no-print"
+      loading={printing}
       onClick={onPrint}
     >
-      <Printer className="h-4 w-4" />
+      {printing ? null : <Printer className="h-4 w-4" />}
       {label}
     </Button>
   );

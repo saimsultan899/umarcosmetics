@@ -114,7 +114,7 @@ export default function SetupPage() {
             </p>
           ) : null}
 
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Button type="submit" className="w-full" loading={loading}>
             {loading ? "Bootstrapping..." : "Create Super Admin & Companies"}
           </Button>
         </form>

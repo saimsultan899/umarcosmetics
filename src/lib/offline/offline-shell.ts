@@ -21,6 +21,7 @@ export type OfflineShellSnapshot = {
   memberships: Array<{
     company_id: string;
     role: string;
+    permissions?: string[] | null;
     companies: {
       id: string;
       name: string;
@@ -88,6 +89,7 @@ export function writeOfflineShellCookie(snapshot: OfflineShellSnapshot) {
       memberships: snapshot.memberships.slice(0, 8).map((m) => ({
         company_id: m.company_id,
         role: m.role,
+        permissions: m.permissions ?? null,
         companies: m.companies
           ? {
               id: m.companies.id,
@@ -153,6 +155,9 @@ export function buildOfflineShellSnapshot(input: {
     return {
       company_id: String(m.company_id || ""),
       role: String(m.role || "staff"),
+      permissions: Array.isArray(m.permissions)
+        ? m.permissions.filter((key): key is string => typeof key === "string")
+        : null,
       companies:
         companies && typeof companies.id === "string"
           ? {

@@ -118,12 +118,12 @@ export function SalesmanInvitesTable({ rows }: { rows: SalesmanInviteRow[] }) {
                             variant="ghost"
                             size="sm"
                             className="h-8 w-8 shrink-0 p-0 text-rose-600 hover:text-rose-700"
-                            disabled={busyId === i.id}
+                            loading={busyId === i.id}
                             onClick={() => void cancelInvite(i.id)}
                             aria-label="Cancel invite"
                             title="Cancel invite"
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            {busyId === i.id ? null : <Trash2 className="h-3.5 w-3.5" />}
                           </Button>
                         </>
                       ) : (

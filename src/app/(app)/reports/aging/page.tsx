@@ -2,7 +2,10 @@ import { ChartCard } from "@/components/analytics/chart-card";
 import { CompareBarChart, DonutChart } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { ReportTable } from "@/components/reports/report-table";
-import { UrlFilterForm } from "@/components/reports/url-filter-form";
+import {
+  FilterSubmitButton,
+  UrlFilterForm,
+} from "@/components/reports/url-filter-form";
 import { requireCompanyContext } from "@/lib/auth";
 import { localDateIso } from "@/lib/dates";
 import { formatPkr } from "@/lib/utils";
@@ -101,12 +104,7 @@ export default async function AgingReportPage({
               className="h-10 rounded-lg border border-[var(--border)] px-3"
             />
           </label>
-          <button
-            type="submit"
-            className="h-10 rounded-lg bg-[var(--brand)] px-4 text-sm font-medium text-white"
-          >
-            Refresh
-          </button>
+          <FilterSubmitButton className="h-10">Refresh</FilterSubmitButton>
         </UrlFilterForm>
       </div>
 

@@ -280,9 +280,25 @@ function NavGroup({
   );
 }
 
+function navForPermissions(items: NavItem[], permissions: string[]): NavItem[] {
+  const canReports = permissions.includes("view_reports");
+  const canUsers = permissions.includes("manage_users");
+  return items.flatMap((item) => {
+    if (!item.children) return [item];
+    const children = item.children.filter((child) => {
+      if (child.href.startsWith("/reports") && !canReports) return false;
+      if (child.href.startsWith("/settings/users") && !canUsers) return false;
+      return true;
+    });
+    if (!children.length) return [];
+    return [{ ...item, children }];
+  });
+}
+
 export function Sidebar({
   companyName,
   isSuperAdmin,
+  permissions = [],
   mobileOpen = false,
   collapsed = false,
   onMobileClose,
@@ -290,6 +306,7 @@ export function Sidebar({
 }: {
   companyName?: string | null;
   isSuperAdmin?: boolean;
+  permissions?: string[];
   mobileOpen?: boolean;
   collapsed?: boolean;
   onMobileClose?: () => void;
@@ -317,9 +334,14 @@ export function Sidebar({
     return () => window.removeEventListener("hashchange", sync);
   }, [pathname, searchParams]);
 
+  const tenantNav = useMemo(
+    () => navForPermissions(mainNav, permissions),
+    [permissions],
+  );
+
   const allGroups = useMemo(
-    () => [...mainNav, ...(isSuperAdmin ? [platformNav] : [])],
-    [isSuperAdmin],
+    () => [...tenantNav, ...(isSuperAdmin ? [platformNav] : [])],
+    [isSuperAdmin, tenantNav],
   );
 
   const activeGroupLabel = useMemo(() => {
@@ -408,7 +430,7 @@ export function Sidebar({
         )}
       >
         <div className="flex flex-col gap-0.5">
-          {mainNav.map((item) => (
+          {tenantNav.map((item) => (
             <NavGroup
               key={item.label}
               item={item}

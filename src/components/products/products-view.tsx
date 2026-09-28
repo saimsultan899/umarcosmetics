@@ -18,11 +18,17 @@ export function ProductsView({
   initialData,
   initialWarehouses,
   initialOffline = false,
+  canEdit = false,
+  canInactivate = false,
+  canDelete = false,
 }: {
   company: Company;
   initialData?: ProductListResult | null;
   initialWarehouses?: Warehouse[];
   initialOffline?: boolean;
+  canEdit?: boolean;
+  canInactivate?: boolean;
+  canDelete?: boolean;
 }) {
   const searchParams = useSearchParams();
   const view = searchParams.get("view") || undefined;
@@ -67,19 +73,21 @@ export function ProductsView({
             >
               Expiry warehouse
             </Link>
-            <CreateDialogButton
-              label="Add product"
-              title="Add product"
-              description="Create a catalog item with rates and packing"
-              size="xl"
-            >
-              <ProductForm
-                companyId={company.id}
-                organizationId={company.organization_id}
-                warehouses={warehouses}
-                onDone={refetch}
-              />
-            </CreateDialogButton>
+            {canEdit ? (
+              <CreateDialogButton
+                label="Add product"
+                title="Add product"
+                description="Create a catalog item with rates and packing"
+                size="xl"
+              >
+                <ProductForm
+                  companyId={company.id}
+                  organizationId={company.organization_id}
+                  warehouses={warehouses}
+                  onDone={refetch}
+                />
+              </CreateDialogButton>
+            ) : null}
           </>
         }
       />
@@ -94,6 +102,10 @@ export function ProductsView({
         stockValueByCode={currentData.stockValueByCode}
         lowStockCodes={currentData.lowStockCodes}
         initialView={view}
+        canEdit={canEdit}
+        canInactivate={canInactivate}
+        canDelete={canDelete}
+        onChanged={refetch}
       />
     </div>
   );

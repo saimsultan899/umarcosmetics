@@ -54,16 +54,8 @@ export function AppUpdateBanner() {
         ) : null}
       </p>
       {showApply ? (
-        <Button
-          size="sm"
-          onClick={() => void apply()}
-          disabled={applying}
-        >
-          {applying ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <RefreshCw className="h-3.5 w-3.5" />
-          )}
+        <Button size="sm" onClick={() => void apply()} loading={applying}>
+          {applying ? null : <RefreshCw className="h-3.5 w-3.5" />}
           {state.source === "desktop" ? "Restart & update" : "Reload"}
         </Button>
       ) : null}

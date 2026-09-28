@@ -1,16 +1,32 @@
 import { cn } from "@/lib/utils";
+import { Loader2 } from "lucide-react";
 import { ButtonHTMLAttributes, forwardRef } from "react";
 
 type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "secondary" | "accent" | "ghost" | "danger";
   size?: "sm" | "md" | "lg";
+  /** Shows a spinner and blocks another click while the action is running. */
+  loading?: boolean;
 };
 
 export const Button = forwardRef<HTMLButtonElement, Props>(
-  ({ className, variant = "primary", size = "md", ...props }, ref) => {
+  (
+    {
+      className,
+      variant = "primary",
+      size = "md",
+      loading = false,
+      disabled,
+      children,
+      ...props
+    },
+    ref,
+  ) => {
     return (
       <button
         ref={ref}
+        disabled={disabled || loading}
+        aria-busy={loading || undefined}
         className={cn(
           "inline-flex items-center justify-center gap-2 rounded-md border border-transparent font-semibold transition disabled:opacity-50 disabled:pointer-events-none",
           variant === "primary" &&
@@ -27,7 +43,12 @@ export const Button = forwardRef<HTMLButtonElement, Props>(
           className,
         )}
         {...props}
-      />
+      >
+        {loading ? (
+          <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+        ) : null}
+        {children}
+      </button>
     );
   },
 );

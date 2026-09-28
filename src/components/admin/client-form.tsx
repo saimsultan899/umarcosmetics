@@ -215,7 +215,7 @@ export function ClientForm({
           {error}
         </p>
       ) : null}
-      <Button type="submit" disabled={loading}>
+      <Button type="submit" loading={loading}>
         {loading ? "Creating..." : "Create client login"}
       </Button>
     </form>

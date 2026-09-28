@@ -11,7 +11,6 @@ import { DetailField, RowActions } from "@/components/ui/row-actions";
 import { useSearchInput, useUrlTableState } from "@/hooks/use-url-table-state";
 import type { RecoveryRow } from "@/lib/queries/recoveries";
 import type { PaginationMeta } from "@/lib/pagination";
-import { createClient } from "@/lib/supabase/client";
 import { formatPkr } from "@/lib/utils";
 
 export function RecoveriesTable({
@@ -30,12 +29,6 @@ export function RecoveriesTable({
   const { q, isPending, setPage, setPageSize, setQuery, setFilter, filters } =
     useUrlTableState(["city", "sector", "salesman"]);
   const search = useSearchInput(q, setQuery);
-
-  async function remove(id: string) {
-    const supabase = createClient();
-    const { error } = await supabase.from("recoveries").delete().eq("id", id);
-    if (error) throw new Error(error.message);
-  }
 
   return (
     <div>
@@ -129,9 +122,7 @@ export function RecoveriesTable({
                           viewTitle="Recovery details"
                           viewFields={fields}
                           allowEdit={false}
-                          deleteTitle="Delete recovery?"
-                          deleteDescription="This permanently removes the recovery entry."
-                          onDelete={() => remove(r.id)}
+                          allowDelete={false}
                         />
                       </td>
                     </tr>

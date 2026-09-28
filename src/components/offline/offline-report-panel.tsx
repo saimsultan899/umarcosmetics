@@ -1,6 +1,7 @@
 "use client";
 
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
+import { Button } from "@/components/ui/button";
 import { PageHeading } from "@/components/ui/create-dialog";
 import { ReportTable } from "@/components/reports/report-table";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
@@ -109,6 +110,7 @@ export function OfflineReportPanel({
 }) {
   const meta = TITLES[kind];
   const [loading, setLoading] = useState(true);
+  const [filterBusy, setFilterBusy] = useState(false);
   const [count, setCount] = useState(0);
   const [total, setTotal] = useState(0);
   const [secondTotal, setSecondTotal] = useState<number | null>(null);
@@ -406,7 +408,10 @@ export function OfflineReportPanel({
             </Link>
           ))}
           {(view || "receivable") === "ledger" ? (
-            <form className="flex flex-wrap items-end gap-2">
+            <form
+              className="flex flex-wrap items-end gap-2"
+              onSubmit={() => setFilterBusy(true)}
+            >
               <input type="hidden" name="view" value="ledger" />
               <label className="text-xs text-[var(--muted)]">
                 Party
@@ -423,12 +428,9 @@ export function OfflineReportPanel({
                   ))}
                 </select>
               </label>
-              <button
-                type="submit"
-                className="h-9 rounded-lg bg-[var(--brand)] px-3 text-white"
-              >
+              <Button type="submit" size="sm" loading={filterBusy}>
                 Open
-              </button>
+              </Button>
             </form>
           ) : null}
         </div>
@@ -438,6 +440,7 @@ export function OfflineReportPanel({
         <form
           action="/reports/salesman-ledger"
           className="no-print flex flex-wrap items-end gap-2 rounded-xl border border-[var(--border)] bg-white p-3"
+          onSubmit={() => setFilterBusy(true)}
         >
           <label className="text-xs text-[var(--muted)]">
             From
@@ -472,17 +475,17 @@ export function OfflineReportPanel({
               ))}
             </select>
           </label>
-          <button
-            type="submit"
-            className="h-9 rounded-lg bg-[var(--brand)] px-3 text-sm font-medium text-white"
-          >
+          <Button type="submit" size="sm" loading={filterBusy}>
             Open
-          </button>
+          </Button>
         </form>
       ) : null}
 
       {kind === "aging" ? (
-        <form className="no-print flex flex-wrap items-end gap-2">
+        <form
+          className="no-print flex flex-wrap items-end gap-2"
+          onSubmit={() => setFilterBusy(true)}
+        >
           <label className="text-xs text-[var(--muted)]">
             As of
             <input
@@ -492,17 +495,17 @@ export function OfflineReportPanel({
               className="mt-1 block h-9 rounded-lg border border-[var(--border)] px-2"
             />
           </label>
-          <button
-            type="submit"
-            className="h-9 rounded-lg bg-[var(--brand)] px-3 text-sm font-medium text-white"
-          >
+          <Button type="submit" size="sm" loading={filterBusy}>
             Refresh
-          </button>
+          </Button>
         </form>
       ) : null}
 
       {kind === "profit" ? (
-        <form className="no-print flex flex-wrap items-end gap-2 rounded-xl border border-[var(--border)] bg-white p-3">
+        <form
+          className="no-print flex flex-wrap items-end gap-2 rounded-xl border border-[var(--border)] bg-white p-3"
+          onSubmit={() => setFilterBusy(true)}
+        >
           <label className="text-xs text-[var(--muted)]">
             From
             <input
@@ -521,12 +524,9 @@ export function OfflineReportPanel({
               className="mt-1 block h-9 rounded-lg border border-[var(--border)] px-2"
             />
           </label>
-          <button
-            type="submit"
-            className="h-9 rounded-lg bg-[var(--brand)] px-3 text-sm font-medium text-white"
-          >
+          <Button type="submit" size="sm" loading={filterBusy}>
             Refresh
-          </button>
+          </Button>
         </form>
       ) : null}
 

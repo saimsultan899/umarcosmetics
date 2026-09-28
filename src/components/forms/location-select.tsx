@@ -161,7 +161,7 @@ export function LocationSelect({
                 }
               }}
             />
-            <Button type="button" size="sm" disabled={saving} onClick={() => void saveNew()}>
+            <Button type="button" size="sm" loading={saving} onClick={() => void saveNew()}>
               {saving ? "Saving..." : "Save"}
             </Button>
             <Button

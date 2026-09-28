@@ -98,7 +98,10 @@ export async function setupServiceWorker() {
   }
 
   try {
-    const reg = await navigator.serviceWorker.register("/sw.js");
+    const reg = await navigator.serviceWorker.register("/sw.js", {
+      updateViaCache: "none",
+    });
+    void reg.update();
     watchRegistration(reg);
 
     // Reload once a freshly-activated worker takes control (only when the user

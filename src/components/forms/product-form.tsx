@@ -5,6 +5,7 @@ import { useCreateDialogClose } from "@/components/ui/create-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { useBarcodeWedge } from "@/lib/barcode/use-barcode-wedge";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
 import {
   normalizePurchaseDiscountInput,
@@ -59,6 +60,11 @@ export function ProductForm({
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
   }
+
+  // Hardware scanner (keyboard wedge) or manual typing both land in Barcode.
+  useBarcodeWedge((code) => {
+    set("barcode", code);
+  });
 
   useEffect(() => {
     if (initial) return;
@@ -259,7 +265,16 @@ export function ProductForm({
       </div>
       <div>
         <Label>Barcode</Label>
-        <Input value={form.barcode} onChange={(e) => set("barcode", e.target.value)} />
+        <Input
+          value={form.barcode}
+          onChange={(e) => set("barcode", e.target.value)}
+          placeholder="Scan or type"
+          autoComplete="off"
+          inputMode="text"
+        />
+        <p className="mt-1 text-[11px] text-[var(--muted)]">
+          Optional. Scan the item or type the barcode. Saved with the product.
+        </p>
       </div>
       <div>
         <Label>Trade price</Label>
@@ -320,7 +335,7 @@ export function ProductForm({
       ) : null}
 
       <div className="sm:col-span-2 lg:col-span-3">
-        <Button type="submit" disabled={loading}>
+        <Button type="submit" loading={loading}>
           {loading ? "Saving..." : initial ? "Update product" : "Save product"}
         </Button>
       </div>

@@ -4,6 +4,18 @@ import { DetailField, RowActions } from "@/components/ui/row-actions";
 import { deleteCachedRow, type CacheStoreName } from "@/lib/offline/local-db";
 import { createClient } from "@/lib/supabase/client";
 
+const NEVER_DELETE = new Set([
+  "sale_invoices",
+  "purchase_invoices",
+  "vouchers",
+  "sale_returns",
+  "purchase_returns",
+  "recoveries",
+  "sale_invoice_items",
+  "purchase_invoice_items",
+  "voucher_lines",
+]);
+
 export function DocumentRowActions({
   title,
   fields,
@@ -25,6 +37,8 @@ export function DocumentRowActions({
   allowDelete?: boolean;
   showPrint?: boolean;
 }) {
+  const canDelete = allowDelete && !NEVER_DELETE.has(table);
+
   async function remove() {
     try {
       const supabase = createClient();
@@ -57,8 +71,8 @@ export function DocumentRowActions({
       href={href}
       printHref={showPrint ? href : undefined}
       allowEdit={false}
-      allowDelete={allowDelete}
-      onDelete={allowDelete ? remove : undefined}
+      allowDelete={canDelete}
+      onDelete={canDelete ? remove : undefined}
       deleteTitle={`Delete ${title}?`}
       deleteDescription="This permanently removes the document. Stock and ledger effects are not auto-reversed."
     />

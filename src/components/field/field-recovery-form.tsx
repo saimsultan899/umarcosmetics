@@ -150,7 +150,7 @@ export function FieldRecoveryForm({
       {message ? (
         <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</p>
       ) : null}
-      <Button type="submit" className="w-full" disabled={loading || shops.length === 0}>
+      <Button type="submit" className="w-full" loading={loading} disabled={shops.length === 0}>
         {loading ? "Saving..." : online ? "Save recovery" : "Save offline"}
       </Button>
     </form>

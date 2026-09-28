@@ -72,10 +72,16 @@ export function PartiesView({
   company,
   initialData,
   initialOffline = false,
+  canEdit = false,
+  canInactivate = false,
+  canDelete = false,
 }: {
   company: Company;
   initialData?: PartyListResult | null;
   initialOffline?: boolean;
+  canEdit?: boolean;
+  canInactivate?: boolean;
+  canDelete?: boolean;
 }) {
   const searchParams = useSearchParams();
   const view = searchParams.get("view");
@@ -140,22 +146,24 @@ export function PartiesView({
                 />
               </CreateDialogButton>
             ) : null}
-            <CreateDialogButton
-              label={meta.addLabel}
-              title={meta.addTitle}
-              description={meta.addDescription}
-              size="lg"
-            >
-              <PartyForm
-                companyId={company.id}
-                organizationId={company.organization_id}
-                cityOptions={currentData.cityOptions}
-                sectorOptions={currentData.sectorOptions}
-                defaultSubtype={meta.defaultSubtype}
-                defaultPartyType={meta.defaultPartyType}
-                onDone={refetch}
-              />
-            </CreateDialogButton>
+            {canEdit ? (
+              <CreateDialogButton
+                label={meta.addLabel}
+                title={meta.addTitle}
+                description={meta.addDescription}
+                size="lg"
+              >
+                <PartyForm
+                  companyId={company.id}
+                  organizationId={company.organization_id}
+                  cityOptions={currentData.cityOptions}
+                  sectorOptions={currentData.sectorOptions}
+                  defaultSubtype={meta.defaultSubtype}
+                  defaultPartyType={meta.defaultPartyType}
+                  onDone={refetch}
+                />
+              </CreateDialogButton>
+            ) : null}
           </>
         }
       />
@@ -169,6 +177,10 @@ export function PartiesView({
         cityOptions={currentData.cityOptions}
         sectorOptions={currentData.sectorOptions}
         initialType={type || undefined}
+        canEdit={canEdit}
+        canInactivate={canInactivate}
+        canDelete={canDelete}
+        onChanged={refetch}
       />
     </div>
   );

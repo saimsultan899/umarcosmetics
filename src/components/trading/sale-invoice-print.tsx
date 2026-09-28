@@ -1,11 +1,20 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { installDesktopPrint } from "@/lib/desktop-print";
+import {
+  useClientReady,
+  useSlipQuery,
+  useWalkInSlip,
+  writeWalkInSlip,
+  type WalkInSlipLayout,
+} from "@/lib/print/walk-in-slip";
+import { printThermalSlip } from "@/lib/print/thermal-page";
 import { formatReportInvNo } from "@/lib/reports/helpers";
 import { formatNumber, formatPkr } from "@/lib/utils";
 import { ArrowLeft, Printer } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export type SalePrintLine = {
   product_code?: string | null;
@@ -17,6 +26,9 @@ export type SalePrintLine = {
   discount: number;
   amount: number;
 };
+
+const THERMAL_DASH = "--------------------------------";
+const THERMAL_EQ = "================================";
 
 function itemLabel(code?: string | null, name?: string | null) {
   return [code, name].filter(Boolean).join(" ");
@@ -97,6 +109,8 @@ export function SaleInvoicePrint({
   creditDays = 21,
   preparedBy,
   autoPrint = false,
+  isWalkIn = false,
+  companyId = "",
 }: {
   companyName: string;
   companyPhone?: string | null;
@@ -126,6 +140,9 @@ export function SaleInvoicePrint({
   creditDays?: number;
   preparedBy?: string | null;
   autoPrint?: boolean;
+  /** Cash counter sale with no ledger (party code WALKIN). */
+  isWalkIn?: boolean;
+  companyId?: string;
 }) {
   const router = useRouter();
   const paidOnBill = Math.max(0, paid);
@@ -146,6 +163,28 @@ export function SaleInvoicePrint({
     .join(" ");
 
   const savedTitle = useRef("");
+  const clientReady = useClientReady();
+  const savedDefault = useWalkInSlip(companyId);
+  const urlSlip = useSlipQuery();
+  const [manualLayout, setManualLayout] = useState<WalkInSlipLayout | null>(null);
+  const layout = manualLayout ?? urlSlip ?? savedDefault;
+  const showSheet = !isWalkIn || clientReady;
+  const showThermal = isWalkIn && clientReady && layout === "thermal";
+
+  useEffect(() => {
+    installDesktopPrint();
+  }, []);
+
+  function printCurrent() {
+    if (showThermal) {
+      const slip = document.querySelector<HTMLElement>(".print-sheet.thermal-80");
+      if (slip) {
+        printThermalSlip(slip);
+        return;
+      }
+    }
+    window.print();
+  }
 
   useEffect(() => {
     const onBeforePrint = () => {
@@ -164,17 +203,83 @@ export function SaleInvoicePrint({
   }, []);
 
   useEffect(() => {
-    if (!autoPrint) return;
-    const t = window.setTimeout(() => window.print(), 250);
+    if (!showThermal) return;
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "p") {
+        const slip = document.querySelector<HTMLElement>(".print-sheet.thermal-80");
+        if (!slip) return;
+        event.preventDefault();
+        printThermalSlip(slip);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showThermal]);
+
+  useEffect(() => {
+    if (!autoPrint || !showSheet) return;
+    const t = window.setTimeout(() => {
+      if (showThermal) {
+        const slip = document.querySelector<HTMLElement>(".print-sheet.thermal-80");
+        if (slip) {
+          printThermalSlip(slip);
+          return;
+        }
+      }
+      window.print();
+    }, 300);
     return () => window.clearTimeout(t);
-  }, [autoPrint]);
+  }, [autoPrint, showSheet, showThermal]);
+
+  function setWalkInDefault(next: WalkInSlipLayout) {
+    if (!companyId) return;
+    writeWalkInSlip(companyId, next);
+    setManualLayout(null);
+  }
 
   return (
     <div className="space-y-4">
-      <div className="no-print flex items-center justify-end gap-2">
+      <div className="no-print flex flex-wrap items-center justify-end gap-2">
         <p className="mr-auto text-sm text-[var(--muted)]">
-          Half A4 · loads on right side of paper
+          {showThermal
+            ? "80mm thermal · walk-in cash slip"
+            : isWalkIn
+              ? savedDefault === "thermal"
+                ? "Standard invoice for this bill. Next walk-in still uses the thermal slip."
+                : "Half A4 invoice. Turn on thermal to use it for every walk-in sale."
+              : "Half A4 · loads on right side of paper"}
         </p>
+        {isWalkIn ? (
+          <label className="flex items-center gap-2 text-sm font-medium text-[var(--ink)]">
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-[var(--brand)]"
+              checked={savedDefault === "thermal"}
+              onChange={(e) =>
+                setWalkInDefault(e.target.checked ? "thermal" : "standard")
+              }
+            />
+            Thermal default for walk-in
+          </label>
+        ) : null}
+        {isWalkIn && showThermal ? (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setManualLayout("standard")}
+          >
+            Standard invoice
+          </Button>
+        ) : null}
+        {isWalkIn && !showThermal ? (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setManualLayout("thermal")}
+          >
+            Thermal receipt
+          </Button>
+        ) : null}
         <Button
           type="button"
           variant="secondary"
@@ -189,12 +294,95 @@ export function SaleInvoicePrint({
           <ArrowLeft className="h-4 w-4" />
           Back
         </Button>
-        <Button type="button" onClick={() => window.print()}>
+        <Button type="button" onClick={printCurrent}>
           <Printer className="h-4 w-4" />
           Print
         </Button>
       </div>
 
+      {showSheet && showThermal ? (
+        <div className="print-sheet thermal-80 mx-auto">
+          <div className="th-shop">{companyName || "Sale"}</div>
+          {_companyPhone ? <div className="th-sub">{_companyPhone}</div> : null}
+          <div className="th-eq">{THERMAL_EQ}</div>
+          <div className="th-center th-strong">CASH SALE</div>
+          <div className="th-center">{partyName || "Walk-in Customer"}</div>
+          <div className="th-meta">
+            <span>Bill {formatReportInvNo(docNo) || docNo}</span>
+            <span>{dateTimeLabel}</span>
+          </div>
+          <div className="th-dash">{THERMAL_DASH}</div>
+          <table className="th-table">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th className="num">Qty</th>
+                <th className="num">Rate</th>
+                <th className="num">Amt</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lines.map((l, i) => {
+                const schemeLabel = formatSchemeLabel(l.scheme, l.bonus);
+                return (
+                  <tr key={`${l.product_code || l.product_name}-${i}`}>
+                    <td>
+                      {itemLabel(l.product_code, l.product_name)}
+                      {schemeLabel ? (
+                        <span className="th-scheme"> {schemeLabel}</span>
+                      ) : null}
+                    </td>
+                    <td className="num">{formatNumber(l.qty, 2)}</td>
+                    <td className="num">{formatNumber(l.tradePrice, 2)}</td>
+                    <td className="num">{formatNumber(l.amount, 2)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <div className="th-dash">{THERMAL_DASH}</div>
+          <div className="th-row">
+            <span>Total</span>
+            <span>{formatNumber(subtotal, 2)}</span>
+          </div>
+          {tradeDiscount > 0 ? (
+            <div className="th-row">
+              <span>Trade discount</span>
+              <span>{formatNumber(tradeDiscount, 2)}</span>
+            </div>
+          ) : null}
+          {extraDiscount > 0 ? (
+            <div className="th-row">
+              <span>Extra discount</span>
+              <span>{formatNumber(extraDiscount, 2)}</span>
+            </div>
+          ) : null}
+          <div className="th-row th-total">
+            <span>BILL AMOUNT</span>
+            <span>{formatPkr(billAmount)}</span>
+          </div>
+          {showCounterCash ? (
+            <div className="th-row">
+              <span>Cash received</span>
+              <span>{formatNumber(paidOnBill, 2)}</span>
+            </div>
+          ) : null}
+          {showCounterCash && billPayable > 0.005 ? (
+            <div className="th-row th-strong">
+              <span>Balance</span>
+              <span>{formatNumber(billPayable, 2)}</span>
+            </div>
+          ) : null}
+          <div className="th-eq">{THERMAL_EQ}</div>
+          <div className="th-thanks">Thank you</div>
+          <div className="th-credit">
+            <div>Developed by Umar Distributor</div>
+            <div>03006031380, 03084882425</div>
+          </div>
+        </div>
+      ) : null}
+
+      {showSheet && !showThermal ? (
       <div className="print-sheet si-half mx-auto">
         <div className="si-head">
           <div className="si-doc-label">Sale Invoice</div>
@@ -360,6 +548,7 @@ export function SaleInvoicePrint({
           </div>
         </div>
       </div>
+      ) : null}
     </div>
   );
 }

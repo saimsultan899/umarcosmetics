@@ -17,6 +17,7 @@ export function AppShell({
   company,
   userName,
   isSuperAdmin,
+  permissions = [],
   profileData,
   membershipsData,
 }: {
@@ -24,6 +25,7 @@ export function AppShell({
   company?: Company | null;
   userName?: string | null;
   isSuperAdmin?: boolean;
+  permissions?: string[];
   profileData?: Record<string, unknown> | null;
   membershipsData?: Record<string, unknown>[] | null;
 }) {
@@ -129,6 +131,7 @@ export function AppShell({
         <Sidebar
           companyName={company?.name}
           isSuperAdmin={false}
+          permissions={permissions}
           mobileOpen={mobileNavOpen}
           collapsed={sidebarCollapsed}
           onMobileClose={() => setMobileNavOpen(false)}

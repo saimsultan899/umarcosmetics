@@ -52,6 +52,8 @@ export type CompanyMember = {
   user_id: string;
   role: AppRole;
   is_active: boolean;
+  /** NULL follows the role template. An empty array grants nothing. */
+  permissions?: string[] | null;
   created_at: string;
   updated_at: string;
   companies?: Company;

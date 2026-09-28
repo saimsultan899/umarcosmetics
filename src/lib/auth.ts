@@ -59,6 +59,7 @@ function membershipsFromShell(shell: OfflineShellSnapshot): CompanyMember[] {
     role: m.role,
     user_id: shell.userId,
     is_active: true,
+    permissions: m.permissions ?? null,
     companies: m.companies as CompanyMember["companies"],
   })) as CompanyMember[];
 }

@@ -18,6 +18,7 @@ import {
   type PaymentType,
   calcLineDiscount,
 } from "@/lib/types/trading";
+import { readWalkInSlip } from "@/lib/print/walk-in-slip";
 import { formatPkr } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useRef, useState } from "react";
@@ -77,7 +78,7 @@ export function SaleInvoiceForm({
     const map = new Map<string, { warehouseId: string; qty: number }[]>();
     for (const row of stockBalances) {
       const qty = Number(row.qty);
-      if (!(qty > 0)) continue;
+      if (!Number.isFinite(qty)) continue;
       const list = map.get(row.product_id) || [];
       list.push({ warehouseId: row.warehouse_id, qty });
       map.set(row.product_id, list);
@@ -165,9 +166,7 @@ export function SaleInvoiceForm({
       return;
     }
 
-    setLoading(true);
-
-    // Client-side stock check (qty + free) against each product's own company
+    const stockAlerts: string[] = [];
     const needByProduct = new Map<string, number>();
     for (const l of valid) {
       const need = Number(l.qty || 0) + Number(l.bonus || 0);
@@ -186,13 +185,22 @@ export function SaleInvoiceForm({
       if (need > onHand + 1e-9) {
         const companyName =
           warehouses.find((w) => w.id === stockWh)?.name || "selected company";
-        setLoading(false);
-        setError(
-          `${product ? `${product.code} — ${product.name_en}` : "Product"}: only ${onHand} available in ${companyName} (need ${need}).`,
+        const label = product
+          ? `${product.code} — ${product.name_en}`
+          : "Product";
+        stockAlerts.push(
+          `${label} is out of stock in ${companyName} (on hand ${onHand}, selling ${need}).`,
         );
-        return;
       }
     }
+    if (stockAlerts.length > 0) {
+      const proceed = window.confirm(
+        `Out of stock:\n\n${stockAlerts.join("\n")}\n\nThe invoice will still be saved. Stock will go negative, and the next receipt will clear that deficit.\n\nContinue?`,
+      );
+      if (!proceed) return;
+    }
+
+    setLoading(true);
 
     const party = parties.find((p) => p.id === partyId);
     const { subtotal, discount_total, grand_total: linesTotal } = summarizeLines(valid);
@@ -324,10 +332,14 @@ export function SaleInvoiceForm({
       setLoading(false);
       closeDialog?.();
       onDone?.();
-      if (res.source === "offline") {
+      const printThermal =
+        walkInActive && readWalkInSlip(companyId) === "thermal";
+      if (res.source === "offline" && !printThermal) {
         router.refresh();
       } else {
-        router.push(`/sales/invoices/${res.id}`);
+        router.push(
+          `/sales/invoices/${res.id}${printThermal ? "?print=1" : ""}`,
+        );
         router.refresh();
       }
     } catch (err: any) {
@@ -479,6 +491,7 @@ export function SaleInvoiceForm({
         warehouseId={warehouseId}
         warehouses={warehouses}
         stockByProduct={stockByProduct}
+        allowOversell
         onAutoPickWarehouse={setWarehouseId}
         extraDiscount={extraDiscount}
         onExtraDiscountChange={setExtraDiscount}
@@ -492,7 +505,7 @@ export function SaleInvoiceForm({
         <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>
       ) : null}
 
-      <Button type="submit" disabled={loading}>
+      <Button type="submit" loading={loading}>
         {loading ? "Posting invoice..." : "Save & post sale invoice"}
       </Button>
     </form>

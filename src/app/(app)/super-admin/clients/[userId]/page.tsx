@@ -33,7 +33,7 @@ export default async function SuperAdminClientDetailPage({
 
   const { data: companies } = await supabase
     .from("companies")
-    .select("*")
+    .select("*, organizations(name)")
     .eq("is_active", true)
     .order("name");
 

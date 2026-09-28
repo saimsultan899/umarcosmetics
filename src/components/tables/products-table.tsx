@@ -16,14 +16,14 @@ import { DetailField, RowActions } from "@/components/ui/row-actions";
 import { useSearchInput, useUrlTableState } from "@/hooks/use-url-table-state";
 import type { PaginationMeta } from "@/lib/pagination";
 import type { ProductListStats } from "@/lib/queries/products";
-import { createClient } from "@/lib/supabase/client";
 import type { Product, Warehouse } from "@/lib/types/database";
 import { formatProductPurchaseDiscount } from "@/lib/pricing/discounts";
 import { formatUomCompact } from "@/lib/pricing/uom";
 import { formatNumber, formatPkr } from "@/lib/utils";
+import { deleteCachedRow, putCachedRow } from "@/lib/offline/local-db";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
-import { putCachedRow } from "@/lib/offline/local-db";
 import { hasLocalSqlite, localUpsertMaster } from "@/lib/offline/sqlite-client";
+import { createClient } from "@/lib/supabase/client";
 import { AlertTriangle, Package, Tags } from "lucide-react";
 import { useMemo } from "react";
 
@@ -75,6 +75,10 @@ export function ProductsTable({
   stockValueByCode,
   lowStockCodes,
   initialView,
+  canEdit = true,
+  canInactivate = false,
+  canDelete = false,
+  onChanged,
 }: {
   products: Product[];
   pagination: PaginationMeta;
@@ -85,6 +89,10 @@ export function ProductsTable({
   stockValueByCode?: Record<string, number>;
   lowStockCodes?: string[];
   initialView?: string;
+  canEdit?: boolean;
+  canInactivate?: boolean;
+  canDelete?: boolean;
+  onChanged?: () => void;
 }) {
   const { q, isPending, setPage, setPageSize, setQuery, setFilter, filters } =
     useUrlTableState(["view", "warehouse"]);
@@ -111,11 +119,11 @@ export function ProductsTable({
   const view = (filters.view ||
     (initialView === "reorder" ? "reorder" : "all")) as ViewFilter;
 
-  async function deactivate(id: string) {
+  async function setActive(id: string, isActive: boolean) {
     const product = products.find((p) => p.id === id);
     const payload = product
-      ? { ...product, is_active: false }
-      : { id, is_active: false, company_id: companyId };
+      ? { ...product, is_active: isActive }
+      : { id, is_active: isActive, company_id: companyId };
     try {
       await offlineAwareSubmit({
         mutationType: "product_update",
@@ -127,10 +135,32 @@ export function ProductsTable({
       });
     } catch {
       if (hasLocalSqlite() && product) {
-        await localUpsertMaster("products", { ...product, is_active: false }).catch(() => {});
+        await localUpsertMaster("products", { ...product, is_active: isActive }).catch(() => {});
       }
       await putCachedRow("products", companyId, payload).catch(() => {});
     }
+  }
+
+  async function remove(id: string) {
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("products")
+      .delete()
+      .eq("id", id)
+      .eq("company_id", companyId);
+    if (error) {
+      if (error.code === "23503") {
+        throw new Error(
+          "This product is already on a bill or stock movement, so it cannot be removed.",
+        );
+      }
+      if (/organization admin/i.test(error.message)) {
+        throw new Error("Only the organization admin can delete products.");
+      }
+      throw new Error(error.message);
+    }
+    await deleteCachedRow("products", id).catch(() => {});
+    onChanged?.();
   }
 
   return (
@@ -250,11 +280,24 @@ export function ProductsTable({
                   products.map((p) => (
                     <tr
                       key={p.id}
-                      className={lowSet.has(p.code) ? "bg-rose-50/40" : undefined}
+                      className={
+                        !p.is_active
+                          ? "opacity-60"
+                          : lowSet.has(p.code)
+                            ? "bg-rose-50/40"
+                            : undefined
+                      }
                     >
                       <td className="font-medium">{p.code}</td>
                       <td>
-                        <div>{p.name_en}</div>
+                        <div className="flex items-center gap-2">
+                          <span>{p.name_en}</span>
+                          {!p.is_active ? (
+                            <span className="rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-[10px] font-semibold uppercase text-[var(--muted)]">
+                              Inactive
+                            </span>
+                          ) : null}
+                        </div>
                         <div className="text-xs text-[var(--muted)]">
                           {p.product_type || "—"}
                         </div>
@@ -275,13 +318,27 @@ export function ProductsTable({
                         <RowActions
                           viewTitle={p.name_en}
                           editTitle={`Edit ${p.name_en}`}
-                          deleteTitle={`Remove ${p.name_en}?`}
-                          deleteDescription="Product will be removed from this list and hidden from new invoices."
+                          deleteTitle={
+                            canDelete
+                              ? `Delete ${p.name_en}?`
+                              : `Mark ${p.name_en} inactive?`
+                          }
+                          deleteDescription={
+                            canDelete
+                              ? "This removes the product from the catalog. A product already used on a bill cannot be removed."
+                              : "The product stays on old invoices and is hidden from new ones. This does not delete it."
+                          }
                           viewFields={productFields(
                             p,
                             warehouseName(p.default_warehouse_id),
                           )}
-                          onDelete={() => deactivate(p.id)}
+                          allowEdit={canEdit}
+                          allowDelete={
+                            canDelete || (canInactivate && p.is_active)
+                          }
+                          onDelete={() =>
+                            canDelete ? remove(p.id) : setActive(p.id, false)
+                          }
                           editContent={(close) => (
                             <ProductForm
                               companyId={companyId}
@@ -292,6 +349,15 @@ export function ProductsTable({
                             />
                           )}
                         />
+                        {!p.is_active && canInactivate ? (
+                          <button
+                            type="button"
+                            className="ml-1 text-xs font-medium text-[var(--brand-strong)]"
+                            onClick={() => void setActive(p.id, true)}
+                          >
+                            Restore
+                          </button>
+                        ) : null}
                       </td>
                     </tr>
                   ))

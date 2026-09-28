@@ -414,7 +414,7 @@ export function RecoveryForm({
         </p>
       ) : null}
 
-      <Button type="submit" disabled={loading} className="w-full sm:w-auto">
+      <Button type="submit" loading={loading} className="w-full sm:w-auto">
         {loading
           ? "Recording..."
           : pendingCount > 0

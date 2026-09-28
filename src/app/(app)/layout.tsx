@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/layout/app-shell";
 import { ShellSkeleton } from "@/components/ui/page-skeleton";
+import { effectivePermissions } from "@/lib/access/permissions";
 import { getMemberships } from "@/lib/auth";
 import type { Company } from "@/lib/types/database";
 import { Suspense } from "react";
@@ -34,12 +35,21 @@ export default async function AppLayout({
     }
   }
 
+  const activeMembership = memberships.find(
+    (m) => m.company_id === (company?.id || profile?.active_company_id),
+  );
+  const permissions = effectivePermissions(
+    activeMembership,
+    Boolean(profile?.is_super_admin),
+  );
+
   return (
     <Suspense fallback={<ShellSkeleton />}>
       <AppShell
         company={company}
         userName={profile?.full_name || user.email || "User"}
         isSuperAdmin={profile?.is_super_admin}
+        permissions={permissions}
         profileData={(profile || { id: user.id }) as unknown as Record<string, unknown>}
         membershipsData={memberships as unknown as Record<string, unknown>[]}
       >

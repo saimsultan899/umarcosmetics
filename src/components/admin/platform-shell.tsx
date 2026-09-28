@@ -1,6 +1,8 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+import { clearOfflineShellCookie } from "@/lib/offline/offline-shell";
+import { setOfflineSessionCookie } from "@/lib/offline/local-auth";
 import { cn } from "@/lib/utils";
 import {
   Building2,
@@ -111,6 +113,8 @@ export function PlatformShell({
   }
 
   async function logout() {
+    setOfflineSessionCookie(false);
+    clearOfflineShellCookie();
     const supabase = createClient();
     await supabase.auth.signOut();
     router.push("/login");

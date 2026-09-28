@@ -102,6 +102,7 @@ function saveVault(payload) {
       {
         v: VAULT_VERSION,
         emailHint: String(payload.email || "").replace(/(^.).*(@.*$)/, "$1***$2"),
+        accountEmail: String(payload.email || "").trim().toLowerCase(),
         companyId: payload.companyId || null,
         updatedAt: new Date().toISOString(),
       },

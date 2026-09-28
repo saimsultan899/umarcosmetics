@@ -11,6 +11,8 @@ import { isElectronRuntime } from "@/lib/offline/service-worker";
 export type VaultMeta = {
   v?: number;
   emailHint?: string;
+  /** Full email this PIN belongs to. Used so a later login does not reuse another account. */
+  accountEmail?: string | null;
   companyId?: string | null;
   updatedAt?: string;
 };
@@ -225,6 +227,7 @@ async function saveBrowserVault(payload: {
     iv: Array.from(iv),
     data: Array.from(new Uint8Array(cipher)),
     emailHint: payload.email.replace(/(^.).*(@.*$)/, "$1***$2"),
+    accountEmail: payload.email.trim().toLowerCase(),
     companyId: payload.companyId || null,
     updatedAt: new Date().toISOString(),
   };
@@ -271,6 +274,7 @@ export async function getVaultMeta(): Promise<VaultMeta | null> {
     const p = JSON.parse(raw) as VaultMeta & { emailHint?: string };
     return {
       emailHint: p.emailHint,
+      accountEmail: p.accountEmail || null,
       companyId: p.companyId,
       updatedAt: p.updatedAt,
     };
@@ -308,6 +312,12 @@ export async function clearCredentialVault() {
 }
 
 export function shouldOfferPinVault() {
-  // Offer on Electron desktop always; also allow browser for PWA testing.
-  return isElectronRuntime() || hasDesktopVaultApi() || typeof window !== "undefined";
+  // Localhost is a normal browser sign-in. The PIN is only for the installed app.
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    if (host === "localhost" || host === "127.0.0.1" || host === "[::1]") {
+      return false;
+    }
+  }
+  return isElectronRuntime() || hasDesktopVaultApi();
 }

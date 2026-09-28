@@ -14,11 +14,13 @@ import {
 } from "@/lib/company-preference";
 import {
   cacheAuthTokens,
+  clearCredentialVault,
   getCachedAuthTokens,
   getVaultMeta,
   isAppOnline,
   saveCredentialVault,
   setOfflineSessionCookie,
+  shouldOfferPinVault,
   unlockCredentialVault,
   vaultExists,
 } from "@/lib/offline/local-auth";
@@ -42,13 +44,12 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [step, setStep] = useState<Step>(() => {
-    if (typeof window !== "undefined") {
-      if (
-        window.umarDesktop?.isDesktop ||
-        localStorage.getItem("umar-browser-vault-v1")
-      ) {
-        return "unlock";
-      }
+    if (
+      typeof window !== "undefined" &&
+      shouldOfferPinVault() &&
+      window.umarDesktop?.isDesktop
+    ) {
+      return "unlock";
     }
     return "credentials";
   });
@@ -78,12 +79,14 @@ function LoginForm() {
     setPreferredId(getPreferredCompanyId());
 
     (async () => {
-      const hasVault = await vaultExists();
+      const offerPin = shouldOfferPinVault();
+      const hasVault = offerPin && (await vaultExists());
       const meta = hasVault ? await getVaultMeta() : null;
-      if (meta?.emailHint) {
-        setEmailHint(meta.emailHint);
+      if (meta?.accountEmail || meta?.emailHint) {
+        const label = meta.accountEmail || meta.emailHint || null;
+        setEmailHint(label);
         try {
-          localStorage.setItem("umar_vault_hint", meta.emailHint);
+          if (label) localStorage.setItem("umar_vault_hint", label);
         } catch (_) {}
       }
       if (hasVault) {
@@ -190,6 +193,11 @@ function LoginForm() {
       memberships: safeMemberships.map((m) => ({
         company_id: m.companies?.id || (m as { company_id?: string }).company_id || "",
         role: m.role,
+        permissions: Array.isArray((m as { permissions?: unknown }).permissions)
+          ? ((m as { permissions: unknown[] }).permissions.filter(
+              (key): key is string => typeof key === "string",
+            ) as string[])
+          : null,
         companies: m.companies
           ? {
               id: m.companies.id,
@@ -221,16 +229,6 @@ function LoginForm() {
     companyId: string,
     memberships: CompanyMembership[],
   ) {
-    // Never attach a platform account to a tenant company from the picker.
-    try {
-      const shell = readOfflineShellCookie();
-      if (shell?.isSuperAdmin) {
-        router.replace("/super-admin");
-        return;
-      }
-    } catch {
-      /* continue */
-    }
     setPicking(companyId);
     setError(null);
     const online = await isAppOnline();
@@ -326,10 +324,27 @@ function LoginForm() {
       /* ignore */
     }
 
-    const hasVault = await vaultExists();
-    if (!hasVault) {
-      setStep("pin-setup");
-      return;
+    if (shouldOfferPinVault()) {
+      const hasVault = await vaultExists();
+      if (!hasVault) {
+        setStep("pin-setup");
+        return;
+      }
+
+      const vaultMeta = await getVaultMeta();
+      const vaultEmail = (vaultMeta?.accountEmail || "").trim().toLowerCase();
+      const signedInEmail = userEmail.trim().toLowerCase();
+      if (!vaultEmail || vaultEmail !== signedInEmail) {
+        await clearCredentialVault();
+        try {
+          localStorage.removeItem("umar_vault_hint");
+        } catch {
+          /* ignore */
+        }
+        setEmailHint(null);
+        setStep("pin-setup");
+        return;
+      }
     }
 
     if (isSuperAdmin) {
@@ -797,7 +812,7 @@ function LoginForm() {
               </p>
             ) : null}
 
-            <Button type="submit" className="login-submit" disabled={loading}>
+            <Button type="submit" className="login-submit" loading={loading}>
               {loading ? "Signing in..." : "Sign in"}
             </Button>
           </form>

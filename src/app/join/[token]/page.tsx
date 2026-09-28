@@ -124,7 +124,7 @@ export default function JoinSalesmanPage() {
                 required
               />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full" loading={loading}>
               {loading ? "Creating account..." : "Accept invite & continue"}
             </Button>
           </form>

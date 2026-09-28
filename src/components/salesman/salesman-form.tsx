@@ -118,7 +118,7 @@ export function SalesmanForm({
           {error}
         </p>
       ) : null}
-      <Button type="submit" disabled={loading}>
+      <Button type="submit" loading={loading}>
         {loading
           ? "Saving..."
           : initial

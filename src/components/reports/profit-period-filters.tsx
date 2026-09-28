@@ -1,7 +1,10 @@
 "use client";
 
 import { Input } from "@/components/ui/input";
-import { UrlFilterForm } from "@/components/reports/url-filter-form";
+import {
+  FilterSubmitButton,
+  UrlFilterForm,
+} from "@/components/reports/url-filter-form";
 import { PROFIT_PRESETS, type ProfitPreset } from "@/lib/reports/profit-periods";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -63,12 +66,9 @@ export function ProfitPeriodFilters({
             <Input type="date" name="to" defaultValue={to} required />
           </div>
           <div className="flex items-end sm:col-span-2 lg:col-span-1">
-            <button
-              type="submit"
-              className="h-10 w-full rounded-lg bg-[var(--brand)] px-4 text-sm font-medium text-white"
-            >
+            <FilterSubmitButton className="h-10 w-full">
               Run report
-            </button>
+            </FilterSubmitButton>
           </div>
         </UrlFilterForm>
       ) : (

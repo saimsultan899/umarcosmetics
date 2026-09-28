@@ -104,7 +104,7 @@ export function SalesmanInviteForm({
         </div>
       ) : null}
       <div className="sm:col-span-2">
-        <Button type="submit" disabled={loading}>
+        <Button type="submit" loading={loading}>
           {loading ? "Creating..." : "Create salesman invite"}
         </Button>
       </div>

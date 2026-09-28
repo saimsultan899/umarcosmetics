@@ -97,8 +97,7 @@ function baseQuery(supabase: SupabaseClient, companyId: string) {
   return supabase
     .from("parties")
     .select("*", { count: "exact" })
-    .eq("company_id", companyId)
-    .eq("is_active", true);
+    .eq("company_id", companyId);
 }
 
 async function countWithFilters(
@@ -110,7 +109,7 @@ async function countWithFilters(
   location: PartyLocationFilters,
   extra?: (q: any) => any,
 ) {
-  let query = baseQuery(supabase, companyId);
+  let query = baseQuery(supabase, companyId).eq("is_active", true);
   query = applyViewFilter(query, view);
   query = applySubtypeFilter(query, subtype);
   query = applySearch(query, q);

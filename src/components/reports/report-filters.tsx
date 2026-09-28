@@ -1,10 +1,15 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { FilterMultiSelect } from "@/components/reports/filter-multi-select";
 import { ReportTypePills } from "@/components/reports/report-type-pills";
-import { UrlFilterForm } from "@/components/reports/url-filter-form";
+import {
+  FilterSubmitButton,
+  UrlFilterForm,
+  useUrlFilterPending,
+} from "@/components/reports/url-filter-form";
 import { cn } from "@/lib/utils";
 import { usePathname, useRouter } from "next/navigation";
 import { useTransition } from "react";
@@ -27,6 +32,7 @@ export function ReportFilterActions({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const formPending = useUrlFilterPending();
   const [isPending, startTransition] = useTransition();
 
   function onClear(e: React.MouseEvent<HTMLButtonElement>) {
@@ -93,21 +99,19 @@ export function ReportFilterActions({
         className,
       )}
     >
-      <button
-        type="submit"
-        disabled={isPending}
-        className="h-10 min-w-0 flex-1 rounded-lg bg-[var(--brand)] px-4 text-sm font-medium text-white disabled:opacity-70"
-      >
+      <FilterSubmitButton className="h-10 min-w-0 flex-1">
         {submitLabel}
-      </button>
-      <button
+      </FilterSubmitButton>
+      <Button
         type="button"
+        variant="secondary"
         onClick={onClear}
-        disabled={isPending}
-        className="h-10 min-w-0 flex-1 rounded-lg border border-[var(--border)] bg-white px-4 text-sm font-medium text-[var(--ink)] hover:border-[var(--brand)]/40 disabled:opacity-70"
+        loading={isPending}
+        disabled={formPending}
+        className="h-10 min-w-0 flex-1"
       >
         Clear filter
-      </button>
+      </Button>
     </div>
   );
 }

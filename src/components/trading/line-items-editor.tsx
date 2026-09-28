@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, type SelectHandle } from "@/components/ui/select";
+import { findProductByCodeOrBarcode } from "@/lib/barcode/match-product";
+import { useBarcodeWedge } from "@/lib/barcode/use-barcode-wedge";
 import { focusField } from "@/lib/keyboard/enter-nav";
 import {
   rateSourceLabel,
@@ -60,6 +62,8 @@ type LineItemsEditorProps = {
   warehouseId?: string;
   warehouses?: Warehouse[];
   stockByProduct?: Map<string, { warehouseId: string; qty: number }[]>;
+  /** Sale invoices may sell past zero. The line still warns; stock is saved negative. */
+  allowOversell?: boolean;
   onAutoPickWarehouse?: (warehouseId: string) => void;
   showCompanyPicker?: boolean;
   extraDiscount?: string;
@@ -85,6 +89,7 @@ export const LineItemsEditor = forwardRef<
     warehouses,
     /** product_id → warehouses stocking it, highest qty first. Enables stock hints. */
     stockByProduct,
+    allowOversell = false,
     /** Auto-selects stocked warehouse (sale) or product default warehouse (purchase). */
     onAutoPickWarehouse,
     /** Show company control above product lines (sale invoice). */
@@ -113,6 +118,12 @@ export const LineItemsEditor = forwardRef<
   const rateRef = useRef<HTMLInputElement>(null);
   const discountRef = useRef<HTMLInputElement>(null);
   const productSelectRef = useRef<SelectHandle>(null);
+  /** Bumped when the entry row is cleared so a late rate lookup cannot refill it. */
+  const draftEpoch = useRef(0);
+  const codeApplyTimer = useRef<number | null>(null);
+  const lastCodeKeyAt = useRef(0);
+  const codeBurst = useRef(false);
+  const scanQueue = useRef(Promise.resolve());
 
   const effectiveWarehouseId = pickedWarehouseId || warehouseId;
 
@@ -260,7 +271,8 @@ export const LineItemsEditor = forwardRef<
       stockByProduct
         .get(productId)
         ?.find((e) => e.warehouseId === companyId)?.qty ?? 0;
-    return Math.max(0, onHand - reservedQty(productId, exceptKey));
+    const left = onHand - reservedQty(productId, exceptKey);
+    return allowOversell ? left : Math.max(0, left);
   }
 
   function availableInSelectedCompany(productId: string, exceptKey?: string) {
@@ -304,7 +316,10 @@ export const LineItemsEditor = forwardRef<
 
     return {
       tone: "bad",
-      text: `Out of stock in ${warehouseLabel(activeWh)}`,
+      text:
+        ownQty < 0
+          ? `Out of stock in ${warehouseLabel(activeWh)} · deficit ${formatStockQty(Math.abs(ownQty), productId)}`
+          : `Out of stock in ${warehouseLabel(activeWh)}`,
     };
   }
 
@@ -323,29 +338,13 @@ export const LineItemsEditor = forwardRef<
     if (avail == null) return null;
     const need = Number(qty || 0) + Number(bonus || 0);
     if (!(need > avail)) return null;
+    if (allowOversell) {
+      return `Out of stock in ${warehouseLabel(companyId)} (on hand ${formatStockQty(avail, productId)}, selling ${formatStockQty(need, productId)}). Invoice will still save and stock will go negative.`;
+    }
     return `Only ${formatStockQty(avail, productId)} available in ${warehouseLabel(companyId)} (need ${formatStockQty(need, productId)})`;
   }
 
-  async function applyProductToDraft(p: Product | null) {
-    if (!p) {
-      patchDraft({
-        product_id: "",
-        product_code: "",
-        product_name: "",
-        rate: "0",
-      });
-      setHint(null);
-      return;
-    }
-
-    const catalog =
-      products.find((x) => x.id === p.id) ||
-      products.find(
-        (x) => x.code.toLowerCase() === String(p.code || "").toLowerCase(),
-      ) ||
-      p;
-
-    // Always switch Company to the product's assigned company (mixed bills OK).
+  function rememberWarehouse(catalog: Product) {
     if (onAutoPickWarehouse && catalog.id && catalog.default_warehouse_id) {
       pickWarehouse(catalog.default_warehouse_id);
     } else if (
@@ -363,10 +362,47 @@ export const LineItemsEditor = forwardRef<
         pickWarehouse(entries[0].warehouseId);
       }
     }
+  }
+
+  function cancelScheduledProductApply() {
+    if (codeApplyTimer.current != null) {
+      window.clearTimeout(codeApplyTimer.current);
+      codeApplyTimer.current = null;
+    }
+  }
+
+  function catalogProduct(p: Product) {
+    return (
+      products.find((x) => x.id === p.id) ||
+      products.find(
+        (x) => x.code.toLowerCase() === String(p.code || "").toLowerCase(),
+      ) ||
+      p
+    );
+  }
+
+  async function applyProductToDraft(p: Product | null) {
+    const epoch = draftEpoch.current;
+    if (!p) {
+      patchDraft({
+        product_id: "",
+        product_code: "",
+        product_name: "",
+        rate: "0",
+      });
+      setHint(null);
+      return;
+    }
+
+    const catalog = catalogProduct(p);
+
+    // Always switch Company to the product's assigned company (mixed bills OK).
+    rememberWarehouse(catalog);
 
     const current = draftRef.current;
     const qty = current && Number(current.qty) > 0 ? current.qty : "1";
     const { rate, hint: rateHint } = await resolveRate(catalog);
+    if (epoch !== draftEpoch.current) return;
 
     const purchaseDiscount =
       rateField === "purchase_rate"
@@ -396,6 +432,33 @@ export const LineItemsEditor = forwardRef<
     );
   }
 
+  async function lookupProduct(raw: string): Promise<Product | null> {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+
+    const local = findProductByCodeOrBarcode(products, trimmed);
+    if (local) return local;
+    if (!companyId) return null;
+
+    const supabase = createClient();
+    const { data } = await supabase.rpc("get_product_by_code", {
+      p_company_id: companyId,
+      p_code: trimmed,
+    });
+    const product = Array.isArray(data) ? data[0] : data;
+    if (product) return product as Product;
+
+    const { data: barcodeRows } = await supabase
+      .from("products")
+      .select("*")
+      .eq("company_id", companyId)
+      .eq("is_active", true)
+      .eq("barcode", trimmed)
+      .limit(1);
+    const byBarcode = barcodeRows?.[0];
+    return (byBarcode as Product | undefined) ?? null;
+  }
+
   async function resolveProductCode(raw: string): Promise<Product | null> {
     const trimmed = raw.trim();
     if (!trimmed) {
@@ -404,51 +467,168 @@ export const LineItemsEditor = forwardRef<
       return null;
     }
 
-    const local =
-      products.find((p) => p.code.toLowerCase() === trimmed.toLowerCase()) ||
-      null;
-    if (local) {
-      await applyProductToDraft(local);
-      return local;
-    }
-
-    if (!companyId) {
-      setHint("No product for this code");
-      return null;
-    }
-
-    const supabase = createClient();
-    const { data } = await supabase.rpc("get_product_by_code", {
-      p_company_id: companyId,
-      p_code: trimmed,
-    });
-    const product = Array.isArray(data) ? data[0] : data;
+    const product = await lookupProduct(trimmed);
     if (product) {
-      await applyProductToDraft(product as Product);
-      return product as Product;
+      await applyProductToDraft(product);
+      return product;
     }
-    setHint("No product for this code");
+
+    setHint(
+      companyId
+        ? "No product for this code or barcode"
+        : "No product for this code",
+    );
     return null;
+  }
+
+  /** Add 1 piece on the product's existing line, or append a new line at qty 1. */
+  function bumpLineQty(line: LineItemDraft, nextQty: string) {
+    const stockErr = overstockAlert(
+      line.product_id,
+      nextQty,
+      line.bonus || "0",
+      line.key,
+    );
+    if (stockErr && !allowOversell) {
+      setHint(stockErr);
+      return false;
+    }
+    patchLine(line.key, {
+      qty: nextQty,
+      ...schemeFields(line.scheme, nextQty, line.rate),
+    });
+    setHint(null);
+    return true;
+  }
+
+  function appendScannedLine(
+    catalog: Product,
+    rate: number,
+    rateHint: string,
+  ) {
+    const qty = "1";
+    const discount =
+      rateField === "purchase_rate"
+        ? purchaseDiscountPercentText(catalog.scheme)
+        : "0";
+    const bonusFields = enableBonus
+      ? schemeFields("", qty, String(rate))
+      : { bonus: "0", scheme: "" };
+    const stockErr = overstockAlert(
+      catalog.id,
+      qty,
+      bonusFields.bonus || "0",
+    );
+    if (stockErr && !allowOversell) {
+      setHint(stockErr);
+      return false;
+    }
+
+    const committed: LineItemDraft = {
+      key: crypto.randomUUID(),
+      product_id: catalog.id,
+      product_code: catalog.code,
+      product_name: catalog.name_en,
+      qty,
+      rate: String(rate),
+      discount,
+      scheme: bonusFields.scheme || "",
+      bonus: bonusFields.bonus || "0",
+      amount: calcLineAmount(qty, String(rate), discount),
+    };
+
+    if (rateHint) {
+      setLineHints((h) => ({ ...h, [committed.key]: rateHint }));
+    }
+    const next = [...linesRef.current, committed];
+    linesRef.current = next;
+    onChange(next);
+    setHint(null);
+    return true;
+  }
+
+  async function ingestBarcode(code: string) {
+    cancelScheduledProductApply();
+    draftEpoch.current += 1;
+
+    const found = await lookupProduct(code);
+    if (!found) {
+      setHint(
+        companyId
+          ? "No product for this code or barcode"
+          : "No product for this code",
+      );
+      requestAnimationFrame(() => focusField(codeRef.current));
+      return;
+    }
+
+    const catalog = catalogProduct(found);
+    rememberWarehouse(catalog);
+
+    const existing = [...linesRef.current]
+      .reverse()
+      .find((line) => line.product_id === catalog.id);
+
+    if (existing) {
+      const nextQty = String((Number(existing.qty) || 0) + 1);
+      const ok = bumpLineQty(existing, nextQty);
+      resetDraft({ keepHint: !ok });
+      requestAnimationFrame(() => focusField(codeRef.current));
+      return;
+    }
+
+    const draft = draftRef.current;
+    if (draft.product_id === catalog.id && Number(draft.qty) > 0) {
+      commitDraft();
+      return;
+    }
+
+    const { rate, hint: rateHint } = await resolveRate(catalog);
+    const added = appendScannedLine(catalog, rate, rateHint);
+    resetDraft({ keepHint: !added });
+    requestAnimationFrame(() => focusField(codeRef.current));
+  }
+
+  function enqueueScan(code: string) {
+    const job = scanQueue.current.then(() => ingestBarcode(code));
+    scanQueue.current = job.then(
+      () => undefined,
+      () => undefined,
+    );
   }
 
   function setCodeValue(value: string) {
     if (
       hint === "No product for this code" ||
+      hint === "No product for this code or barcode" ||
       hint === "Select a product and enter qty"
     ) {
       setHint(null);
     }
 
-    const trimmed = value.trim();
-    const matched = trimmed
-      ? products.find((p) => p.code.toLowerCase() === trimmed.toLowerCase())
-      : null;
-
-    if (matched) {
-      void applyProductToDraft(matched);
+    // Scanner bursts must not fill the entry row — Enter adds or increments a line.
+    if (codeBurst.current) {
+      cancelScheduledProductApply();
+      patchDraft({ product_code: value });
       return;
     }
 
+    const trimmed = value.trim();
+    const matched = trimmed
+      ? findProductByCodeOrBarcode(products, trimmed)
+      : null;
+
+    if (matched) {
+      patchDraft({ product_code: value });
+      cancelScheduledProductApply();
+      codeApplyTimer.current = window.setTimeout(() => {
+        codeApplyTimer.current = null;
+        void applyProductToDraft(matched);
+      }, 120);
+      return;
+    }
+
+    cancelScheduledProductApply();
     const prev = draftRef.current;
     patchDraft({
       product_code: value,
@@ -458,11 +638,13 @@ export const LineItemsEditor = forwardRef<
     });
   }
 
-  function resetDraft() {
+  function resetDraft(opts?: { keepHint?: boolean }) {
+    cancelScheduledProductApply();
+    draftEpoch.current += 1;
     const next = blankDraft();
     draftRef.current = next;
     setDraft(next);
-    setHint(null);
+    if (!opts?.keepHint) setHint(null);
     setProductOpen(false);
   }
 
@@ -481,7 +663,7 @@ export const LineItemsEditor = forwardRef<
       current.qty,
       current.bonus || "0",
     );
-    if (stockErr) {
+    if (stockErr && !allowOversell) {
       if (!opts?.silent) {
         setHint(stockErr);
         focusField(qtyRef.current);
@@ -518,10 +700,23 @@ export const LineItemsEditor = forwardRef<
     },
   }));
 
+  useBarcodeWedge((code) => {
+    enqueueScan(code);
+  });
+
+  function onCodeKeyDown(e: ReactKeyboardEvent<HTMLInputElement>) {
+    const now = Date.now();
+    const gap = now - lastCodeKeyAt.current;
+    codeBurst.current = lastCodeKeyAt.current > 0 && gap <= 60;
+    lastCodeKeyAt.current = now;
+    void onCodeEnter(e);
+  }
+
   async function onCodeEnter(e: ReactKeyboardEvent<HTMLInputElement>) {
     if (e.key !== "Enter") return;
     e.preventDefault();
     e.stopPropagation();
+    cancelScheduledProductApply();
 
     const found = await resolveProductCode(draftRef.current.product_code);
     if (found) {
@@ -683,7 +878,7 @@ export const LineItemsEditor = forwardRef<
         <table className="w-full min-w-[920px] text-sm">
           <thead>
             <tr>
-              <th className="w-24 min-w-[5.5rem]">Code</th>
+              <th className="w-36 min-w-[8.5rem]">Code / barcode</th>
               <th>Product</th>
               <th className="w-32 min-w-[7.5rem]">Qty</th>
               {enableBonus ? <th className="w-24 min-w-[5rem]">Scheme</th> : null}
@@ -696,15 +891,15 @@ export const LineItemsEditor = forwardRef<
           <tbody>
             {/* Sticky quick-entry row */}
             <tr className="bg-[var(--brand-soft)]/25">
-              <td className="w-24 min-w-[5.5rem]">
+              <td className="w-36 min-w-[8.5rem]">
                 <Input
                   ref={codeRef}
                   value={draft.product_code}
-                  placeholder="Code"
+                  placeholder="Code or scan"
                   autoComplete="off"
                   className="px-2 font-medium tabular-nums"
                   onChange={(e) => setCodeValue(e.target.value)}
-                  onKeyDown={onCodeEnter}
+                  onKeyDown={onCodeKeyDown}
                 />
               </td>
               <td>
@@ -743,7 +938,12 @@ export const LineItemsEditor = forwardRef<
                         </p>
                       ) : null}
                       {over ? (
-                        <p className="mt-1 text-[10px] font-medium text-rose-600">
+                        <p
+                          className={cn(
+                            "mt-1 text-[10px] font-medium",
+                            allowOversell ? "text-amber-700" : "text-rose-600",
+                          )}
+                        >
                           {over}
                         </p>
                       ) : null}
@@ -885,7 +1085,12 @@ export const LineItemsEditor = forwardRef<
                       );
                       if (over) {
                         return (
-                          <p className="px-1 text-[10px] font-medium text-rose-600">
+                          <p
+                            className={cn(
+                              "px-1 text-[10px] font-medium",
+                              allowOversell ? "text-amber-700" : "text-rose-600",
+                            )}
+                          >
                             {over}
                           </p>
                         );

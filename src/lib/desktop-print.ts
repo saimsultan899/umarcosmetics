@@ -1,6 +1,7 @@
 /**
  * In Electron, replace window.print() with a PDF preview flow so Windows
  * does not show “This app doesn’t support print preview”.
+ * Walk-in thermal slips do not use this path. They print from their own 80mm page.
  */
 
 type DesktopPrintBridge = {

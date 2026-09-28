@@ -149,7 +149,7 @@ export function ClientDetailPanel({
           body: JSON.stringify({
             action: "detach",
             companyId: companyIdToRemove,
-            hardDelete: false,
+            hardDelete: true,
           }),
         },
       );
@@ -164,21 +164,41 @@ export function ClientDetailPanel({
     }
   }
 
-  const attachedIds = new Set(
-    client.companies.filter((c) => c.is_active).map((c) => c.id),
-  );
-  const available = companies.filter((c) => !attachedIds.has(c.id));
+  const linkedIds = new Set(client.companies.map((c) => c.id));
+  const available = companies.filter((c) => !linkedIds.has(c.id));
 
-  const availableByOrg = available.reduce<
-    Array<{ organizationId: string; companies: Company[] }>
-  >((acc, c) => {
-    const orgId = c.organization_id;
-    let bucket = acc.find((b) => b.organizationId === orgId);
+  function organizationName(company: Company) {
+    const rel = (
+      company as Company & {
+        organizations?: { name: string } | { name: string }[] | null;
+      }
+    ).organizations;
+    const org = Array.isArray(rel) ? rel[0] : rel;
+    return org?.name || "Unknown group";
+  }
+
+  const clientOrgIds = new Set(
+    companies
+      .filter((c) =>
+        client.companies.some((linked) => linked.id === c.id && linked.is_active),
+      )
+      .map((c) => c.organization_id),
+  );
+
+  const sameOrgGroups = available.reduce<
+    Array<{ organizationId: string; organizationName: string; companies: Company[] }>
+  >((acc, company) => {
+    if (!clientOrgIds.has(company.organization_id)) return acc;
+    let bucket = acc.find((b) => b.organizationId === company.organization_id);
     if (!bucket) {
-      bucket = { organizationId: orgId, companies: [] };
+      bucket = {
+        organizationId: company.organization_id,
+        organizationName: organizationName(company),
+        companies: [],
+      };
       acc.push(bucket);
     }
-    bucket.companies.push(c);
+    bucket.companies.push(company);
     return acc;
   }, []);
 
@@ -196,7 +216,7 @@ export function ClientDetailPanel({
             body: JSON.stringify({
               action: "attach",
               companyId: id,
-              role: "org_admin",
+              role,
             }),
           },
         );
@@ -234,7 +254,7 @@ export function ClientDetailPanel({
         <Button
           type="button"
           variant="secondary"
-          disabled={loading}
+          loading={loading}
           onClick={() => void setBanned(!client.banned)}
         >
           {client.banned ? "Enable login" : "Disable login"}
@@ -270,7 +290,7 @@ export function ClientDetailPanel({
             <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
           </div>
         </div>
-        <Button type="submit" disabled={loading}>
+        <Button type="submit" loading={loading}>
           Save profile
         </Button>
       </form>
@@ -288,7 +308,7 @@ export function ClientDetailPanel({
             required
           />
         </div>
-        <Button type="submit" disabled={loading}>
+        <Button type="submit" loading={loading}>
           Set password
         </Button>
         {shownPassword ? (
@@ -310,19 +330,23 @@ export function ClientDetailPanel({
                 <div>
                   <p className="font-medium">{c.name}</p>
                   <p className="text-xs text-[var(--muted)]">
+                    {(() => {
+                      const match = companies.find((row) => row.id === c.id);
+                      return match ? `${organizationName(match)} · ` : "";
+                    })()}
                     {ROLE_LABELS[c.role]} · {c.is_active ? "Active" : "Disabled"}
                   </p>
                 </div>
-                {c.is_active ? (
-                  <button
-                    type="button"
-                    className="text-xs font-medium text-rose-600"
-                    disabled={loading}
-                    onClick={() => void detachCompany(c.id)}
-                  >
-                    Remove
-                  </button>
-                ) : null}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-rose-600 hover:text-rose-700"
+                  loading={loading}
+                  onClick={() => void detachCompany(c.id)}
+                >
+                  Remove
+                </Button>
               </div>
             ))
           ) : (
@@ -341,10 +365,15 @@ export function ClientDetailPanel({
               <option value="">Select company</option>
               {available.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name}
+                  {c.name} — {organizationName(c)}
                 </option>
               ))}
             </Select>
+            <p className="mt-1 text-[11px] text-[var(--muted)]">
+              {available.length
+                ? "Search matches the company and its group. Companies already on this login stay off this list."
+                : "No other company is left to add. Create one under Companies first."}
+            </p>
           </div>
           <div>
             <Label>Role</Label>
@@ -360,24 +389,21 @@ export function ClientDetailPanel({
             </Select>
           </div>
           <div className="sm:col-span-3 flex flex-wrap gap-2">
-            <Button type="submit" disabled={loading || !companyId}>
+            <Button type="submit" loading={loading} disabled={!companyId}>
               Attach company
             </Button>
-            {availableByOrg
-              .filter((b) => b.companies.length > 1)
-              .map((b) => (
-                <Button
-                  key={b.organizationId}
-                  type="button"
-                  variant="secondary"
-                  disabled={loading}
-                  onClick={() =>
-                    void attachMany(b.companies.map((c) => c.id))
-                  }
-                >
-                  Attach all ({b.companies.length}) from same org
-                </Button>
-              ))}
+            {sameOrgGroups.map((b) => (
+              <Button
+                key={b.organizationId}
+                type="button"
+                variant="secondary"
+                loading={loading}
+                onClick={() => void attachMany(b.companies.map((c) => c.id))}
+              >
+                Attach {b.companies.length} other {b.organizationName}{" "}
+                {b.companies.length === 1 ? "company" : "companies"}
+              </Button>
+            ))}
           </div>
         </form>
       </div>

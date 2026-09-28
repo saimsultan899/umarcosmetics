@@ -194,7 +194,7 @@ export function CompanyAdminForm({
           {error}
         </p>
       ) : null}
-      <Button type="submit" disabled={loading || !organizations.length}>
+      <Button type="submit" loading={loading} disabled={!organizations.length}>
         {loading
           ? "Saving..."
           : initial

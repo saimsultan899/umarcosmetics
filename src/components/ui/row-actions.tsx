@@ -189,7 +189,7 @@ export function RowActions({
             type="button"
             variant="danger"
             size="sm"
-            disabled={busy}
+            loading={busy}
             onClick={() => void confirmDelete()}
           >
             {busy ? "Deleting..." : "Delete permanently"}

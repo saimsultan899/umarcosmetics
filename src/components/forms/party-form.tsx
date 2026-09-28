@@ -407,7 +407,7 @@ export function PartyForm({
       ) : null}
 
       <div className="sm:col-span-2">
-        <Button type="submit" disabled={loading}>
+        <Button type="submit" loading={loading}>
           {loading ? "Saving..." : initial ? "Update party" : "Save party"}
         </Button>
       </div>

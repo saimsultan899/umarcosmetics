@@ -83,9 +83,7 @@ export function useProductsList({
           qtyByProduct.set(pid, (qtyByProduct.get(pid) || 0) + Number(b.qty || 0));
         }
 
-        const allProducts = (productRows as unknown as Product[]).filter(
-          (p) => p.is_active !== false && (p as Record<string, unknown>).is_active !== 0,
-        );
+        const allProducts = productRows as unknown as Product[];
 
         const allWarehouses = warehouseRows as unknown as Warehouse[];
         setWarehouses(allWarehouses);

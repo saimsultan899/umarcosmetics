@@ -357,7 +357,8 @@ export function FieldSaleForm({
       <Button
         type="submit"
         className="w-full"
-        disabled={loading || !shops.length || !products.length}
+        loading={loading}
+        disabled={!shops.length || !products.length}
       >
         {loading ? "Saving..." : online ? "Post sale" : "Save offline"}
       </Button>

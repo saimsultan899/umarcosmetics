@@ -98,6 +98,9 @@ function membershipsFromCache(
         user_id: String(m.user_id || userId),
         role: String(m.role || "staff") as AppRole,
         is_active: m.is_active !== false,
+        permissions: Array.isArray(m.permissions)
+          ? m.permissions.filter((key): key is string => typeof key === "string")
+          : null,
         created_at: String(m.created_at || savedAt),
         updated_at: String(m.updated_at || savedAt),
         companies: stubCompany(
@@ -150,6 +153,7 @@ function applyOfflinePick(
         : rows.map((r) => ({
             company_id: r.company_id,
             role: r.role,
+            permissions: Array.isArray(r.permissions) ? r.permissions : null,
             companies: r.companies
               ? {
                   id: r.companies.id,

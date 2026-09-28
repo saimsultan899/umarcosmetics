@@ -360,6 +360,8 @@ export function OfflineDocumentDetail({
           previousBalance={0}
           creditDays={21}
           autoPrint={autoPrint}
+          isWalkIn={String(view.partyCode || "").toUpperCase() === "WALKIN"}
+          companyId={companyId}
         />
       </div>
     );

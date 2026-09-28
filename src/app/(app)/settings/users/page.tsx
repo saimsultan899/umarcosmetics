@@ -5,12 +5,11 @@ import {
   type MemberRow,
 } from "@/components/settings/users-manager";
 import { PageHeading } from "@/components/ui/create-dialog";
+import { effectivePermissions, hasPermission } from "@/lib/access/permissions";
 import { requireCompanyContext } from "@/lib/auth";
 import { one } from "@/lib/reports/helpers";
 import type { AppRole } from "@/lib/types/database";
 import { ShieldCheck, UserCheck, Users, Wallet } from "lucide-react";
-
-const MANAGER_ROLES: AppRole[] = ["company_admin", "org_admin", "super_admin"];
 
 export default async function UsersPage() {
   const ctx = await requireCompanyContext();
@@ -28,7 +27,7 @@ export default async function UsersPage() {
   const { data } = await supabase
     .from("company_members")
     .select(
-      "id, user_id, role, is_active, created_at, profiles(full_name, phone, is_super_admin)",
+      "id, user_id, role, is_active, permissions, created_at, profiles(full_name, phone, is_super_admin)",
     )
     .eq("company_id", company.id)
     .order("created_at", { ascending: true });
@@ -47,12 +46,17 @@ export default async function UsersPage() {
       is_super_admin: Boolean(p?.is_super_admin),
       role: m.role as AppRole,
       is_active: m.is_active,
+      permissions: (m.permissions as string[] | null) ?? null,
     };
   });
 
-  const canManage =
-    Boolean(profile?.is_super_admin) ||
-    (membership ? MANAGER_ROLES.includes(membership.role) : false);
+  const permissions = effectivePermissions(
+    membership,
+    Boolean(profile?.is_super_admin),
+  );
+  const canManage = hasPermission(permissions, "manage_users");
+  const mine = members.find((m) => m.user_id === user.id);
+  const myRole = mine ? ROLE_LABELS[mine.role] : null;
 
   const activeCount = members.filter((m) => m.is_active).length;
   const adminCount = members.filter((m) =>
@@ -66,8 +70,8 @@ export default async function UsersPage() {
     <div className="animate-rise space-y-6">
       <PageHeading
         title="Users & Roles"
-        description={`Team access for ${company.name}. Your role: ${
-          membership ? ROLE_LABELS[membership.role] : "—"
+        description={`Add logins for ${company.name} and choose each person's role. Your role: ${
+          myRole || "—"
         }.`}
       />
 
@@ -111,6 +115,7 @@ export default async function UsersPage() {
         members={members}
         currentUserId={user.id}
         canManage={canManage}
+        companyId={company.id}
       />
     </div>
   );

@@ -1887,6 +1887,147 @@ button[aria-haspopup="listbox"]:focus-visible {
   display: none;
 }
 
+/* 80mm thermal slip. Heads burn dots, so type is monospace, heavy, and rules are glyphs. */
+.thermal-80 {
+  width: 80mm;
+  max-width: 80mm;
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: 3mm;
+  background: #fff;
+  color: #000;
+  font-family: "Courier New", Courier, monospace;
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1.4;
+  letter-spacing: 0;
+  border: 1px solid #000;
+  border-radius: 0;
+  box-shadow: none;
+  -webkit-font-smoothing: none;
+  font-smooth: never;
+  text-rendering: optimizeSpeed;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.th-shop {
+  text-align: center;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #000;
+  letter-spacing: 0;
+}
+.th-sub,
+.th-center,
+.th-meta,
+.th-table,
+.th-row {
+  color: #000;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+.th-sub {
+  margin-top: 1mm;
+  text-align: center;
+  font-size: 12px;
+}
+.th-center {
+  text-align: center;
+  margin-top: 0.6mm;
+}
+.th-strong,
+.th-shop,
+.th-total,
+.th-thanks {
+  font-weight: 700;
+}
+.th-dash,
+.th-eq {
+  overflow: hidden;
+  height: 1.1em;
+  margin: 1.6mm 0;
+  color: #000;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+.th-dash::before,
+.th-eq::before {
+  content: none;
+}
+.th-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 2mm;
+  margin-top: 0.4mm;
+  font-size: 12px;
+}
+.th-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  table-layout: fixed;
+}
+.th-table th,
+.th-table td {
+  padding: 1.2mm 0.6mm;
+  vertical-align: top;
+  color: #000;
+  font-weight: 700;
+  border: none;
+}
+.th-table th {
+  font-weight: 700;
+  text-align: left;
+  padding-bottom: 0.6mm;
+}
+.th-table th:first-child,
+.th-table td:first-child {
+  width: 46%;
+}
+.th-table .num {
+  width: 18%;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.th-scheme {
+  font-weight: 700;
+}
+.th-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 3mm;
+  margin-top: 1mm;
+}
+.th-total {
+  margin-top: 1.6mm;
+  padding-top: 0;
+  border-top: none;
+  font-size: 14px;
+}
+.th-thanks {
+  margin-top: 3mm;
+  margin-bottom: 3mm;
+  text-align: center;
+  font-size: 14px;
+  letter-spacing: 0;
+}
+.th-credit {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #000;
+}
+
 /* Half-A4 sale invoice (classic distributor pattern) */
 .si-half {
   background: #fff;
@@ -2625,6 +2766,149 @@ button[aria-haspopup="listbox"]:focus-visible {
   }
   .print-sheet.si-half .si-paid-kind {
     font-size: 14px !important;
+  }
+
+  /* Height is set in JS to the slip itself. auto is only a fallback. */
+  @page thermal-80 {
+    size: 80mm auto;
+    margin: 0;
+  }
+
+  html:has(.print-sheet.thermal-80),
+  body:has(.print-sheet.thermal-80) {
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  .print-sheet.thermal-80 {
+    page: thermal-80;
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 3mm !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #000 !important;
+    font-family: "Courier New", Courier, monospace !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    line-height: 1.35 !important;
+    letter-spacing: 0 !important;
+    -webkit-font-smoothing: none !important;
+    font-smooth: never !important;
+    text-rendering: optimizeSpeed !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .print-sheet.thermal-80,
+  .print-sheet.thermal-80 * {
+    color: #000 !important;
+    font-family: "Courier New", Courier, monospace !important;
+    font-weight: 700 !important;
+    letter-spacing: 0 !important;
+    -webkit-font-smoothing: none !important;
+    font-smooth: never !important;
+    text-rendering: optimizeSpeed !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    text-shadow: none !important;
+    box-shadow: none !important;
+  }
+
+  .print-sheet.thermal-80 .th-shop {
+    font-size: 18px !important;
+  }
+
+  .print-sheet.thermal-80 .th-total,
+  .print-sheet.thermal-80 .th-thanks {
+    font-size: 14px !important;
+  }
+
+  .print-sheet.thermal-80 .th-dash,
+  .print-sheet.thermal-80 .th-eq {
+    color: #000 !important;
+    font-weight: 700 !important;
+  }
+
+  /* Walk-in thermal: force 80mm width (not full A4) so the driver does not shrink text. */
+  html.thermal-print-mode {
+    height: auto !important;
+  }
+
+  html.thermal-print-mode body {
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+    background: #fff !important;
+  }
+
+  html.thermal-print-mode main,
+  html.thermal-print-mode .animate-rise {
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    transform: none !important;
+  }
+
+  html.thermal-print-mode .print-sheet.si-half {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  html.thermal-print-mode .print-sheet.thermal-80 {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 80mm !important;
+    min-width: 80mm !important;
+    max-width: 80mm !important;
+    margin: 0 !important;
+    padding: 3mm !important;
+    overflow: visible !important;
+    transform: none !important;
+    zoom: 1 !important;
+    page: thermal-80;
+    font-size: 15px !important;
+    line-height: 1.4 !important;
+  }
+
+  html.thermal-print-mode .print-sheet.thermal-80 .th-shop {
+    font-size: 22px !important;
+  }
+
+  html.thermal-print-mode .print-sheet.thermal-80 .th-meta,
+  html.thermal-print-mode .print-sheet.thermal-80 .th-table {
+    font-size: 14px !important;
+  }
+
+  html.thermal-print-mode .print-sheet.thermal-80 .th-dash::before,
+  html.thermal-print-mode .print-sheet.thermal-80 .th-eq::before {
+    font-size: 15px !important;
+  }
+
+  html.thermal-print-mode .print-sheet.thermal-80 .th-total {
+    font-size: 17px !important;
+  }
+
+  html.thermal-print-mode .print-sheet.thermal-80 .th-thanks {
+    font-size: 16px !important;
+  }
+
+  html.thermal-print-mode .print-sheet.thermal-80 .th-credit {
+    font-size: 13px !important;
   }
 
   .classic-report {

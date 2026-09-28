@@ -267,7 +267,7 @@ export function GatePassForm({
         </p>
       ) : null}
 
-      <Button type="submit" disabled={loading}>
+      <Button type="submit" loading={loading}>
         {loading ? "Saving..." : "Save & print gate pass"}
       </Button>
     </form>

@@ -14,13 +14,13 @@ import { TableToolbar } from "@/components/tables/table-toolbar";
 import { DetailField, RowActions } from "@/components/ui/row-actions";
 import { useSearchInput, useUrlTableState } from "@/hooks/use-url-table-state";
 import type { PartyListStats } from "@/lib/queries/parties";
-import { createClient } from "@/lib/supabase/client";
 import type { PaginationMeta } from "@/lib/pagination";
 import type { Party, PartyType } from "@/lib/types/database";
 import { amountClass, formatPkr } from "@/lib/utils";
+import { deleteCachedRow, putCachedRow } from "@/lib/offline/local-db";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
-import { putCachedRow } from "@/lib/offline/local-db";
 import { hasLocalSqlite, localUpsertMaster } from "@/lib/offline/sqlite-client";
+import { createClient } from "@/lib/supabase/client";
 import { Building2, Store, Truck, Users } from "lucide-react";
 import Link from "next/link";
 
@@ -67,6 +67,10 @@ export function PartiesTable({
   cityOptions = [],
   sectorOptions = [],
   initialType,
+  canEdit = true,
+  canInactivate = false,
+  canDelete = false,
+  onChanged,
 }: {
   parties: Party[];
   pagination: PaginationMeta;
@@ -76,6 +80,10 @@ export function PartiesTable({
   cityOptions?: string[];
   sectorOptions?: string[];
   initialType?: string;
+  canEdit?: boolean;
+  canInactivate?: boolean;
+  canDelete?: boolean;
+  onChanged?: () => void;
 }) {
   const { q, isPending, setPage, setPageSize, setQuery, setFilter, filters } =
     useUrlTableState(["type", "city", "sector"]);
@@ -86,11 +94,11 @@ export function PartiesTable({
       ? initialType
       : "all")) as SubFilter;
 
-  async function deactivate(id: string) {
+  async function setActive(id: string, isActive: boolean) {
     const party = parties.find((p) => p.id === id);
     const payload = party
-      ? { ...party, is_active: false }
-      : { id, is_active: false, company_id: companyId };
+      ? { ...party, is_active: isActive }
+      : { id, is_active: isActive, company_id: companyId };
     try {
       await offlineAwareSubmit({
         mutationType: "party_update",
@@ -102,10 +110,32 @@ export function PartiesTable({
       });
     } catch {
       if (hasLocalSqlite() && party) {
-        await localUpsertMaster("parties", { ...party, is_active: false }).catch(() => {});
+        await localUpsertMaster("parties", { ...party, is_active: isActive }).catch(() => {});
       }
       await putCachedRow("parties", companyId, payload).catch(() => {});
     }
+  }
+
+  async function remove(id: string) {
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("parties")
+      .delete()
+      .eq("id", id)
+      .eq("company_id", companyId);
+    if (error) {
+      if (error.code === "23503") {
+        throw new Error(
+          "This account is already on a bill, so it cannot be removed.",
+        );
+      }
+      if (/organization admin/i.test(error.message)) {
+        throw new Error("Only the organization admin can delete customers.");
+      }
+      throw new Error(error.message);
+    }
+    await deleteCachedRow("parties", id).catch(() => {});
+    onChanged?.();
   }
 
   const isLedger = stats.mode === "ledger";
@@ -261,7 +291,7 @@ export function PartiesTable({
               <tbody>
                 {parties.length ? (
                   parties.map((p) => (
-                    <tr key={p.id}>
+                    <tr key={p.id} className={!p.is_active ? "opacity-60" : undefined}>
                       <td className="font-medium">{p.party_code}</td>
                       <td>
                         <Link
@@ -270,6 +300,11 @@ export function PartiesTable({
                         >
                           {p.name_en}
                         </Link>
+                        {!p.is_active ? (
+                          <span className="ml-2 rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-[10px] font-semibold uppercase text-[var(--muted)]">
+                            Inactive
+                          </span>
+                        ) : null}
                         {p.name_ur ? (
                           <div className="text-xs text-[var(--muted)]" dir="rtl">
                             {p.name_ur}
@@ -292,10 +327,24 @@ export function PartiesTable({
                         <RowActions
                           viewTitle={p.name_en}
                           editTitle={`Edit ${p.name_en}`}
-                          deleteTitle={`Remove ${p.name_en}?`}
-                          deleteDescription="This account will be removed from this list and hidden from new transactions."
+                          deleteTitle={
+                            canDelete
+                              ? `Delete ${p.name_en}?`
+                              : `Mark ${p.name_en} inactive?`
+                          }
+                          deleteDescription={
+                            canDelete
+                              ? "This removes the account. An account already used on a bill cannot be removed."
+                              : "The account stays on old documents and is hidden from new transactions. This does not delete it."
+                          }
                           viewFields={partyFields(p)}
-                          onDelete={() => deactivate(p.id)}
+                          allowEdit={canEdit}
+                          allowDelete={
+                            canDelete || (canInactivate && p.is_active)
+                          }
+                          onDelete={() =>
+                            canDelete ? remove(p.id) : setActive(p.id, false)
+                          }
                           editContent={(close) => (
                             <PartyForm
                               companyId={companyId}
@@ -307,6 +356,15 @@ export function PartiesTable({
                             />
                           )}
                         />
+                        {!p.is_active && canInactivate ? (
+                          <button
+                            type="button"
+                            className="ml-1 text-xs font-medium text-[var(--brand-strong)]"
+                            onClick={() => void setActive(p.id, true)}
+                          >
+                            Restore
+                          </button>
+                        ) : null}
                       </td>
                     </tr>
                   ))

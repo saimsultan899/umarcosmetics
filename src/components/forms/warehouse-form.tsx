@@ -108,7 +108,7 @@ export function WarehouseForm({
         </p>
       ) : null}
       <div className="sm:col-span-3">
-        <Button type="submit" disabled={loading}>
+        <Button type="submit" loading={loading}>
           {loading
             ? "Saving..."
             : initial

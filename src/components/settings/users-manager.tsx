@@ -1,12 +1,21 @@
 "use client";
 
+import { AddCompanyUserForm } from "@/components/settings/add-company-user-form";
+import { Button } from "@/components/ui/button";
+import { CreateDialogButton } from "@/components/ui/create-dialog";
 import { Select } from "@/components/ui/select";
+import {
+  PERMISSIONS,
+  permissionsForRole,
+  samePermissions,
+  type PermissionKey,
+} from "@/lib/access/permissions";
 import { createClient } from "@/lib/supabase/client";
 import type { AppRole } from "@/lib/types/database";
 import { cn } from "@/lib/utils";
 import { Check, Lock, ShieldCheck, UserCog, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 
 export type MemberRow = {
   id: string;
@@ -16,6 +25,7 @@ export type MemberRow = {
   is_super_admin: boolean;
   role: AppRole;
   is_active: boolean;
+  permissions: string[] | null;
 };
 
 export const ROLE_LABELS: Record<AppRole, string> = {
@@ -51,6 +61,89 @@ const ASSIGNABLE: AppRole[] = [
   "org_admin",
 ];
 
+function PermissionMatrix({
+  member,
+  disabled,
+  onChange,
+}: {
+  member: MemberRow;
+  disabled: boolean;
+  onChange: (permissions: string[] | null) => void;
+}) {
+  const template = permissionsForRole(member.role);
+  const selected = member.permissions ?? template;
+  const selectedSet = new Set(selected);
+  const allOn = PERMISSIONS.every((item) => selectedSet.has(item.key));
+  const custom =
+    member.permissions != null &&
+    !samePermissions(member.permissions, template);
+
+  function toggle(key: PermissionKey, checked: boolean) {
+    const next = new Set(selected);
+    if (checked) next.add(key);
+    else next.delete(key);
+    onChange(PERMISSIONS.map((item) => item.key).filter((key) => next.has(key)));
+  }
+
+  return (
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <input
+            type="checkbox"
+            className="h-4 w-4 accent-[var(--brand)]"
+            checked={allOn}
+            disabled={disabled}
+            ref={(el) => {
+              if (el) el.indeterminate = !allOn && selected.length > 0;
+            }}
+            onChange={() =>
+              onChange(allOn ? [] : PERMISSIONS.map((item) => item.key))
+            }
+          />
+          Select all
+        </label>
+        {custom ? (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => onChange(null)}
+            className="text-xs font-medium text-[var(--brand-strong)] disabled:opacity-50"
+          >
+            Use role defaults
+          </button>
+        ) : (
+          <span className="text-[11px] text-[var(--muted)]">
+            {ROLE_LABELS[member.role]} defaults
+          </span>
+        )}
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        {PERMISSIONS.map((item) => (
+          <label
+            key={item.key}
+            className="flex items-start gap-2 rounded-lg border border-[var(--border)] bg-white px-2.5 py-2 text-sm"
+          >
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 accent-[var(--brand)]"
+              checked={selectedSet.has(item.key)}
+              disabled={disabled}
+              onChange={(e) => toggle(item.key, e.target.checked)}
+            />
+            <span>
+              <span className="block font-medium">{item.label}</span>
+              <span className="block text-[11px] text-[var(--muted)]">
+                {item.hint}
+              </span>
+            </span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function roleBadgeClass(role: AppRole) {
   switch (role) {
     case "super_admin":
@@ -74,26 +167,40 @@ export function UsersManager({
   members,
   currentUserId,
   canManage,
+  companyId,
 }: {
   members: MemberRow[];
   currentUserId: string;
   canManage: boolean;
+  companyId: string;
 }) {
   const router = useRouter();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function updateMember(id: string, patch: Partial<MemberRow>) {
+  async function updateMember(
+    id: string,
+    patch: {
+      role?: AppRole;
+      is_active?: boolean;
+      permissions?: string[] | null;
+    },
+  ) {
     setBusyId(id);
     setError(null);
     const supabase = createClient();
-    const { error: updateError } = await supabase
+    const { data, error: updateError } = await supabase
       .from("company_members")
       .update(patch)
-      .eq("id", id);
+      .eq("id", id)
+      .select("id");
     setBusyId(null);
     if (updateError) {
       setError(updateError.message);
+      return;
+    }
+    if (!data?.length) {
+      setError("You do not have permission to change this user.");
       return;
     }
     router.refresh();
@@ -118,14 +225,26 @@ export function UsersManager({
       ) : null}
 
       <div className="table-shell">
-        <div className="border-b border-[var(--border)] px-4 py-3">
-          <p className="font-[family-name:var(--font-display)] text-lg font-semibold">
-            Team members
-          </p>
-          <p className="text-xs text-[var(--muted)]">
-            {members.length} member{members.length === 1 ? "" : "s"} ·{" "}
-            {active.length} active
-          </p>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-3">
+          <div>
+            <p className="font-[family-name:var(--font-display)] text-lg font-semibold">
+              Team members
+            </p>
+            <p className="text-xs text-[var(--muted)]">
+              {members.length} member{members.length === 1 ? "" : "s"} ·{" "}
+              {active.length} active
+            </p>
+          </div>
+          {canManage ? (
+            <CreateDialogButton
+              label="Add user"
+              title="Add user"
+              description="They sign in with this email and password. The role fills the boxes. Change any box for this person only."
+              size="lg"
+            >
+              <AddCompanyUserForm companyId={companyId} />
+            </CreateDialogButton>
+          ) : null}
         </div>
         <div className="table-scroll">
           <table>
@@ -149,7 +268,8 @@ export function UsersManager({
                     ? m.role
                     : "";
                   return (
-                    <tr key={m.id} className={busyId === m.id ? "opacity-60" : ""}>
+                    <Fragment key={m.id}>
+                    <tr className={busyId === m.id ? "opacity-60" : ""}>
                       <td>
                         <div className="flex items-center gap-2">
                           <span className="font-medium">
@@ -215,6 +335,7 @@ export function UsersManager({
                                     e.target.value !== m.role &&
                                     void updateMember(m.id, {
                                       role: e.target.value as AppRole,
+                                      permissions: null,
                                     })
                                   }
                                   options={ASSIGNABLE.map((r) => ({
@@ -223,28 +344,43 @@ export function UsersManager({
                                   }))}
                                 />
                               </div>
-                              <button
+                              <Button
                                 type="button"
-                                disabled={busyId === m.id}
+                                size="sm"
+                                variant="secondary"
+                                loading={busyId === m.id}
                                 onClick={() =>
                                   void updateMember(m.id, {
                                     is_active: !m.is_active,
                                   })
                                 }
-                                className={cn(
-                                  "rounded-lg border px-2.5 py-1.5 text-xs font-medium transition disabled:opacity-50",
+                                className={
                                   m.is_active
-                                    ? "border-[var(--border)] text-[var(--muted)] hover:border-rose-300 hover:text-rose-600"
-                                    : "border-emerald-300 text-emerald-700 hover:bg-emerald-50",
-                                )}
+                                    ? "text-[var(--muted)]"
+                                    : "border-emerald-300 text-emerald-700"
+                                }
                               >
                                 {m.is_active ? "Disable" : "Enable"}
-                              </button>
+                              </Button>
                             </div>
                           )}
                         </td>
                       ) : null}
                     </tr>
+                    {canManage && !locked ? (
+                      <tr className={busyId === m.id ? "opacity-60" : ""}>
+                        <td colSpan={4} className="bg-[var(--surface)] pb-4 pt-0">
+                          <PermissionMatrix
+                            member={m}
+                            disabled={busyId === m.id}
+                            onChange={(permissions) =>
+                              void updateMember(m.id, { permissions })
+                            }
+                          />
+                        </td>
+                      </tr>
+                    ) : null}
+                    </Fragment>
                   );
                 })
               ) : (
@@ -265,10 +401,10 @@ export function UsersManager({
       <div className="flex items-start gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 text-sm text-[var(--muted)]">
         <UserCog className="mt-0.5 h-4 w-4 shrink-0" />
         <p>
-          New sign-ups join here automatically once they authenticate and are
-          added to this company. This screen manages the role and access of
-          existing members; super-admin status is controlled at the platform
-          level.
+          Add a user, pick a role, then adjust the boxes for that person. Your own
+          row stays locked. The organization admin can delete products and customers.
+          Other roles can only mark them inactive. Posted sales, purchases, and
+          vouchers stay on record and are corrected with a return or a reversal.
         </p>
       </div>
     </div>

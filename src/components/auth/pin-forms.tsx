@@ -67,7 +67,7 @@ export function PinSetupForm({
           {localError || error}
         </p>
       ) : null}
-      <Button type="submit" className="login-submit" disabled={busy}>
+      <Button type="submit" className="login-submit" loading={busy}>
         {busy ? "Saving…" : "Save PIN & continue"}
       </Button>
       {onSkip ? (
@@ -143,7 +143,7 @@ export function PinUnlockForm({
           {error}
         </p>
       ) : null}
-      <Button type="submit" className="login-submit" disabled={busy || !pin}>
+      <Button type="submit" className="login-submit" loading={busy} disabled={!pin}>
         {busy ? "Unlocking…" : "Unlock"}
       </Button>
       {onUsePassword ? (

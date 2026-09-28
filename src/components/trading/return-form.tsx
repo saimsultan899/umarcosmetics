@@ -194,7 +194,7 @@ export function ReturnForm({
         <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>
       ) : null}
 
-      <Button type="submit" disabled={loading}>
+      <Button type="submit" loading={loading}>
         {loading ? "Posting..." : `Save & post ${kind} return`}
       </Button>
     </form>

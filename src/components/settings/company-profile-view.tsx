@@ -1,6 +1,7 @@
 "use client";
 
 import { CopyCatalogForm } from "@/components/settings/copy-catalog-form";
+import { WalkInSlipSetting } from "@/components/settings/walk-in-slip-setting";
 import { useCompanyProfile } from "@/hooks/use-company-profile";
 import type { Company } from "@/lib/types/database";
 
@@ -63,6 +64,8 @@ export function CompanyProfileView({
           </p>
         </div>
       </div>
+
+      <WalkInSlipSetting companyId={activeCompany.id} />
 
       <div id="catalog-copy" className="panel p-5">
         <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">

@@ -99,7 +99,7 @@ function ExpiryQtyForm({
         <Button type="button" variant="secondary" size="sm" onClick={onDone}>
           Cancel
         </Button>
-        <Button type="submit" size="sm" disabled={loading}>
+        <Button type="submit" size="sm" loading={loading}>
           {loading ? "Saving..." : "Save qty"}
         </Button>
       </div>

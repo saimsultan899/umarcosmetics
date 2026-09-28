@@ -8,15 +8,36 @@ const fs = require("fs");
 const path = require("path");
 const { app } = require("electron");
 
+async function isThermalJob(wc) {
+  try {
+    return await wc.executeJavaScript(
+      "Boolean(document.documentElement.classList.contains('thermal-print-mode') || document.querySelector('.print-sheet.thermal-80'))",
+    );
+  } catch {
+    return false;
+  }
+}
+
+function printOptions(thermal) {
+  const options = {
+    silent: false,
+    printBackground: true,
+    color: true,
+    deviceName: "",
+    scaleFactor: 100,
+    margins: { marginType: thermal ? "none" : "default" },
+  };
+  return options;
+}
+
 function registerPrintIpc(ipcMain, log = console.log) {
   ipcMain.handle("desktop:print", async (event) => {
     const wc = event.sender;
+    const thermal = await isThermalJob(wc);
     return await new Promise((resolve) => {
       wc.print(
         {
-          silent: false,
-          printBackground: true,
-          deviceName: "",
+          ...printOptions(thermal),
         },
         (success, failureReason) => {
           resolve({ ok: !!success, error: failureReason || null });
@@ -27,6 +48,14 @@ function registerPrintIpc(ipcMain, log = console.log) {
 
   ipcMain.handle("desktop:printPreview", async (event) => {
     const parent = BrowserWindow.fromWebContents(event.sender);
+    const thermal = await isThermalJob(event.sender);
+    if (thermal) {
+      return await new Promise((resolve) => {
+        event.sender.print(printOptions(true), (success, failureReason) => {
+          resolve({ ok: !!success, error: failureReason || null, thermal: true });
+        });
+      });
+    }
     try {
       const pdf = await event.sender.printToPDF({
         printBackground: true,
@@ -66,7 +95,12 @@ function registerPrintIpc(ipcMain, log = console.log) {
                 accelerator: "CmdOrCtrl+P",
                 click: () => {
                   preview.webContents.print(
-                    { silent: false, printBackground: true },
+                    {
+                      silent: false,
+                      printBackground: true,
+                      color: true,
+                      margins: { marginType: "default" },
+                    },
                     () => {},
                   );
                 },
@@ -101,7 +135,7 @@ function registerPrintIpc(ipcMain, log = console.log) {
       // Fallback: system print dialog
       return await new Promise((resolve) => {
         event.sender.print(
-          { silent: false, printBackground: true },
+          printOptions(thermal),
           (success, failureReason) => {
             resolve({
               ok: !!success,

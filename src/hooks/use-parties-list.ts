@@ -39,10 +39,13 @@ export function usePartiesList({
   companyId,
   initialData,
   initialOffline = false,
+  fixedSubtype,
 }: {
   companyId: string;
   initialData?: PartyListResult | null;
   initialOffline?: boolean;
+  /** Ignore the URL type so a screen can stay on customers only. */
+  fixedSubtype?: PartySubtypeFilter;
 }) {
   const sync = useSyncStatus();
   const isOnline = sync ? sync.online : !initialOffline;
@@ -58,8 +61,12 @@ export function usePartiesList({
     searchParams.forEach((value, key) => {
       rec[key] = value;
     });
+    if (fixedSubtype) {
+      rec.type = fixedSubtype;
+      rec.view = "trading";
+    }
     return rec;
-  }, [searchParams]);
+  }, [searchParams, fixedSubtype]);
 
   const loadData = useCallback(async () => {
     if (!companyId) return;
@@ -80,21 +87,18 @@ export function usePartiesList({
           rows = await getCachedRows("parties", companyId);
         }
 
-        const allParties = (rows as unknown as Party[]).filter(
-          (p) => p.is_active !== false && (p as Record<string, unknown>).is_active !== 0,
-        );
+        const allParties = rows as unknown as Party[];
 
         const cityOptions = distinctSorted(allParties.map((p) => p.city || p.head));
         const sectorOptions = distinctSorted(allParties.map((p) => p.route));
         const headOptions = distinctSorted(allParties.map((p) => p.head || p.city));
 
         const q = (searchParams.get("q") || "").toLowerCase().trim();
-        const rawView = searchParams.get("view");
+        const rawView = fixedSubtype ? "trading" : searchParams.get("view");
         const view: PartyViewFilter =
           rawView === "ledger" || rawView === "trading" ? rawView : "all";
-        const subtype = (view === "ledger"
-          ? "all"
-          : searchParams.get("type") || "all") as PartySubtypeFilter;
+        const subtype = (fixedSubtype ||
+          (view === "ledger" ? "all" : searchParams.get("type") || "all")) as PartySubtypeFilter;
         const cityFilter = searchParams.get("city") || "";
         const sectorFilter = searchParams.get("sector") || "";
         const headFilter = searchParams.get("head") || "";
@@ -207,7 +211,7 @@ export function usePartiesList({
     } finally {
       setLoading(false);
     }
-  }, [companyId, isOnline, searchParams, spRecord]);
+  }, [companyId, fixedSubtype, isOnline, searchParams, spRecord]);
 
   useEffect(() => {
     // If initialData was provided on the very first mount and online, keep it

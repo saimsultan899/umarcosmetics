@@ -163,7 +163,7 @@ export function StockTransferForm({
       ) : null}
 
       <div>
-        <Button type="submit" disabled={loading}>
+        <Button type="submit" loading={loading}>
           {loading ? "Transferring..." : "Save company transfer"}
         </Button>
       </div>

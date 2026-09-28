@@ -159,6 +159,8 @@ export default async function SaleInvoiceDetailPage({
         previousBalance={isWalkIn ? 0 : previousBalance}
         preparedBy={salesman?.full_name || profile?.full_name}
         autoPrint={autoPrint}
+        isWalkIn={isWalkIn}
+        companyId={company.id}
       />
     </div>
   );

@@ -357,7 +357,7 @@ export function ProvisionWizard() {
               Continue
             </Button>
           ) : (
-            <Button type="submit" disabled={loading || submittingRef.current}>
+            <Button type="submit" loading={loading || submittingRef.current}>
               {loading ? "Creating..." : "Create tenant + login"}
             </Button>
           )}

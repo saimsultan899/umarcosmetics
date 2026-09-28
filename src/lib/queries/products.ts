@@ -68,8 +68,7 @@ export async function fetchProductList(
   let listQuery = supabase
     .from("products")
     .select("*", { count: "exact" })
-    .eq("company_id", companyId)
-    .eq("is_active", true);
+    .eq("company_id", companyId);
   listQuery = applyProductView(listQuery, view);
   listQuery = applyProductWarehouse(listQuery, warehouseId);
   listQuery = applyProductSearch(listQuery, q);

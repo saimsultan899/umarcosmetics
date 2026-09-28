@@ -1,5 +1,6 @@
 import { ProductsView } from "@/components/products/products-view";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
+import { effectivePermissions } from "@/lib/access/permissions";
 import { requireCompanyContext } from "@/lib/auth";
 import { fetchProductList, type ProductListResult } from "@/lib/queries/products";
 import type { Warehouse } from "@/lib/types/database";
@@ -11,7 +12,12 @@ export default async function ProductsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
-  const { supabase, company, offline } = await requireCompanyContext();
+  const { supabase, company, offline, membership, profile } =
+    await requireCompanyContext();
+  const permissions = effectivePermissions(
+    membership,
+    Boolean(profile?.is_super_admin),
+  );
 
   let initialData: ProductListResult | null = null;
   let initialWarehouses: Warehouse[] = [];
@@ -41,6 +47,12 @@ export default async function ProductsPage({
         initialData={initialData}
         initialWarehouses={initialWarehouses}
         initialOffline={offline}
+        canEdit={permissions.includes("edit_products")}
+        canInactivate={permissions.includes("inactivate_records")}
+        canDelete={
+          membership?.role === "org_admin" ||
+          Boolean(profile?.is_super_admin)
+        }
       />
     </Suspense>
   );

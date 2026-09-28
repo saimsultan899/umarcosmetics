@@ -150,7 +150,7 @@ export function CopyCatalogForm({
         </p>
       ) : null}
 
-      <Button type="submit" disabled={loading || !toId}>
+      <Button type="submit" loading={loading} disabled={!toId}>
         {loading ? "Copying catalog..." : "Copy product catalog"}
       </Button>
     </form>

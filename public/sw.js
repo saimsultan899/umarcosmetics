@@ -21,7 +21,7 @@
  * deploy that bumps NEXT_PUBLIC_APP_VERSION still prompts even if this
  * string was forgotten.
  */
-const CACHE_VERSION = "0.1.0";
+const CACHE_VERSION = "0.1.1-slip";
 const CACHE_NAME = `umar-shell-${CACHE_VERSION}`;
 
 /** Assets to pre-cache on install (app shell). */
@@ -36,14 +36,11 @@ const PRECACHE_URLS = [
 // ── Install ──────────────────────────────────────────────────────────
 
 self.addEventListener("install", (event) => {
-  // Note: we do NOT skipWaiting() automatically here. The new worker waits so
-  // that in-flight offline writes are never interrupted mid-session. The app
-  // shell decides when to activate it (via the SKIP_WAITING message below),
-  // typically prompting the user or applying on the next launch.
   event.waitUntil(
     caches
       .open(CACHE_NAME)
       .then((cache) => cache.addAll(PRECACHE_URLS))
+      .then(() => self.skipWaiting())
   );
 });
 
@@ -88,12 +85,34 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Never intercept non-GET requests
+  // Never intercept non-GET requests.
+  // Never cache the worker script itself — a cached sw.js keeps serving the old app.
   if (event.request.method !== "GET") return;
+  if (url.pathname === "/sw.js") return;
+
+  // App code must come from the network when online. Dev and some builds reuse
+  // the same /_next URL, so cache-first made a refresh show the previous slip.
+  if (url.pathname.startsWith("/_next/")) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() =>
+          caches.match(event.request).then(
+            (cached) => cached || new Response("", { status: 503 }),
+          ),
+        ),
+    );
+    return;
+  }
 
   // ── Static assets: cache-first ────────────────────────────────────
   if (
-    url.pathname.startsWith("/_next/static") ||
     url.pathname.startsWith("/icons") ||
     url.pathname.startsWith("/images") ||
     url.pathname.match(/\.(js|css|woff2?|ttf|otf|png|jpg|jpeg|svg|webp|ico)$/)

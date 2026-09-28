@@ -1,6 +1,7 @@
 "use client";
 
 import { CompanyAdminForm } from "@/components/admin/company-admin-form";
+import { Button } from "@/components/ui/button";
 import { CreateDialogButton } from "@/components/ui/create-dialog";
 import { DetailField, RowActions } from "@/components/ui/row-actions";
 import { createClient } from "@/lib/supabase/client";
@@ -148,14 +149,15 @@ export function CompaniesPanel({
                       <td className="text-right">
                         <div className="flex flex-wrap items-center justify-end gap-1">
                           {openable ? (
-                            <button
+                            <Button
                               type="button"
-                              disabled={busyId === c.id}
-                              className="rounded-lg px-2 py-1.5 text-xs font-medium text-[var(--brand)] hover:bg-[var(--brand-soft)] disabled:opacity-50"
+                              variant="ghost"
+                              size="sm"
+                              loading={busyId === c.id}
                               onClick={() => void openCompany(c.id)}
                             >
                               {busyId === c.id ? "Opening…" : "Open"}
-                            </button>
+                            </Button>
                           ) : (
                             <span
                               className="rounded-lg px-2 py-1.5 text-xs text-[var(--muted)]"

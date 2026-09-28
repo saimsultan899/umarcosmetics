@@ -21,6 +21,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 export function Topbar({
   company,
@@ -34,8 +35,11 @@ export function Topbar({
   const router = useRouter();
   const supabase = createClient();
   const { online, pending, syncing, runSync } = useSyncStatus();
+  const [signingOut, setSigningOut] = useState(false);
+  const [switching, setSwitching] = useState(false);
 
   async function signOut() {
+    setSigningOut(true);
     setOfflineSessionCookie(false);
     clearOfflineShellCookie();
     try {
@@ -94,7 +98,9 @@ export function Topbar({
         <Button
           variant="secondary"
           size="sm"
+          loading={switching}
           onClick={async () => {
+            setSwitching(true);
             if (online) {
               try {
                 await supabase.rpc("clear_active_company");
@@ -118,7 +124,7 @@ export function Topbar({
           }}
           className="px-2 sm:px-3"
         >
-          <RefreshCw className="h-3.5 w-3.5" />
+          {switching ? null : <RefreshCw className="h-3.5 w-3.5" />}
           <span className="hidden sm:inline">Switch company</span>
         </Button>
         <button
@@ -132,10 +138,11 @@ export function Topbar({
         <Button
           variant="ghost"
           size="sm"
-          onClick={signOut}
+          loading={signingOut}
+          onClick={() => void signOut()}
           aria-label="Log out"
         >
-          <LogOut className="h-4 w-4" />
+          {signingOut ? null : <LogOut className="h-4 w-4" />}
         </Button>
       </div>
     </header>

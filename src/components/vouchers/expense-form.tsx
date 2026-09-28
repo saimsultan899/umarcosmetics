@@ -349,7 +349,7 @@ export function ExpenseForm({
         </p>
       ) : null}
 
-      <Button type="submit" disabled={loading}>
+      <Button type="submit" loading={loading}>
         {loading ? "Posting..." : "Save expenses"}
       </Button>
     </form>
