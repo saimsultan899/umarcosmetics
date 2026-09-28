@@ -1893,7 +1893,7 @@ button[aria-haspopup="listbox"]:focus-visible {
   max-width: 80mm;
   box-sizing: border-box;
   margin: 0 auto;
-  padding: 3mm;
+  padding: 2mm 3mm 4mm;
   background: #fff;
   color: #000;
   font-family: "Courier New", Courier, monospace;
@@ -2012,7 +2012,7 @@ button[aria-haspopup="listbox"]:focus-visible {
 }
 .th-thanks {
   margin-top: 3mm;
-  margin-bottom: 3mm;
+  margin-bottom: 2mm;
   text-align: center;
   font-size: 14px;
   letter-spacing: 0;
@@ -2020,12 +2020,17 @@ button[aria-haspopup="listbox"]:focus-visible {
 .th-credit {
   margin-top: 0;
   padding-top: 0;
+  padding-bottom: 2mm;
   border-top: none;
   text-align: center;
   font-size: 12px;
   font-weight: 700;
-  line-height: 1.5;
+  line-height: 1.4;
   color: #000;
+}
+.th-credit-line {
+  display: block;
+  white-space: nowrap;
 }
 
 /* Half-A4 sale invoice (classic distributor pattern) */
@@ -2807,7 +2812,8 @@ button[aria-haspopup="listbox"]:focus-visible {
     height: auto !important;
     overflow: visible !important;
     margin: 0 !important;
-    padding: 3mm !important;
+    /* No top pad — blank head feed came from padding + tall page centering. */
+    padding: 0 2.5mm 8mm !important;
     border: none !important;
     border-radius: 0 !important;
     box-shadow: none !important;
@@ -2904,7 +2910,7 @@ button[aria-haspopup="listbox"]:focus-visible {
     min-width: 80mm !important;
     max-width: 80mm !important;
     margin: 0 !important;
-    padding: 3mm !important;
+    padding: 0 2.5mm 8mm !important;
     overflow: visible !important;
     transform: none !important;
     zoom: 1 !important;
@@ -2933,10 +2939,18 @@ button[aria-haspopup="listbox"]:focus-visible {
 
   html.thermal-print-mode .print-sheet.thermal-80 .th-thanks {
     font-size: 16px !important;
+    margin-bottom: 2mm !important;
   }
 
   html.thermal-print-mode .print-sheet.thermal-80 .th-credit {
-    font-size: 13px !important;
+    font-size: 12px !important;
+    line-height: 1.4 !important;
+    padding-bottom: 2mm !important;
+  }
+
+  html.thermal-print-mode .print-sheet.thermal-80 .th-credit-line {
+    display: block !important;
+    white-space: nowrap !important;
   }
 
   .classic-report {

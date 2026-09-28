@@ -1,16 +1,116 @@
 /**
- * Print the on-screen walk-in slip at a true 80mm page size.
+ * Print the on-screen walk-in slip at a true 80mm × content page.
  *
- * Must stay synchronous from the Print click (or Ctrl+P). Awaiting fonts /
- * frames before print() drops the user gesture, so Chromium silently skips
- * the dialog.
+ * Browser: print from a tiny off-screen document (no A4 shell, no top gap).
+ * Desktop: keep the Electron print hook, but pin the slip to the top and
+ * size the page to the receipt so the footer phones are not cut off.
  *
- * The app’s default @page is A4. For thermal we inject an exact
- * `80mm × content-height` page so the POS roll does not feed blank paper.
- * The style tag is removed after print so standard invoices stay A4.
+ * Must stay synchronous from the Print click — awaiting before print() drops
+ * the user gesture and Chromium skips the dialog.
  */
 
 const STYLE_ID = "umar-thermal-page-size";
+
+const SLIP_CSS = `
+  * { box-sizing: border-box; }
+  html, body {
+    width: 80mm;
+    max-width: 80mm;
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    color: #000;
+    font-family: "Courier New", Courier, monospace;
+    font-weight: 700;
+    font-size: 14px;
+    line-height: 1.35;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .slip {
+    width: 80mm;
+    max-width: 80mm;
+    margin: 0;
+    padding: 0 2.5mm 8mm;
+    background: #fff;
+    color: #000;
+  }
+  .th-shop {
+    text-align: center;
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.15;
+  }
+  .th-sub, .th-center, .th-credit { text-align: center; }
+  .th-sub { margin-top: 1mm; font-size: 13px; }
+  .th-center { margin-top: 0.8mm; }
+  .th-strong { font-weight: 700; }
+  .th-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 2mm;
+    margin-top: 1mm;
+    font-size: 12px;
+  }
+  .th-dash, .th-eq {
+    width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    height: 1.15em;
+    margin: 1.6mm 0;
+    line-height: 1;
+    font-size: 13px;
+  }
+  .th-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 13px;
+  }
+  .th-table th, .th-table td {
+    padding: 1mm 0;
+    border: none;
+    vertical-align: top;
+    font-weight: 700;
+  }
+  .th-table th:first-child, .th-table td:first-child { width: 46%; text-align: left; }
+  .th-table .num { width: 18%; text-align: right; white-space: nowrap; }
+  .th-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 2mm;
+    margin-top: 1mm;
+  }
+  .th-total { margin-top: 1.4mm; font-size: 16px; }
+  .th-thanks {
+    margin-top: 3mm;
+    margin-bottom: 2mm;
+    text-align: center;
+    font-size: 15px;
+  }
+  .th-credit {
+    margin: 0;
+    padding: 0;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  .th-credit-line {
+    display: block;
+    white-space: nowrap;
+  }
+`;
+
+type DesktopPrintBridge = {
+  isDesktop?: boolean;
+};
+
+function isDesktopApp() {
+  if (typeof window === "undefined") return false;
+  return Boolean(
+    (window as Window & { umarDesktop?: DesktopPrintBridge }).umarDesktop
+      ?.isDesktop,
+  );
+}
 
 function slipHeightMm(slip: HTMLElement) {
   const px = Math.max(
@@ -19,8 +119,8 @@ function slipHeightMm(slip: HTMLElement) {
     Math.ceil(slip.getBoundingClientRect().height),
     120,
   );
-  // ~96 CSS px per inch; +3mm keeps the cutter clear of the last line.
-  return Math.max(45, Math.ceil((px * 25.4) / 96) + 3);
+  // Extra bottom mm keeps developer phone lines above the cutter.
+  return Math.max(50, Math.ceil((px * 25.4) / 96) + 10);
 }
 
 function removeThermalPageStyle() {
@@ -31,8 +131,6 @@ function installThermalPageStyle(pageMm: number) {
   removeThermalPageStyle();
   const style = document.createElement("style");
   style.id = STYLE_ID;
-  // Override the default A4 @page for this job only. Named page matches
-  // `.print-sheet.thermal-80 { page: thermal-80 }`.
   style.textContent = `
 @media print {
   @page {
@@ -46,23 +144,60 @@ function installThermalPageStyle(pageMm: number) {
 }
 `;
   document.head.appendChild(style);
-  return style;
 }
 
-export function printThermalSlip(source?: HTMLElement | null) {
-  if (typeof document === "undefined" || typeof window === "undefined") return;
+function receiptHtml(inner: string, pageMm: number) {
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Receipt</title>
+<style>
+  @page { size: 80mm ${pageMm}mm; margin: 0; }
+  ${SLIP_CSS}
+  html, body { height: ${pageMm}mm; max-height: ${pageMm}mm; overflow: hidden; }
+</style>
+</head>
+<body><div class="slip">${inner}</div></body>
+</html>`;
+}
 
-  const slip =
-    source ??
-    document.querySelector<HTMLElement>(".print-sheet.thermal-80");
-  if (!slip) {
-    window.print();
-    return;
+function printViaIframe(slip: HTMLElement, pageMm: number) {
+  const frame = document.createElement("iframe");
+  frame.setAttribute("aria-hidden", "true");
+  frame.style.cssText =
+    "position:fixed;left:0;top:0;width:302px;height:1px;border:0;opacity:0;pointer-events:none;";
+  document.body.appendChild(frame);
+
+  const doc = frame.contentDocument;
+  const view = frame.contentWindow;
+  if (!doc || !view) {
+    frame.remove();
+    return false;
   }
 
-  const pageMm = slipHeightMm(slip);
-  installThermalPageStyle(pageMm);
+  doc.open();
+  doc.write(receiptHtml(slip.innerHTML, pageMm));
+  doc.close();
+  // Force layout so the first paint is ready before print().
+  void doc.body?.offsetHeight;
 
+  const cleanup = () => {
+    try {
+      frame.remove();
+    } catch {
+      /* ignore */
+    }
+  };
+  view.addEventListener("afterprint", cleanup, { once: true });
+  window.setTimeout(cleanup, 20_000);
+  view.focus();
+  view.print();
+  return true;
+}
+
+function printViaDesktopShell(slip: HTMLElement, pageMm: number) {
+  installThermalPageStyle(pageMm);
   const root = document.documentElement;
   root.classList.add("thermal-print-mode");
   root.setAttribute("data-thermal-page-mm", String(pageMm));
@@ -78,8 +213,31 @@ export function printThermalSlip(source?: HTMLElement | null) {
   };
 
   window.addEventListener("afterprint", cleanup);
-  // Electron print IPC may not always fire afterprint.
   window.setTimeout(cleanup, 60_000);
-
   window.print();
+  void slip;
+}
+
+export function printThermalSlip(source?: HTMLElement | null) {
+  if (typeof document === "undefined" || typeof window === "undefined") return;
+
+  const slip =
+    source ??
+    document.querySelector<HTMLElement>(".print-sheet.thermal-80");
+  if (!slip) {
+    window.print();
+    return;
+  }
+
+  const pageMm = slipHeightMm(slip);
+
+  // Electron uses the desktop print bridge on window.print().
+  if (isDesktopApp()) {
+    printViaDesktopShell(slip, pageMm);
+    return;
+  }
+
+  if (!printViaIframe(slip, pageMm)) {
+    printViaDesktopShell(slip, pageMm);
+  }
 }

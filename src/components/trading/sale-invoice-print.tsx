@@ -374,8 +374,9 @@ export function SaleInvoicePrint({
           <div className="th-eq">{THERMAL_EQ}</div>
           <div className="th-thanks">Thank you</div>
           <div className="th-credit">
-            <div>Developed by Umar Distributor</div>
-            <div>03006031380, 03084882425</div>
+            <div className="th-credit-line">Developed by Umar Distributor</div>
+            <div className="th-credit-line">03006031380</div>
+            <div className="th-credit-line">03084882425</div>
           </div>
         </div>
       ) : null}
