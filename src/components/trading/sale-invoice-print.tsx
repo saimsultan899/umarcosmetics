@@ -378,6 +378,8 @@ export function SaleInvoicePrint({
             <div className="th-credit-line">03006031380</div>
             <div className="th-credit-line">03084882425</div>
           </div>
+          {/* Exactly 2 line feeds before the cutter — not 4+. */}
+          <div className="th-cut-feed" aria-hidden="true" />
         </div>
       ) : null}
 

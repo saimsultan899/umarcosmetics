@@ -18,24 +18,32 @@ async function isThermalJob(wc) {
   }
 }
 
-/** 80mm width × measured slip height, in microns (Electron pageSize units). */
+/**
+ * 80mm × content height in microns.
+ * Keep height tight — oversized pages make POS drivers feed blank head/tail
+ * before the cutter. Cutter clearance (~2 lines) is already in `.th-cut-feed`.
+ *
+ * Windows POS drivers usually cut after the job. Prefer partial/full cut
+ * without extra feed (GS V 1 / GS V 0). Avoid GS V 66 (feeds before cut).
+ */
 async function thermalPageSize(wc) {
   try {
     const mm = await wc.executeJavaScript(`(() => {
-      const el = document.querySelector('.print-sheet.thermal-80');
       const attr = document.documentElement.getAttribute('data-thermal-page-mm');
       if (attr && Number(attr) > 0) return Number(attr);
-      if (!el) return 120;
-      const px = Math.max(el.scrollHeight, el.offsetHeight, 120);
-      return Math.max(40, Math.ceil((px * 25.4) / 96) + 3);
+      const el = document.querySelector('.print-sheet.thermal-80');
+      if (!el) return 60;
+      const px = Math.max(el.scrollHeight, el.offsetHeight, 1);
+      // Content already includes .th-cut-feed (2 lines). No large floor.
+      return Math.max(20, Math.ceil((px * 25.4) / 96));
     })()`);
-    const heightMm = Math.max(45, Number(mm) || 120);
+    const heightMm = Math.max(20, Number(mm) || 60);
     return {
       width: 80000,
       height: Math.round(heightMm * 1000),
     };
   } catch {
-    return { width: 80000, height: 120000 };
+    return { width: 80000, height: 80000 };
   }
 }
 

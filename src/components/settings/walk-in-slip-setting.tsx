@@ -52,8 +52,9 @@ export function WalkInSlipSetting({ companyId }: { companyId: string }) {
       </div>
       <p className="mt-3 text-xs text-[var(--muted)]">
         On the printer, choose the 80mm roll, turn on background graphics, and
-        enable cut after each job. The standard invoice stays on the bill if you
-        need it.
+        enable cut after each job (partial cut GS V 1 or full cut GS V 0 — not
+        GS V 66, which feeds extra paper). The standard invoice stays on the
+        bill if you need it.
       </p>
     </div>
   );

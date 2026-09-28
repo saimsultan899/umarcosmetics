@@ -1,75 +1,81 @@
 /**
- * Print the on-screen walk-in slip at a tight 80mm × content page.
+ * Print the on-screen walk-in slip at 80mm × content height.
  *
- * Browser: isolated iframe document (avoids A4 + app chrome).
- * Desktop: Electron print hook with the same tight page size.
+ * Continuous roll (POS-80): page height must follow the slip. Absolute
+ * positioning or a tall fixed page makes the driver center the receipt and
+ * feed blank paper above and below.
  *
  * Keep this synchronous from the Print click — awaiting before print()
  * drops the user gesture and Chromium skips the dialog.
- *
- * Do not set html/body to a fixed tall height. That made Chromium center
- * the short slip on the page and left a large blank at the top.
  */
 
 const STYLE_ID = "umar-thermal-page-size";
 
-/** Side inset + small cutter gap under the last phone line. */
-const SLIP_PAD = "0 2mm 3mm";
+/** ~2 line feeds before the cutter live in `.th-cut-feed` (2em). Do not add more. */
 
 const SLIP_CSS = `
   * { box-sizing: border-box; }
   html, body {
     width: 80mm;
     max-width: 80mm;
-    margin: 0;
-    padding: 0;
-    min-height: 0;
-    height: auto;
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
     background: #fff;
     color: #000;
     font-family: "Courier New", Courier, monospace;
     font-weight: 700;
     font-size: 14px;
-    line-height: 1.35;
+    line-height: 1.3;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
+  body {
+    display: block !important;
+    align-items: unset !important;
+    justify-content: unset !important;
+  }
   .slip {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 80mm;
-    max-width: 80mm;
+    display: block;
+    position: static;
+    width: 72mm;
+    max-width: 72mm;
     margin: 0;
-    padding: ${SLIP_PAD};
+    padding: 1mm 2mm 2mm;
     background: #fff;
     color: #000;
   }
   .th-shop {
+    margin: 0;
+    padding: 0;
     text-align: center;
     font-size: 20px;
     font-weight: 700;
     line-height: 1.15;
+    color: #000;
   }
-  .th-sub, .th-center, .th-credit { text-align: center; }
-  .th-sub { margin-top: 0.6mm; font-size: 13px; }
-  .th-center { margin-top: 0.5mm; }
+  .th-sub, .th-center, .th-credit { text-align: center; color: #000; }
+  .th-sub { margin-top: 0.4mm; font-size: 13px; font-weight: 700; }
+  .th-center { margin-top: 0.4mm; font-weight: 700; }
   .th-strong { font-weight: 700; }
   .th-meta {
     display: flex;
     justify-content: space-between;
     gap: 2mm;
-    margin-top: 0.8mm;
+    margin-top: 0.6mm;
     font-size: 12px;
+    font-weight: 700;
   }
   .th-dash, .th-eq {
     width: 100%;
     overflow: hidden;
     white-space: nowrap;
-    height: 1.15em;
-    margin: 1.2mm 0;
+    height: 1.1em;
+    margin: 0.8mm 0;
     line-height: 1;
     font-size: 13px;
+    font-weight: 700;
   }
   .th-table {
     width: 100%;
@@ -78,35 +84,50 @@ const SLIP_CSS = `
     font-size: 13px;
   }
   .th-table th, .th-table td {
-    padding: 0.8mm 0;
+    padding: 0.6mm 0;
     border: none;
     vertical-align: top;
     font-weight: 700;
+    color: #000;
   }
   .th-table th:first-child, .th-table td:first-child { width: 46%; text-align: left; }
   .th-table .num { width: 18%; text-align: right; white-space: nowrap; }
   .th-row {
     display: flex;
     justify-content: space-between;
+    align-items: baseline;
     gap: 2mm;
-    margin-top: 0.8mm;
+    margin-top: 0.6mm;
+    font-weight: 700;
+    color: #000;
   }
-  .th-total { margin-top: 1mm; font-size: 16px; }
+  .th-total { margin-top: 0.8mm; font-size: 16px; }
   .th-thanks {
-    margin-top: 2mm;
-    margin-bottom: 1.2mm;
+    margin-top: 1.5mm;
+    margin-bottom: 0.8mm;
     text-align: center;
     font-size: 15px;
+    font-weight: 700;
   }
   .th-credit {
     margin: 0;
     padding: 0;
     font-size: 12px;
-    line-height: 1.35;
+    line-height: 1.3;
+    font-weight: 700;
   }
   .th-credit-line {
     display: block;
     white-space: nowrap;
+  }
+  /* Exactly 2 line feeds before cutter — not 4+. */
+  .th-cut-feed {
+    display: block;
+    height: 2em;
+    margin: 0;
+    padding: 0;
+    line-height: 1;
+    overflow: hidden;
   }
 `;
 
@@ -122,9 +143,9 @@ function isDesktopApp() {
   );
 }
 
+/** Content height in mm. Cutter clearance is already in `.th-cut-feed`. */
 function pxToPageMm(px: number) {
-  // Tight fit: ~3mm under the last line for the cutter only.
-  return Math.max(40, Math.ceil((px * 25.4) / 96) + 3);
+  return Math.max(20, Math.ceil((px * 25.4) / 96));
 }
 
 function slipHeightMm(slip: HTMLElement) {
@@ -132,7 +153,7 @@ function slipHeightMm(slip: HTMLElement) {
     slip.scrollHeight,
     slip.offsetHeight,
     Math.ceil(slip.getBoundingClientRect().height),
-    100,
+    1,
   );
   return pxToPageMm(px);
 }
@@ -145,42 +166,44 @@ function installThermalPageStyle(pageMm: number) {
   removeThermalPageStyle();
   const style = document.createElement("style");
   style.id = STYLE_ID;
+  // Prefer auto; inject measured height as a fallback for Chromium/Electron
+  // drivers that ignore `auto` and otherwise default to a tall roll.
   style.textContent = `
 @media print {
   @page {
-    size: 80mm ${pageMm}mm !important;
-    margin: 0 !important;
+    size: 80mm auto;
+    margin: 0;
   }
   @page thermal-80 {
-    size: 80mm ${pageMm}mm !important;
-    margin: 0 !important;
+    size: 80mm ${pageMm}mm;
+    margin: 0;
   }
 }
 `;
   document.head.appendChild(style);
 }
 
-function receiptHtml(inner: string, pageMm: number) {
+function receiptHtml(inner: string) {
   return `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8" />
-<title>Receipt</title>
+<title></title>
 <style>
-  @page { size: 80mm ${pageMm}mm; margin: 0; }
+  @page { size: 80mm auto; margin: 0; }
   ${SLIP_CSS}
 </style>
 </head>
-<body><div class="slip">${inner}</div></body>
+<body><div class="slip">${inner}<div class="th-cut-feed" aria-hidden="true"></div></div></body>
 </html>`;
 }
 
 function printViaIframe(slip: HTMLElement) {
   const frame = document.createElement("iframe");
   frame.setAttribute("aria-hidden", "true");
-  // Give the iframe a real width so the slip lays out at 80mm before we measure.
+  // Real width so the slip lays out at 72mm before print.
   frame.style.cssText =
-    "position:fixed;left:0;top:0;width:302px;height:800px;border:0;opacity:0;pointer-events:none;";
+    "position:fixed;left:0;top:0;width:302px;height:1px;border:0;opacity:0;pointer-events:none;";
   document.body.appendChild(frame);
 
   const doc = frame.contentDocument;
@@ -191,24 +214,21 @@ function printViaIframe(slip: HTMLElement) {
   }
 
   const inner = slip.innerHTML;
-  // First paint with a tall guess, then shrink @page to the real slip height
-  // so the driver does not center a short receipt on a tall page.
   doc.open();
-  doc.write(receiptHtml(inner, 400));
+  doc.write(receiptHtml(inner));
   doc.close();
   void doc.body?.offsetHeight;
 
   const painted = doc.querySelector<HTMLElement>(".slip");
-  const px = Math.max(
-    painted?.scrollHeight || 0,
-    painted?.offsetHeight || 0,
-    100,
-  );
-  const pageMm = pxToPageMm(px);
+  const pageMm = painted ? pxToPageMm(painted.scrollHeight || painted.offsetHeight || 1) : 80;
 
-  doc.open();
-  doc.write(receiptHtml(inner, pageMm));
-  doc.close();
+  // Re-apply with measured named page for drivers that ignore `auto`.
+  const style = doc.createElement("style");
+  style.textContent = `
+    @page { size: 80mm ${pageMm}mm; margin: 0; }
+    @page thermal-80 { size: 80mm ${pageMm}mm; margin: 0; }
+  `;
+  doc.head.appendChild(style);
   void doc.body?.offsetHeight;
 
   const cleanup = () => {
