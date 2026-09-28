@@ -177,11 +177,10 @@ export function SaleInvoicePrint({
 
   function printCurrent() {
     if (showThermal) {
-      const slip = document.querySelector<HTMLElement>(".print-sheet.thermal-80");
-      if (slip) {
-        printThermalSlip(slip);
-        return;
-      }
+      printThermalSlip(
+        document.querySelector<HTMLElement>(".print-sheet.thermal-80"),
+      );
+      return;
     }
     window.print();
   }
@@ -212,19 +211,18 @@ export function SaleInvoicePrint({
         printThermalSlip(slip);
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, [showThermal]);
 
   useEffect(() => {
     if (!autoPrint || !showSheet) return;
     const t = window.setTimeout(() => {
       if (showThermal) {
-        const slip = document.querySelector<HTMLElement>(".print-sheet.thermal-80");
-        if (slip) {
-          printThermalSlip(slip);
-          return;
-        }
+        printThermalSlip(
+          document.querySelector<HTMLElement>(".print-sheet.thermal-80"),
+        );
+        return;
       }
       window.print();
     }, 300);

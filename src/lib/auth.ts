@@ -73,8 +73,16 @@ export async function requireUser() {
 
   const supabase = await createClient();
   let user: VerifiedAuthUser | null = null;
+  let timedOut = false;
   try {
-    user = await withTimeout(getVerifiedAuthUser(supabase), 5000);
+    const result = await Promise.race([
+      getVerifiedAuthUser(supabase).then((u) => ({ user: u, timedOut: false })),
+      new Promise<{ user: null; timedOut: true }>((resolve) =>
+        setTimeout(() => resolve({ user: null, timedOut: true }), 5000),
+      ),
+    ]);
+    user = result.user;
+    timedOut = result.timedOut;
   } catch {
     user = null;
   }
@@ -83,6 +91,27 @@ export async function requireUser() {
     const fallback = await readShellCookieOnly();
     if (fallback) {
       return { supabase, user: userFromShell(fallback), offline: true as const };
+    }
+    // Slow Auth on a still-valid cookie must not bounce to /login.
+    if (timedOut) {
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (data.session?.user?.id) {
+          return {
+            supabase,
+            user: {
+              id: data.session.user.id,
+              email: data.session.user.email ?? null,
+              role: data.session.user.role ?? null,
+              aal: null,
+              sessionId: null,
+            },
+            offline: false as const,
+          };
+        }
+      } catch {
+        /* fall through */
+      }
     }
     redirect("/login");
   }

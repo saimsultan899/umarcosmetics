@@ -101,19 +101,43 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  let user = null;
+  // Distinguish a real "no user" from a slow Auth check. Timing out used to
+  // look like signed-out and bounced people to /login mid-navigation.
+  type AuthProbe =
+    | { status: "ok"; user: Awaited<ReturnType<typeof getVerifiedAuthUser>> }
+    | { status: "timeout" };
+
+  let probe: AuthProbe;
   try {
-    user = await Promise.race([
-      getVerifiedAuthUser(supabase),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
+    probe = await Promise.race([
+      getVerifiedAuthUser(supabase).then(
+        (user): AuthProbe => ({ status: "ok", user }),
+      ),
+      new Promise<AuthProbe>((resolve) =>
+        setTimeout(() => resolve({ status: "timeout" }), 8000),
+      ),
     ]);
   } catch {
-    user = null;
+    probe = { status: "ok", user: null };
   }
+
+  if (probe.status === "timeout") {
+    // Cookies are still here — keep the session; do not force login.
+    if (cookiesPresent || offlineOk) return supabaseResponse;
+    if (!isPublic) return loginRedirect(request);
+    return supabaseResponse;
+  }
+
+  const user = probe.user;
 
   if (!user && !isPublic) {
     if (offlineOk && (cookiesPresent || shellPresent)) {
       return NextResponse.next({ request });
+    }
+    // Auth cookies can still be valid while claim verify flickers. Prefer
+    // staying in the app over a surprise logout; pages re-check as needed.
+    if (cookiesPresent) {
+      return supabaseResponse;
     }
     return loginRedirect(request);
   }

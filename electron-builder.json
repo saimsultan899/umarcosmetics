@@ -18,7 +18,7 @@
   "publish": [
     {
       "provider": "generic",
-      "url": "https://updates.umardistribution.app/latest",
+      "url": "https://umarcosmetics.vercel.app/",
       "channel": "latest"
     }
   ],

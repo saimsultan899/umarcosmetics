@@ -98,7 +98,7 @@ function initAutoUpdater(opts) {
 
   // Optional runtime override of the feed URL (baked default lives in
   // electron-builder.json -> publish). Lets ops repoint the feed without a
-  // rebuild, e.g. UMAR_UPDATE_FEED_URL=https://updates.example.com/latest
+  // rebuild, e.g. UMAR_UPDATE_FEED_URL=https://umarcosmetics.vercel.app/
   const feedUrl = process.env.UMAR_UPDATE_FEED_URL;
   if (feedUrl) {
     try {

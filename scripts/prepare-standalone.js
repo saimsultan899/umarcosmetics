@@ -59,8 +59,13 @@ console.log("  Copied public -> .next/standalone/public");
 const envSrc = path.join(root, ".env.local");
 const envDest = path.join(standaloneDir, ".env.local");
 if (fs.existsSync(envSrc)) {
-  fs.copyFileSync(envSrc, envDest);
-  console.log("  Copied .env.local -> .next/standalone/.env.local");
+  const safe = fs
+    .readFileSync(envSrc, "utf8")
+    .split(/\r?\n/)
+    .filter((line) => !line.startsWith("SUPABASE_SERVICE_ROLE_KEY="))
+    .join("\n");
+  fs.writeFileSync(envDest, safe.endsWith("\n") ? safe : `${safe}\n`);
+  console.log("  Copied .env.local without the service role key");
 } else {
   console.warn(
     "  WARNING: .env.local not found — packaged app may fail auth/API calls.",
