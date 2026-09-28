@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { installDesktopPrint } from "@/lib/desktop-print";
-import { preparePrintPaper, clearPrintPaper } from "@/lib/print/paper-size";
+import { printWithAutoPaper } from "@/lib/print/paper-size";
 import { formatReportInvNo } from "@/lib/reports/helpers";
 import { cn, formatNumber } from "@/lib/utils";
 import { Printer } from "lucide-react";
@@ -117,21 +117,13 @@ export function PrintDocument({
     installDesktopPrint();
     if (!autoPrint) return;
     const t = window.setTimeout(() => {
-      preparePrintPaper(sheet === "half" ? "a5" : "a4");
-      window.print();
+      printWithAutoPaper(sheet === "half" ? "a5" : "a4");
     }, 250);
     return () => window.clearTimeout(t);
   }, [autoPrint, sheet]);
 
   function printNow() {
-    preparePrintPaper(sheet === "half" ? "a5" : "a4");
-    const cleanup = () => {
-      clearPrintPaper();
-      window.removeEventListener("afterprint", cleanup);
-    };
-    window.addEventListener("afterprint", cleanup);
-    window.setTimeout(cleanup, 60_000);
-    window.print();
+    printWithAutoPaper(sheet === "half" ? "a5" : "a4");
   }
 
   const hasRate = lines.some((l) => l.rate != null);

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { installDesktopPrint } from "@/lib/desktop-print";
 import {
   clearPrintPaper,
-  preparePrintPaper,
+  printWithAutoPaper,
 } from "@/lib/print/paper-size";
 import { Printer } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -55,8 +55,7 @@ export function PrintButton({
     window.addEventListener("afterprint", cleanup);
     // Give the browser a tick to apply print-skip classes before capture.
     window.setTimeout(() => {
-      preparePrintPaper();
-      window.print();
+      printWithAutoPaper();
       window.setTimeout(cleanup, 4000);
       window.setTimeout(() => setPrinting(false), 600);
     }, 50);

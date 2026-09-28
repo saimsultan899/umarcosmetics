@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { installDesktopPrint } from "@/lib/desktop-print";
-import { preparePrintPaper, clearPrintPaper } from "@/lib/print/paper-size";
+import { printWithAutoPaper } from "@/lib/print/paper-size";
 import { formatNumber } from "@/lib/utils";
 import { Printer } from "lucide-react";
 import { useEffect } from "react";
@@ -68,21 +68,13 @@ export function GatePassPrint({
     installDesktopPrint();
     if (!autoPrint) return;
     const t = window.setTimeout(() => {
-      preparePrintPaper("a4");
-      window.print();
+      printWithAutoPaper("a4");
     }, 250);
     return () => window.clearTimeout(t);
   }, [autoPrint]);
 
   function printNow() {
-    preparePrintPaper("a4");
-    const cleanup = () => {
-      clearPrintPaper();
-      window.removeEventListener("afterprint", cleanup);
-    };
-    window.addEventListener("afterprint", cleanup);
-    window.setTimeout(cleanup, 60_000);
-    window.print();
+    printWithAutoPaper("a4");
   }
 
   return (

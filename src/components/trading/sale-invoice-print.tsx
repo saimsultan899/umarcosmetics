@@ -10,7 +10,7 @@ import {
   type WalkInSlipLayout,
 } from "@/lib/print/walk-in-slip";
 import { printThermalSlip } from "@/lib/print/thermal-page";
-import { preparePrintPaper, clearPrintPaper } from "@/lib/print/paper-size";
+import { printWithAutoPaper } from "@/lib/print/paper-size";
 import { formatReportInvNo } from "@/lib/reports/helpers";
 import { formatNumber, formatPkr } from "@/lib/utils";
 import { ArrowLeft, Printer } from "lucide-react";
@@ -183,14 +183,7 @@ export function SaleInvoicePrint({
       );
       return;
     }
-    preparePrintPaper("a5");
-    const cleanup = () => {
-      clearPrintPaper();
-      window.removeEventListener("afterprint", cleanup);
-    };
-    window.addEventListener("afterprint", cleanup);
-    window.setTimeout(cleanup, 60_000);
-    window.print();
+    printWithAutoPaper("a5");
   }
 
   useEffect(() => {
@@ -210,18 +203,21 @@ export function SaleInvoicePrint({
   }, []);
 
   useEffect(() => {
-    if (!showThermal) return;
     const onKey = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "p") {
-        const slip = document.querySelector<HTMLElement>(".print-sheet.thermal-80");
-        if (!slip) return;
-        event.preventDefault();
-        printThermalSlip(slip);
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "p") return;
+      if (!showSheet) return;
+      event.preventDefault();
+      if (showThermal) {
+        printThermalSlip(
+          document.querySelector<HTMLElement>(".print-sheet.thermal-80"),
+        );
+        return;
       }
+      printWithAutoPaper("a5");
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [showThermal]);
+  }, [showThermal, showSheet]);
 
   useEffect(() => {
     if (!autoPrint || !showSheet) return;
@@ -232,8 +228,7 @@ export function SaleInvoicePrint({
         );
         return;
       }
-      preparePrintPaper("a5");
-      window.print();
+      printWithAutoPaper("a5");
     }, 300);
     return () => window.clearTimeout(t);
   }, [autoPrint, showSheet, showThermal]);

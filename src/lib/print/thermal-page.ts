@@ -185,14 +185,15 @@ function installThermalPageStyle(pageMm: number) {
   document.head.appendChild(style);
 }
 
-function receiptHtml(inner: string) {
+function receiptHtml(inner: string, pageMm: number) {
+  // One @page only. A second rule (or `auto`) makes Chrome keep A4.
   return `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8" />
 <title></title>
 <style>
-  @page { size: 80mm auto; margin: 0; }
+  @page { size: 80mm ${pageMm}mm; margin: 0; }
   ${SLIP_CSS}
 </style>
 </head>
@@ -203,9 +204,9 @@ function receiptHtml(inner: string) {
 function printViaIframe(slip: HTMLElement) {
   const frame = document.createElement("iframe");
   frame.setAttribute("aria-hidden", "true");
-  // Real width so the slip lays out at 72mm before print.
+  // Off-screen but fully laid out. opacity:0 / 1px height makes Chrome drop the page size.
   frame.style.cssText =
-    "position:fixed;left:0;top:0;width:302px;height:1px;border:0;opacity:0;pointer-events:none;";
+    "position:fixed;left:-12000px;top:0;width:320px;height:1600px;border:0;opacity:1;";
   document.body.appendChild(frame);
 
   const doc = frame.contentDocument;
@@ -217,20 +218,18 @@ function printViaIframe(slip: HTMLElement) {
 
   const inner = slip.innerHTML;
   doc.open();
-  doc.write(receiptHtml(inner));
+  doc.write(receiptHtml(inner, 400));
   doc.close();
   void doc.body?.offsetHeight;
 
   const painted = doc.querySelector<HTMLElement>(".slip");
-  const pageMm = painted ? pxToPageMm(painted.scrollHeight || painted.offsetHeight || 1) : 80;
+  const pageMm = painted
+    ? pxToPageMm(painted.scrollHeight || painted.offsetHeight || 1)
+    : 80;
 
-  // Re-apply with measured named page for drivers that ignore `auto`.
-  const style = doc.createElement("style");
-  style.textContent = `
-    @page { size: 80mm ${pageMm}mm; margin: 0; }
-    @page thermal-80 { size: 80mm ${pageMm}mm; margin: 0; }
-  `;
-  doc.head.appendChild(style);
+  doc.open();
+  doc.write(receiptHtml(inner, pageMm));
+  doc.close();
   void doc.body?.offsetHeight;
 
   const cleanup = () => {
