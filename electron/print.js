@@ -27,7 +27,7 @@ async function thermalPageSize(wc) {
       if (attr && Number(attr) > 0) return Number(attr);
       if (!el) return 120;
       const px = Math.max(el.scrollHeight, el.offsetHeight, 120);
-      return Math.max(50, Math.ceil((px * 25.4) / 96) + 10);
+      return Math.max(40, Math.ceil((px * 25.4) / 96) + 3);
     })()`);
     const heightMm = Math.max(45, Number(mm) || 120);
     return {

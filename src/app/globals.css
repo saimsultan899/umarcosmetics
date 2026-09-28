@@ -2813,7 +2813,7 @@ button[aria-haspopup="listbox"]:focus-visible {
     overflow: visible !important;
     margin: 0 !important;
     /* No top pad — blank head feed came from padding + tall page centering. */
-    padding: 0 2.5mm 8mm !important;
+    padding: 0 2mm 3mm !important;
     border: none !important;
     border-radius: 0 !important;
     box-shadow: none !important;
@@ -2910,7 +2910,7 @@ button[aria-haspopup="listbox"]:focus-visible {
     min-width: 80mm !important;
     max-width: 80mm !important;
     margin: 0 !important;
-    padding: 0 2.5mm 8mm !important;
+    padding: 0 2mm 3mm !important;
     overflow: visible !important;
     transform: none !important;
     zoom: 1 !important;
@@ -2939,13 +2939,14 @@ button[aria-haspopup="listbox"]:focus-visible {
 
   html.thermal-print-mode .print-sheet.thermal-80 .th-thanks {
     font-size: 16px !important;
-    margin-bottom: 2mm !important;
+    margin-top: 2mm !important;
+    margin-bottom: 1.2mm !important;
   }
 
   html.thermal-print-mode .print-sheet.thermal-80 .th-credit {
     font-size: 12px !important;
-    line-height: 1.4 !important;
-    padding-bottom: 2mm !important;
+    line-height: 1.35 !important;
+    padding-bottom: 0 !important;
   }
 
   html.thermal-print-mode .print-sheet.thermal-80 .th-credit-line {

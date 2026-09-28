@@ -1,15 +1,20 @@
 /**
- * Print the on-screen walk-in slip at a true 80mm × content page.
+ * Print the on-screen walk-in slip at a tight 80mm × content page.
  *
- * Browser: print from a tiny off-screen document (no A4 shell, no top gap).
- * Desktop: keep the Electron print hook, but pin the slip to the top and
- * size the page to the receipt so the footer phones are not cut off.
+ * Browser: isolated iframe document (avoids A4 + app chrome).
+ * Desktop: Electron print hook with the same tight page size.
  *
- * Must stay synchronous from the Print click — awaiting before print() drops
- * the user gesture and Chromium skips the dialog.
+ * Keep this synchronous from the Print click — awaiting before print()
+ * drops the user gesture and Chromium skips the dialog.
+ *
+ * Do not set html/body to a fixed tall height. That made Chromium center
+ * the short slip on the page and left a large blank at the top.
  */
 
 const STYLE_ID = "umar-thermal-page-size";
+
+/** Side inset + small cutter gap under the last phone line. */
+const SLIP_PAD = "0 2mm 3mm";
 
 const SLIP_CSS = `
   * { box-sizing: border-box; }
@@ -18,6 +23,8 @@ const SLIP_CSS = `
     max-width: 80mm;
     margin: 0;
     padding: 0;
+    min-height: 0;
+    height: auto;
     background: #fff;
     color: #000;
     font-family: "Courier New", Courier, monospace;
@@ -28,10 +35,13 @@ const SLIP_CSS = `
     print-color-adjust: exact;
   }
   .slip {
+    position: absolute;
+    top: 0;
+    left: 0;
     width: 80mm;
     max-width: 80mm;
     margin: 0;
-    padding: 0 2.5mm 8mm;
+    padding: ${SLIP_PAD};
     background: #fff;
     color: #000;
   }
@@ -42,14 +52,14 @@ const SLIP_CSS = `
     line-height: 1.15;
   }
   .th-sub, .th-center, .th-credit { text-align: center; }
-  .th-sub { margin-top: 1mm; font-size: 13px; }
-  .th-center { margin-top: 0.8mm; }
+  .th-sub { margin-top: 0.6mm; font-size: 13px; }
+  .th-center { margin-top: 0.5mm; }
   .th-strong { font-weight: 700; }
   .th-meta {
     display: flex;
     justify-content: space-between;
     gap: 2mm;
-    margin-top: 1mm;
+    margin-top: 0.8mm;
     font-size: 12px;
   }
   .th-dash, .th-eq {
@@ -57,7 +67,7 @@ const SLIP_CSS = `
     overflow: hidden;
     white-space: nowrap;
     height: 1.15em;
-    margin: 1.6mm 0;
+    margin: 1.2mm 0;
     line-height: 1;
     font-size: 13px;
   }
@@ -68,7 +78,7 @@ const SLIP_CSS = `
     font-size: 13px;
   }
   .th-table th, .th-table td {
-    padding: 1mm 0;
+    padding: 0.8mm 0;
     border: none;
     vertical-align: top;
     font-weight: 700;
@@ -79,12 +89,12 @@ const SLIP_CSS = `
     display: flex;
     justify-content: space-between;
     gap: 2mm;
-    margin-top: 1mm;
+    margin-top: 0.8mm;
   }
-  .th-total { margin-top: 1.4mm; font-size: 16px; }
+  .th-total { margin-top: 1mm; font-size: 16px; }
   .th-thanks {
-    margin-top: 3mm;
-    margin-bottom: 2mm;
+    margin-top: 2mm;
+    margin-bottom: 1.2mm;
     text-align: center;
     font-size: 15px;
   }
@@ -92,7 +102,7 @@ const SLIP_CSS = `
     margin: 0;
     padding: 0;
     font-size: 12px;
-    line-height: 1.4;
+    line-height: 1.35;
   }
   .th-credit-line {
     display: block;
@@ -112,15 +122,19 @@ function isDesktopApp() {
   );
 }
 
+function pxToPageMm(px: number) {
+  // Tight fit: ~3mm under the last line for the cutter only.
+  return Math.max(40, Math.ceil((px * 25.4) / 96) + 3);
+}
+
 function slipHeightMm(slip: HTMLElement) {
   const px = Math.max(
     slip.scrollHeight,
     slip.offsetHeight,
     Math.ceil(slip.getBoundingClientRect().height),
-    120,
+    100,
   );
-  // Extra bottom mm keeps developer phone lines above the cutter.
-  return Math.max(50, Math.ceil((px * 25.4) / 96) + 10);
+  return pxToPageMm(px);
 }
 
 function removeThermalPageStyle() {
@@ -155,18 +169,18 @@ function receiptHtml(inner: string, pageMm: number) {
 <style>
   @page { size: 80mm ${pageMm}mm; margin: 0; }
   ${SLIP_CSS}
-  html, body { height: ${pageMm}mm; max-height: ${pageMm}mm; overflow: hidden; }
 </style>
 </head>
 <body><div class="slip">${inner}</div></body>
 </html>`;
 }
 
-function printViaIframe(slip: HTMLElement, pageMm: number) {
+function printViaIframe(slip: HTMLElement) {
   const frame = document.createElement("iframe");
   frame.setAttribute("aria-hidden", "true");
+  // Give the iframe a real width so the slip lays out at 80mm before we measure.
   frame.style.cssText =
-    "position:fixed;left:0;top:0;width:302px;height:1px;border:0;opacity:0;pointer-events:none;";
+    "position:fixed;left:0;top:0;width:302px;height:800px;border:0;opacity:0;pointer-events:none;";
   document.body.appendChild(frame);
 
   const doc = frame.contentDocument;
@@ -176,10 +190,25 @@ function printViaIframe(slip: HTMLElement, pageMm: number) {
     return false;
   }
 
+  const inner = slip.innerHTML;
+  // First paint with a tall guess, then shrink @page to the real slip height
+  // so the driver does not center a short receipt on a tall page.
   doc.open();
-  doc.write(receiptHtml(slip.innerHTML, pageMm));
+  doc.write(receiptHtml(inner, 400));
   doc.close();
-  // Force layout so the first paint is ready before print().
+  void doc.body?.offsetHeight;
+
+  const painted = doc.querySelector<HTMLElement>(".slip");
+  const px = Math.max(
+    painted?.scrollHeight || 0,
+    painted?.offsetHeight || 0,
+    100,
+  );
+  const pageMm = pxToPageMm(px);
+
+  doc.open();
+  doc.write(receiptHtml(inner, pageMm));
+  doc.close();
   void doc.body?.offsetHeight;
 
   const cleanup = () => {
@@ -229,15 +258,13 @@ export function printThermalSlip(source?: HTMLElement | null) {
     return;
   }
 
-  const pageMm = slipHeightMm(slip);
-
   // Electron uses the desktop print bridge on window.print().
   if (isDesktopApp()) {
-    printViaDesktopShell(slip, pageMm);
+    printViaDesktopShell(slip, slipHeightMm(slip));
     return;
   }
 
-  if (!printViaIframe(slip, pageMm)) {
-    printViaDesktopShell(slip, pageMm);
+  if (!printViaIframe(slip)) {
+    printViaDesktopShell(slip, slipHeightMm(slip));
   }
 }
