@@ -18,15 +18,39 @@ async function isThermalJob(wc) {
   }
 }
 
-function printOptions(thermal) {
+/** 80mm width × measured slip height, in microns (Electron pageSize units). */
+async function thermalPageSize(wc) {
+  try {
+    const mm = await wc.executeJavaScript(`(() => {
+      const el = document.querySelector('.print-sheet.thermal-80');
+      const attr = document.documentElement.getAttribute('data-thermal-page-mm');
+      if (attr && Number(attr) > 0) return Number(attr);
+      if (!el) return 120;
+      const px = Math.max(el.scrollHeight, el.offsetHeight, 120);
+      return Math.max(45, Math.ceil((px * 25.4) / 96) + 3);
+    })()`);
+    const heightMm = Math.max(45, Number(mm) || 120);
+    return {
+      width: 80000,
+      height: Math.round(heightMm * 1000),
+    };
+  } catch {
+    return { width: 80000, height: 120000 };
+  }
+}
+
+async function printOptions(wc, thermal) {
   const options = {
     silent: false,
     printBackground: true,
-    color: true,
+    color: !thermal,
     deviceName: "",
     scaleFactor: 100,
     margins: { marginType: thermal ? "none" : "default" },
   };
+  if (thermal) {
+    options.pageSize = await thermalPageSize(wc);
+  }
   return options;
 }
 
@@ -34,15 +58,11 @@ function registerPrintIpc(ipcMain, log = console.log) {
   ipcMain.handle("desktop:print", async (event) => {
     const wc = event.sender;
     const thermal = await isThermalJob(wc);
+    const options = await printOptions(wc, thermal);
     return await new Promise((resolve) => {
-      wc.print(
-        {
-          ...printOptions(thermal),
-        },
-        (success, failureReason) => {
-          resolve({ ok: !!success, error: failureReason || null });
-        },
-      );
+      wc.print(options, (success, failureReason) => {
+        resolve({ ok: !!success, error: failureReason || null });
+      });
     });
   });
 
@@ -50,9 +70,14 @@ function registerPrintIpc(ipcMain, log = console.log) {
     const parent = BrowserWindow.fromWebContents(event.sender);
     const thermal = await isThermalJob(event.sender);
     if (thermal) {
+      const options = await printOptions(event.sender, true);
       return await new Promise((resolve) => {
-        event.sender.print(printOptions(true), (success, failureReason) => {
-          resolve({ ok: !!success, error: failureReason || null, thermal: true });
+        event.sender.print(options, (success, failureReason) => {
+          resolve({
+            ok: !!success,
+            error: failureReason || null,
+            thermal: true,
+          });
         });
       });
     }
@@ -132,18 +157,15 @@ function registerPrintIpc(ipcMain, log = console.log) {
       return { ok: true };
     } catch (err) {
       log(`[print] Preview failed: ${err?.message || err}`);
-      // Fallback: system print dialog
+      const options = await printOptions(event.sender, thermal);
       return await new Promise((resolve) => {
-        event.sender.print(
-          printOptions(thermal),
-          (success, failureReason) => {
-            resolve({
-              ok: !!success,
-              error: failureReason || String(err?.message || err),
-              fallback: true,
-            });
-          },
-        );
+        event.sender.print(options, (success, failureReason) => {
+          resolve({
+            ok: !!success,
+            error: failureReason || String(err?.message || err),
+            fallback: true,
+          });
+        });
       });
     }
   });
