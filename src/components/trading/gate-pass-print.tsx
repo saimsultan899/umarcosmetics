@@ -31,6 +31,8 @@ export function GatePassPrint({
   supplierCode,
   supplierName,
   supplierAddress,
+  supplierPhone,
+  supplierMobile,
   warehouseName,
   brand,
   vehicleNo,
@@ -51,6 +53,8 @@ export function GatePassPrint({
   supplierCode?: string | null;
   supplierName?: string | null;
   supplierAddress?: string | null;
+  supplierPhone?: string | null;
+  supplierMobile?: string | null;
   warehouseName?: string | null;
   brand?: string | null;
   vehicleNo?: string | null;
@@ -125,6 +129,18 @@ export function GatePassPrint({
               <div>
                 <span className="si-k">Address :</span>{" "}
                 <span className="si-v">{supplierAddress}</span>
+              </div>
+            ) : null}
+            {supplierMobile ? (
+              <div>
+                <span className="si-k">Cust Mob No:</span>{" "}
+                <span className="si-v">{supplierMobile}</span>
+              </div>
+            ) : null}
+            {supplierPhone ? (
+              <div>
+                <span className="si-k">Owner No:</span>{" "}
+                <span className="si-v">{supplierPhone}</span>
               </div>
             ) : null}
             {transporter ? (

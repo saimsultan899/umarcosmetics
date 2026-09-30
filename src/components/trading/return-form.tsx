@@ -94,6 +94,7 @@ export function ReturnForm({
         delta: kind === "sale" ? Number(l.qty) : -Number(l.qty),
       }));
 
+      const party = parties.find((p) => p.id === partyId);
       const res = await offlineAwareSubmit({
         mutationType: kind === "sale" ? "sale_return" : "purchase_return",
         companyId,
@@ -104,6 +105,17 @@ export function ReturnForm({
           company_id: companyId,
           return_date: returnDate,
           party_id: partyId,
+          party_name: party?.name_en || null,
+          party_code: party?.party_code || null,
+          parties: party
+            ? {
+                name_en: party.name_en,
+                party_code: party.party_code,
+                phone: party.phone,
+                mobile: party.mobile,
+                contact_person: party.contact_person,
+              }
+            : null,
           warehouse_id: warehouseId,
           subtotal,
           discount_total,

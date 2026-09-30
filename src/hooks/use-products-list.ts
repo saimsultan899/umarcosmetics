@@ -93,15 +93,14 @@ export function useProductsList({
         const warehouseId = searchParams.get("warehouse") || "";
         const paginationParams = parsePaginationParams(spRecord);
 
-        // Stock value by product code
         const stockValueByCode: Record<string, number> = {};
+        const purchaseValueByCode: Record<string, number> = {};
         const lowStockCodes: string[] = [];
 
         for (const p of allProducts) {
           const qty = qtyByProduct.get(p.id) || 0;
-          const rate = Number(p.purchase_rate || p.retail_rate || 0);
-          const val = qty * rate;
-          stockValueByCode[p.code] = val;
+          stockValueByCode[p.code] = qty * Number(p.retail_rate || 0);
+          purchaseValueByCode[p.code] = qty * Number(p.purchase_rate || 0);
           if (Number(p.reorder_level || 0) > 0 && qty <= Number(p.reorder_level)) {
             lowStockCodes.push(p.code);
           }
@@ -132,6 +131,10 @@ export function useProductsList({
           (s, p) => s + Number(stockValueByCode[p.code] || 0),
           0,
         );
+        const totalPurchaseVal = filtered.reduce(
+          (s, p) => s + Number(purchaseValueByCode[p.code] || 0),
+          0,
+        );
 
         const topStock = filtered
           .map((p) => ({
@@ -150,6 +153,7 @@ export function useProductsList({
         const stats: ProductListStats = {
           total: filtered.length,
           stockValue: totalStockVal,
+          purchaseValue: totalPurchaseVal,
           withReorder: filtered.filter((p) => Number(p.reorder_level || 0) > 0).length,
           lowStock: lowStockCodes.length,
           makerBars: [...makerCounts.entries()]

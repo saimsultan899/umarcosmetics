@@ -11,9 +11,12 @@ import {
 import { TableScroll } from "@/components/tables/table-scroll";
 import { TablePagination } from "@/components/tables/table-pagination";
 import { TableToolbar } from "@/components/tables/table-toolbar";
+import { Button } from "@/components/ui/button";
 import { DetailField, RowActions } from "@/components/ui/row-actions";
 import { useSearchInput, useUrlTableState } from "@/hooks/use-url-table-state";
-import type { PartyListStats } from "@/lib/queries/parties";
+import { fetchPartiesForExport, type PartyListStats } from "@/lib/queries/parties";
+import { downloadPdf } from "@/lib/reports/export";
+import { printWithAutoPaper } from "@/lib/print/paper-size";
 import type { PaginationMeta } from "@/lib/pagination";
 import type { Party, PartyType } from "@/lib/types/database";
 import { amountClass, formatPkr } from "@/lib/utils";
@@ -21,8 +24,9 @@ import { deleteCachedRow, putCachedRow } from "@/lib/offline/local-db";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { hasLocalSqlite, localUpsertMaster } from "@/lib/offline/sqlite-client";
 import { createClient } from "@/lib/supabase/client";
-import { Building2, Store, Truck, Users } from "lucide-react";
+import { Building2, FileText, Printer, Store, Truck, Users } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 function partyTypeLabel(p: Party) {
   if (p.party_type !== "PARTY") return p.party_type;
@@ -63,6 +67,7 @@ export function PartiesTable({
   pagination,
   stats,
   companyId,
+  companyName,
   organizationId,
   cityOptions = [],
   sectorOptions = [],
@@ -76,6 +81,7 @@ export function PartiesTable({
   pagination: PaginationMeta;
   stats: PartyListStats;
   companyId: string;
+  companyName?: string;
   organizationId: string;
   cityOptions?: string[];
   sectorOptions?: string[];
@@ -88,11 +94,121 @@ export function PartiesTable({
   const { q, isPending, setPage, setPageSize, setQuery, setFilter, filters } =
     useUrlTableState(["type", "city", "sector"]);
   const search = useSearchInput(q, setQuery);
+  const [exportBusy, setExportBusy] = useState<"pdf" | "print" | null>(null);
+  const [printRows, setPrintRows] = useState<Record<string, unknown>[] | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (!printRows || exportBusy !== "print") return;
+    const timer = window.setTimeout(() => {
+      printWithAutoPaper("a4");
+      setExportBusy(null);
+    }, 60);
+    return () => window.clearTimeout(timer);
+  }, [printRows, exportBusy]);
 
   const subtype = (filters.type ||
     (initialType === "customer" || initialType === "supplier"
       ? initialType
       : "all")) as SubFilter;
+
+  function exportRow(p: Party) {
+    return {
+      Code: p.party_code,
+      Name: p.name_en,
+      "City / Head": p.city || p.head || "",
+      Sector: p.route || "",
+      Type: partyTypeLabel(p),
+      "Shop number": p.mobile || "",
+      "Owner number": p.phone || "",
+      "Opening balance": Number(p.opening_balance || 0),
+      "Credit limit": Number(p.credit_limit || 0),
+      Status: p.is_active ? "Active" : "Inactive",
+    };
+  }
+
+  async function loadExportRows() {
+    const { isAppOnline } = await import("@/lib/offline/local-auth");
+    const online = await isAppOnline();
+    const view = stats.mode === "ledger" ? "ledger" : stats.mode === "trading" ? "trading" : "all";
+    if (online) {
+      const rows = await fetchPartiesForExport(createClient(), companyId, {
+        q,
+        type: subtype === "all" ? undefined : subtype,
+        view: view === "all" ? undefined : view,
+        city: filters.city,
+        sector: filters.sector,
+      });
+      return rows.map(exportRow);
+    }
+
+    const { hasLocalSqlite, localListMaster } = await import(
+      "@/lib/offline/sqlite-client"
+    );
+    const { getCachedRows } = await import("@/lib/offline/local-db");
+    let cached: Party[] = [];
+    if (hasLocalSqlite()) {
+      const res = await localListMaster("parties", companyId);
+      cached = (res.rows || []) as unknown as Party[];
+    }
+    if (!cached.length) {
+      cached = (await getCachedRows("parties", companyId)) as unknown as Party[];
+    }
+    const search = q.trim().toLowerCase();
+    const city = filters.city || "";
+    const sector = filters.sector || "";
+    return cached
+      .filter((p) => {
+        if (
+          view === "ledger" &&
+          !["ASSETS", "CAPITAL", "EXPENSES", "INCOME"].includes(p.party_type)
+        ) {
+          return false;
+        }
+        if (view === "trading" && p.party_type !== "PARTY") return false;
+        if (subtype === "customer" && p.party_subtype !== "customer" && p.party_subtype !== "both") {
+          return false;
+        }
+        if (subtype === "supplier" && p.party_subtype !== "supplier" && p.party_subtype !== "both") {
+          return false;
+        }
+        if (subtype === "both" && p.party_subtype !== "both") return false;
+        if (subtype === "other" && p.party_subtype !== "other") return false;
+        if (subtype === "credit" && Number(p.credit_limit || 0) <= 0) return false;
+        if (city && (p.city || p.head) !== city) return false;
+        if (sector && p.route !== sector) return false;
+        if (search) {
+          const haystack = `${p.party_code || ""} ${p.name_en || ""} ${p.city || ""} ${p.route || ""} ${p.mobile || ""} ${p.phone || ""}`.toLowerCase();
+          if (!haystack.includes(search)) return false;
+        }
+        return true;
+      })
+      .map(exportRow);
+  }
+
+  async function exportList(kind: "pdf" | "print") {
+    setExportBusy(kind);
+    try {
+      const rows = await loadExportRows();
+      if (kind === "pdf") {
+        const title =
+          stats.mode === "ledger"
+            ? "Ledger heads"
+            : subtype === "customer"
+              ? "Customers / shops"
+              : subtype === "supplier"
+                ? "Vendors"
+                : "Parties";
+        await downloadPdf(rows, "customers-shops", companyName ? `${title} — ${companyName}` : title);
+        setExportBusy(null);
+        return;
+      }
+      setPrintRows(rows);
+    } catch {
+      setExportBusy(null);
+    }
+  }
 
   async function setActive(id: string, isActive: boolean) {
     const party = parties.find((p) => p.id === id);
@@ -270,6 +386,28 @@ export function PartiesTable({
                   onChange={(value) => setFilter("sector", value)}
                 />
               ) : null}
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                loading={exportBusy === "pdf"}
+                disabled={exportBusy !== null}
+                onClick={() => void exportList("pdf")}
+              >
+                <FileText className="h-4 w-4" />
+                PDF
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                loading={exportBusy === "print"}
+                disabled={exportBusy !== null}
+                onClick={() => void exportList("print")}
+              >
+                <Printer className="h-4 w-4" />
+                Print
+              </Button>
             </div>
           }
         />
@@ -394,6 +532,54 @@ export function PartiesTable({
           />
         </div>
       </div>
+
+      {printRows ? (
+        <div
+          className="print-only print-sheet report-print"
+          data-paper="a4"
+          data-print-id="customers-shops"
+        >
+          <div className="report-print-head">
+            <div>
+              <p className="report-print-title">
+                {stats.mode === "ledger"
+                  ? "Ledger heads"
+                  : subtype === "customer"
+                    ? "Customers / shops"
+                    : subtype === "supplier"
+                      ? "Vendors"
+                      : "Parties"}
+              </p>
+              {companyName ? <p className="report-print-co">{companyName}</p> : null}
+            </div>
+            <p className="report-print-meta">{printRows.length} rows</p>
+          </div>
+          {printRows.length ? (
+            <table>
+              <thead>
+                <tr>
+                  {Object.keys(printRows[0]).map((column) => (
+                    <th key={column}>{column}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {printRows.map((row, index) => (
+                  <tr key={index}>
+                    {Object.entries(row).map(([column, value]) => (
+                      <td key={column}>
+                        {typeof value === "number" ? formatPkr(value) : String(value || "—")}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p>No customers match this filter.</p>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

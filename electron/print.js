@@ -75,7 +75,7 @@ async function printOptions(wc, paper) {
   const a5 = paper === "a5";
   const options = {
     silent: false,
-    printBackground: true,
+    printBackground: thermal,
     color: !thermal,
     deviceName: "",
     scaleFactor: 100,
@@ -98,7 +98,9 @@ async function pdfOptions(wc, paper) {
   const a5 = paper === "a5";
   const options = {
     printBackground: true,
-    preferCSSPageSize: true,
+    // A5 must stay 210×148. preferCSSPageSize lets the app's A4 rule win and
+    // leaves a tall page whose empty bottom prints dark from the preview.
+    preferCSSPageSize: !a5,
     landscape: false,
     margins: { marginType: thermal ? "none" : "default" },
   };
@@ -159,7 +161,7 @@ function registerPrintIpc(ipcMain, log = console.log) {
         modal: false,
         title: `Print Preview — ${paper.toUpperCase()} — Umar Distribution`,
         autoHideMenuBar: false,
-        backgroundColor: "#525659",
+        backgroundColor: "#ffffff",
         webPreferences: {
           plugins: true,
           contextIsolation: true,
@@ -174,7 +176,7 @@ function registerPrintIpc(ipcMain, log = console.log) {
         preview.webContents.print(
           {
             silent: false,
-            printBackground: true,
+            printBackground: false,
             color: true,
             landscape: options.landscape,
             pageSize: options.pageSize,

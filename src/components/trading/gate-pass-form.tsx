@@ -115,6 +115,20 @@ export function GatePassForm({
           company_id: companyId,
           pass_date: passDate,
           party_id: partyId || null,
+          parties: (() => {
+            const vendor = suppliers.find((p) => p.id === partyId);
+            return vendor
+              ? {
+                  name_en: vendor.name_en,
+                  party_code: vendor.party_code,
+                  address: vendor.address,
+                  city: vendor.city,
+                  phone: vendor.phone,
+                  mobile: vendor.mobile,
+                  contact_person: vendor.contact_person,
+                }
+              : null;
+          })(),
           warehouse_id: warehouseId || null,
           manufacturer,
           vehicle_no: vehicleNo,

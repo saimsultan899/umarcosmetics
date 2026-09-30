@@ -701,16 +701,14 @@ export function OfflineModulePage({
     }
 
     const stockValueByCode: Record<string, number> = {};
+    const purchaseValueByCode: Record<string, number> = {};
     const lowStockCodes: string[] = [];
-    let totalStockVal = 0;
     let lowStockCount = 0;
 
     for (const p of productList) {
       const qOnHand = qtyByProduct.get(p.id) || 0;
-      const rate = Number(p.purchase_rate || p.retail_rate || 0);
-      const val = qOnHand * rate;
-      stockValueByCode[p.code] = val;
-      totalStockVal += val;
+      stockValueByCode[p.code] = qOnHand * Number(p.retail_rate || 0);
+      purchaseValueByCode[p.code] = qOnHand * Number(p.purchase_rate || 0);
       if (Number(p.reorder_level) > 0 && qOnHand <= Number(p.reorder_level)) {
         lowStockCodes.push(p.code);
         lowStockCount += 1;
@@ -735,9 +733,19 @@ export function OfflineModulePage({
       value: productList.filter((p) => p.default_warehouse_id === w.id).length,
     }));
 
+    const totalStockVal = filteredProducts.reduce(
+      (sum, p) => sum + Number(stockValueByCode[p.code] || 0),
+      0,
+    );
+    const totalPurchaseVal = filteredProducts.reduce(
+      (sum, p) => sum + Number(purchaseValueByCode[p.code] || 0),
+      0,
+    );
+
     const prodStats: ProductListStats = {
-      total: productList.length,
+      total: filteredProducts.length,
       stockValue: totalStockVal,
+      purchaseValue: totalPurchaseVal,
       withReorder: productList.filter((p) => Number(p.reorder_level) > 0).length,
       lowStock: lowStockCount,
       makerBars,

@@ -31,7 +31,7 @@ export default async function GatePassDetailPage({
   const { data: pass } = await supabase
     .from("gate_passes")
     .select(
-      "*, parties(name_en, party_code, address, city, phone), warehouses(name)",
+      "*, parties(name_en, party_code, address, city, phone, mobile), warehouses(name)",
     )
     .eq("id", id)
     .eq("company_id", company.id)
@@ -51,6 +51,7 @@ export default async function GatePassDetailPage({
     address?: string | null;
     city?: string | null;
     phone?: string | null;
+    mobile?: string | null;
   } | null;
   const warehouse = Array.isArray(pass.warehouses)
     ? pass.warehouses[0]
@@ -85,6 +86,8 @@ export default async function GatePassDetailPage({
         supplierCode={party?.party_code}
         supplierName={party?.name_en}
         supplierAddress={[party?.address, party?.city].filter(Boolean).join(", ")}
+        supplierPhone={party?.phone}
+        supplierMobile={party?.mobile}
         warehouseName={warehouse?.name}
         brand={pass.manufacturer}
         vehicleNo={pass.vehicle_no}

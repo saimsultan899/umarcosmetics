@@ -100,7 +100,13 @@ export function PurchaseInvoiceForm({
           party_name: vendor?.name_en || null,
           party_code: vendor?.party_code || null,
           parties: vendor
-            ? { name_en: vendor.name_en, party_code: vendor.party_code }
+            ? {
+                name_en: vendor.name_en,
+                party_code: vendor.party_code,
+                phone: vendor.phone,
+                mobile: vendor.mobile,
+                contact_person: vendor.contact_person,
+              }
             : null,
           warehouse_id: warehouseId,
           subtotal,

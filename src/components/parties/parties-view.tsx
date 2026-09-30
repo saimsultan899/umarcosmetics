@@ -173,6 +173,7 @@ export function PartiesView({
         pagination={currentData.pagination}
         stats={currentData.stats}
         companyId={company.id}
+        companyName={company.name}
         organizationId={company.organization_id}
         cityOptions={currentData.cityOptions}
         sectorOptions={currentData.sectorOptions}

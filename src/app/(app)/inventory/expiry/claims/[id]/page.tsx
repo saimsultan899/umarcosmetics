@@ -31,7 +31,7 @@ export default async function ExpiryClaimDetailPage({
 
   const { data: doc } = await supabase
     .from("expiry_claims")
-    .select("*, parties(name_en, party_code), warehouses(name)")
+    .select("*, parties(name_en, party_code, phone, mobile), warehouses(name)")
     .eq("id", id)
     .eq("company_id", company.id)
     .maybeSingle();
@@ -55,12 +55,15 @@ export default async function ExpiryClaimDetailPage({
       <PrintDocument
         companyName={company.name}
         companyAddress={[company.address, company.city].filter(Boolean).join(", ")}
+        companyPhone={company.phone}
         title="Expiry Warehouse — Vendor Claim"
         docNo={doc.claim_no}
         date={doc.claim_date}
         printedAt={doc.created_at}
         partyName={party?.name_en}
         partyCode={party?.party_code}
+        partyPhone={party?.phone}
+        partyMobile={party?.mobile}
         warehouseName={warehouse?.name}
         extraMeta={[{ label: "Status", value: String(doc.claim_status || "open") }]}
         lines={(items || []).map((i) => ({

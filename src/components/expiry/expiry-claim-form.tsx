@@ -82,6 +82,18 @@ export function ExpiryClaimForm({
           company_id: companyId,
           claim_date: claimDate,
           party_id: partyId,
+          parties: (() => {
+            const vendor = parties.find((p) => p.id === partyId);
+            return vendor
+              ? {
+                  name_en: vendor.name_en,
+                  party_code: vendor.party_code,
+                  phone: vendor.phone,
+                  mobile: vendor.mobile,
+                  contact_person: vendor.contact_person,
+                }
+              : null;
+          })(),
           warehouse_id: warehouseId || null,
           grand_total: grandTotal,
           narration,

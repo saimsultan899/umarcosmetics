@@ -199,6 +199,18 @@ export function ExpiryReceiptForm({
           company_id: companyId,
           receipt_date: receiptDate,
           party_id: partyId,
+          parties: (() => {
+            const customer = parties.find((p) => p.id === partyId);
+            return customer
+              ? {
+                  name_en: customer.name_en,
+                  party_code: customer.party_code,
+                  phone: customer.phone,
+                  mobile: customer.mobile,
+                  contact_person: customer.contact_person,
+                }
+              : null;
+          })(),
           period_from: periodFrom,
           period_to: periodTo,
           subtotal: grandTotal,

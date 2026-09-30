@@ -146,6 +146,34 @@ function distinctSorted(values: Array<string | null | undefined>) {
   return out.sort((a, b) => a.localeCompare(b));
 }
 
+/** Every party matching the list filters, for PDF and print. */
+export async function fetchPartiesForExport(
+  supabase: SupabaseClient,
+  companyId: string,
+  searchParams: Record<string, string | string[] | undefined>,
+): Promise<Party[]> {
+  const q = spString(searchParams, "q") || "";
+  const rawView = spString(searchParams, "view");
+  const view: PartyViewFilter =
+    rawView === "ledger" || rawView === "trading" ? rawView : "all";
+  const subtype = (view === "ledger"
+    ? "all"
+    : spString(searchParams, "type") || "all") as PartySubtypeFilter;
+  const location = parsePartyLocationFilters(searchParams);
+
+  let query = supabase.from("parties").select("*").eq("company_id", companyId);
+  query = applyViewFilter(query, view);
+  query = applySubtypeFilter(query, subtype);
+  query = applySearch(query, q);
+  query = applyPartyLocationFilters(query, location);
+
+  const { data, error } = await query
+    .order("party_code", { ascending: true })
+    .limit(10000);
+  if (error) throw new Error(error.message);
+  return (data || []) as Party[];
+}
+
 export async function fetchPartyList(
   supabase: SupabaseClient,
   companyId: string,

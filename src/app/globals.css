@@ -2436,6 +2436,12 @@ button[aria-haspopup="listbox"]:focus-visible {
 }
 
 @media print {
+  html,
+  body {
+    background: #fff !important;
+    background-color: #fff !important;
+  }
+
   @page {
     size: A4 portrait;
     margin: 10mm 12mm;

@@ -13,7 +13,10 @@ export type ProductViewFilter = "all" | "reorder";
 
 export type ProductListStats = {
   total: number;
+  /** On-hand qty × retail rate for the filtered catalog. */
   stockValue: number;
+  /** On-hand qty × purchase rate for the same filtered catalog. */
+  purchaseValue: number;
   withReorder: number;
   lowStock: number;
   makerBars: Array<{ name: string; value: number }>;
@@ -73,12 +76,21 @@ export async function fetchProductList(
   listQuery = applyProductWarehouse(listQuery, warehouseId);
   listQuery = applyProductSearch(listQuery, q);
 
-  const [{ data, count, error }, { data: balances }, { count: withReorder }] =
+  let valueQuery = supabase
+    .from("products")
+    .select("id, code, name_en, retail_rate, purchase_rate")
+    .eq("company_id", companyId)
+    .limit(10000);
+  valueQuery = applyProductView(valueQuery, view);
+  valueQuery = applyProductWarehouse(valueQuery, warehouseId);
+  valueQuery = applyProductSearch(valueQuery, q);
+
+  const [{ data, count, error }, { data: balances }, { count: withReorder }, { data: valued }] =
     await Promise.all([
       listQuery.order("code", { ascending: true }).range(from, to),
       supabase
         .from("stock_balances")
-        .select("qty, products(code, name_en, sale_rate, reorder_level)")
+        .select("product_id, qty, products(code, reorder_level)")
         .eq("company_id", companyId)
         .limit(8000),
       (async () => {
@@ -92,21 +104,24 @@ export async function fetchProductList(
         query = applyProductSearch(query, q);
         return query;
       })(),
+      valueQuery,
     ]);
 
   if (error) throw new Error(error.message);
 
   const stockValueByCode: Record<string, number> = {};
   const lowStockCodes: string[] = [];
+  const qtyByProduct = new Map<string, number>();
 
   for (const row of balances || []) {
     const product = Array.isArray(row.products) ? row.products[0] : row.products;
-    if (!product?.code) continue;
     const qty = Number(row.qty || 0);
-    const rate = Number(product.sale_rate || 0);
-    stockValueByCode[product.code] =
-      (stockValueByCode[product.code] || 0) + qty * rate;
+    const productId = String(row.product_id || "");
+    if (productId) {
+      qtyByProduct.set(productId, (qtyByProduct.get(productId) || 0) + qty);
+    }
     if (
+      product?.code &&
       Number(product.reorder_level) > 0 &&
       qty <= Number(product.reorder_level) &&
       !lowStockCodes.includes(product.code)
@@ -115,15 +130,22 @@ export async function fetchProductList(
     }
   }
 
+  let stockValue = 0;
+  let purchaseValue = 0;
+  for (const product of valued || []) {
+    const qty = qtyByProduct.get(product.id) || 0;
+    const retail = qty * Number(product.retail_rate || 0);
+    const purchase = qty * Number(product.purchase_rate || 0);
+    stockValue += retail;
+    purchaseValue += purchase;
+    if (product.code) stockValueByCode[product.code] = retail;
+  }
+
   const lowSet = new Set(lowStockCodes);
   const products = (data || []) as Product[];
   const total = count ?? 0;
   const meta = buildPaginationMeta(total, paginationParams);
 
-  const stockValue = products.reduce(
-    (sum, p) => sum + Number(stockValueByCode[p.code] || 0),
-    0,
-  );
   const lowCount = products.filter((p) => lowSet.has(p.code)).length;
 
   const makers = new Map<string, number>();
@@ -132,7 +154,7 @@ export async function fetchProductList(
     makers.set(key, (makers.get(key) || 0) + 1);
   }
 
-  const topStock = products
+  const topStock = (valued || [])
     .map((p) => ({
       name: `${p.code} — ${p.name_en}`,
       value: Number(stockValueByCode[p.code] || 0),
@@ -152,6 +174,7 @@ export async function fetchProductList(
     stats: {
       total,
       stockValue,
+      purchaseValue,
       withReorder: withReorder ?? 0,
       lowStock: lowStockCodes.length,
       makerBars: [...makers.entries()]

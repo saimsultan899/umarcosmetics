@@ -59,6 +59,7 @@ export function renderOfflineDocument(
       kind={kind}
       companyId={company.id}
       companyName={company.name}
+      companyPhone={company.phone}
       documentId={documentId}
       listHref={listHref}
       autoPrint={autoPrint}

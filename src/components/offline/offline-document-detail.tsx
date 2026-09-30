@@ -13,7 +13,7 @@ import {
   type SalePrintLine,
 } from "@/components/trading/sale-invoice-print";
 import { offlineCachedDocument } from "@/lib/offline/offline-reports";
-import type { CacheStoreName } from "@/lib/offline/local-db";
+import { getCachedRows, type CacheStoreName } from "@/lib/offline/local-db";
 import {
   hasLocalSqlite,
   localGetDocument,
@@ -142,6 +142,7 @@ export function OfflineDocumentDetail({
   kind,
   companyId,
   companyName,
+  companyPhone,
   documentId,
   listHref,
   autoPrint,
@@ -149,11 +150,17 @@ export function OfflineDocumentDetail({
   kind: DocKind;
   companyId: string;
   companyName?: string;
+  companyPhone?: string | null;
   documentId: string;
   listHref: string;
   autoPrint?: boolean;
 }) {
   const [doc, setDoc] = useState<Record<string, unknown> | null>(null);
+  const [partyContact, setPartyContact] = useState<{
+    phone: string;
+    mobile: string;
+    owner: string;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -179,6 +186,37 @@ export function OfflineDocumentDetail({
       cancelled = true;
     };
   }, [kind, companyId, documentId]);
+
+  useEffect(() => {
+    if (!doc) {
+      setPartyContact(null);
+      return;
+    }
+    const payload = asRecord(doc.payload) || {};
+    const partyId = String(doc.party_id || payload.party_id || "");
+    if (!partyId) {
+      setPartyContact(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const rows = await getCachedRows("parties", companyId);
+        const party = rows.find((row) => String(row.id || "") === partyId);
+        if (cancelled || !party) return;
+        setPartyContact({
+          phone: String(party.phone || ""),
+          mobile: String(party.mobile || ""),
+          owner: String(party.contact_person || ""),
+        });
+      } catch {
+        /* party catalog not cached yet */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [doc, companyId]);
 
   const lines = useMemo(() => (doc ? pickItems(doc) : []), [doc]);
 
@@ -254,16 +292,19 @@ export function OfflineDocumentDetail({
     const partyOwner = String(
       partiesObj.contact_person ||
         payload.contact_person ||
+        partyContact?.owner ||
         "",
     );
     const partyPhone = String(
       partiesObj.phone ||
         payload.phone ||
+        partyContact?.phone ||
         "",
     );
     const partyMobile = String(
       partiesObj.mobile ||
         payload.mobile ||
+        partyContact?.mobile ||
         "",
     );
     const sector = String(
@@ -305,7 +346,7 @@ export function OfflineDocumentDetail({
       paymentType,
       totals,
     };
-  }, [doc, documentId]);
+  }, [doc, documentId, partyContact]);
 
   if (loading) {
     return (
@@ -338,7 +379,7 @@ export function OfflineDocumentDetail({
       <div className="animate-rise">
         <SaleInvoicePrint
           companyName={companyName || "Company"}
-          companyPhone={(doc.company_phone as string) || null}
+          companyPhone={companyPhone || (doc.company_phone as string) || null}
           docNo={view.docNo}
           date={view.date}
           printedAt={(doc.created_at as string) || null}
@@ -384,6 +425,7 @@ export function OfflineDocumentDetail({
       <PrintDocument
         title={TITLE_BY_KIND[kind]}
         companyName={companyName || "Company"}
+        companyPhone={companyPhone || (doc.company_phone as string) || null}
         docNo={view.docNo}
         date={view.date}
         partyName={view.partyName || null}

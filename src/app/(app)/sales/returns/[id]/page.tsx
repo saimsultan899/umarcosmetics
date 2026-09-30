@@ -128,6 +128,7 @@ export default async function SaleReturnDetailPage({
     <PrintDocument
       companyName={company.name}
       companyAddress={[company.address, company.city].filter(Boolean).join(", ")}
+      companyPhone={company.phone}
       title="Sale Return"
       docNo={doc.return_no}
       date={doc.return_date}

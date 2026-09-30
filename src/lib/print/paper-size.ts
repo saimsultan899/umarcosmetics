@@ -208,8 +208,16 @@ export function printWithAutoPaper(paper?: PrintPaperSize) {
 <style>
 ${collectedCss()}
 @page { ${pageRule(next)} }
+html, body {
+  margin: 0 !important;
+  padding: 0 !important;
+  background: #fff !important;
+  background-color: #fff !important;
+}
 @media print {
   .print-sheet, .print-sheet * { visibility: visible !important; }
+  /* Drop the named page so Chrome cannot fall back to A4 portrait. */
+  .print-sheet { page: auto !important; background: #fff !important; }
 }
 </style>
 </head>

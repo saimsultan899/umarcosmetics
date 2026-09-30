@@ -4,6 +4,7 @@ import { ChartCard } from "@/components/analytics/chart-card";
 import { DonutChart, RankBars } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { ReportTable } from "@/components/reports/report-table";
+import { StockReportFilters } from "@/components/reports/stock-report-filters";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { formatUomCompact } from "@/lib/pricing/uom";
 import { formatPkr } from "@/lib/utils";
@@ -102,10 +103,13 @@ export function OfflineStockReportsPage({
       const wid = String(r.warehouse_id || "");
       const whName = whMap.get(wid) || "—";
       const qty = Number(r.qty || 0);
-      const rate = Number(prod?.purchase_rate || prod?.purchase_price || 0);
+      const purchaseRate = Number(prod?.purchase_rate || prod?.purchase_price || 0);
+      const retailRate = Number(prod?.retail_rate || 0);
       const packing = Number(prod?.packing || 1);
+      const reorder = Number(prod?.reorder_level || 0);
 
       return {
+        _warehouseId: wid,
         Company: whName,
         Code: prod?.code || "—",
         Product: prod?.name_en || "—",
@@ -114,11 +118,29 @@ export function OfflineStockReportsPage({
           unitType: prod?.unit_type as string | undefined,
           baseUnit: prod?.base_unit as string | undefined,
         }),
-        "Unit rate": rate,
-        Value: Math.round(qty * rate),
+        Reorder: reorder,
+        "Purchase rate": purchaseRate,
+        "Retail rate": retailRate,
+        "Value (purchase)": Math.round(qty * purchaseRate),
+        "Value (retail)": Math.round(qty * retailRate),
+        Status: reorder > 0 && qty <= reorder ? "Low" : "OK",
       };
     });
   }, [stock, prodMap, whMap]);
+
+  const companyFilter = urlSp.get("company") || "";
+  const statusFilter = urlSp.get("status") || "";
+  const stockFilter = urlSp.get("stock") || "";
+
+  const filteredBalances = useMemo(() => {
+    return balanceRows.filter((row) => {
+      if (companyFilter && row._warehouseId !== companyFilter) return false;
+      if (statusFilter && row.Status.toLowerCase() !== statusFilter) return false;
+      if (stockFilter === "in" && Number(row.Qty) <= 0) return false;
+      if (stockFilter === "zero" && Number(row.Qty) !== 0) return false;
+      return true;
+    });
+  }, [balanceRows, companyFilter, statusFilter, stockFilter]);
 
   const lowStockRows = useMemo(() => {
     return products
@@ -160,19 +182,23 @@ export function OfflineStockReportsPage({
   }, [movements, prodMap, whMap]);
 
   const totalProducts = useMemo(() => {
-    return stock.filter((r) => Number(r.qty) > 0).length;
-  }, [stock]);
+    return filteredBalances.filter((r) => Number(r.Qty) > 0).length;
+  }, [filteredBalances]);
 
   const totalUnits = useMemo(() => {
-    return stock.reduce((s, r) => s + Number(r.qty || 0), 0);
-  }, [stock]);
+    return filteredBalances.reduce((s, r) => s + Number(r.Qty || 0), 0);
+  }, [filteredBalances]);
 
-  const totalValue = useMemo(() => {
-    return balanceRows.reduce((s, r) => s + Number(r.Value || 0), 0);
-  }, [balanceRows]);
+  const totalPurchaseValue = useMemo(() => {
+    return filteredBalances.reduce((s, r) => s + Number(r["Value (purchase)"] || 0), 0);
+  }, [filteredBalances]);
+
+  const totalRetailValue = useMemo(() => {
+    return filteredBalances.reduce((s, r) => s + Number(r["Value (retail)"] || 0), 0);
+  }, [filteredBalances]);
 
   const topProducts = useMemo(() => {
-    return balanceRows
+    return filteredBalances
       .filter((r) => Number(r.Qty) > 0)
       .sort((a, b) => Number(b.Qty) - Number(a.Qty))
       .slice(0, 6)
@@ -180,18 +206,18 @@ export function OfflineStockReportsPage({
         name: String(r.Product),
         value: Number(r.Qty),
       }));
-  }, [balanceRows]);
+  }, [filteredBalances]);
 
   const valueByCompany = useMemo(() => {
     const map = new Map<string, number>();
-    for (const r of balanceRows) {
+    for (const r of filteredBalances) {
       const c = String(r.Company || "Unassigned");
-      map.set(c, (map.get(c) || 0) + Number(r.Value || 0));
+      map.set(c, (map.get(c) || 0) + Number(r["Value (purchase)"] || 0));
     }
     return [...map.entries()]
       .sort((a, b) => b[1] - a[1])
       .map(([name, value]) => ({ name, value }));
-  }, [balanceRows]);
+  }, [filteredBalances]);
 
   if (loading) {
     return (
@@ -241,6 +267,12 @@ export function OfflineStockReportsPage({
         ))}
       </div>
 
+      <StockReportFilters
+        companies={warehouses
+          .filter((w) => w.id)
+          .map((w) => ({ id: String(w.id), name: String(w.name || "Company") }))}
+      />
+
       <StatsGrid>
         <StatCard
           label="Total SKUs in stock"
@@ -255,7 +287,7 @@ export function OfflineStockReportsPage({
           value={totalUnits}
           format="number"
           icon={Boxes}
-          hint={`Valued at ${formatPkr(totalValue)}`}
+          hint={`Purchase ${formatPkr(totalPurchaseValue)} · Retail ${formatPkr(totalRetailValue)}`}
         />
         <StatCard
           label="Low stock alerts"
@@ -271,8 +303,8 @@ export function OfflineStockReportsPage({
         <ChartCard title="Stock valuation by company" subtitle="Current inventory cost">
           <DonutChart
             data={valueByCompany}
-            centerLabel="Valuation"
-            centerValue={formatPkr(totalValue)}
+            centerLabel="Purchase"
+            centerValue={formatPkr(totalPurchaseValue)}
           />
         </ChartCard>
         <ChartCard
@@ -289,7 +321,7 @@ export function OfflineStockReportsPage({
           title="Current stock balances"
           companyName={companyName}
           subtitle={`${balanceRows.length} stock balance records · Total units ${totalUnits.toLocaleString()}`}
-          rows={balanceRows}
+          rows={filteredBalances}
           filename="stock-balances"
         />
       ) : view === "ledger" ? (

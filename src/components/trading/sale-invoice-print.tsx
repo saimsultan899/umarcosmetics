@@ -404,6 +404,9 @@ export function SaleInvoicePrint({
           ) : (
             <div className="si-title">Sale Invoice</div>
           )}
+          {_companyPhone ? (
+            <div className="si-company-line">{_companyPhone}</div>
+          ) : null}
         </div>
 
         <div className="si-meta">

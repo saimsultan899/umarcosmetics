@@ -52,7 +52,7 @@ export default async function ExpiryReceiptDetailPage({
 
   const { data: doc } = await supabase
     .from("expiry_receipts")
-    .select("*, parties(name_en, party_code)")
+    .select("*, parties(name_en, party_code, phone, mobile)")
     .eq("id", id)
     .eq("company_id", company.id)
     .maybeSingle();
@@ -71,12 +71,15 @@ export default async function ExpiryReceiptDetailPage({
     <PrintDocument
       companyName={company.name}
       companyAddress={[company.address, company.city].filter(Boolean).join(", ")}
+      companyPhone={company.phone}
       title="Expiry Warehouse — Customer Return"
       docNo={doc.receipt_no}
       date={doc.receipt_date}
       printedAt={doc.created_at}
       partyName={party?.name_en}
       partyCode={party?.party_code}
+      partyPhone={party?.phone}
+      partyMobile={party?.mobile}
       extraMeta={
         doc.period_from && doc.period_to
           ? [

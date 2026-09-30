@@ -2,6 +2,7 @@ import { ChartCard } from "@/components/analytics/chart-card";
 import { DonutChart, RankBars } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { ReportTable } from "@/components/reports/report-table";
+import { StockReportFilters } from "@/components/reports/stock-report-filters";
 import { requireCompanyContext } from "@/lib/auth";
 import { formatUomCompact } from "@/lib/pricing/uom";
 import { formatPkr } from "@/lib/utils";
@@ -11,10 +12,18 @@ import Link from "next/link";
 export default async function StockReportPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{
+    view?: string;
+    company?: string;
+    status?: string;
+    stock?: string;
+  }>;
 }) {
   const sp = await searchParams;
   const view = sp.view || "balances";
+  const companyFilter = sp.company || "";
+  const statusFilter = sp.status === "low" || sp.status === "ok" ? sp.status : "";
+  const stockFilter = sp.stock === "in" || sp.stock === "zero" ? sp.stock : "";
   const ctx = await requireCompanyContext();
   const { company, offline } = ctx;
 
@@ -37,13 +46,13 @@ export default async function StockReportPage({
     await Promise.all([
       supabase
         .from("stock_balances")
-        .select("qty, products(code, name_en, reorder_level, purchase_rate, packing, unit_type, base_unit), warehouses(name)")
+        .select("qty, warehouse_id, products(code, name_en, reorder_level, purchase_rate, retail_rate, packing, unit_type, base_unit), warehouses(id, name)")
         .eq("company_id", company.id)
         .order("qty", { ascending: false })
         .limit(1000),
       supabase
         .from("stock_movements")
-        .select("created_at, move_type, qty, products(code, name_en, packing, unit_type, base_unit), warehouses(name)")
+        .select("created_at, move_type, qty, warehouse_id, products(code, name_en, packing, unit_type, base_unit), warehouses(id, name)")
         .eq("company_id", company.id)
         .order("created_at", { ascending: false })
         .limit(200),
@@ -68,9 +77,12 @@ export default async function StockReportPage({
     const product = Array.isArray(r.products) ? r.products[0] : r.products;
     const warehouse = Array.isArray(r.warehouses) ? r.warehouses[0] : r.warehouses;
     const qty = Number(r.qty);
-    const rate = Number(product?.purchase_rate || 0);
+    const purchaseRate = Number(product?.purchase_rate || 0);
+    const retailRate = Number(product?.retail_rate || 0);
     const packing = Number(product?.packing || 1);
+    const reorder = Number(product?.reorder_level || 0);
     return {
+      _warehouseId: String(r.warehouse_id || warehouse?.id || ""),
       Company: warehouse?.name || "—",
       Code: product?.code || "—",
       Product: product?.name_en || "—",
@@ -79,17 +91,17 @@ export default async function StockReportPage({
         unitType: product?.unit_type,
         baseUnit: product?.base_unit,
       }),
-      Reorder: Number(product?.reorder_level || 0),
-      "Value (cost)": qty * rate,
-      Status:
-        Number(product?.reorder_level || 0) > 0 &&
-        qty <= Number(product?.reorder_level || 0)
-          ? "Low"
-          : "OK",
+      Reorder: reorder,
+      "Purchase rate": purchaseRate,
+      "Retail rate": retailRate,
+      "Value (purchase)": qty * purchaseRate,
+      "Value (retail)": qty * retailRate,
+      Status: reorder > 0 && qty <= reorder ? "Low" : "OK",
     };
   });
 
   const analysisRows = (products || []).map((p) => ({
+    _warehouseId: String(p.default_warehouse_id || ""),
     Company: companyByWarehouse.get(p.default_warehouse_id) || "—",
     Code: p.code,
     Product: p.name_en,
@@ -109,6 +121,7 @@ export default async function StockReportPage({
     const warehouse = Array.isArray(m.warehouses) ? m.warehouses[0] : m.warehouses;
     const qty = Number(m.qty);
     return {
+      _warehouseId: String(m.warehouse_id || warehouse?.id || ""),
       When: new Date(m.created_at).toLocaleString(),
       Type: String(m.move_type).replaceAll("_", " "),
       Company: warehouse?.name || "—",
@@ -122,12 +135,40 @@ export default async function StockReportPage({
     };
   });
 
-  const activeRows =
+  function matchesCompany(row: { _warehouseId?: string }) {
+    return !companyFilter || row._warehouseId === companyFilter;
+  }
+
+  function matchesStockList(row: {
+    _warehouseId?: string;
+    Qty?: number;
+    Status?: string;
+  }) {
+    if (!matchesCompany(row)) return false;
+    if (statusFilter && row.Status?.toLowerCase() !== statusFilter) return false;
+    if (stockFilter === "in" && Number(row.Qty || 0) <= 0) return false;
+    if (stockFilter === "zero" && Number(row.Qty || 0) !== 0) return false;
+    return true;
+  }
+
+  const filteredBalances = balanceRows.filter((row) => matchesStockList(row));
+
+  const activeRows = (
     view === "analysis"
-      ? analysisRows
+      ? analysisRows.filter((row) => matchesCompany(row))
       : view === "movements"
-        ? movementRows
-        : balanceRows;
+        ? movementRows.filter((row) => matchesCompany(row))
+        : filteredBalances
+  );
+
+  function reportHref(nextView: string) {
+    const params = new URLSearchParams();
+    params.set("view", nextView);
+    if (companyFilter) params.set("company", companyFilter);
+    if (statusFilter) params.set("status", statusFilter);
+    if (stockFilter) params.set("stock", stockFilter);
+    return `/reports/stock?${params.toString()}`;
+  }
 
   const title =
     view === "analysis"
@@ -155,7 +196,7 @@ export default async function StockReportPage({
         ].map(([key, label]) => (
           <Link
             key={key}
-            href={`/reports/stock?view=${key}`}
+            href={reportHref(key)}
             className={`rounded-full px-3 py-1.5 text-sm font-medium ${
               view === key
                 ? "bg-[var(--brand)] !text-white"
@@ -173,17 +214,23 @@ export default async function StockReportPage({
         </Link>
       </div>
 
+      <StockReportFilters companies={warehouses || []} />
+
       {(() => {
-        const low = balanceRows.filter((r) => r.Status === "Low").length;
-        const value = balanceRows.reduce(
-          (s, r) => s + Number(r["Value (cost)"] || 0),
+        const low = filteredBalances.filter((r) => r.Status === "Low").length;
+        const purchaseValue = filteredBalances.reduce(
+          (s, r) => s + Number(r["Value (purchase)"] || 0),
+          0,
+        );
+        const retailValue = filteredBalances.reduce(
+          (s, r) => s + Number(r["Value (retail)"] || 0),
           0,
         );
         const byWh = new Map<string, number>();
-        for (const r of balanceRows) {
+        for (const r of filteredBalances) {
           byWh.set(
             String(r.Company),
-            (byWh.get(String(r.Company)) || 0) + Number(r["Value (cost)"] || 0),
+            (byWh.get(String(r.Company)) || 0) + Number(r["Value (purchase)"] || 0),
           );
         }
         const whBars = [...byWh.entries()]
@@ -195,10 +242,10 @@ export default async function StockReportPage({
             <StatsGrid>
               <StatCard
                 label="SKU rows"
-                value={balanceRows.length}
+                value={filteredBalances.length}
                 format="number"
                 icon={Package}
-                hint="Company × product lines"
+                hint="Matches company, status, and stock filters"
               />
               <StatCard
                 label="Low stock"
@@ -209,12 +256,19 @@ export default async function StockReportPage({
                 hint="Need refill before market shortages"
               />
               <StatCard
-                label="Stock value (cost)"
-                value={value}
+                label="Purchase value"
+                value={purchaseValue}
                 format="money"
                 icon={Boxes}
                 tone="brand"
-                hint="Inventory capital on hand"
+                hint="On-hand qty × purchase rate"
+              />
+              <StatCard
+                label="Retail value"
+                value={retailValue}
+                format="money"
+                icon={Boxes}
+                hint="On-hand qty × retail rate"
               />
               <StatCard
                 label="Movements shown"
@@ -228,17 +282,17 @@ export default async function StockReportPage({
               <ChartCard title="Stock health" subtitle="OK vs low lines">
                 <DonutChart
                   data={[
-                    { name: "OK", value: Math.max(balanceRows.length - low, 0) },
+                    { name: "OK", value: Math.max(filteredBalances.length - low, 0) },
                     { name: "Low", value: low },
                   ].filter((x) => x.value > 0)}
-                  centerValue={formatPkr(value)}
-                  centerLabel="Cost value"
+                  centerValue={formatPkr(purchaseValue)}
+                  centerLabel="Purchase"
                 />
               </ChartCard>
               <ChartCard
                 className="lg:col-span-2"
                 title="Value by company"
-                subtitle="Where inventory capital sits"
+                subtitle="Purchase value in the current filter"
               >
                 <RankBars data={whBars} />
               </ChartCard>

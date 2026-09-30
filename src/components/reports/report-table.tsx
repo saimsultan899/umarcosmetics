@@ -33,7 +33,7 @@ function formatCell(key: string, value: unknown) {
   if (value == null || value === "") return "—";
   if (
     typeof value === "number" &&
-    /amount|total|paid|profit|cost|rate|discount|subtotal|cash|credit|balance|salary|expense|recovered|collected|sales|debit/i.test(
+    /amount|total|paid|profit|cost|value|rate|discount|subtotal|cash|credit|balance|salary|expense|recovered|collected|sales|debit/i.test(
       key,
     )
   ) {

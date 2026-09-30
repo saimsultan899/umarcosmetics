@@ -50,6 +50,7 @@ export function ProductsView({
     stats: {
       total: 0,
       stockValue: 0,
+      purchaseValue: 0,
       withReorder: 0,
       lowStock: 0,
       makerBars: [],

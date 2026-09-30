@@ -174,12 +174,19 @@ export function ProductsTable({
           hint="Matches current search / chips"
         />
         <StatCard
-          label="Stock value (page)"
+          label="Retail value"
           value={stats.stockValue}
           format="money"
           icon={Tags}
           tone="ok"
-          hint="Current page catalog value"
+          hint="Filtered stock × retail rate"
+        />
+        <StatCard
+          label="Purchase value"
+          value={stats.purchaseValue}
+          format="money"
+          icon={Tags}
+          hint="Filtered stock × purchase rate"
         />
         <button
           type="button"
@@ -209,7 +216,7 @@ export function ProductsTable({
           <DonutChart
             data={stats.health}
             centerValue={formatPkr(stats.stockValue)}
-            centerLabel="Value"
+            centerLabel="Retail"
           />
         </ChartCard>
         <ChartCard title="By company" subtitle="Current page">

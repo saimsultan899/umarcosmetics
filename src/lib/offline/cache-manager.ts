@@ -484,7 +484,7 @@ const STORE_FETCH_CONFIG: Record<string, FetchConfig> = {
   sale_invoices: {
     fetch: (s, cid) =>
       s.from("sale_invoices")
-        .select("*, parties(name_en, party_code, route, head, city, address), warehouses(name), sale_invoice_items(*)")
+        .select("*, parties(name_en, party_code, route, head, city, address, phone, mobile, contact_person), warehouses(name), sale_invoice_items(*)")
         .eq("company_id", cid)
         .order("invoice_date", { ascending: false })
         .order("created_at", { ascending: false })
@@ -493,7 +493,7 @@ const STORE_FETCH_CONFIG: Record<string, FetchConfig> = {
   purchase_invoices: {
     fetch: (s, cid) =>
       s.from("purchase_invoices")
-        .select("*, parties(name_en, party_code, route, head, city, address), warehouses(name), purchase_invoice_items(*)")
+        .select("*, parties(name_en, party_code, route, head, city, address, phone, mobile, contact_person), warehouses(name), purchase_invoice_items(*)")
         .eq("company_id", cid)
         .order("invoice_date", { ascending: false })
         .order("created_at", { ascending: false })
@@ -502,7 +502,7 @@ const STORE_FETCH_CONFIG: Record<string, FetchConfig> = {
   sale_returns: {
     fetch: (s, cid) =>
       s.from("sale_returns")
-        .select("*, parties(name_en, party_code, route, head, city, address), warehouses(name), sale_return_items(*)")
+        .select("*, parties(name_en, party_code, route, head, city, address, phone, mobile, contact_person), warehouses(name), sale_return_items(*)")
         .eq("company_id", cid)
         .order("return_date", { ascending: false })
         .limit(1000),
@@ -510,7 +510,7 @@ const STORE_FETCH_CONFIG: Record<string, FetchConfig> = {
   purchase_returns: {
     fetch: (s, cid) =>
       s.from("purchase_returns")
-        .select("*, parties(name_en, party_code, route, head, city, address), warehouses(name), purchase_return_items(*)")
+        .select("*, parties(name_en, party_code, route, head, city, address, phone, mobile, contact_person), warehouses(name), purchase_return_items(*)")
         .eq("company_id", cid)
         .order("return_date", { ascending: false })
         .limit(1000),
@@ -542,7 +542,7 @@ const STORE_FETCH_CONFIG: Record<string, FetchConfig> = {
   gate_passes: {
     fetch: (s, cid) =>
       s.from("gate_passes")
-        .select("*, gate_pass_items(*), parties(name_en, party_code), warehouses(name)")
+        .select("*, gate_pass_items(*), parties(name_en, party_code, phone, mobile, contact_person), warehouses(name)")
         .eq("company_id", cid)
         .order("pass_date", { ascending: false })
         .limit(1000),
@@ -558,7 +558,7 @@ const STORE_FETCH_CONFIG: Record<string, FetchConfig> = {
   expiry_receipts: {
     fetch: (s, cid) =>
       s.from("expiry_receipts")
-        .select("*, parties(name_en, party_code, route, head, city, address), expiry_receipt_items(*)")
+        .select("*, parties(name_en, party_code, route, head, city, address, phone, mobile, contact_person), expiry_receipt_items(*)")
         .eq("company_id", cid)
         .order("receipt_date", { ascending: false })
         .limit(1000),
@@ -566,7 +566,7 @@ const STORE_FETCH_CONFIG: Record<string, FetchConfig> = {
   expiry_claims: {
     fetch: (s, cid) =>
       s.from("expiry_claims")
-        .select("*, parties(name_en, party_code, route, head, city, address), warehouses(name), expiry_claim_items(*)")
+        .select("*, parties(name_en, party_code, route, head, city, address, phone, mobile, contact_person), warehouses(name), expiry_claim_items(*)")
         .eq("company_id", cid)
         .order("claim_date", { ascending: false })
         .limit(1000),
