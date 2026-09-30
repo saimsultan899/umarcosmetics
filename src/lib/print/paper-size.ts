@@ -48,10 +48,10 @@ function paperCss(paper: PrintPaperSize) {
   return `
 @page { ${active} }
 @page paper-thermal { size: 80mm auto; margin: 0; }
-@page paper-a5 { size: A5 landscape; margin: 4mm 2mm; }
+@page paper-a5 { size: 210mm 148mm; margin: 4mm 2mm; }
 @page paper-a4 { size: A4 portrait; margin: 8mm 10mm; }
 @page thermal-80 { size: 80mm auto; margin: 0; }
-@page si-half-page { ${paper === "a5" ? active : "size: A5 landscape; margin: 4mm 2mm;"} }
+@page si-half-page { ${paper === "a5" ? active : "size: 210mm 148mm; margin: 4mm 2mm;"} }
 @page invoice-page { ${paper === "a4" ? active : paper === "a5" ? active : "size: A4 portrait; margin: 8mm 10mm;"} }
 `;
 }
@@ -143,7 +143,7 @@ function collectedCss() {
 
 function pageRule(paper: PrintPaperSize) {
   if (paper === "thermal") return "size: 80mm auto; margin: 0;";
-  if (paper === "a5") return "size: A5 landscape; margin: 4mm 2mm;";
+  if (paper === "a5") return "size: 210mm 148mm; margin: 4mm 2mm;";
   return "size: A4 portrait; margin: 8mm 10mm;";
 }
 
@@ -209,26 +209,7 @@ export function printWithAutoPaper(paper?: PrintPaperSize) {
 ${collectedCss()}
 @page { ${pageRule(next)} }
 @media print {
-  html, body {
-    margin: 0 !important;
-    padding: 0 !important;
-    height: auto !important;
-    min-height: 0 !important;
-    background: #fff !important;
-  }
-  body * { visibility: visible !important; }
   .print-sheet, .print-sheet * { visibility: visible !important; }
-  .print-sheet {
-    position: static !important;
-    left: auto !important;
-    top: auto !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    max-height: none !important;
-    height: auto !important;
-    margin: 0 !important;
-    overflow: visible !important;
-  }
 }
 </style>
 </head>

@@ -610,7 +610,7 @@ export const SERIES_CONFIG: Record<
   string,
   { prefix: string; pad: number; store: CacheStoreName }
 > = {
-  sale_invoice: { prefix: "SI-", pad: 0, store: "sale_invoices" },
+  sale_invoice: { prefix: "SI-", pad: 4, store: "sale_invoices" },
   purchase_invoice: { prefix: "PI-", pad: 0, store: "purchase_invoices" },
   sale_return: { prefix: "SR-", pad: 0, store: "sale_returns" },
   purchase_return: { prefix: "PR-", pad: 0, store: "purchase_returns" },
@@ -657,14 +657,43 @@ export async function allocateSequentialDocNo(
   const { prefix, pad, store } = cfg;
 
   let maxFound = 0;
+  let padWidth = pad;
 
-  // 1. Check local storage bookmark
+  // 1. Same counter the server uses (walk-in and other customers share it).
   const storageKey = `doc_seq_${companyId}_${prefix}`;
+  const padKey = `doc_pad_${companyId}_${prefix}`;
   if (typeof window !== "undefined" && window.localStorage) {
     const stored = parseInt(window.localStorage.getItem(storageKey) || "0", 10);
     if (Number.isFinite(stored) && stored > maxFound) {
       maxFound = stored;
     }
+    const storedPad = parseInt(window.localStorage.getItem(padKey) || "", 10);
+    if (Number.isFinite(storedPad) && storedPad > 0) padWidth = storedPad;
+  }
+
+  try {
+    const { isAppOnline } = await import("@/lib/offline/local-auth");
+    if (await isAppOnline()) {
+      const { createClient } = await import("@/lib/supabase/client");
+      const supabase = createClient();
+      const { data } = await supabase.rpc("peek_document_series", {
+        p_company_id: companyId,
+        p_series_type: mutationType,
+      });
+      const series = data as {
+        prefix?: string;
+        next_number?: number;
+        padding?: number;
+      } | null;
+      const nextNumber = Number(series?.next_number || 0);
+      if (Number.isFinite(nextNumber) && nextNumber - 1 > maxFound) {
+        maxFound = nextNumber - 1;
+      }
+      const serverPad = Number(series?.padding || 0);
+      if (Number.isFinite(serverPad) && serverPad > 0) padWidth = serverPad;
+    }
+  } catch (e) {
+    console.warn("[allocateSequentialDocNo] series peek failed:", e);
   }
 
   // 2. Check desktop SQLite if available
@@ -733,10 +762,11 @@ export async function allocateSequentialDocNo(
   if (typeof window !== "undefined" && window.localStorage) {
     try {
       window.localStorage.setItem(storageKey, String(nextNum));
+      window.localStorage.setItem(padKey, String(padWidth));
     } catch {}
   }
 
-  return `${prefix}${pad > 0 ? String(nextNum).padStart(pad, "0") : nextNum}`;
+  return `${prefix}${padWidth > 0 ? String(nextNum).padStart(padWidth, "0") : nextNum}`;
 }
 
 /**

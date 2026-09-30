@@ -30,7 +30,7 @@ export default async function PurchaseReturnDetailPage({
 
   const { data: doc } = await supabase
     .from("purchase_returns")
-    .select("*, parties(name_en, party_code), warehouses(name)")
+    .select("*, parties(name_en, party_code, phone, mobile), warehouses(name)")
     .eq("id", id)
     .eq("company_id", company.id)
     .maybeSingle();
@@ -52,6 +52,8 @@ export default async function PurchaseReturnDetailPage({
       date={doc.return_date}
       partyName={doc.parties?.name_en}
       partyCode={doc.parties?.party_code}
+      partyPhone={doc.parties?.phone}
+      partyMobile={doc.parties?.mobile}
       warehouseName={doc.warehouses?.name}
       lines={(items || []).map((i) => ({
         product_code: i.product_code,

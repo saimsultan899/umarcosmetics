@@ -79,14 +79,14 @@ async function printOptions(wc, paper) {
     color: !thermal,
     deviceName: "",
     scaleFactor: 100,
-    landscape: a5,
-    margins: { marginType: thermal || a5 ? "none" : "default" },
+    landscape: false,
+    margins: { marginType: thermal ? "none" : "default" },
   };
   if (thermal) {
     options.pageSize = await thermalPageSize(wc);
   } else if (a5) {
-    // A5 landscape = 210mm × 148mm (half-A4 slip).
-    options.pageSize = "A5";
+    // Same half-sheet box as the on-screen invoice (210×148mm). Do not rotate.
+    options.pageSize = { width: 210000, height: 148000 };
   } else {
     options.pageSize = "A4";
   }
@@ -99,13 +99,13 @@ async function pdfOptions(wc, paper) {
   const options = {
     printBackground: true,
     preferCSSPageSize: true,
-    landscape: a5,
-    margins: { marginType: thermal || a5 ? "none" : "default" },
+    landscape: false,
+    margins: { marginType: thermal ? "none" : "default" },
   };
   if (thermal) {
     options.pageSize = await thermalPageSize(wc);
   } else if (a5) {
-    options.pageSize = "A5";
+    options.pageSize = { width: 210000, height: 148000 };
   } else {
     options.pageSize = "A4";
   }

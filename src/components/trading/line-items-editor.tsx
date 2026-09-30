@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, type SelectHandle } from "@/components/ui/select";
 import { findProductByCodeOrBarcode } from "@/lib/barcode/match-product";
+import { getCachedRows } from "@/lib/offline/local-db";
+import { isAppOnline } from "@/lib/offline/local-auth";
 import { useBarcodeWedge } from "@/lib/barcode/use-barcode-wedge";
 import { focusField } from "@/lib/keyboard/enter-nav";
 import {
@@ -433,31 +435,63 @@ export const LineItemsEditor = forwardRef<
     );
   }
 
+  async function lookupCachedProduct(trimmed: string): Promise<Product | null> {
+    if (!companyId) return null;
+    const pools: Array<Product | Record<string, unknown>> = [];
+    try {
+      pools.push(...(await getCachedRows("products", companyId)));
+    } catch {
+      /* cache missing */
+    }
+    try {
+      const { hasLocalSqlite, localListMaster } = await import(
+        "@/lib/offline/sqlite-client"
+      );
+      if (hasLocalSqlite()) {
+        const res = await localListMaster("products", companyId, 20000);
+        if (Array.isArray(res.rows)) pools.push(...res.rows);
+      }
+    } catch {
+      /* sqlite missing */
+    }
+    return findProductByCodeOrBarcode(pools, trimmed);
+  }
+
   async function lookupProduct(raw: string): Promise<Product | null> {
     const trimmed = raw.trim();
     if (!trimmed) return null;
 
     const local = findProductByCodeOrBarcode(products, trimmed);
     if (local) return local;
+
+    const cached = await lookupCachedProduct(trimmed);
+    if (cached) return cached;
     if (!companyId) return null;
 
-    const supabase = createClient();
-    const { data } = await supabase.rpc("get_product_by_code", {
-      p_company_id: companyId,
-      p_code: trimmed,
-    });
-    const product = Array.isArray(data) ? data[0] : data;
-    if (product) return product as Product;
+    const online = await isAppOnline();
+    if (!online) return null;
 
-    const { data: barcodeRows } = await supabase
-      .from("products")
-      .select("*")
-      .eq("company_id", companyId)
-      .eq("is_active", true)
-      .eq("barcode", trimmed)
-      .limit(1);
-    const byBarcode = barcodeRows?.[0];
-    return (byBarcode as Product | undefined) ?? null;
+    try {
+      const supabase = createClient();
+      const { data } = await supabase.rpc("get_product_by_code", {
+        p_company_id: companyId,
+        p_code: trimmed,
+      });
+      const product = Array.isArray(data) ? data[0] : data;
+      if (product) return product as Product;
+
+      const { data: barcodeRows } = await supabase
+        .from("products")
+        .select("*")
+        .eq("company_id", companyId)
+        .eq("is_active", true)
+        .eq("barcode", trimmed)
+        .limit(1);
+      const byBarcode = barcodeRows?.[0];
+      return (byBarcode as Product | undefined) ?? null;
+    } catch {
+      return lookupCachedProduct(trimmed);
+    }
   }
 
   async function resolveProductCode(raw: string): Promise<Product | null> {

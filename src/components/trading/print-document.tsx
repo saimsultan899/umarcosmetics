@@ -77,6 +77,7 @@ export function PrintDocument({
   partyAddress,
   partyCity,
   partyPhone,
+  partyMobile,
   warehouseName,
   extraMeta,
   lines,
@@ -101,6 +102,8 @@ export function PrintDocument({
   partyAddress?: string | null;
   partyCity?: string | null;
   partyPhone?: string | null;
+  /** Shop / customer mobile. Shown with the owner number. */
+  partyMobile?: string | null;
   warehouseName?: string | null;
   extraMeta?: PrintMeta[];
   lines: PrintLine[];
@@ -203,7 +206,18 @@ export function PrintDocument({
               <div className="si-co">{partyAddress}</div>
             ) : null}
             {partyCity ? <div className="si-co">{partyCity}</div> : null}
-            {partyPhone ? <div className="si-co">Ph: {partyPhone}</div> : null}
+            {partyMobile ? (
+              <div>
+                <span className="si-k">Cust Mob No:</span>{" "}
+                <span className="si-v">{partyMobile}</span>
+              </div>
+            ) : null}
+            {partyPhone ? (
+              <div>
+                <span className="si-k">Owner No:</span>{" "}
+                <span className="si-v">{partyPhone}</span>
+              </div>
+            ) : null}
           </div>
           <div className="si-meta-right si-meta-block">
             <div>

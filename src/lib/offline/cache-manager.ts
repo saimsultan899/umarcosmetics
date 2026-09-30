@@ -330,6 +330,24 @@ export async function getDataWithFallback<T = Record<string, unknown>>(
     rows = cached || [];
   }
 
+  // SQLite product rows often keep barcode only inside an older payload.
+  // Prefer the cached barcode so offline scans match the online catalog.
+  if (storeName === "products" && cached?.length && rows.length) {
+    const barcodeById = new Map<string, string>();
+    for (const row of cached) {
+      const anyR = row as Record<string, unknown>;
+      const id = String(anyR.id || "");
+      const barcode = String(anyR.barcode || "").trim();
+      if (id && barcode) barcodeById.set(id, barcode);
+    }
+    rows = rows.map((row) => {
+      const anyR = row as Record<string, unknown>;
+      const id = String(anyR.id || "");
+      if (String(anyR.barcode || "").trim() || !barcodeById.has(id)) return row;
+      return { ...anyR, barcode: barcodeById.get(id) } as T;
+    });
+  }
+
   return {
     data: opts?.filter ? rows.filter(opts.filter) : rows,
     source: "cache",

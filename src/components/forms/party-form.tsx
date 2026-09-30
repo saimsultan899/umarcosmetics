@@ -366,11 +366,11 @@ export function PartyForm({
         <Input value={form.address} onChange={(e) => set("address", e.target.value)} />
       </div>
       <div>
-        <Label>Mobile</Label>
+        <Label>Shop number</Label>
         <Input value={form.mobile} onChange={(e) => set("mobile", e.target.value)} />
       </div>
       <div>
-        <Label>Phone</Label>
+        <Label>Owner number</Label>
         <Input value={form.phone} onChange={(e) => set("phone", e.target.value)} />
       </div>
       <div>

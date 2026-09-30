@@ -9,7 +9,10 @@ import {
   writeWalkInSlip,
   type WalkInSlipLayout,
 } from "@/lib/print/walk-in-slip";
-import { printThermalSlip } from "@/lib/print/thermal-page";
+import {
+  holdThermalZeroMargin,
+  printThermalSlip,
+} from "@/lib/print/thermal-page";
 import { printWithAutoPaper } from "@/lib/print/paper-size";
 import { formatReportInvNo } from "@/lib/reports/helpers";
 import { formatNumber, formatPkr } from "@/lib/utils";
@@ -175,6 +178,11 @@ export function SaleInvoicePrint({
   useEffect(() => {
     installDesktopPrint();
   }, []);
+
+  useEffect(() => {
+    if (!showThermal) return;
+    return holdThermalZeroMargin();
+  }, [showThermal]);
 
   function printCurrent() {
     if (showThermal) {
@@ -420,7 +428,7 @@ export function SaleInvoicePrint({
                 <span className="si-v">{customerNo}</span>
               </div>
             ) : null}
-            {ownerNo && ownerNo !== customerNo ? (
+            {ownerNo ? (
               <div>
                 <span className="si-k">Owner No:</span>{" "}
                 <span className="si-v">{ownerNo}</span>

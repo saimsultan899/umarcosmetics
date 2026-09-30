@@ -35,7 +35,7 @@ export default async function SaleReturnDetailPage({
 
   const { data: doc } = await supabase
     .from("sale_returns")
-    .select("*, parties(name_en, party_code), warehouses(name)")
+    .select("*, parties(name_en, party_code, phone, mobile), warehouses(name)")
     .eq("id", id)
     .eq("company_id", company.id)
     .maybeSingle();
@@ -119,8 +119,8 @@ export default async function SaleReturnDetailPage({
 
   const party = one(
     doc.parties as
-      | { name_en?: string; party_code?: string }
-      | { name_en?: string; party_code?: string }[]
+      | { name_en?: string; party_code?: string; phone?: string | null; mobile?: string | null }
+      | { name_en?: string; party_code?: string; phone?: string | null; mobile?: string | null }[]
       | null,
   );
 
@@ -133,6 +133,8 @@ export default async function SaleReturnDetailPage({
       date={doc.return_date}
       partyName={party?.name_en}
       partyCode={party?.party_code}
+      partyPhone={party?.phone}
+      partyMobile={party?.mobile}
       warehouseName={companyLabel}
       lines={lines.map(({ brandCompany: _brand, ...line }) => line)}
       totals={[

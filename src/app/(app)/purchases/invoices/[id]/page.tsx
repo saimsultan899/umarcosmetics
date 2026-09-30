@@ -30,7 +30,7 @@ export default async function PurchaseInvoiceDetailPage({
 
   const { data: invoice } = await supabase
     .from("purchase_invoices")
-    .select("*, parties(name_en, party_code, address, city, phone), warehouses(name)")
+    .select("*, parties(name_en, party_code, address, city, phone, mobile), warehouses(name)")
     .eq("id", id)
     .eq("company_id", company.id)
     .maybeSingle();
@@ -69,6 +69,7 @@ export default async function PurchaseInvoiceDetailPage({
         partyAddress={party?.address || null}
         partyCity={party?.city || null}
         partyPhone={party?.phone}
+        partyMobile={party?.mobile}
         warehouseName={warehouse?.name}
         extraMeta={
           invoice.supplier_bill_no

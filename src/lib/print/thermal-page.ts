@@ -12,6 +12,7 @@
 import { preparePrintPaper } from "@/lib/print/paper-size";
 
 const STYLE_ID = "umar-thermal-page-size";
+const HOLD_STYLE_ID = "umar-thermal-zero-margin";
 
 /** ~2 line feeds before the cutter live in `.th-cut-feed` (2em). Do not add more. */
 
@@ -168,21 +169,32 @@ function installThermalPageStyle(pageMm: number) {
   removeThermalPageStyle();
   const style = document.createElement("style");
   style.id = STYLE_ID;
-  // Prefer auto; inject measured height as a fallback for Chromium/Electron
-  // drivers that ignore `auto` and otherwise default to a tall roll.
+  // One unnamed @page, appended last. Chrome's Margins = Default uses this
+  // margin. The stylesheet's first rule is the A4 invoice margin (10mm), and
+  // Default keeps that gap unless this zero margin replaces it.
   style.textContent = `
 @media print {
   @page {
-    size: 80mm auto;
-    margin: 0;
-  }
-  @page thermal-80 {
     size: 80mm ${pageMm}mm;
     margin: 0;
   }
 }
 `;
   document.head.appendChild(style);
+}
+
+/** While the thermal slip is on screen, Default margins already mean no top gap. */
+export function holdThermalZeroMargin() {
+  document.getElementById(HOLD_STYLE_ID)?.remove();
+  const style = document.createElement("style");
+  style.id = HOLD_STYLE_ID;
+  style.textContent = `
+@media print {
+  @page { size: 80mm auto; margin: 0; }
+}
+`;
+  document.head.appendChild(style);
+  return () => document.getElementById(HOLD_STYLE_ID)?.remove();
 }
 
 function receiptHtml(inner: string, pageMm: number) {
@@ -199,6 +211,38 @@ function receiptHtml(inner: string, pageMm: number) {
 </head>
 <body><div class="slip">${inner}<div class="th-cut-feed" aria-hidden="true"></div></div></body>
 </html>`;
+}
+
+function printViaCleanWindow(slip: HTMLElement) {
+  const popup = window.open("", "_blank", "popup,width=420,height=720");
+  if (!popup) return false;
+
+  const inner = slip.innerHTML;
+  const publish = (pageMm: number) => {
+    popup.document.open();
+    popup.document.write(receiptHtml(inner, pageMm));
+    popup.document.close();
+  };
+
+  publish(400);
+  const painted = popup.document.querySelector<HTMLElement>(".slip");
+  const pageMm = painted
+    ? pxToPageMm(painted.scrollHeight || painted.offsetHeight || 1)
+    : 80;
+  publish(pageMm);
+
+  const cleanup = () => {
+    try {
+      popup.close();
+    } catch {
+      /* ignore */
+    }
+  };
+  popup.addEventListener("afterprint", cleanup, { once: true });
+  window.setTimeout(cleanup, 60_000);
+  popup.focus();
+  popup.print();
+  return true;
 }
 
 function printViaIframe(slip: HTMLElement) {
@@ -286,6 +330,9 @@ export function printThermalSlip(source?: HTMLElement | null) {
     return;
   }
 
+  // Own document, one @page { margin: 0 }. Chrome's Default then matches
+  // that margin, so the shop name starts at the top.
+  if (printViaCleanWindow(slip)) return;
   if (!printViaIframe(slip)) {
     printViaDesktopShell(slip, slipHeightMm(slip));
   }

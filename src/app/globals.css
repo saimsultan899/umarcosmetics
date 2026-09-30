@@ -2447,9 +2447,9 @@ button[aria-haspopup="listbox"]:focus-visible {
     margin: 5mm 2mm;
   }
 
-  /* Half-A4 slip = A5 landscape (210×148mm). Keeps driver from defaulting to A4. */
+  /* Half-A4 slip: same box as before (210mm wide, top 148mm). Not rotated. */
   @page si-half-page {
-    size: A5 landscape;
+    size: 210mm 148mm;
     margin: 4mm 2mm;
   }
 

@@ -387,6 +387,9 @@ export function OfflineDocumentDetail({
         docNo={view.docNo}
         date={view.date}
         partyName={view.partyName || null}
+        partyCode={view.partyCode || null}
+        partyPhone={view.partyPhone || null}
+        partyMobile={view.partyMobile || null}
         lines={lines}
         totals={view.totals}
         autoPrint={autoPrint}
