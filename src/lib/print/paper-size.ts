@@ -3,7 +3,7 @@
  * not leave A4/A5/Thermal up to the user (wrong size breaks the layout).
  *
  * - thermal-80 / thermal-print-mode → 80mm roll
- * - si-half / cdoc--half / doc--half → A5 landscape (same footprint as half A4)
+ * - si-half / cdoc--half / doc--half → A5 portrait; the wide slip is rotated onto the long edge
  * - everything else → A4 portrait
  */
 
@@ -48,10 +48,10 @@ function paperCss(paper: PrintPaperSize) {
   return `
 @page { ${active} }
 @page paper-thermal { size: 80mm auto; margin: 0; }
-@page paper-a5 { size: 210mm 148mm; margin: 4mm 2mm; }
+@page paper-a5 { size: 148mm 210mm; margin: 0; }
 @page paper-a4 { size: A4 portrait; margin: 8mm 10mm; }
 @page thermal-80 { size: 80mm auto; margin: 0; }
-@page si-half-page { ${paper === "a5" ? active : "size: 210mm 148mm; margin: 4mm 2mm;"} }
+@page si-half-page { ${paper === "a5" ? active : "size: 148mm 210mm; margin: 0;"} }
 @page invoice-page { ${paper === "a4" ? active : paper === "a5" ? active : "size: A4 portrait; margin: 8mm 10mm;"} }
 `;
 }
@@ -143,13 +143,13 @@ function collectedCss() {
 
 function pageRule(paper: PrintPaperSize) {
   if (paper === "thermal") return "size: 80mm auto; margin: 0;";
-  if (paper === "a5") return "size: 210mm 148mm; margin: 4mm 2mm;";
+  if (paper === "a5") return "size: 148mm 210mm; margin: 0;";
   return "size: A4 portrait; margin: 8mm 10mm;";
 }
 
 function frameBox(paper: PrintPaperSize) {
   if (paper === "thermal") return { w: 320, h: 1600 };
-  if (paper === "a5") return { w: 794, h: 560 };
+  if (paper === "a5") return { w: 560, h: 794 };
   return { w: 794, h: 1123 };
 }
 

@@ -25,8 +25,8 @@ export function TableToolbar({
   onBlur?: () => void;
 }) {
   return (
-    <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-      <div className="relative min-w-[220px] flex-1 max-w-md">
+    <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+      <div className="relative w-full shrink-0 sm:w-64">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
         <Input
           value={query}
@@ -38,14 +38,16 @@ export function TableToolbar({
           aria-busy={loading}
         />
       </div>
-      <div className="flex flex-wrap items-center gap-2">
-        {filters}
-        <span className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-xs font-medium text-[var(--muted)]">
-          {resultCount === totalCount
-            ? `${totalCount} total`
-            : `${resultCount} of ${totalCount}`}
-        </span>
-      </div>
+      {filters ? (
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+          {filters}
+        </div>
+      ) : null}
+      <span className="ml-auto shrink-0 rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-xs font-medium text-[var(--muted)]">
+        {resultCount === totalCount
+          ? `${totalCount} total`
+          : `${resultCount} of ${totalCount}`}
+      </span>
     </div>
   );
 }

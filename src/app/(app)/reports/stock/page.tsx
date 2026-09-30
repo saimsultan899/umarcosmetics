@@ -214,8 +214,6 @@ export default async function StockReportPage({
         </Link>
       </div>
 
-      <StockReportFilters companies={warehouses || []} />
-
       {(() => {
         const low = filteredBalances.filter((r) => r.Status === "Low").length;
         const purchaseValue = filteredBalances.reduce(
@@ -307,6 +305,7 @@ export default async function StockReportPage({
         subtitle={`${activeRows.length} rows`}
         rows={activeRows}
         filename={`stock-${view}`}
+        filters={<StockReportFilters companies={warehouses || []} />}
       />
     </div>
   );

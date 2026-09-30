@@ -83,6 +83,7 @@ export function ReportTable({
   brandName,
   rows,
   filename,
+  filters,
 }: {
   title: string;
   subtitle?: string;
@@ -90,6 +91,7 @@ export function ReportTable({
   brandName?: string | null;
   rows: Record<string, unknown>[];
   filename: string;
+  filters?: React.ReactNode;
 }) {
   const { page, pageSize, isPending, setPage, setPageSize } =
     useUrlTableState();
@@ -186,6 +188,7 @@ export function ReportTable({
         placeholder="Search report rows..."
         resultCount={filtered.length}
         totalCount={rows.length}
+        filters={filters}
       />
 
       {/* Interactive, paginated table — screen only */}

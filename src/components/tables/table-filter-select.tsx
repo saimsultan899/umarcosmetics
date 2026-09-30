@@ -8,6 +8,7 @@ export function TableFilterSelect({
   options,
   onChange,
   allLabel = "All",
+  compact = false,
 }: {
   label: string;
   value: string;
@@ -15,6 +16,7 @@ export function TableFilterSelect({
   onChange: (value: string | null) => void;
   allLabel?: string;
   loading?: boolean;
+  compact?: boolean;
 }) {
   return (
     <label className="inline-flex items-center gap-1.5">
@@ -24,7 +26,9 @@ export function TableFilterSelect({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value || null)}
-        className="h-8 max-w-[180px] truncate rounded-lg border border-[var(--border)] bg-white px-2 text-sm"
+        className={`h-9 truncate rounded-lg border border-[var(--border)] bg-white px-2 text-sm ${
+          compact ? "w-[6.5rem]" : "w-[9.5rem] max-w-[11rem]"
+        }`}
       >
         <option value="">{allLabel}</option>
         {options.map((o) => (

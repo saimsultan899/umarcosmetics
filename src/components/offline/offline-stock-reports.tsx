@@ -235,6 +235,14 @@ export function OfflineStockReportsPage({
     );
   }
 
+  const stockFilters = (
+    <StockReportFilters
+      companies={warehouses
+        .filter((w) => w.id)
+        .map((w) => ({ id: String(w.id), name: String(w.name || "Company") }))}
+    />
+  );
+
   return (
     <div className="animate-rise space-y-6">
       <div>
@@ -266,12 +274,6 @@ export function OfflineStockReportsPage({
           </Link>
         ))}
       </div>
-
-      <StockReportFilters
-        companies={warehouses
-          .filter((w) => w.id)
-          .map((w) => ({ id: String(w.id), name: String(w.name || "Company") }))}
-      />
 
       <StatsGrid>
         <StatCard
@@ -323,6 +325,7 @@ export function OfflineStockReportsPage({
           subtitle={`${balanceRows.length} stock balance records · Total units ${totalUnits.toLocaleString()}`}
           rows={filteredBalances}
           filename="stock-balances"
+          filters={stockFilters}
         />
       ) : view === "ledger" ? (
         <ReportTable
@@ -331,6 +334,7 @@ export function OfflineStockReportsPage({
           subtitle={`${movementRows.length} recent movement entries`}
           rows={movementRows}
           filename="stock-movements"
+          filters={stockFilters}
         />
       ) : view === "low_stock" ? (
         <ReportTable
@@ -339,6 +343,7 @@ export function OfflineStockReportsPage({
           subtitle={`${lowStockRows.length} items below minimum safety threshold`}
           rows={lowStockRows}
           filename="stock-low"
+          filters={stockFilters}
         />
       ) : (
         <ReportTable
@@ -347,6 +352,7 @@ export function OfflineStockReportsPage({
           subtitle="Products requiring immediate vendor replenishment"
           rows={lowStockRows}
           filename="stock-reorder"
+          filters={stockFilters}
         />
       )}
     </div>

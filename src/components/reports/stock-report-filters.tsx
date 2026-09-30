@@ -18,7 +18,7 @@ export function StockReportFilters({
   ]);
 
   return (
-    <div className="no-print flex flex-wrap items-center gap-2">
+    <div className="no-print contents">
       <TableFilterSelect
         label="Company"
         value={filters.company || ""}
@@ -36,6 +36,7 @@ export function StockReportFilters({
         ]}
         loading={isPending}
         allLabel="All"
+        compact
         onChange={(value) => setFilter("status", value)}
       />
       <TableFilterSelect
@@ -47,6 +48,7 @@ export function StockReportFilters({
         ]}
         loading={isPending}
         allLabel="All"
+        compact
         onChange={(value) => setFilter("stock", value)}
       />
     </div>

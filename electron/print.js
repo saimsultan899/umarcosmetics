@@ -80,13 +80,13 @@ async function printOptions(wc, paper) {
     deviceName: "",
     scaleFactor: 100,
     landscape: false,
-    margins: { marginType: thermal ? "none" : "default" },
+    margins: { marginType: thermal || a5 ? "none" : "default" },
   };
   if (thermal) {
     options.pageSize = await thermalPageSize(wc);
   } else if (a5) {
-    // Same half-sheet box as the on-screen invoice (210×148mm). Do not rotate.
-    options.pageSize = { width: 210000, height: 148000 };
+    // Portrait A5. The slip CSS turns the wide layout onto this long edge.
+    options.pageSize = { width: 148000, height: 210000 };
   } else {
     options.pageSize = "A4";
   }
@@ -98,16 +98,15 @@ async function pdfOptions(wc, paper) {
   const a5 = paper === "a5";
   const options = {
     printBackground: true,
-    // A5 must stay 210×148. preferCSSPageSize lets the app's A4 rule win and
-    // leaves a tall page whose empty bottom prints dark from the preview.
+    // A5 is the portrait sheet. preferCSSPageSize lets the app's A4 rule win.
     preferCSSPageSize: !a5,
     landscape: false,
-    margins: { marginType: thermal ? "none" : "default" },
+    margins: { marginType: thermal || a5 ? "none" : "default" },
   };
   if (thermal) {
     options.pageSize = await thermalPageSize(wc);
   } else if (a5) {
-    options.pageSize = { width: 210000, height: 148000 };
+    options.pageSize = { width: 148000, height: 210000 };
   } else {
     options.pageSize = "A4";
   }
