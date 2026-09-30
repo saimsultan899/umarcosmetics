@@ -7,14 +7,24 @@
  */
 
 import {
+  buildPrintFrameHtml,
   clearPrintPaper,
   preparePrintPaper,
 } from "@/lib/print/paper-size";
 
+type DesktopPrintPayload = {
+  html: string;
+  paper: "thermal" | "a5" | "a4";
+};
+
 type DesktopPrintBridge = {
   isDesktop?: boolean;
-  printPreview?: () => Promise<{ ok?: boolean; error?: string | null }>;
-  print?: () => Promise<{ ok?: boolean; error?: string | null }>;
+  printPreview?: (
+    payload?: DesktopPrintPayload,
+  ) => Promise<{ ok?: boolean; error?: string | null }>;
+  print?: (
+    payload?: DesktopPrintPayload,
+  ) => Promise<{ ok?: boolean; error?: string | null }>;
 };
 
 let installed = false;
@@ -29,7 +39,7 @@ export function installDesktopPrint() {
   const nativePrint = window.print.bind(window);
 
   window.print = () => {
-    preparePrintPaper();
+    const paper = preparePrintPaper();
     const cleanup = () => {
       clearPrintPaper();
       window.removeEventListener("afterprint", cleanup);
@@ -39,6 +49,19 @@ export function installDesktopPrint() {
 
     const run = async () => {
       try {
+        // Thermal still measures the live slip. A4 and A5 print the same
+        // standalone page the browser uses, online and offline.
+        if (paper !== "thermal") {
+          const html = buildPrintFrameHtml(paper);
+          if (html && desktop.printPreview) {
+            const res = await desktop.printPreview({ html, paper });
+            if (res?.ok) return;
+          }
+          if (html && desktop.print) {
+            await desktop.print({ html, paper });
+            return;
+          }
+        }
         if (desktop.printPreview) {
           const res = await desktop.printPreview();
           if (res?.ok) return;

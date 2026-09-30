@@ -153,6 +153,73 @@ function frameBox(paper: PrintPaperSize) {
   return { w: 794, h: 1123 };
 }
 
+function uprightHalfSheetCss(paper: PrintPaperSize) {
+  if (paper !== "a5") return "";
+  return `
+@media print {
+  .print-sheet.si-half,
+  .print-sheet.cdoc--half {
+    transform: none !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+  }
+}`;
+}
+
+/** Long reports must stay in normal flow or Chrome inserts a blank first page. */
+function reportFlowCss() {
+  return `
+@media print {
+  .print-sheet.report-print,
+  .print-sheet.recovery-sheet,
+  .print-sheet.table-shell {
+    position: static !important;
+    left: auto !important;
+    right: auto !important;
+    top: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}`;
+}
+
+/** Same document the browser print frame uses, so the desktop exe matches it. */
+export function buildPrintFrameHtml(paper: PrintPaperSize): string | null {
+  const sheet = activePrintSheet();
+  if (!sheet) return null;
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<base href="${location.origin}/" />
+<title></title>
+<style>
+${collectedCss()}
+@page { ${pageRule(paper)} }
+html, body {
+  margin: 0 !important;
+  padding: 0 !important;
+  background: #fff !important;
+  background-color: #fff !important;
+}
+@media print {
+  .print-sheet, .print-sheet * { visibility: visible !important; }
+  .print-sheet { page: auto !important; background: #fff !important; }
+}
+${uprightHalfSheetCss(paper)}
+${reportFlowCss()}
+</style>
+</head>
+<body>${sheet.outerHTML}</body>
+</html>`;
+}
+
 function activePrintSheet() {
   const sheets = Array.from(
     document.querySelectorAll<HTMLElement>(".print-sheet"),
@@ -166,21 +233,21 @@ function activePrintSheet() {
 
 /**
  * Browser print dialogs keep the last paper (usually A4) when the app page
- * also contains `@page { size: A4 }`. A clean iframe with one @page rule is
- * what makes Chrome/Edge select A5, A4, or the 80mm roll.
- * Desktop keeps the Electron pageSize path.
+ * also contains `@page { size: A4 }`. A clean document with one @page rule is
+ * what Chrome and the desktop exe both print, online and offline.
+ * Walk-in thermal slips stay on their own 80mm path.
  */
 export function printWithAutoPaper(paper?: PrintPaperSize) {
   if (typeof document === "undefined" || typeof window === "undefined") return;
   const next = preparePrintPaper(paper);
 
-  if (isDesktopApp()) {
+  const html = buildPrintFrameHtml(next);
+  if (!html) {
     window.print();
     return;
   }
 
-  const sheet = activePrintSheet();
-  if (!sheet) {
+  if (isDesktopApp()) {
     window.print();
     return;
   }
@@ -198,31 +265,6 @@ export function printWithAutoPaper(paper?: PrintPaperSize) {
     window.print();
     return;
   }
-
-  const html = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8" />
-<base href="${location.origin}/" />
-<title></title>
-<style>
-${collectedCss()}
-@page { ${pageRule(next)} }
-html, body {
-  margin: 0 !important;
-  padding: 0 !important;
-  background: #fff !important;
-  background-color: #fff !important;
-}
-@media print {
-  .print-sheet, .print-sheet * { visibility: visible !important; }
-  /* Drop the named page so Chrome cannot fall back to A4 portrait. */
-  .print-sheet { page: auto !important; background: #fff !important; }
-}
-</style>
-</head>
-<body>${sheet.outerHTML}</body>
-</html>`;
 
   doc.open();
   doc.write(html);

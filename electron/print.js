@@ -93,13 +93,15 @@ async function printOptions(wc, paper) {
   return options;
 }
 
-async function pdfOptions(wc, paper) {
+async function pdfOptions(wc, paper, preferCss) {
   const thermal = paper === "thermal";
   const a5 = paper === "a5";
   const options = {
     printBackground: true,
-    // A5 portrait in microns. preferCSSPageSize lets the app's A4 rule win.
-    preferCSSPageSize: !a5,
+    // Isolated A4/A5 documents have one @page rule, same as Chrome.
+    // The live window still has an A4 rule first, so only trust CSS there
+    // when this is not an A5 slip.
+    preferCSSPageSize: preferCss ? true : !a5,
     landscape: false,
     margins: { marginType: thermal || a5 ? "none" : "default" },
   };
@@ -113,44 +115,94 @@ async function pdfOptions(wc, paper) {
   return options;
 }
 
-function registerPrintIpc(ipcMain, log = console.log) {
-  ipcMain.handle("desktop:print", async (event) => {
-    const wc = event.sender;
-    const paper = await detectPrintPaper(wc);
-    const options = await printOptions(wc, paper);
-    log(`[print] Direct print paper=${paper}`);
-    return await new Promise((resolve) => {
-      wc.print(options, (success, failureReason) => {
-        resolve({ ok: !!success, error: failureReason || null, paper });
-      });
-    });
+function openHtmlWindow(html) {
+  const tmp = path.join(app.getPath("temp"), `umar-print-src-${Date.now()}.html`);
+  fs.writeFileSync(tmp, html, "utf8");
+  const win = new BrowserWindow({
+    show: false,
+    width: 794,
+    height: 1123,
+    webPreferences: {
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
   });
+  const close = () => {
+    if (!win.isDestroyed()) win.destroy();
+    try {
+      fs.unlinkSync(tmp);
+    } catch (_) {
+      /* ignore */
+    }
+  };
+  return win.loadFile(tmp).then(
+    () => ({ wc: win.webContents, close }),
+    (err) => {
+      close();
+      throw err;
+    },
+  );
+}
 
-  ipcMain.handle("desktop:printPreview", async (event) => {
-    const parent = BrowserWindow.fromWebContents(event.sender);
-    const paper = await detectPrintPaper(event.sender);
-    if (paper === "thermal") {
-      const options = await printOptions(event.sender, paper);
-      log(`[print] Thermal print paper=${paper}`);
+function registerPrintIpc(ipcMain, log = console.log) {
+  ipcMain.handle("desktop:print", async (event, payload) => {
+    const html = payload && typeof payload.html === "string" ? payload.html : "";
+    let source = null;
+    try {
+      const wc = html ? (source = await openHtmlWindow(html)).wc : event.sender;
+      const paper =
+        (payload && payload.paper) || (await detectPrintPaper(wc));
+      const options = await printOptions(wc, paper);
+      log(`[print] Direct print paper=${paper} isolated=${Boolean(html)}`);
       return await new Promise((resolve) => {
-        event.sender.print(options, (success, failureReason) => {
-          resolve({
-            ok: !!success,
-            error: failureReason || null,
-            thermal: true,
-            paper,
-          });
+        wc.print(options, (success, failureReason) => {
+          resolve({ ok: !!success, error: failureReason || null, paper });
         });
       });
+    } finally {
+      source?.close();
+    }
+  });
+
+  ipcMain.handle("desktop:printPreview", async (event, payload) => {
+    const html = payload && typeof payload.html === "string" ? payload.html : "";
+    let source = null;
+    let wc = event.sender;
+    if (html) {
+      source = await openHtmlWindow(html);
+      wc = source.wc;
+    }
+    const paper = (payload && payload.paper) || (await detectPrintPaper(wc));
+    if (paper === "thermal") {
+      const options = await printOptions(wc, paper);
+      log(`[print] Thermal print paper=${paper}`);
+      try {
+        return await new Promise((resolve) => {
+          wc.print(options, (success, failureReason) => {
+            resolve({
+              ok: !!success,
+              error: failureReason || null,
+              thermal: true,
+              paper,
+            });
+          });
+        });
+      } finally {
+        source?.close();
+      }
     }
     try {
-      const pdfOpts = await pdfOptions(event.sender, paper);
-      const pdf = await event.sender.printToPDF(pdfOpts);
+      const pdfOpts = await pdfOptions(wc, paper, Boolean(html));
+      const pdf = await wc.printToPDF(pdfOpts);
+      source?.close();
+      source = null;
 
       const tmpDir = app.getPath("temp");
       const tmp = path.join(tmpDir, `umar-print-${Date.now()}.pdf`);
       fs.writeFileSync(tmp, pdf);
 
+      const parent = BrowserWindow.fromWebContents(event.sender);
       const preview = new BrowserWindow({
         width: 960,
         height: 1100,
@@ -235,6 +287,8 @@ function registerPrintIpc(ipcMain, log = console.log) {
           });
         });
       });
+    } finally {
+      source?.close();
     }
   });
 }

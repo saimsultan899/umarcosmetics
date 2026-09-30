@@ -2492,6 +2492,23 @@ button[aria-haspopup="listbox"]:focus-visible {
     background: #fff !important;
   }
 
+  /* Ledgers and other long reports. Absolute + overflow:hidden makes Chrome
+     print a blank first page, then the report on page 2. Invoice slips stay
+     absolute so A4, A5, and thermal are unchanged. */
+  .print-sheet.report-print,
+  .print-sheet.recovery-sheet,
+  .print-sheet.table-shell {
+    position: static !important;
+    left: auto !important;
+    right: auto !important;
+    top: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    margin: 0 !important;
+  }
+
   /* Other reports hidden when Print is scoped to one sheet */
   .print-sheet.print-skip {
     display: none !important;

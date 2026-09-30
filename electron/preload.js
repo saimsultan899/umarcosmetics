@@ -9,9 +9,9 @@ contextBridge.exposeInMainWorld("umarDesktop", {
   vaultClear: () => ipcRenderer.invoke("vault:clear"),
   isOnline: () => ipcRenderer.invoke("desktop:isOnline"),
   /** Opens PDF print preview (avoids Windows “no print preview” dialog). */
-  printPreview: () => ipcRenderer.invoke("desktop:printPreview"),
+  printPreview: (payload) => ipcRenderer.invoke("desktop:printPreview", payload),
   /** System print dialog */
-  print: () => ipcRenderer.invoke("desktop:print"),
+  print: (payload) => ipcRenderer.invoke("desktop:print", payload),
 
   // Local SQLite ledger
   dbStatus: () => ipcRenderer.invoke("db:status"),
