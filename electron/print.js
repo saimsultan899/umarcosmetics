@@ -85,7 +85,7 @@ async function printOptions(wc, paper) {
   if (thermal) {
     options.pageSize = await thermalPageSize(wc);
   } else if (a5) {
-    // Portrait A5. The slip CSS turns the wide layout onto this long edge.
+    // A5 portrait (148×210mm). Content is upright; do not set landscape.
     options.pageSize = { width: 148000, height: 210000 };
   } else {
     options.pageSize = "A4";
@@ -98,7 +98,7 @@ async function pdfOptions(wc, paper) {
   const a5 = paper === "a5";
   const options = {
     printBackground: true,
-    // A5 is the portrait sheet. preferCSSPageSize lets the app's A4 rule win.
+    // A5 portrait in microns. preferCSSPageSize lets the app's A4 rule win.
     preferCSSPageSize: !a5,
     landscape: false,
     margins: { marginType: thermal || a5 ? "none" : "default" },
