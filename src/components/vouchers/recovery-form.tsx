@@ -12,7 +12,7 @@ import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { createClient } from "@/lib/supabase/client";
 import type { Party } from "@/lib/types/database";
 import type { SalesmanOption } from "@/lib/queries/salesmen";
-import { formatPkr } from "@/lib/utils";
+import { formatNumber, formatPkr } from "@/lib/utils";
 import {
   findSameDayRecoveries,
   formatRecoveryWhen,
@@ -43,6 +43,16 @@ type RecoveryLine = {
 function newKey() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
+
+type SheetShop = {
+  id: string;
+  code: string;
+  name: string;
+  balance: number | null;
+  lastReceived: number | null;
+};
+
+type SheetDraft = { amount: string; remarks: string };
 
 function distinctSorted(values: Array<string | null | undefined>) {
   const seen = new Set<string>();
@@ -91,6 +101,10 @@ export function RecoveryForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [todayRecoveries, setTodayRecoveries] = useState<SameDayRecovery[]>([]);
+  const [sheetRows, setSheetRows] = useState<SheetShop[]>([]);
+  const [sheetLoading, setSheetLoading] = useState(false);
+  const [sheetQuery, setSheetQuery] = useState("");
+  const [sheetDrafts, setSheetDrafts] = useState<Record<string, SheetDraft>>({});
 
   const customers = useMemo(
     () =>
@@ -120,14 +134,6 @@ export function RecoveryForm({
   }, [customers, city, sector]);
   const locationFilterOn = Boolean(city || sector);
 
-  useEffect(() => {
-    if (!partyId) return;
-    if (visibleParties.some((p) => p.id === partyId)) return;
-    setPartyId("");
-    setParty(null);
-    setBalance(null);
-  }, [partyId, visibleParties]);
-
   function onCityChange(next: string) {
     setCity(next);
     if (!sector) return;
@@ -137,7 +143,90 @@ export function RecoveryForm({
         (p.route || "").trim() === sector,
     );
     if (!stillThere) setSector("");
+    setSheetQuery("");
   }
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!locationFilterOn) {
+      setSheetRows([]);
+      setSheetLoading(false);
+      return;
+    }
+
+    const base: SheetShop[] = visibleParties
+      .map((p) => ({
+        id: p.id,
+        code: p.party_code,
+        name: p.name_en,
+        balance: null,
+        lastReceived: null,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    async function loadSheet() {
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        if (!cancelled) setSheetRows(base);
+        return;
+      }
+      setSheetLoading(true);
+      try {
+        const supabase = createClient();
+        const { data: balances } = await supabase.rpc("get_recovery_sheet", {
+          p_company_id: companyId,
+          p_as_of: date,
+          p_city: city || null,
+          p_route: sector || null,
+        });
+        const balanceById = new Map<string, number>();
+        for (const row of (balances || []) as Array<{
+          party_id: string;
+          balance: number | string;
+        }>) {
+          balanceById.set(row.party_id, Number(row.balance || 0));
+        }
+
+        const lastById = new Map<string, number>();
+        const ids = base.map((row) => row.id);
+        for (let i = 0; i < ids.length; i += 80) {
+          const chunk = ids.slice(i, i + 80);
+          const { data: recs } = await supabase
+            .from("recoveries")
+            .select("party_id, amount, recovery_date, created_at")
+            .eq("company_id", companyId)
+            .in("party_id", chunk)
+            .gt("amount", 0)
+            .lte("recovery_date", date)
+            .order("recovery_date", { ascending: false })
+            .order("created_at", { ascending: false });
+          for (const row of recs || []) {
+            const id = row.party_id as string;
+            if (!id || lastById.has(id)) continue;
+            lastById.set(id, Number(row.amount || 0));
+          }
+        }
+
+        if (!cancelled) {
+          setSheetRows(
+            base.map((row) => ({
+              ...row,
+              balance: balanceById.has(row.id) ? balanceById.get(row.id)! : 0,
+              lastReceived: lastById.get(row.id) ?? null,
+            })),
+          );
+        }
+      } catch {
+        if (!cancelled) setSheetRows(base);
+      } finally {
+        if (!cancelled) setSheetLoading(false);
+      }
+    }
+
+    void loadSheet();
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId, date, city, sector, locationFilterOn, visibleParties]);
 
   useEffect(() => {
     let cancelled = false;
@@ -299,11 +388,28 @@ export function RecoveryForm({
     e.preventDefault();
     setError(null);
 
-    let pending = lines;
+    const fromSheet: RecoveryLine[] = sheetRows.flatMap((row) => {
+      const draft = sheetDrafts[row.id];
+      const sheetAmt = Number(draft?.amount);
+      if (!(sheetAmt > 0)) return [];
+      return [
+        {
+          key: `sheet-${row.id}`,
+          partyId: row.id,
+          partyCode: row.code,
+          partyName: row.name,
+          amount: sheetAmt,
+          remarks: (draft?.remarks || "").trim(),
+          owed: row.balance,
+        },
+      ];
+    });
+
+    let pending = [...lines, ...fromSheet];
     const amt = Number(amount);
     if (partyId && party && amt > 0) {
       pending = [
-        ...lines,
+        ...pending,
         {
           key: newKey(),
           partyId,
@@ -314,9 +420,12 @@ export function RecoveryForm({
           owed: balance,
         },
       ];
-      setLines(pending);
       clearDraft(false);
     }
+    if (fromSheet.length) {
+      setSheetDrafts({});
+    }
+    setLines(pending);
 
     if (pending.length === 0) {
       setError("Add at least one recovery line before recording.");
@@ -398,6 +507,7 @@ export function RecoveryForm({
     }
 
     setLines([]);
+    setSheetDrafts({});
     clearDraft(false);
     onDone?.();
     closeDialog?.();
@@ -406,8 +516,26 @@ export function RecoveryForm({
 
   const total = lines.reduce((s, l) => s + l.amount, 0);
   const draftAmt = Number(amount) > 0 ? Number(amount) : 0;
-  const pendingCount = lines.length + (draftAmt > 0 && partyId ? 1 : 0);
-  const grand = total + (draftAmt > 0 && partyId ? draftAmt : 0);
+  const sheetExtras = sheetRows.reduce(
+    (acc, row) => {
+      const amt = Number(sheetDrafts[row.id]?.amount);
+      if (!(amt > 0)) return acc;
+      return { count: acc.count + 1, total: acc.total + amt };
+    },
+    { count: 0, total: 0 },
+  );
+  const pendingCount =
+    lines.length + (draftAmt > 0 && partyId ? 1 : 0) + sheetExtras.count;
+  const grand =
+    total + (draftAmt > 0 && partyId ? draftAmt : 0) + sheetExtras.total;
+  const sheetTerm = sheetQuery.trim().toLowerCase();
+  const shownSheet = sheetTerm
+    ? sheetRows.filter(
+        (row) =>
+          row.code.toLowerCase().includes(sheetTerm) ||
+          row.name.toLowerCase().includes(sheetTerm),
+      )
+    : sheetRows;
 
   return (
     <form
@@ -446,7 +574,13 @@ export function RecoveryForm({
         </div>
         <div>
           <Label>Sector</Label>
-          <Select value={sector} onChange={(e) => setSector(e.target.value)}>
+          <Select
+            value={sector}
+            onChange={(e) => {
+              setSector(e.target.value);
+              setSheetQuery("");
+            }}
+          >
             <option value="">All sectors</option>
             {sectorOptions.map((name) => (
               <option key={name} value={name}>
@@ -474,18 +608,10 @@ export function RecoveryForm({
                 <td colSpan={2}>
                   <PartyCodePicker
                     companyId={companyId}
-                    parties={visibleParties}
+                    parties={parties}
                     value={partyId}
                     label=""
                     compact
-                    confineToList={locationFilterOn}
-                    emptyLabel={
-                      locationFilterOn
-                        ? visibleParties.length
-                          ? "Select shop"
-                          : "No shops in this city and sector"
-                        : "Select customer"
-                    }
                     filterSubtype={["customer", "both"]}
                     onChange={(id, next) => {
                       setPartyId(id);
@@ -493,14 +619,6 @@ export function RecoveryForm({
                     }}
                     onPartySelected={() => focusField(amountRef.current)}
                   />
-                  {locationFilterOn ? (
-                    <p className="mt-1 text-[10px] text-[var(--muted)]">
-                      {visibleParties.length} shop
-                      {visibleParties.length === 1 ? "" : "s"}
-                      {city ? ` in ${city}` : ""}
-                      {sector ? ` · ${sector}` : ""}
-                    </p>
-                  ) : null}
                   {partyId && balance != null ? (
                     <p className="mt-1 text-[10px] text-[var(--muted)]">
                       Balance:{" "}
@@ -624,6 +742,153 @@ export function RecoveryForm({
           </span>
           <span className="font-semibold">Total {formatPkr(grand)}</span>
         </div>
+
+        {locationFilterOn ? (
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold">
+                  {[sector || "All sectors", city || "All cities"].join(" · ")}
+                </p>
+                <p className="text-xs text-[var(--muted)]">
+                  {sheetLoading
+                    ? "Loading shops…"
+                    : `${shownSheet.length} shop${shownSheet.length === 1 ? "" : "s"}`}
+                  {sheetTerm && shownSheet.length !== sheetRows.length
+                    ? ` of ${sheetRows.length}`
+                    : ""}
+                  . Type the amount on the row. The search above still finds every customer.
+                </p>
+              </div>
+              <Input
+                value={sheetQuery}
+                onChange={(e) => setSheetQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }
+                }}
+                placeholder="Search code or name..."
+                className="w-full sm:w-56"
+                data-enter-skip
+              />
+            </div>
+            <div className="table-grid table-grid--y-scroll">
+              <table className="w-full min-w-[720px] text-sm">
+                <thead>
+                  <tr>
+                    <th className="w-24">Acc ID</th>
+                    <th>Customer name</th>
+                    <th className="w-28">Last received</th>
+                    <th className="w-28">Final bal.</th>
+                    <th className="w-28">Received</th>
+                    <th>Remarks</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {shownSheet.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={6}
+                        className="py-6 text-center text-sm text-[var(--muted)]"
+                      >
+                        No shops in this city and sector.
+                      </td>
+                    </tr>
+                  ) : (
+                    shownSheet.map((row) => {
+                      const draft = sheetDrafts[row.id] || {
+                        amount: "",
+                        remarks: "",
+                      };
+                      const typed = Number(draft.amount);
+                      const over =
+                        row.balance != null &&
+                        typed > 0 &&
+                        (row.balance <= 0.005 || typed > row.balance + 0.005);
+                      return (
+                        <tr
+                          key={row.id}
+                          className="border-t border-[var(--border)]"
+                        >
+                          <td className="font-medium tabular-nums">{row.code}</td>
+                          <td className="max-w-[16rem] truncate" title={row.name}>
+                            {row.name}
+                          </td>
+                          <td className="tabular-nums text-[var(--muted)]">
+                            {row.lastReceived != null && row.lastReceived > 0.005
+                              ? formatNumber(row.lastReceived, 0)
+                              : "-"}
+                          </td>
+                          <td
+                            className={
+                              row.balance == null
+                                ? "text-[var(--muted)]"
+                                : row.balance > 0.005
+                                  ? "font-semibold tabular-nums text-rose-700"
+                                  : row.balance < -0.005
+                                    ? "font-semibold tabular-nums text-emerald-700"
+                                    : "tabular-nums text-[var(--muted)]"
+                            }
+                          >
+                            {row.balance == null
+                              ? "…"
+                              : Math.abs(row.balance) < 0.005
+                                ? "Nil"
+                                : row.balance > 0
+                                  ? `${formatNumber(row.balance, 0)} Dr`
+                                  : `${formatNumber(Math.abs(row.balance), 0)} Cr`}
+                          </td>
+                          <td>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="1"
+                              inputMode="decimal"
+                              value={draft.amount}
+                              placeholder="0.00"
+                              className={over ? "border-rose-400" : undefined}
+                              onChange={(e) =>
+                                setSheetDrafts((prev) => ({
+                                  ...prev,
+                                  [row.id]: {
+                                    amount: e.target.value,
+                                    remarks: prev[row.id]?.remarks || "",
+                                  },
+                                }))
+                              }
+                            />
+                          </td>
+                          <td>
+                            <Input
+                              value={draft.remarks}
+                              placeholder="Collected note"
+                              onChange={(e) =>
+                                setSheetDrafts((prev) => ({
+                                  ...prev,
+                                  [row.id]: {
+                                    amount: prev[row.id]?.amount || "",
+                                    remarks: e.target.value,
+                                  },
+                                }))
+                              }
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs text-[var(--muted)]">
+            Select a city and sector to list those shops here. Customer search
+            above still finds every shop.
+          </p>
+        )}
       </div>
 
       {error ? (
