@@ -125,7 +125,7 @@ export async function buildRecoverySheet(
   } = input;
 
   // Dropdown sources + balances + authoritative shop list + last sales, all in parallel.
-  const [manufacturers, warehouses, balanceSheet, partyRows, lastSales, lastRecoveries] =
+  const [manufacturers, warehouses, balanceSheet, partyRows, lastSales, lastRecoveries, saleReturns] =
     await Promise.all([
     supabase
       .from("products")
@@ -159,6 +159,7 @@ export async function buildRecoverySheet(
     })(),
     fetchLastSalesByParty(supabase, companyId, to),
     fetchLastRecoveriesByParty(supabase, companyId, to),
+    fetchSaleReturns(supabase, companyId, to),
   ]);
 
   if (balanceSheet.error) throw new Error(balanceSheet.error.message);
@@ -196,7 +197,9 @@ export async function buildRecoverySheet(
     const last = lastSales.get(partyId);
     const lastReceived = lastRecoveries.get(partyId) ?? null;
     const saleIsOpen = isLastSaleAfterRecovery(last, lastReceived);
-    const lastSaleValue = saleIsOpen && last ? last.grand_total : null;
+    const lastSaleValue = saleIsOpen && last
+      ? netLastSaleValue(last, saleReturns.get(partyId) || [])
+      : null;
 
     return {
       party_id: partyId,
@@ -365,7 +368,7 @@ async function fetchLastSalesByParty(
 ) {
   const { data, error } = await supabase
     .from("sale_invoices")
-    .select("party_id, invoice_no, invoice_date, grand_total, created_at")
+    .select("id, party_id, invoice_no, invoice_date, grand_total, created_at")
     .eq("company_id", companyId)
     .eq("status", "posted")
     .lte("invoice_date", to)
@@ -379,6 +382,7 @@ async function fetchLastSalesByParty(
   const map = new Map<
     string,
     {
+      id: string;
       invoice_no: string;
       invoice_date: string;
       grand_total: number;
@@ -390,6 +394,7 @@ async function fetchLastSalesByParty(
     const partyId = row.party_id as string;
     if (!partyId || map.has(partyId)) continue;
     map.set(partyId, {
+      id: String(row.id || ""),
       invoice_no: String(row.invoice_no || ""),
       invoice_date: String(row.invoice_date || ""),
       grand_total: Number(row.grand_total || 0),
@@ -398,6 +403,65 @@ async function fetchLastSalesByParty(
   }
 
   return map;
+}
+
+type OpenReturn = {
+  sale_invoice_id: string | null;
+  return_date: string;
+  created_at: string;
+  grand_total: number;
+};
+
+async function fetchSaleReturns(
+  supabase: SupabaseClient,
+  companyId: string,
+  to: string,
+) {
+  const { data, error } = await supabase
+    .from("sale_returns")
+    .select("party_id, sale_invoice_id, return_date, created_at, grand_total")
+    .eq("company_id", companyId)
+    .eq("status", "posted")
+    .lte("return_date", to)
+    .not("party_id", "is", null)
+    .limit(20000);
+
+  if (error) throw new Error(error.message);
+
+  const map = new Map<string, OpenReturn[]>();
+  for (const row of data || []) {
+    const partyId = row.party_id as string;
+    if (!partyId) continue;
+    const list = map.get(partyId) || [];
+    list.push({
+      sale_invoice_id: (row.sale_invoice_id as string | null) ?? null,
+      return_date: String(row.return_date || ""),
+      created_at: String(row.created_at || ""),
+      grand_total: Number(row.grand_total || 0),
+    });
+    map.set(partyId, list);
+  }
+  return map;
+}
+
+function netLastSaleValue(
+  sale: {
+    id: string;
+    invoice_date: string;
+    created_at: string;
+    grand_total: number;
+  },
+  returns: OpenReturn[],
+) {
+  let credit = 0;
+  for (const row of returns) {
+    const linked = row.sale_invoice_id === sale.id;
+    const afterSale =
+      !row.sale_invoice_id &&
+      happenedAfter(row.return_date, row.created_at, sale.invoice_date, sale.created_at);
+    if (linked || afterSale) credit += row.grand_total;
+  }
+  return Math.max(0, sale.grand_total - credit);
 }
 
 type LastRecovery = {

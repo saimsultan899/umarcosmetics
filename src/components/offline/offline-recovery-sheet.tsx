@@ -50,6 +50,23 @@ function distinctSorted(values: Array<string | null | undefined>) {
   return out.sort((a, b) => a.localeCompare(b));
 }
 
+function returnCreditAfterSale(
+  partyId: string,
+  sale: { id: string; date: string },
+  returns: Record<string, unknown>[],
+) {
+  let credit = 0;
+  for (const row of returns) {
+    if (String(row.party_id || "") !== partyId) continue;
+    if (String(row.status || "posted") === "cancelled") continue;
+    const linked = String(row.sale_invoice_id || "") === sale.id;
+    const returnDate = String(row.return_date || row.doc_date || "");
+    const after = !row.sale_invoice_id && returnDate >= sale.date;
+    if (linked || after) credit += Number(row.grand_total || row.amount || 0);
+  }
+  return credit;
+}
+
 export function OfflineRecoverySheetPage({
   companyId,
   companyName,
@@ -85,6 +102,7 @@ export function OfflineRecoverySheetPage({
   const [loading, setLoading] = useState(true);
   const [parties, setParties] = useState<Record<string, unknown>[]>([]);
   const [sales, setSales] = useState<Record<string, unknown>[]>([]);
+  const [returns, setReturns] = useState<Record<string, unknown>[]>([]);
   const [vouchers, setVouchers] = useState<Record<string, unknown>[]>([]);
   const [salesmen, setSalesmen] = useState<Array<{ id: string; full_name: string }>>([]);
   const [warehouses, setWarehouses] = useState<Array<{ id: string; name: string }>>([]);
@@ -108,8 +126,9 @@ export function OfflineRecoverySheetPage({
         let smRows: Record<string, unknown>[] = [];
         let wRows: Record<string, unknown>[] = [];
 
+        let rRows: Record<string, unknown>[] = [];
         if (hasLocalSqlite()) {
-          const [pRes, sRes, vRes, smRes, wRes] = await Promise.all([
+          const [pRes, sRes, vRes, smRes, wRes, rRes] = await Promise.all([
             localListMaster("parties", companyId),
             localListDocuments("sale_invoices", companyId, 2000),
             localListDocumentsByTypes(companyId, [
@@ -120,12 +139,26 @@ export function OfflineRecoverySheetPage({
             ]),
             localListMaster("salesmen", companyId),
             localListMaster("warehouses", companyId),
+            localListDocumentsByTypes(companyId, ["sale_return"]),
           ]);
           pRows = pRes.rows || [];
           sRows = sRes.rows || [];
           vRows = vRes.rows || [];
           smRows = smRes.rows || [];
           wRows = wRes.rows || [];
+          rRows = rRes.rows || [];
+        }
+
+        const idbReturns = await getCachedRows("sale_returns", companyId);
+        if (idbReturns.length) {
+          const seen = new Set(rRows.map((r) => String(r.id || r._localId || r.return_no || r.doc_no)));
+          for (const row of idbReturns) {
+            const k = String(row.id || row._localId || row.return_no || row.doc_no);
+            if (!seen.has(k)) {
+              rRows.push(row);
+              seen.add(k);
+            }
+          }
         }
 
         const idbSales = await getCachedRows("sale_invoices", companyId);
@@ -159,6 +192,7 @@ export function OfflineRecoverySheetPage({
         if (cancelled) return;
         setParties(pRows);
         setSales(sRows);
+        setReturns(rRows);
         setVouchers(vRows);
         setSalesmen(smRows as Array<{ id: string; full_name: string }>);
         setWarehouses(wRows as Array<{ id: string; name: string }>);
@@ -273,7 +307,9 @@ export function OfflineRecoverySheetPage({
 
       const saleIsOpen =
         !lastRec || (last && last.date >= lastRec.date);
-      const lastSaleValue = saleIsOpen && last ? last.grand_total : null;
+      const lastSaleValue = saleIsOpen && last
+        ? Math.max(0, last.grand_total - returnCreditAfterSale(partyId, last, returns))
+        : null;
       const prevBal =
         lastSaleValue != null ? balance - lastSaleValue : balance;
 
@@ -351,7 +387,7 @@ export function OfflineRecoverySheetPage({
       brandOptions: [],
       warehouseOptions: warehouses,
     };
-  }, [parties, sales, vouchers, balanceMap, sectors, partyIds, scope, warehouseId, warehouses, to]);
+  }, [parties, sales, returns, vouchers, balanceMap, sectors, partyIds, scope, warehouseId, warehouses, to]);
 
   const dueTotal = sheet.grand.dueTotal;
   const dueShops = sheet.flat.filter((r) => Number(r.balance) > 0.005).length;

@@ -105,6 +105,7 @@ export default async function SaleReturnDetailPage({
       company: brandCompany || null,
       brandCompany,
       qty: Number(i.qty),
+      bonus: Number(i.bonus_qty || 0),
       rate: Number(i.rate),
       discount: Number(i.discount || 0),
       amount: Number(i.amount),

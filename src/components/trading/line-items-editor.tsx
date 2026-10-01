@@ -67,6 +67,8 @@ type LineItemsEditorProps = {
   stockByProduct?: Map<string, { warehouseId: string; qty: number }[]>;
   /** Sale invoices may sell past zero. The line still warns; stock is saved negative. */
   allowOversell?: boolean;
+  /** Customer returns put units back. Do not block the line when the shelf is short. */
+  receiveStock?: boolean;
   onAutoPickWarehouse?: (warehouseId: string) => void;
   showCompanyPicker?: boolean;
   extraDiscount?: string;
@@ -93,6 +95,7 @@ export const LineItemsEditor = forwardRef<
     /** product_id → warehouses stocking it, highest qty first. Enables stock hints. */
     stockByProduct,
     allowOversell = false,
+    receiveStock = false,
     /** Auto-selects stocked warehouse (sale) or product default warehouse (purchase). */
     onAutoPickWarehouse,
     /** Show company control above product lines (sale invoice). */
@@ -333,6 +336,7 @@ export const LineItemsEditor = forwardRef<
     bonus: string,
     exceptKey?: string,
   ): string | null {
+    if (receiveStock) return null;
     if (!productId || !stockByProduct) return null;
     const productWh = productCompanyId(productId);
     const companyId = productWh || effectiveWarehouseId;
