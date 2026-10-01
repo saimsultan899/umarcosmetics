@@ -34,6 +34,7 @@ export function PartyCodePicker({
   filterSubtype,
   compact = false,
   onPartySelected,
+  confineToList = false,
 }: {
   companyId: string;
   parties: Party[];
@@ -46,6 +47,8 @@ export function PartyCodePicker({
   /** Table-row mode: code + select only, no label or detail card. */
   compact?: boolean;
   onPartySelected?: () => void;
+  /** When a city or sector filter is on, do not accept a code outside that list. */
+  confineToList?: boolean;
 }) {
   const options = useMemo(() => {
     let list = parties.filter((p) => p.is_active !== false);
@@ -112,6 +115,12 @@ export function PartyCodePicker({
     if (!party) {
       onChange("", null);
       setStatus("No account found for this code");
+      return;
+    }
+
+    if (confineToList && !options.some((p) => p.id === party.id)) {
+      onChange("", null);
+      setStatus("This shop is not in the selected city and sector");
       return;
     }
 

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useCreateDialogClose } from "@/components/ui/create-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { focusField, handleEnterAsNext } from "@/lib/keyboard/enter-nav";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { createClient } from "@/lib/supabase/client";
@@ -23,6 +24,7 @@ import {
   FormEvent,
   useEffect,
   useId,
+  useMemo,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -40,6 +42,20 @@ type RecoveryLine = {
 
 function newKey() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function distinctSorted(values: Array<string | null | undefined>) {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of values) {
+    const v = (raw || "").trim();
+    if (!v) continue;
+    const key = v.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(v);
+  }
+  return out.sort((a, b) => a.localeCompare(b));
 }
 
 export function RecoveryForm({
@@ -64,6 +80,8 @@ export function RecoveryForm({
 
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [salesmanId, setSalesmanId] = useState("");
+  const [city, setCity] = useState("");
+  const [sector, setSector] = useState("");
   const [partyId, setPartyId] = useState("");
   const [party, setParty] = useState<Party | null>(null);
   const [amount, setAmount] = useState("");
@@ -73,6 +91,53 @@ export function RecoveryForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [todayRecoveries, setTodayRecoveries] = useState<SameDayRecovery[]>([]);
+
+  const customers = useMemo(
+    () =>
+      parties.filter(
+        (p) =>
+          p.is_active !== false &&
+          (p.party_subtype === "customer" || p.party_subtype === "both"),
+      ),
+    [parties],
+  );
+  const cityOptions = useMemo(
+    () => distinctSorted(customers.map((p) => p.city)),
+    [customers],
+  );
+  const sectorOptions = useMemo(() => {
+    const list = city
+      ? customers.filter((p) => (p.city || "").trim() === city)
+      : customers;
+    return distinctSorted(list.map((p) => p.route));
+  }, [customers, city]);
+  const visibleParties = useMemo(() => {
+    return customers.filter((p) => {
+      if (city && (p.city || "").trim() !== city) return false;
+      if (sector && (p.route || "").trim() !== sector) return false;
+      return true;
+    });
+  }, [customers, city, sector]);
+  const locationFilterOn = Boolean(city || sector);
+
+  useEffect(() => {
+    if (!partyId) return;
+    if (visibleParties.some((p) => p.id === partyId)) return;
+    setPartyId("");
+    setParty(null);
+    setBalance(null);
+  }, [partyId, visibleParties]);
+
+  function onCityChange(next: string) {
+    setCity(next);
+    if (!sector) return;
+    const stillThere = customers.some(
+      (p) =>
+        (!next || (p.city || "").trim() === next) &&
+        (p.route || "").trim() === sector,
+    );
+    if (!stillThere) setSector("");
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -368,6 +433,28 @@ export function RecoveryForm({
             onChange={setSalesmanId}
           />
         </div>
+        <div>
+          <Label>City</Label>
+          <Select value={city} onChange={(e) => onCityChange(e.target.value)}>
+            <option value="">All cities</option>
+            {cityOptions.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div>
+          <Label>Sector</Label>
+          <Select value={sector} onChange={(e) => setSector(e.target.value)}>
+            <option value="">All sectors</option>
+            {sectorOptions.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </Select>
+        </div>
       </div>
 
       <div className="space-y-3" data-enter-own>
@@ -387,10 +474,18 @@ export function RecoveryForm({
                 <td colSpan={2}>
                   <PartyCodePicker
                     companyId={companyId}
-                    parties={parties}
+                    parties={visibleParties}
                     value={partyId}
                     label=""
                     compact
+                    confineToList={locationFilterOn}
+                    emptyLabel={
+                      locationFilterOn
+                        ? visibleParties.length
+                          ? "Select shop"
+                          : "No shops in this city and sector"
+                        : "Select customer"
+                    }
                     filterSubtype={["customer", "both"]}
                     onChange={(id, next) => {
                       setPartyId(id);
@@ -398,6 +493,14 @@ export function RecoveryForm({
                     }}
                     onPartySelected={() => focusField(amountRef.current)}
                   />
+                  {locationFilterOn ? (
+                    <p className="mt-1 text-[10px] text-[var(--muted)]">
+                      {visibleParties.length} shop
+                      {visibleParties.length === 1 ? "" : "s"}
+                      {city ? ` in ${city}` : ""}
+                      {sector ? ` · ${sector}` : ""}
+                    </p>
+                  ) : null}
                   {partyId && balance != null ? (
                     <p className="mt-1 text-[10px] text-[var(--muted)]">
                       Balance:{" "}
