@@ -17,7 +17,7 @@ export default async function FieldSalePage() {
     );
   }
 
-  const [{ data: shops }, { data: products }, { data: warehouses }] =
+  const [{ data: shops }, { data: products }, { data: warehouses }, { data: stockRows }] =
     await Promise.all([
       supabase.rpc("get_salesman_shops", {
         p_company_id: company.id,
@@ -35,6 +35,10 @@ export default async function FieldSalePage() {
         .eq("company_id", company.id)
         .eq("is_active", true)
         .order("name"),
+      supabase
+        .from("stock_balances")
+        .select("product_id, warehouse_id, qty")
+        .eq("company_id", company.id),
     ]);
 
   return (
@@ -60,6 +64,8 @@ export default async function FieldSalePage() {
           }>}
           products={(products || []) as Product[]}
           warehouses={(warehouses || []) as Warehouse[]}
+          stockBalances={stockRows || []}
+          saleStockPolicy={company.sale_stock_policy === "block" ? "block" : "confirm"}
         />
       </div>
     </div>

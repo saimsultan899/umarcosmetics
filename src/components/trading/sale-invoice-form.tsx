@@ -19,9 +19,14 @@ import {
   calcLineDiscount,
 } from "@/lib/types/trading";
 import { readWalkInSlip } from "@/lib/print/walk-in-slip";
+import {
+  normalizeSaleStockPolicy,
+  reviewSaleStock,
+  type SaleStockPolicy,
+} from "@/lib/trading/sale-stock-policy";
 import { formatPkr } from "@/lib/utils";
 import { useRouter } from "next/navigation";
-import { FormEvent, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 const UUID_RE =
   /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
@@ -54,6 +59,7 @@ export function SaleInvoiceForm({
   warehouses,
   stockBalances = [],
   salesmen = [],
+  saleStockPolicy = "confirm",
   onDone,
 }: {
   companyId: string;
@@ -63,11 +69,33 @@ export function SaleInvoiceForm({
   warehouses: Warehouse[];
   stockBalances?: StockBalanceLite[];
   salesmen?: SalesmanOption[];
+  saleStockPolicy?: SaleStockPolicy;
   onDone?: () => void;
 }) {
   const router = useRouter();
   const closeDialog = useCreateDialogClose();
   const linesEditorRef = useRef<LineItemsEditorHandle>(null);
+  const [stockPolicy, setStockPolicy] = useState<SaleStockPolicy>(
+    normalizeSaleStockPolicy(saleStockPolicy),
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = createClient();
+    void supabase
+      .from("companies")
+      .select("sale_stock_policy")
+      .eq("id", companyId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled && data) {
+          setStockPolicy(normalizeSaleStockPolicy(data.sale_stock_policy));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId]);
   const customers = useMemo(
     () => parties.filter((p) => p.party_subtype === "customer" || p.party_subtype === "both" || p.party_type === "PARTY"),
     [parties],
@@ -193,9 +221,38 @@ export function SaleInvoiceForm({
         );
       }
     }
-    if (stockAlerts.length > 0) {
+    const stockReview = reviewSaleStock(
+      [...needByProduct.entries()].map(([productId, need]) => {
+        const product = products.find((p) => p.id === productId);
+        const stockWh = product?.default_warehouse_id || resolvedWarehouse;
+        const onHand =
+          stockByProduct
+            .get(productId)
+            ?.find((e) => e.warehouseId === stockWh)?.qty ?? 0;
+        const companyName =
+          warehouses.find((w) => w.id === stockWh)?.name || "selected company";
+        const label = product
+          ? `${product.code} — ${product.name_en} (${companyName})`
+          : "Product";
+        return { label, need, onHand };
+      }),
+      stockPolicy,
+    );
+    if (stockReview.mistakes.length > 0) {
+      setError(
+        `${stockReview.mistakes.join("\n")}\n\nThis quantity is too far above the stock on hand. The invoice was not saved.`,
+      );
+      return;
+    }
+    if (stockPolicy === "block" && stockReview.shorts.length > 0) {
+      setError(
+        `${stockReview.shorts.join("\n")}\n\nThis company does not sell more than the stock on hand.`,
+      );
+      return;
+    }
+    if (stockAlerts.length > 0 && stockPolicy === "confirm") {
       const proceed = window.confirm(
-        `Out of stock:\n\n${stockAlerts.join("\n")}\n\nThe invoice will still be saved. Stock will go negative, and the next receipt will clear that deficit.\n\nContinue?`,
+        `Out of stock:\n\n${stockAlerts.join("\n")}\n\nSave this sale anyway? Stock will go negative, and the next receipt will clear that deficit.`,
       );
       if (!proceed) return;
     }
@@ -491,7 +548,7 @@ export function SaleInvoiceForm({
         warehouseId={warehouseId}
         warehouses={warehouses}
         stockByProduct={stockByProduct}
-        allowOversell
+        allowOversell={stockPolicy === "confirm"}
         onAutoPickWarehouse={setWarehouseId}
         extraDiscount={extraDiscount}
         onExtraDiscountChange={setExtraDiscount}

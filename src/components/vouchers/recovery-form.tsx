@@ -12,6 +12,11 @@ import { createClient } from "@/lib/supabase/client";
 import type { Party } from "@/lib/types/database";
 import type { SalesmanOption } from "@/lib/queries/salesmen";
 import { formatPkr } from "@/lib/utils";
+import {
+  findSameDayRecoveries,
+  formatRecoveryWhen,
+  type SameDayRecovery,
+} from "@/lib/vouchers/same-day-recovery";
 import { Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -30,6 +35,7 @@ type RecoveryLine = {
   partyName: string;
   amount: number;
   remarks: string;
+  owed: number | null;
 };
 
 function newKey() {
@@ -66,6 +72,7 @@ export function RecoveryForm({
   const [lines, setLines] = useState<RecoveryLine[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [todayRecoveries, setTodayRecoveries] = useState<SameDayRecovery[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -104,6 +111,20 @@ export function RecoveryForm({
   }, [companyId, partyId, date]);
 
   useEffect(() => {
+    let cancelled = false;
+    if (!partyId) {
+      setTodayRecoveries([]);
+      return;
+    }
+    void findSameDayRecoveries(companyId, partyId, date).then((rows) => {
+      if (!cancelled) setTodayRecoveries(rows);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId, partyId, date]);
+
+  useEffect(() => {
     const t = requestAnimationFrame(() => focusCode());
     return () => cancelAnimationFrame(t);
   }, []);
@@ -126,6 +147,41 @@ export function RecoveryForm({
     if (focusCodeField) focusCode();
   }
 
+  function dueBlock(
+    name: string,
+    amt: number,
+    owed: number | null,
+    reserved: number,
+  ) {
+    if (owed == null) return null;
+    const left = owed - reserved;
+    if (left <= 0.005) {
+      return `${name} has no amount due. The recovery was not added.`;
+    }
+    if (amt > left + 0.005) {
+      return `${name} still owes ${formatPkr(left)}. A higher recovery was not added.`;
+    }
+    return null;
+  }
+
+  function recoveryWarning(
+    name: string,
+    prior: SameDayRecovery[],
+    alreadyOnForm: boolean,
+  ) {
+    if (prior.length === 0 && !alreadyOnForm) return null;
+    const listed = prior
+      .map((row) => {
+        const when = formatRecoveryWhen(row.at);
+        return when ? `${formatPkr(row.amount)} at ${when}` : formatPkr(row.amount);
+      })
+      .join(", ");
+    const text = alreadyOnForm
+      ? `${name} is already on this recovery list.`
+      : `${name} already has a recovery today${listed ? `: ${listed}` : ""}.`;
+    return `${text}\n\nRecord this recovery anyway?`;
+  }
+
   function commitLine() {
     setError(null);
     const amt = Number(amount);
@@ -133,6 +189,15 @@ export function RecoveryForm({
       setError("Select customer and enter a recovery amount.");
       if (!partyId) focusCode();
       else focusField(amountRef.current);
+      return false;
+    }
+    const reserved = lines
+      .filter((line) => line.partyId === partyId)
+      .reduce((sum, line) => sum + line.amount, 0);
+    const blocked = dueBlock(party.name_en, amt, balance, reserved);
+    if (blocked) {
+      setError(blocked);
+      focusField(amountRef.current);
       return false;
     }
     setLines((prev) => [
@@ -144,6 +209,7 @@ export function RecoveryForm({
         partyName: party.name_en,
         amount: amt,
         remarks: remarks.trim(),
+        owed: balance,
       },
     ]);
     clearDraft(true);
@@ -180,6 +246,7 @@ export function RecoveryForm({
           partyName: party.name_en,
           amount: amt,
           remarks: remarks.trim(),
+          owed: balance,
         },
       ];
       setLines(pending);
@@ -189,6 +256,36 @@ export function RecoveryForm({
     if (pending.length === 0) {
       setError("Add at least one recovery line before recording.");
       return;
+    }
+
+    for (let i = 0; i < pending.length; i += 1) {
+      const line = pending[i];
+      let owed = line.owed;
+      if (owed == null && (typeof navigator === "undefined" || navigator.onLine)) {
+        const supabase = createClient();
+        const { data } = await supabase.rpc("get_party_balance", {
+          p_company_id: companyId,
+          p_party_id: line.partyId,
+          p_as_of: date,
+        });
+        owed = data == null ? null : Number(data);
+      }
+      const reserved = pending
+        .slice(0, i)
+        .filter((row) => row.partyId === line.partyId)
+        .reduce((sum, row) => sum + row.amount, 0);
+      const blocked = dueBlock(line.partyName, line.amount, owed, reserved);
+      if (blocked) {
+        setError(blocked);
+        return;
+      }
+      const prior = await findSameDayRecoveries(companyId, line.partyId, date);
+      const warning = recoveryWarning(
+        line.partyName,
+        prior,
+        pending.filter((row) => row.partyId === line.partyId).length > 1,
+      );
+      if (warning && !window.confirm(warning)) return;
     }
 
     setLoading(true);
@@ -308,6 +405,24 @@ export function RecoveryForm({
                         {formatPkr(Math.abs(balance))}{" "}
                         {balance > 0.005 ? "Dr" : balance < -0.005 ? "Cr" : "Nil"}
                       </span>
+                    </p>
+                  ) : null}
+                  {partyId && balance != null && balance <= 0.005 ? (
+                    <p className="mt-1 rounded-md bg-rose-50 px-2 py-1 text-[11px] font-medium text-rose-700">
+                      No amount due. A recovery cannot be added for this customer.
+                    </p>
+                  ) : null}
+                  {todayRecoveries.length > 0 ? (
+                    <p className="mt-1 rounded-md bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-800">
+                      Already collected today:{" "}
+                      {todayRecoveries
+                        .map((row) => {
+                          const when = formatRecoveryWhen(row.at);
+                          return when
+                            ? `${formatPkr(row.amount)} at ${when}`
+                            : formatPkr(row.amount);
+                        })
+                        .join(", ")}
                     </p>
                   ) : null}
                 </td>

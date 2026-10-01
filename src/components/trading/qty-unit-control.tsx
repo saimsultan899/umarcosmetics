@@ -66,9 +66,7 @@ export const QtyUnitControl = forwardRef<HTMLInputElement, QtyUnitControlProps>(
     _ref,
   ) {
     const canCarton = hasCartonPacking(packing);
-    const [mode, setMode] = useState<QtyUnitMode>(
-      defaultMode || (canCarton ? "carton" : "piece"),
-    );
+    const [mode, setMode] = useState<QtyUnitMode>(defaultMode || "piece");
     const groupId = useId();
 
     useEffect(() => {

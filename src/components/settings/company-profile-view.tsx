@@ -1,6 +1,7 @@
 "use client";
 
 import { CopyCatalogForm } from "@/components/settings/copy-catalog-form";
+import { SaleStockPolicySetting } from "@/components/settings/sale-stock-policy-setting";
 import { WalkInSlipSetting } from "@/components/settings/walk-in-slip-setting";
 import { useCompanyProfile } from "@/hooks/use-company-profile";
 import type { Company } from "@/lib/types/database";
@@ -64,6 +65,11 @@ export function CompanyProfileView({
           </p>
         </div>
       </div>
+
+      <SaleStockPolicySetting
+        companyId={activeCompany.id}
+        initialPolicy={activeCompany.sale_stock_policy}
+      />
 
       <WalkInSlipSetting companyId={activeCompany.id} />
 

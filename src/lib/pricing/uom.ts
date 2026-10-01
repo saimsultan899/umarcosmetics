@@ -68,7 +68,7 @@ export function pieceShortLabel(baseUnit?: string | null): string {
   if (!raw) return PIECE_LABEL;
   const lower = raw.toLowerCase();
   if (lower.startsWith("piec") || lower === "pcs" || lower === "pc") return "PCS";
-  if (lower.startsWith("unit")) return "UNT";
+  if (lower.startsWith("unit")) return "Unit";
   return raw.slice(0, 3).toUpperCase();
 }
 

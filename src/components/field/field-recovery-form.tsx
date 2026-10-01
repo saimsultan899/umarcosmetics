@@ -7,7 +7,13 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { createClient } from "@/lib/supabase/client";
-import { FormEvent, useState } from "react";
+import { formatPkr } from "@/lib/utils";
+import {
+  findSameDayRecoveries,
+  formatRecoveryWhen,
+  type SameDayRecovery,
+} from "@/lib/vouchers/same-day-recovery";
+import { FormEvent, useEffect, useState } from "react";
 
 type Shop = {
   party_id: string;
@@ -32,6 +38,22 @@ export function FieldRecoveryForm({
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [todayRecoveries, setTodayRecoveries] = useState<SameDayRecovery[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const date = new Date().toISOString().slice(0, 10);
+    if (!partyId) {
+      setTodayRecoveries([]);
+      return;
+    }
+    void findSameDayRecoveries(companyId, partyId, date).then((rows) => {
+      if (!cancelled) setTodayRecoveries(rows);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId, partyId]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -40,6 +62,34 @@ export function FieldRecoveryForm({
     if (!partyId || Number(amount) <= 0) {
       setError("Select shop and enter amount.");
       return;
+    }
+
+    const date = new Date().toISOString().slice(0, 10);
+    const prior = await findSameDayRecoveries(companyId, partyId, date);
+    setTodayRecoveries(prior);
+    const owed = selected?.balance ?? null;
+    const shopName = selected?.name_en || "This customer";
+    if (owed != null && owed <= 0.005) {
+      setError(`${shopName} has no amount due. The recovery was not added.`);
+      return;
+    }
+    if (owed != null && Number(amount) > owed + 0.005) {
+      setError(
+        `${shopName} still owes ${formatPkr(owed)}. A higher recovery was not added.`,
+      );
+      return;
+    }
+    if (prior.length > 0) {
+      const listed = prior
+        .map((row) => {
+          const when = formatRecoveryWhen(row.at);
+          return when ? `${formatPkr(row.amount)} at ${when}` : formatPkr(row.amount);
+        })
+        .join(", ");
+      const proceed = window.confirm(
+        `${shopName} already has a recovery today${listed ? `: ${listed}` : ""}.\n\nRecord this recovery anyway?`,
+      );
+      if (!proceed) return;
     }
 
     const payload = {
@@ -121,6 +171,22 @@ export function FieldRecoveryForm({
               : Number(selected.balance) < 0
                 ? "Cr"
                 : "Nil"}
+          </p>
+        ) : null}
+        {selected && Number(selected.balance) <= 0.005 ? (
+          <p className="mt-2 rounded-lg bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">
+            No amount due. A recovery cannot be added for this customer.
+          </p>
+        ) : null}
+        {todayRecoveries.length > 0 ? (
+          <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
+            Already collected today:{" "}
+            {todayRecoveries
+              .map((row) => {
+                const when = formatRecoveryWhen(row.at);
+                return when ? `${formatPkr(row.amount)} at ${when}` : formatPkr(row.amount);
+              })
+              .join(", ")}
           </p>
         ) : null}
       </div>

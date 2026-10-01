@@ -31,6 +31,8 @@ export type Company = {
   ntn: string | null;
   logo_url: string | null;
   is_active: boolean;
+  /** block = do not sell past stock. confirm = warn, then allow a short sale. */
+  sale_stock_policy?: "block" | "confirm" | null;
   created_at: string;
   updated_at: string;
 };

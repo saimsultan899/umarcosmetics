@@ -37,8 +37,7 @@ export default async function SaleInvoicesPage({
     supabase
       .from("stock_balances")
       .select("product_id, warehouse_id, qty")
-      .eq("company_id", company.id)
-      .gt("qty", 0),
+      .eq("company_id", company.id),
     fetchDocumentList(
       supabase,
       company.id,
@@ -74,6 +73,7 @@ export default async function SaleInvoicesPage({
               warehouses={warehouses}
               stockBalances={stockRows || []}
               salesmen={salesmen}
+              saleStockPolicy={company.sale_stock_policy === "block" ? "block" : "confirm"}
             />
           </CreateDialogButton>
         }

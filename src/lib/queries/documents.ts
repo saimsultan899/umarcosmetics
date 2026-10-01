@@ -161,6 +161,9 @@ export async function fetchDocumentList(
     .from(config.table)
     .select(selectParts.join(", "), { count: "exact" })
     .eq("company_id", companyId);
+  if (config.table === "sale_invoices") {
+    listQuery = listQuery.neq("status", "cancelled");
+  }
   listQuery = applyDocumentSearch(listQuery, q, config.docNoField);
   if (warehouseId && config.warehouseSelect) {
     listQuery = listQuery.eq("warehouse_id", warehouseId);
@@ -179,10 +182,17 @@ export async function fetchDocumentList(
       .order(dateField, { ascending: false })
       .order("created_at", { ascending: false })
       .range(from, to),
-    supabase
-      .from(config.table)
-      .select(recentSelect)
-      .eq("company_id", companyId)
+    (config.table === "sale_invoices"
+      ? supabase
+          .from(config.table)
+          .select(recentSelect)
+          .eq("company_id", companyId)
+          .neq("status", "cancelled")
+      : supabase
+          .from(config.table)
+          .select(recentSelect)
+          .eq("company_id", companyId)
+    )
       .order(dateField, { ascending: false })
       .limit(300),
   ]);

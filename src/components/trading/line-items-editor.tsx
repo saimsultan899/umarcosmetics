@@ -14,6 +14,7 @@ import {
   resolveProductRate,
   type RateField,
 } from "@/lib/product-rate";
+import { saleQtyIsMistake } from "@/lib/trading/sale-stock-policy";
 import { createClient } from "@/lib/supabase/client";
 import type { Product, Warehouse } from "@/lib/types/database";
 import {
@@ -351,6 +352,32 @@ export const LineItemsEditor = forwardRef<
     return `Only ${formatStockQty(avail, productId)} available in ${warehouseLabel(companyId)} (need ${formatStockQty(need, productId)})`;
   }
 
+  /** Stop the line when stock policy blocks a short sale, or the qty is a wild mistype. */
+  function refuseStock(
+    productId: string,
+    qty: string,
+    bonus: string,
+    exceptKey?: string,
+  ): string | null {
+    if (receiveStock || !productId) return null;
+    const productWh = productCompanyId(productId);
+    const companyId = productWh || effectiveWarehouseId;
+    const need = Number(qty || 0) + Number(bonus || 0);
+    if (companyId && stockByProduct) {
+      const onHand =
+        stockByProduct
+          .get(productId)
+          ?.find((e) => e.warehouseId === companyId)?.qty ?? 0;
+      const shelf = onHand - reservedQty(productId, exceptKey);
+      if (saleQtyIsMistake(need, shelf)) {
+        return `Entered ${formatStockQty(need, productId)}, stock on hand ${formatStockQty(Math.max(0, shelf), productId)} in ${warehouseLabel(companyId)}. This quantity is too far above the shelf. Check the number.`;
+      }
+    }
+    const stockErr = overstockAlert(productId, qty, bonus, exceptKey);
+    if (stockErr && !allowOversell) return stockErr;
+    return null;
+  }
+
   function rememberWarehouse(catalog: Product) {
     if (onAutoPickWarehouse && catalog.id && catalog.default_warehouse_id) {
       pickWarehouse(catalog.default_warehouse_id);
@@ -522,13 +549,13 @@ export const LineItemsEditor = forwardRef<
 
   /** Add 1 piece on the product's existing line, or append a new line at qty 1. */
   function bumpLineQty(line: LineItemDraft, nextQty: string) {
-    const stockErr = overstockAlert(
+    const stockErr = refuseStock(
       line.product_id,
       nextQty,
       line.bonus || "0",
       line.key,
     );
-    if (stockErr && !allowOversell) {
+    if (stockErr) {
       setHint(stockErr);
       return false;
     }
@@ -553,12 +580,12 @@ export const LineItemsEditor = forwardRef<
     const bonusFields = enableBonus
       ? schemeFields("", qty, String(rate))
       : { bonus: "0", scheme: "" };
-    const stockErr = overstockAlert(
+    const stockErr = refuseStock(
       catalog.id,
       qty,
       bonusFields.bonus || "0",
     );
-    if (stockErr && !allowOversell) {
+    if (stockErr) {
       setHint(stockErr);
       return false;
     }
@@ -697,16 +724,14 @@ export const LineItemsEditor = forwardRef<
       return false;
     }
 
-    const stockErr = overstockAlert(
+    const stockErr = refuseStock(
       current.product_id,
       current.qty,
       current.bonus || "0",
     );
-    if (stockErr && !allowOversell) {
-      if (!opts?.silent) {
-        setHint(stockErr);
-        focusField(qtyRef.current);
-      }
+    if (stockErr) {
+      setHint(stockErr);
+      if (!opts?.silent) focusField(qtyRef.current);
       return false;
     }
 
@@ -998,6 +1023,15 @@ export const LineItemsEditor = forwardRef<
                   qty={draft.qty}
                   qtyInputRef={qtyRef}
                   onQtyChange={(qty) => {
+                    const stopped = refuseStock(
+                      draftRef.current.product_id,
+                      qty,
+                      draftRef.current.bonus || "0",
+                    );
+                    if (stopped) {
+                      setHint(stopped);
+                      return;
+                    }
                     patchDraft({
                       qty,
                       ...schemeFields(
@@ -1156,6 +1190,16 @@ export const LineItemsEditor = forwardRef<
                       baseUnit={productById.get(line.product_id)?.base_unit}
                       qty={line.qty}
                       onQtyChange={(qty) => {
+                        const stopped = refuseStock(
+                          line.product_id,
+                          qty,
+                          line.bonus || "0",
+                          line.key,
+                        );
+                        if (stopped) {
+                          setHint(stopped);
+                          return;
+                        }
                         patchLine(line.key, {
                           qty,
                           ...schemeFields(line.scheme, qty, line.rate),

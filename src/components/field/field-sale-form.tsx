@@ -10,6 +10,11 @@ import { resolveProductRate } from "@/lib/product-rate";
 import { computeLineScheme } from "@/lib/pricing/discounts";
 import { createClient } from "@/lib/supabase/client";
 import type { Product, Warehouse } from "@/lib/types/database";
+import {
+  normalizeSaleStockPolicy,
+  reviewSaleStock,
+  type SaleStockPolicy,
+} from "@/lib/trading/sale-stock-policy";
 import { formatPkr } from "@/lib/utils";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
@@ -27,12 +32,16 @@ export function FieldSaleForm({
   shops,
   products,
   warehouses,
+  stockBalances,
+  saleStockPolicy = "confirm",
 }: {
   companyId: string;
   organizationId: string;
   shops: Shop[];
   products: Product[];
   warehouses: Warehouse[];
+  stockBalances?: Array<{ product_id: string; warehouse_id: string; qty: number }>;
+  saleStockPolicy?: SaleStockPolicy;
 }) {
   const { online, refreshPending, runSync } = useSyncStatus();
   const [partyId, setPartyId] = useState(shops[0]?.party_id || "");
@@ -136,6 +145,45 @@ export function FieldSaleForm({
       return;
     }
     const lineAmount = Math.max(0, Number(qty) * lineRate);
+    if (stockBalances) {
+      const stockWh = product.default_warehouse_id || warehouseId;
+      const onHand =
+        stockBalances.find(
+          (row) => row.product_id === product.id && row.warehouse_id === stockWh,
+        )?.qty ?? 0;
+      const policy = normalizeSaleStockPolicy(saleStockPolicy);
+      const stockReview = reviewSaleStock(
+        [
+          {
+            label: `${product.code} — ${product.name_en}`,
+            need: Number(qty || 0) + Number(bonus || 0),
+            onHand: Number(onHand || 0),
+          },
+        ],
+        policy,
+      );
+      if (stockReview.mistakes.length > 0) {
+        setError(
+          `${stockReview.mistakes.join(" ")}\nThis quantity is too far above the stock on hand. The sale was not saved.`,
+        );
+        return;
+      }
+      if (policy === "block" && stockReview.shorts.length > 0) {
+        setError(
+          `${stockReview.shorts.join(" ")}\nThis company does not sell more than the stock on hand.`,
+        );
+        return;
+      }
+      if (
+        policy === "confirm" &&
+        stockReview.shorts.length > 0 &&
+        !window.confirm(
+          `Out of stock:\n\n${stockReview.shorts.join("\n")}\n\nSave this sale anyway? Stock will go negative.`,
+        )
+      ) {
+        return;
+      }
+    }
 
     const payload = {
       organization_id: organizationId,
