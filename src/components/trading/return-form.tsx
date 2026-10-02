@@ -18,6 +18,7 @@ import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { createClient } from "@/lib/supabase/client";
 import type { Party, Product, Warehouse } from "@/lib/types/database";
 import { type LineItemDraft, calcLineAmount, calcLineDiscount } from "@/lib/types/trading";
+import { formatPkr } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
@@ -230,6 +231,8 @@ export function ReturnForm({
   const [invoices, setInvoices] = useState<ReturnInvoice[]>([]);
   const [invoiceId, setInvoiceId] = useState("");
   const [caps, setCaps] = useState<Map<string, { qty: number; bonus: number }>>(new Map());
+  const [partyDue, setPartyDue] = useState<number | null>(null);
+  const [recoveredTotal, setRecoveredTotal] = useState(0);
   const extraEdited = useRef(false);
   const invoiceBasis = useRef<{ extra: number; linesTotal: number } | null>(null);
 
@@ -253,6 +256,54 @@ export function ReturnForm({
       cancelled = true;
     };
   }, [companyId, kind, partyId]);
+
+  useEffect(() => {
+    if (kind !== "sale" || !partyId) {
+      setPartyDue(null);
+      setRecoveredTotal(0);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      if (!(await isAppOnline())) {
+        if (!cancelled) {
+          setPartyDue(null);
+          setRecoveredTotal(0);
+        }
+        return;
+      }
+      try {
+        const supabase = createClient();
+        const [{ data: bal }, { data: recs }] = await Promise.all([
+          supabase.rpc("get_party_balance", {
+            p_company_id: companyId,
+            p_party_id: partyId,
+            p_as_of: returnDate,
+          }),
+          supabase
+            .from("recoveries")
+            .select("amount")
+            .eq("company_id", companyId)
+            .eq("party_id", partyId)
+            .gt("amount", 0)
+            .lte("recovery_date", returnDate),
+        ]);
+        if (cancelled) return;
+        setPartyDue(bal == null ? null : Number(bal));
+        setRecoveredTotal(
+          (recs || []).reduce((sum, row) => sum + Number(row.amount || 0), 0),
+        );
+      } catch {
+        if (!cancelled) {
+          setPartyDue(null);
+          setRecoveredTotal(0);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId, kind, partyId, returnDate]);
 
   function applyInvoice(nextId: string) {
     setInvoiceId(nextId);
@@ -340,6 +391,23 @@ export function ReturnForm({
       }
     }
     const grand_total = Math.max(0, linesTotal - extra);
+
+    if (kind === "sale" && partyDue != null && grand_total > partyDue + 0.005) {
+      const recoveryNote =
+        recoveredTotal > 0.005
+          ? ` Recoveries already recorded: ${formatPkr(recoveredTotal)}.`
+          : "";
+      if (partyDue <= 0.005) {
+        setError(
+          `This customer has no amount due. A sale return would create credit. Cancel the recovery first if goods are coming back.${recoveryNote}`,
+        );
+      } else {
+        setError(
+          `This customer only owes ${formatPkr(partyDue)}. A return of ${formatPkr(grand_total)} would create credit. Cancel the recovery first, or return only the unpaid amount.${recoveryNote}`,
+        );
+      }
+      return;
+    }
 
     setLoading(true);
     try {
@@ -466,6 +534,17 @@ export function ReturnForm({
           <Input value={narration} onChange={(e) => setNarration(e.target.value)} />
         </div>
       </div>
+
+      {kind === "sale" && partyId && recoveredTotal > 0.005 ? (
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          This customer already has recoveries totaling {formatPkr(recoveredTotal)}.
+          {partyDue == null
+            ? ""
+            : partyDue <= 0.005
+              ? " Balance is nil — a sale return would create credit and is blocked."
+              : ` Only ${formatPkr(partyDue)} is still due. Return more than that is blocked.`}
+        </p>
+      ) : null}
 
       <LineItemsEditor
         ref={linesEditorRef}
