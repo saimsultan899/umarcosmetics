@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { createClient } from "@/lib/supabase/client";
-import { formatPkr } from "@/lib/utils";
+import { AMOUNT_PLACEHOLDER, AMOUNT_STEP, formatNumber, formatPkr } from "@/lib/utils";
 import {
   findSameDayRecoveries,
   formatRecoveryWhen,
@@ -165,7 +165,7 @@ export function FieldRecoveryForm({
         </div>
         {selected ? (
           <p className="mt-1 text-xs text-[var(--muted)]">
-            {selected.name_en} · Balance: {Number(selected.balance).toLocaleString()}{" "}
+            {selected.name_en} · Balance: {formatNumber(selected.balance)}{" "}
             {Number(selected.balance) > 0
               ? "Dr"
               : Number(selected.balance) < 0
@@ -195,7 +195,8 @@ export function FieldRecoveryForm({
         <Input
           type="number"
           min="0"
-          step="1"
+          step={AMOUNT_STEP}
+          placeholder={AMOUNT_PLACEHOLDER}
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           required

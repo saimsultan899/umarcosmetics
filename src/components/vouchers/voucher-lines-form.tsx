@@ -9,7 +9,7 @@ import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { createClient } from "@/lib/supabase/client";
 import type { Party } from "@/lib/types/database";
-import { formatPkr } from "@/lib/utils";
+import { AMOUNT_PLACEHOLDER, AMOUNT_STEP, formatPkr } from "@/lib/utils";
 import { Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
@@ -143,7 +143,8 @@ export function CashVoucherForm({
                   <Input
                     type="number"
                     min="0"
-                    step="1"
+                    step={AMOUNT_STEP}
+                    placeholder={AMOUNT_PLACEHOLDER}
                     value={line.amount}
                     onChange={(e) =>
                       setLines((prev) =>

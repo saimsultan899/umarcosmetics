@@ -12,18 +12,31 @@ export const fieldControlClass =
 /** Roboto for money, qty, and numeric values. */
 export const amountClass = "font-amount tabular-nums";
 
+/** Money / rate input placeholder — always two decimals, e.g. 0.00 */
+export const AMOUNT_PLACEHOLDER = "0.00";
+
+/** Money / rate input step for two-decimal amounts. */
+export const AMOUNT_STEP = "0.01";
+
+/** Format money as Rs 156.60 (always two decimals). */
 export function formatPkr(value: number | string | null | undefined) {
   const n = Number(value ?? 0);
   return new Intl.NumberFormat("en-PK", {
     style: "currency",
     currency: "PKR",
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(n);
 }
 
+/**
+ * Format a number with fixed decimals (default 156.60 style).
+ * Pass digits=0 for whole counts (bills, SKUs).
+ */
 export function formatNumber(value: number | string | null | undefined, digits = 2) {
   const n = Number(value ?? 0);
   return new Intl.NumberFormat("en-PK", {
+    minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   }).format(n);
 }

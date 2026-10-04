@@ -9,6 +9,7 @@ import {
 } from "@/lib/keyboard/enter-nav";
 import { createClient } from "@/lib/supabase/client";
 import type { Party } from "@/lib/types/database";
+import { formatNumber } from "@/lib/utils";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 function focusAfterParty(codeEl: HTMLElement) {
@@ -199,7 +200,7 @@ export function PartyCodePicker({
               .filter(Boolean)
               .join(" · ") || "No contact/sector details"}
             {Number(selected.credit_limit) > 0
-              ? ` · Credit limit ${Number(selected.credit_limit).toLocaleString()}`
+              ? ` · Credit limit ${formatNumber(selected.credit_limit)}`
               : ""}
           </p>
         </div>

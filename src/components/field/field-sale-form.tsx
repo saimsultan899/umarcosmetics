@@ -15,7 +15,7 @@ import {
   reviewSaleStock,
   type SaleStockPolicy,
 } from "@/lib/trading/sale-stock-policy";
-import { formatPkr } from "@/lib/utils";
+import { AMOUNT_PLACEHOLDER, AMOUNT_STEP, formatPkr } from "@/lib/utils";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 type Shop = {
@@ -377,7 +377,8 @@ export function FieldSaleForm({
           <Input
             type="number"
             min="0"
-            step="1"
+            step={AMOUNT_STEP}
+            placeholder={AMOUNT_PLACEHOLDER}
             value={rate}
             onChange={(e) => {
               setRate(e.target.value);

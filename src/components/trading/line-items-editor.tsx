@@ -31,7 +31,7 @@ import {
   perCartonRate,
 } from "@/lib/pricing/uom";
 import { computeLineScheme, purchaseDiscountPercentText } from "@/lib/pricing/discounts";
-import { formatPkr, cn } from "@/lib/utils";
+import { AMOUNT_PLACEHOLDER, AMOUNT_STEP, formatPkr, cn } from "@/lib/utils";
 import { Trash2 } from "lucide-react";
 import {
   forwardRef,
@@ -1067,7 +1067,8 @@ export const LineItemsEditor = forwardRef<
                   ref={rateRef}
                   type="number"
                   min="0"
-                  step="1"
+                  step={AMOUNT_STEP}
+                  placeholder={AMOUNT_PLACEHOLDER}
                   value={draft.rate}
                   onChange={(e) => {
                     const rate = e.target.value;
@@ -1092,7 +1093,8 @@ export const LineItemsEditor = forwardRef<
                   type="number"
                   min="0"
                   max="100"
-                  step="1"
+                  step={AMOUNT_STEP}
+                  placeholder={AMOUNT_PLACEHOLDER}
                   value={draft.discount}
                   onChange={(e) => patchDraft({ discount: e.target.value })}
                   onKeyDown={onDiscountEnter}
@@ -1265,7 +1267,8 @@ export const LineItemsEditor = forwardRef<
                       data-line-rate="1"
                       type="number"
                       min="0"
-                      step="1"
+                      step={AMOUNT_STEP}
+                      placeholder={AMOUNT_PLACEHOLDER}
                       value={line.rate}
                       onChange={(e) =>
                         patchLine(line.key, { rate: e.target.value })
@@ -1305,7 +1308,8 @@ export const LineItemsEditor = forwardRef<
                       type="number"
                       min="0"
                       max="100"
-                      step="1"
+                      step={AMOUNT_STEP}
+                      placeholder={AMOUNT_PLACEHOLDER}
                       value={line.discount}
                       onChange={(e) =>
                         patchLine(line.key, { discount: e.target.value })

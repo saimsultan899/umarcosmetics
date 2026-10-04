@@ -16,7 +16,7 @@ import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import type { SalesmanOption } from "@/lib/queries/salesmen";
 import { createClient } from "@/lib/supabase/client";
 import type { Party, Warehouse } from "@/lib/types/database";
-import { cn, formatPkr } from "@/lib/utils";
+import { AMOUNT_PLACEHOLDER, AMOUNT_STEP, cn, formatPkr } from "@/lib/utils";
 import { Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
@@ -292,7 +292,8 @@ export function ExpenseForm({
                   <Input
                     type="number"
                     min="0"
-                    step="1"
+                    step={AMOUNT_STEP}
+                    placeholder={AMOUNT_PLACEHOLDER}
                     value={line.amount}
                     onChange={(e) =>
                       updateLine(line.key, { amount: e.target.value })

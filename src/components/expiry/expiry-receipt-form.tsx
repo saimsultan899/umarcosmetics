@@ -10,7 +10,7 @@ import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { createClient } from "@/lib/supabase/client";
 import type { Party, Product } from "@/lib/types/database";
-import { formatPkr } from "@/lib/utils";
+import { AMOUNT_PLACEHOLDER, AMOUNT_STEP, formatPkr } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
@@ -378,6 +378,7 @@ export function ExpiryReceiptForm({
                       type="number"
                       min="0"
                       step="1"
+                      placeholder="0"
                       value={l.qty}
                       onChange={(e) => onReturnQtyChange(l, e.target.value)}
                     />
@@ -386,7 +387,8 @@ export function ExpiryReceiptForm({
                     <Input
                       type="number"
                       min="0"
-                      step="1"
+                      step={AMOUNT_STEP}
+                      placeholder={AMOUNT_PLACEHOLDER}
                       value={l.amount}
                       onChange={(e) =>
                         patchLine(l.product_id, { amount: e.target.value })

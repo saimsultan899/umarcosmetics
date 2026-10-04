@@ -24,7 +24,7 @@ import {
   reviewSaleStock,
   type SaleStockPolicy,
 } from "@/lib/trading/sale-stock-policy";
-import { formatPkr } from "@/lib/utils";
+import { AMOUNT_PLACEHOLDER, AMOUNT_STEP, formatNumber, formatPkr } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
@@ -165,11 +165,11 @@ export function SaleInvoiceForm({
     const bal = Number(balance || 0);
     if (bal >= Number(selected.credit_limit)) {
       setCreditWarning(
-        `Credit limit reached/exceeded. Balance ${bal.toLocaleString()} / Limit ${Number(selected.credit_limit).toLocaleString()}`,
+        `Credit limit reached/exceeded. Balance ${formatNumber(bal)} / Limit ${formatNumber(selected.credit_limit)}`,
       );
     } else if (bal > Number(selected.credit_limit) * 0.85) {
       setCreditWarning(
-        `Near credit limit. Balance ${bal.toLocaleString()} / Limit ${Number(selected.credit_limit).toLocaleString()}`,
+        `Near credit limit. Balance ${formatNumber(bal)} / Limit ${formatNumber(selected.credit_limit)}`,
       );
     }
   }
@@ -313,7 +313,7 @@ export function SaleInvoiceForm({
           const projected = Number(balance || 0) + grand_total - amountPaid;
           if (projected > Number(party.credit_limit)) {
             const proceed = window.confirm(
-              `This sale may exceed credit limit.\nProjected balance: ${projected.toLocaleString()}\nLimit: ${Number(party.credit_limit).toLocaleString()}\n\nContinue anyway?`,
+              `This sale may exceed credit limit.\nProjected balance: ${formatNumber(projected)}\nLimit: ${formatNumber(party.credit_limit)}\n\nContinue anyway?`,
             );
             if (!proceed) {
               setLoading(false);
@@ -479,7 +479,8 @@ export function SaleInvoiceForm({
                 <Input
                   type="number"
                   min="0"
-                  step="1"
+                  step={AMOUNT_STEP}
+                  placeholder={AMOUNT_PLACEHOLDER}
                   inputMode="decimal"
                   value={
                     amountPaidStr.trim() === ""

@@ -16,6 +16,7 @@ import {
 import { offlineAwareSubmit, allocateNextPartyCode } from "@/lib/offline/offline-submit";
 import { createClient } from "@/lib/supabase/client";
 import type { Party, PartySubtype, PartyType, SaleChannel } from "@/lib/types/database";
+import { AMOUNT_PLACEHOLDER, AMOUNT_STEP } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
@@ -385,7 +386,8 @@ export function PartyForm({
         <Label>Opening balance</Label>
         <Input
           type="number"
-          step="1"
+          step={AMOUNT_STEP}
+          placeholder={AMOUNT_PLACEHOLDER}
           value={form.opening_balance}
           onChange={(e) => set("opening_balance", e.target.value)}
         />
@@ -394,7 +396,8 @@ export function PartyForm({
         <Label>Credit limit</Label>
         <Input
           type="number"
-          step="1"
+          step={AMOUNT_STEP}
+          placeholder={AMOUNT_PLACEHOLDER}
           value={form.credit_limit}
           onChange={(e) => set("credit_limit", e.target.value)}
         />

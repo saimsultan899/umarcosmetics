@@ -2,7 +2,7 @@
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { cn, formatPkr } from "@/lib/utils";
+import { AMOUNT_PLACEHOLDER, AMOUNT_STEP, cn, formatPkr } from "@/lib/utils";
 import { useEffect, useId, useRef, useState } from "react";
 
 export type ExtraDiscountMode = "amount" | "percent";
@@ -131,12 +131,12 @@ export function ExtraDiscountControl({
         <Input
           type="number"
           min="0"
-          step="1"
+          step={AMOUNT_STEP}
           inputMode="decimal"
           value={input}
           disabled={disabled}
           onChange={(e) => onInputChange(e.target.value)}
-          placeholder="0"
+          placeholder={AMOUNT_PLACEHOLDER}
           className="h-9 w-28 text-right tabular-nums"
           aria-label={
             mode === "percent" ? "Extra discount percent" : "Extra discount amount"

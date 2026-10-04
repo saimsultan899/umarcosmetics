@@ -12,7 +12,7 @@ import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { createClient } from "@/lib/supabase/client";
 import type { Party } from "@/lib/types/database";
 import type { SalesmanOption } from "@/lib/queries/salesmen";
-import { formatNumber, formatPkr } from "@/lib/utils";
+import { AMOUNT_PLACEHOLDER, AMOUNT_STEP, formatNumber, formatPkr } from "@/lib/utils";
 import {
   findSameDayRecoveries,
   formatRecoveryWhen,
@@ -656,12 +656,12 @@ export function RecoveryForm({
                     id={amountId}
                     type="number"
                     min="0"
-                    step="1"
+                    step={AMOUNT_STEP}
                     inputMode="decimal"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     onKeyDown={onAmountEnter}
-                    placeholder="0.00"
+                    placeholder={AMOUNT_PLACEHOLDER}
                   />
                 </td>
                 <td>
@@ -818,7 +818,7 @@ export function RecoveryForm({
                           </td>
                           <td className="tabular-nums text-[var(--muted)]">
                             {row.lastReceived != null && row.lastReceived > 0.005
-                              ? formatNumber(row.lastReceived, 0)
+                              ? formatNumber(row.lastReceived, 2)
                               : "-"}
                           </td>
                           <td
@@ -837,17 +837,17 @@ export function RecoveryForm({
                               : Math.abs(row.balance) < 0.005
                                 ? "Nil"
                                 : row.balance > 0
-                                  ? `${formatNumber(row.balance, 0)} Dr`
-                                  : `${formatNumber(Math.abs(row.balance), 0)} Cr`}
+                                  ? `${formatNumber(row.balance, 2)} Dr`
+                                  : `${formatNumber(Math.abs(row.balance), 2)} Cr`}
                           </td>
                           <td>
                             <Input
                               type="number"
                               min="0"
-                              step="1"
+                              step={AMOUNT_STEP}
                               inputMode="decimal"
                               value={draft.amount}
-                              placeholder="0.00"
+                              placeholder={AMOUNT_PLACEHOLDER}
                               className={over ? "border-rose-400" : undefined}
                               onChange={(e) =>
                                 setSheetDrafts((prev) => ({

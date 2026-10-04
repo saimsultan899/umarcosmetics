@@ -19,21 +19,21 @@ const TZ = "Asia/Karachi";
 /** Balance → "7,434 Dr" / "1,825 Cr" / "Nil", matching the paper sheet. */
 function balanceLabel(balance: number) {
   if (Math.abs(balance) < 0.005) return "Nil";
-  if (balance > 0) return `${formatNumber(balance, 0)} Dr`;
-  return `${formatNumber(Math.abs(balance), 0)} Cr`;
+  if (balance > 0) return `${formatNumber(balance, 2)} Dr`;
+  return `${formatNumber(Math.abs(balance), 2)} Cr`;
 }
 
 /** Paper sheet amounts — plain numbers, no Dr/Cr suffix. */
 function sheetAmount(value: number | null | undefined) {
   if (value == null || Math.abs(value) < 0.005) return "";
-  return formatNumber(value, 0);
+  return formatNumber(value, 2);
 }
 
 function saleDash(value: string | number | null | undefined) {
   if (value == null || value === "") return "-";
   if (typeof value === "number") {
     if (Math.abs(value) < 0.005) return "-";
-    return formatNumber(value, 0);
+    return formatNumber(value, 2);
   }
   return value;
 }
@@ -96,7 +96,7 @@ function totalsOf(rows: RecoverySheetRow[]): Totals {
 
 function lastReceivedLabel(amount: number | null | undefined) {
   if (amount == null || amount <= 0.005) return "-";
-  return formatNumber(amount, 0);
+  return formatNumber(amount, 2);
 }
 
 function matchRow(r: RecoverySheetRow, term: string) {
@@ -539,7 +539,7 @@ export function RecoverySheet({
                       <td colSpan={hideSaleCols ? 3 : 7} className="num">
                         {section.sector} — {t.count} shops
                       </td>
-                      <td className="num">{formatNumber(t.finalTotal, 0)}</td>
+                      <td className="num">{formatNumber(t.finalTotal, 2)}</td>
                       <td />
                       <td />
                     </tr>
@@ -557,7 +557,7 @@ export function RecoverySheet({
         <div className="recovery-sheet-foot">
           <span>
             {viewTotals.count} shops · Final bal. total{" "}
-            {formatNumber(viewTotals.finalTotal, 0)}
+            {formatNumber(viewTotals.finalTotal, 2)}
           </span>
           <span>Salesman: __________________</span>
         </div>
