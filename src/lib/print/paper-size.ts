@@ -4,6 +4,7 @@
  *
  * - thermal-80 / thermal-print-mode → 80mm roll
  * - si-half / cdoc--half / doc--half → A5 portrait, content upright
+ * - si-a4 → A4 portrait (full sale invoice)
  * - everything else → A4 portrait
  */
 
@@ -31,6 +32,7 @@ export function detectPrintPaper(root: ParentNode = document): PrintPaperSize {
     const paper = el.getAttribute("data-paper");
     if (paper === "thermal" || paper === "a5" || paper === "a4") return paper;
     if (el.classList.contains("thermal-80")) return "thermal";
+    if (el.classList.contains("si-a4")) return "a4";
     if (
       el.classList.contains("si-half") ||
       el.classList.contains("cdoc--half") ||
@@ -176,7 +178,8 @@ function reportFlowCss() {
 @media print {
   .print-sheet.report-print,
   .print-sheet.recovery-sheet,
-  .print-sheet.table-shell {
+  .print-sheet.table-shell,
+  .print-sheet.si-a4 {
     position: static !important;
     left: auto !important;
     right: auto !important;
@@ -191,8 +194,15 @@ function reportFlowCss() {
 
 /** Same document the browser print frame uses, so the desktop exe matches it. */
 export function buildPrintFrameHtml(paper: PrintPaperSize): string | null {
-  const sheet = activePrintSheet();
-  if (!sheet) return null;
+  const sheets = visiblePrintSheets();
+  if (!sheets.length) return null;
+  const bodyHtml = sheets
+    .map((sheet, i) => {
+      const html = sheet.outerHTML;
+      if (sheets.length === 1 || i === sheets.length - 1) return html;
+      return `${html}<div style="page-break-after:always;break-after:page"></div>`;
+    })
+    .join("");
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -216,19 +226,25 @@ ${uprightHalfSheetCss(paper)}
 ${reportFlowCss()}
 </style>
 </head>
-<body>${sheet.outerHTML}</body>
+<body>${bodyHtml}</body>
 </html>`;
 }
 
-function activePrintSheet() {
+function visiblePrintSheets() {
+  const batch = document.querySelector(".batch-sale-prints");
+  const root = batch || document;
   const sheets = Array.from(
-    document.querySelectorAll<HTMLElement>(".print-sheet"),
+    root.querySelectorAll<HTMLElement>(".print-sheet"),
   ).filter((el) => !el.classList.contains("print-skip"));
   const visible = sheets.filter((el) => {
     const style = window.getComputedStyle(el);
     return style.display !== "none" && style.visibility !== "hidden";
   });
-  return visible[0] || sheets[0] || null;
+  return visible.length ? visible : sheets;
+}
+
+function activePrintSheet() {
+  return visiblePrintSheets()[0] || null;
 }
 
 /**

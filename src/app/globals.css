@@ -2041,12 +2041,13 @@ button[aria-haspopup="listbox"]:focus-visible {
   white-space: nowrap;
 }
 
-/* Half-A4 sale invoice (classic distributor pattern) */
+/* Full-A4 sale invoice (classic distributor pattern) */
+.si-a4,
 .si-half {
   background: #fff;
   color: #111;
   font-family: "Times New Roman", Times, Georgia, serif;
-  max-width: 190mm;
+  max-width: 200mm;
   margin: 0 auto;
   padding: 6mm 7px;
   border: 1px solid var(--border);
@@ -2054,8 +2055,13 @@ button[aria-haspopup="listbox"]:focus-visible {
   font-size: 17px;
   line-height: 1.35;
   box-sizing: border-box;
-  overflow: hidden;
+  overflow: visible;
   direction: ltr;
+}
+/* Legacy half-slip class kept for older print CSS paths */
+.si-half {
+  max-width: 190mm;
+  overflow: hidden;
 }
 .si-org {
   text-align: center;
@@ -2497,7 +2503,8 @@ button[aria-haspopup="listbox"]:focus-visible {
      absolute so A4, A5, and thermal are unchanged. */
   .print-sheet.report-print,
   .print-sheet.recovery-sheet,
-  .print-sheet.table-shell {
+  .print-sheet.table-shell,
+  .print-sheet.si-a4 {
     position: static !important;
     left: auto !important;
     right: auto !important;
@@ -2509,7 +2516,7 @@ button[aria-haspopup="listbox"]:focus-visible {
     margin: 0 !important;
   }
 
-  /* Batch sale invoices: one half-A4 sheet per page (checkboxes → Print selected). */
+  /* Batch sale invoices: one full A4 per selected invoice. */
   .batch-sale-prints .print-sheet {
     position: relative !important;
     left: auto !important;
@@ -2517,7 +2524,8 @@ button[aria-haspopup="listbox"]:focus-visible {
     top: auto !important;
     page-break-after: always;
     break-after: page;
-    overflow: hidden !important;
+    max-height: none !important;
+    overflow: visible !important;
   }
   .batch-sale-prints .print-sheet:last-child,
   .batch-sale-prints .batch-sale-print-item:last-child .print-sheet {
@@ -2525,8 +2533,8 @@ button[aria-haspopup="listbox"]:focus-visible {
     break-after: auto;
   }
   .batch-sale-prints .batch-sale-print-item {
-    break-inside: avoid;
-    page-break-inside: avoid;
+    break-inside: auto;
+    page-break-inside: auto;
   }
 
   /* Other reports hidden when Print is scoped to one sheet */
@@ -2747,6 +2755,121 @@ button[aria-haspopup="listbox"]:focus-visible {
     padding-top: 2px;
   }
 
+  /* Full A4 sale invoice — no half-page clip (was cutting off after ~20 lines). */
+  .print-sheet.si-a4 {
+    page: invoice-page;
+    position: static !important;
+    left: auto !important;
+    right: auto !important;
+    top: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    box-sizing: border-box !important;
+    border: none !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    padding: 4mm 6mm !important;
+    transform: none !important;
+    font-size: 17px !important;
+    line-height: 1.3 !important;
+  }
+  .print-sheet.si-a4 .si-foot {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .print-sheet.si-a4 .si-doc-label,
+  .print-sheet.si-half .si-doc-label {
+    font-size: 15px !important;
+    font-weight: 700 !important;
+  }
+  .print-sheet.si-a4 .si-title,
+  .print-sheet.si-half .si-title {
+    font-size: 30px !important;
+    font-weight: 700 !important;
+    margin-top: 1px !important;
+    text-align: center !important;
+  }
+  .print-sheet.si-a4 .si-salesman,
+  .print-sheet.si-a4 .si-company,
+  .print-sheet.si-a4 .si-meta,
+  .print-sheet.si-half .si-salesman,
+  .print-sheet.si-half .si-company,
+  .print-sheet.si-half .si-meta {
+    font-size: 16.5px !important;
+    margin-top: 4px !important;
+  }
+  .print-sheet.si-a4 .si-company,
+  .print-sheet.si-half .si-company {
+    font-size: 20px !important;
+    font-weight: 700 !important;
+    text-align: center !important;
+  }
+  .print-sheet.si-a4 .si-k,
+  .print-sheet.si-half .si-k {
+    font-weight: 700 !important;
+  }
+  .print-sheet.si-a4 .si-v,
+  .print-sheet.si-half .si-v {
+    font-weight: 400 !important;
+  }
+  .print-sheet.si-a4 .si-distributor-addr,
+  .print-sheet.si-a4 .si-co,
+  .print-sheet.si-half .si-distributor-addr,
+  .print-sheet.si-half .si-co {
+    font-size: 15px !important;
+    font-weight: 400 !important;
+  }
+  .print-sheet.si-a4 .si-table,
+  .print-sheet.si-half .si-table {
+    margin-top: 4px !important;
+    font-size: 16px !important;
+    table-layout: fixed !important;
+    width: 100% !important;
+  }
+  .print-sheet.si-a4 .si-table th,
+  .print-sheet.si-half .si-table th {
+    font-weight: 700 !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+  }
+  .print-sheet.si-a4 .si-table th,
+  .print-sheet.si-a4 .si-table td,
+  .print-sheet.si-half .si-table th,
+  .print-sheet.si-half .si-table td {
+    padding: 3px 3px !important;
+  }
+  .print-sheet.si-a4 .si-bonus,
+  .print-sheet.si-half .si-bonus {
+    font-size: 14px !important;
+  }
+  .print-sheet.si-a4 .si-foot,
+  .print-sheet.si-half .si-foot {
+    margin-top: 5px !important;
+    font-size: 16.5px !important;
+    gap: 12px !important;
+  }
+  .print-sheet.si-a4 .si-note,
+  .print-sheet.si-a4 .si-prepared,
+  .print-sheet.si-half .si-note,
+  .print-sheet.si-half .si-prepared {
+    margin: 4px 0 2px !important;
+    font-size: 15px !important;
+  }
+  .print-sheet.si-a4 .si-checked,
+  .print-sheet.si-half .si-checked {
+    margin-top: 10px !important;
+    font-size: 16px !important;
+    font-weight: 700 !important;
+  }
+  .print-sheet.si-a4 .si-paid-kind,
+  .print-sheet.si-half .si-paid-kind {
+    font-size: 14px !important;
+  }
+
+  /* Legacy half-A5 slip (other docs / old paths) */
   .print-sheet.si-half {
     page: si-half-page;
     left: 0 !important;
@@ -2765,74 +2888,6 @@ button[aria-haspopup="listbox"]:focus-visible {
     transform: none !important;
     font-size: 17px !important;
     line-height: 1.3 !important;
-  }
-  .print-sheet.si-half .si-doc-label {
-    font-size: 15px !important;
-    font-weight: 700 !important;
-  }
-  .print-sheet.si-half .si-title {
-    font-size: 30px !important;
-    font-weight: 700 !important;
-    margin-top: 1px !important;
-    text-align: center !important;
-  }
-  .print-sheet.si-half .si-salesman,
-  .print-sheet.si-half .si-company,
-  .print-sheet.si-half .si-meta {
-    font-size: 16.5px !important;
-    margin-top: 4px !important;
-  }
-  .print-sheet.si-half .si-company {
-    font-size: 20px !important;
-    font-weight: 700 !important;
-    text-align: center !important;
-  }
-  .print-sheet.si-half .si-k {
-    font-weight: 700 !important;
-  }
-  .print-sheet.si-half .si-v {
-    font-weight: 400 !important;
-  }
-  .print-sheet.si-half .si-distributor-addr,
-  .print-sheet.si-half .si-co {
-    font-size: 15px !important;
-    font-weight: 400 !important;
-  }
-  .print-sheet.si-half .si-table {
-    margin-top: 4px !important;
-    font-size: 16px !important;
-    table-layout: fixed !important;
-    width: 100% !important;
-  }
-  .print-sheet.si-half .si-table th {
-    font-weight: 700 !important;
-    overflow: visible !important;
-    text-overflow: clip !important;
-  }
-  .print-sheet.si-half .si-table th,
-  .print-sheet.si-half .si-table td {
-    padding: 3px 3px !important;
-  }
-  .print-sheet.si-half .si-bonus {
-    font-size: 14px !important;
-  }
-  .print-sheet.si-half .si-foot {
-    margin-top: 5px !important;
-    font-size: 16.5px !important;
-    gap: 12px !important;
-  }
-  .print-sheet.si-half .si-note,
-  .print-sheet.si-half .si-prepared {
-    margin: 4px 0 2px !important;
-    font-size: 15px !important;
-  }
-  .print-sheet.si-half .si-checked {
-    margin-top: 10px !important;
-    font-size: 16px !important;
-    font-weight: 700 !important;
-  }
-  .print-sheet.si-half .si-paid-kind {
-    font-size: 14px !important;
   }
 
   /* Continuous roll: height follows content. Measured height is injected for
@@ -2980,6 +3035,7 @@ button[aria-haspopup="listbox"]:focus-visible {
   }
 
   html.thermal-print-mode .print-sheet.si-half,
+  html.thermal-print-mode .print-sheet.si-a4,
   html.thermal-print-mode .no-print {
     display: none !important;
     visibility: hidden !important;

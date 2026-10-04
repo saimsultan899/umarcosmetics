@@ -15,7 +15,7 @@ import {
 } from "@/lib/print/thermal-page";
 import { printWithAutoPaper } from "@/lib/print/paper-size";
 import { formatReportInvNo } from "@/lib/reports/helpers";
-import { formatNumber, formatPkr } from "@/lib/utils";
+import { cn, formatNumber, formatPkr } from "@/lib/utils";
 import { ArrowLeft, Printer } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -117,6 +117,8 @@ export function SaleInvoicePrint({
   companyId = "",
   embedded = false,
   forceStandard = false,
+  /** Controlled paper size when embedded in batch print. */
+  paperSize: paperSizeProp,
 }: {
   companyName: string;
   companyPhone?: string | null;
@@ -151,8 +153,10 @@ export function SaleInvoicePrint({
   companyId?: string;
   /** Hide chrome — used inside batch print (one toolbar for all). */
   embedded?: boolean;
-  /** Always use half-A4 sheet (no thermal) — safest for batch print. */
+  /** Always use standard sheet (no thermal) — safest for batch print. */
   forceStandard?: boolean;
+  /** a5 (default half slip) or a4 (full page when many lines). */
+  paperSize?: "a5" | "a4";
 }) {
   const router = useRouter();
   const paidOnBill = Math.max(0, paid);
@@ -177,6 +181,7 @@ export function SaleInvoicePrint({
   const savedDefault = useWalkInSlip(companyId);
   const urlSlip = useSlipQuery();
   const [manualLayout, setManualLayout] = useState<WalkInSlipLayout | null>(null);
+  const [localPaper, setLocalPaper] = useState<"a5" | "a4">("a5");
   const layout = manualLayout ?? urlSlip ?? savedDefault;
   const showSheet = !isWalkIn || clientReady || forceStandard || embedded;
   const showThermal =
@@ -185,6 +190,18 @@ export function SaleInvoicePrint({
     isWalkIn &&
     clientReady &&
     layout === "thermal";
+  const sheetPaper = paperSizeProp ?? localPaper;
+  const useFullA4 = !showThermal && sheetPaper === "a4";
+
+  useEffect(() => {
+    if (embedded || paperSizeProp) return;
+    try {
+      const raw = new URLSearchParams(window.location.search).get("paper");
+      if (raw === "a4" || raw === "a5") setLocalPaper(raw);
+    } catch {
+      /* ignore */
+    }
+  }, [embedded, paperSizeProp]);
 
   useEffect(() => {
     if (embedded) return;
@@ -203,7 +220,7 @@ export function SaleInvoicePrint({
       );
       return;
     }
-    printWithAutoPaper("a5");
+    printWithAutoPaper(sheetPaper);
   }
 
   useEffect(() => {
@@ -235,11 +252,11 @@ export function SaleInvoicePrint({
         );
         return;
       }
-      printWithAutoPaper("a5");
+      printWithAutoPaper(sheetPaper);
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [embedded, showThermal, showSheet]);
+  }, [embedded, showThermal, showSheet, sheetPaper]);
 
   useEffect(() => {
     if (embedded || !autoPrint || !showSheet) return;
@@ -250,10 +267,10 @@ export function SaleInvoicePrint({
         );
         return;
       }
-      printWithAutoPaper("a5");
+      printWithAutoPaper(sheetPaper);
     }, 300);
     return () => window.clearTimeout(t);
-  }, [embedded, autoPrint, showSheet, showThermal]);
+  }, [embedded, autoPrint, showSheet, showThermal, sheetPaper]);
 
   function setWalkInDefault(next: WalkInSlipLayout) {
     if (!companyId) return;
@@ -268,11 +285,13 @@ export function SaleInvoicePrint({
           <p className="mr-auto text-sm text-[var(--muted)]">
             {showThermal
               ? "80mm thermal · walk-in cash slip"
-              : isWalkIn
-                ? savedDefault === "thermal"
-                  ? "Standard invoice for this bill. Next walk-in still uses the thermal slip."
-                  : "Half A4 invoice. Turn on thermal to use it for every walk-in sale."
-                : "Half A4 · loads on right side of paper"}
+              : useFullA4
+                ? "A4 full page · use when the bill has many lines"
+                : isWalkIn
+                  ? savedDefault === "thermal"
+                    ? "Standard invoice for this bill. Next walk-in still uses the thermal slip."
+                    : "A5 half slip. Switch to A4 if lines get cut off."
+                  : "A5 half slip (default). Switch to A4 if lines get cut off."}
           </p>
           {isWalkIn ? (
             <label className="flex items-center gap-2 text-sm font-medium text-[var(--ink)]">
@@ -304,6 +323,35 @@ export function SaleInvoicePrint({
             >
               Thermal receipt
             </Button>
+          ) : null}
+          {!showThermal ? (
+            <div className="inline-flex rounded-lg border border-[var(--border)] bg-white p-0.5">
+              <button
+                type="button"
+                className={cn(
+                  "rounded-md px-2.5 py-1.5 text-xs font-semibold",
+                  sheetPaper === "a5"
+                    ? "bg-[var(--brand)] text-white"
+                    : "text-[var(--muted)] hover:text-[var(--ink)]",
+                )}
+                onClick={() => setLocalPaper("a5")}
+              >
+                A5
+              </button>
+              <button
+                type="button"
+                className={cn(
+                  "rounded-md px-2.5 py-1.5 text-xs font-semibold",
+                  sheetPaper === "a4"
+                    ? "bg-[var(--brand)] text-white"
+                    : "text-[var(--muted)] hover:text-[var(--ink)]",
+                )}
+                onClick={() => setLocalPaper("a4")}
+                title="Full A4 when invoice has many product lines"
+              >
+                A4 full
+              </button>
+            </div>
           ) : null}
           <Button
             type="button"
@@ -412,7 +460,13 @@ export function SaleInvoicePrint({
       ) : null}
 
       {showSheet && !showThermal ? (
-      <div className="print-sheet si-half mx-auto" data-paper="a5">
+      <div
+        className={cn(
+          "print-sheet mx-auto",
+          useFullA4 ? "si-a4" : "si-half",
+        )}
+        data-paper={useFullA4 ? "a4" : "a5"}
+      >
         <div className="si-head">
           <div className="si-doc-label">Sale Invoice</div>
           {companyName ? (

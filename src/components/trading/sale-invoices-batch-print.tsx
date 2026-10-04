@@ -5,9 +5,10 @@ import { SaleInvoicePrint } from "@/components/trading/sale-invoice-print";
 import { installDesktopPrint } from "@/lib/desktop-print";
 import { printWithAutoPaper } from "@/lib/print/paper-size";
 import type { SaleInvoicePrintData } from "@/lib/trading/load-sale-invoice-print";
+import { cn } from "@/lib/utils";
 import { ArrowLeft, Printer } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export function SaleInvoicesBatchPrint({
   invoices,
@@ -17,6 +18,8 @@ export function SaleInvoicesBatchPrint({
   autoPrint?: boolean;
 }) {
   const savedTitle = useRef("");
+  const didAutoPrint = useRef(false);
+  const [paperSize, setPaperSize] = useState<"a5" | "a4">("a5");
 
   useEffect(() => {
     installDesktopPrint();
@@ -39,14 +42,15 @@ export function SaleInvoicesBatchPrint({
   }, []);
 
   function printAll() {
-    printWithAutoPaper("a5");
+    printWithAutoPaper(paperSize);
   }
 
   useEffect(() => {
-    if (!autoPrint || invoices.length === 0) return;
-    const t = window.setTimeout(() => printAll(), 400);
+    if (!autoPrint || invoices.length === 0 || didAutoPrint.current) return;
+    didAutoPrint.current = true;
+    const t = window.setTimeout(() => printWithAutoPaper(paperSize), 400);
     return () => window.clearTimeout(t);
-  }, [autoPrint, invoices.length]);
+  }, [autoPrint, invoices.length, paperSize]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -54,19 +58,47 @@ export function SaleInvoicesBatchPrint({
         return;
       }
       event.preventDefault();
-      printAll();
+      printWithAutoPaper(paperSize);
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, []);
+  }, [paperSize]);
 
   return (
     <div className="space-y-4">
       <div className="no-print flex flex-wrap items-center justify-end gap-2">
         <p className="mr-auto text-sm text-[var(--muted)]">
           {invoices.length} sale invoice{invoices.length === 1 ? "" : "s"} selected
-          · Half A4 · one page each
+          · {paperSize === "a4" ? "A4 full page" : "A5 half slip"} · one invoice
+          per page
         </p>
+        <div className="inline-flex rounded-lg border border-[var(--border)] bg-white p-0.5">
+          <button
+            type="button"
+            className={cn(
+              "rounded-md px-2.5 py-1.5 text-xs font-semibold",
+              paperSize === "a5"
+                ? "bg-[var(--brand)] text-white"
+                : "text-[var(--muted)] hover:text-[var(--ink)]",
+            )}
+            onClick={() => setPaperSize("a5")}
+          >
+            A5
+          </button>
+          <button
+            type="button"
+            className={cn(
+              "rounded-md px-2.5 py-1.5 text-xs font-semibold",
+              paperSize === "a4"
+                ? "bg-[var(--brand)] text-white"
+                : "text-[var(--muted)] hover:text-[var(--ink)]",
+            )}
+            onClick={() => setPaperSize("a4")}
+            title="Full A4 when invoices have many product lines"
+          >
+            A4 full
+          </button>
+        </div>
         <Link
           href="/sales/invoices"
           className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-white px-3 text-sm font-medium text-[var(--ink)] hover:bg-[var(--surface-2)]"
@@ -110,6 +142,7 @@ export function SaleInvoicesBatchPrint({
             isWalkIn={inv.isWalkIn}
             embedded
             forceStandard
+            paperSize={paperSize}
             autoPrint={false}
           />
         ))}
