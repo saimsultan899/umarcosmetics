@@ -297,6 +297,7 @@ export function OfflineTradingListPage({
         summary={summary}
         showPaymentFilter={kind === "sale"}
         showPrint
+        enableBatchPrint={kind === "sale"}
         warehouses={warehouses}
       />
     </div>

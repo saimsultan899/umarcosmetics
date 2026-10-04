@@ -140,8 +140,9 @@ export function RecoveriesTable({
                           allowEdit={false}
                           allowDelete={false}
                           allowCancel={canCancel}
-                          cancelTitle="Cancel this recovery?"
-                          cancelDescription={`Cancel ${formatPkr(r.amount)} for ${party}? The customer balance goes back up by that amount. Use when the same collection was entered twice, then enter the correct one if needed.`}
+                          cancelLabel="Update"
+                          cancelTitle="Update / fix this recovery?"
+                          cancelDescription={`Reverse ${formatPkr(r.amount)} for ${party}? The customer balance goes back up by that amount. Then enter the correct collection if needed.`}
                           onCancel={() => cancelRecovery(r)}
                         />
                       </td>

@@ -11,44 +11,44 @@ const CANCEL_RPC: Record<
   sale_invoices: {
     rpc: "cancel_sale_invoice",
     param: "p_invoice_id",
-    title: "Cancel this sale invoice?",
+    title: "Update / fix this sale invoice?",
     description:
-      "Customer balance and stock go back to before this bill. Then create the correct invoice if needed.",
+      "Customer balance and stock go back to before this bill. Then create the correct invoice.",
   },
   purchase_invoices: {
     rpc: "cancel_purchase_invoice",
     param: "p_invoice_id",
-    title: "Cancel this purchase invoice?",
+    title: "Update / fix this purchase invoice?",
     description:
-      "Supplier balance and stock go back to before this bill. Then create the correct purchase if needed.",
+      "Supplier balance and stock go back to before this bill. Then create the correct purchase.",
   },
   sale_returns: {
     rpc: "cancel_sale_return",
     param: "p_return_id",
-    title: "Cancel this sale return?",
+    title: "Update / fix this sale return?",
     description:
-      "Customer balance and stock go back to before this return. Then create the correct return if needed.",
+      "Customer balance and stock go back to before this return. Then create the correct return.",
   },
   purchase_returns: {
     rpc: "cancel_purchase_return",
     param: "p_return_id",
-    title: "Cancel this purchase return?",
+    title: "Update / fix this purchase return?",
     description:
-      "Supplier balance and stock go back to before this return. Then create the correct return if needed.",
+      "Supplier balance and stock go back to before this return. Then create the correct return.",
   },
   recoveries: {
     rpc: "cancel_recovery",
     param: "p_recovery_id",
-    title: "Cancel this recovery?",
+    title: "Update / fix this recovery?",
     description:
-      "Customer balance goes back up by this amount. Use when the same collection was entered twice, then enter the correct one if needed.",
+      "Customer balance goes back up by this amount. Then enter the correct collection if needed.",
   },
   vouchers: {
     rpc: "cancel_voucher",
     param: "p_voucher_id",
-    title: "Cancel this voucher?",
+    title: "Update / fix this voucher?",
     description:
-      "Party balance goes back to before this cash receipt or payment. Then enter the correct voucher if needed.",
+      "Party balance goes back to before this cash receipt or payment. Then enter the correct voucher.",
   },
 };
 
@@ -130,6 +130,7 @@ export function DocumentRowActions({
       allowEdit={false}
       allowCancel={canCancel}
       onCancel={canCancel ? cancelEntry : undefined}
+      cancelLabel="Update"
       cancelTitle={cancel?.title}
       cancelDescription={cancel?.description}
       allowDelete={canHardDelete}

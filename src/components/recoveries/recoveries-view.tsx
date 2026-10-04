@@ -43,8 +43,9 @@ export function RecoveriesView({
             Field recoveries
           </h1>
           <p className="mt-1 text-sm text-[var(--muted)]">
-            Collections synced from salesman / office recovery entry. Use the
-            undo icon on a row to cancel / fix a mistaken collection.
+            Collections synced from salesman / office recovery entry. Use
+            Update on a row to reverse a mistaken collection, then enter the
+            correct one.
           </p>
         </div>
         <Link

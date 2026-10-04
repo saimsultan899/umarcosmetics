@@ -40,8 +40,8 @@ export function RowActions({
   deleteTitle = "Delete",
   deleteDescription = "This will remove the record from this list. It can be restored later if needed.",
   onDelete,
-  cancelTitle = "Cancel entry?",
-  cancelDescription = "Balance and stock go back to before this entry. Then enter the correct one if needed.",
+  cancelTitle = "Update / fix this entry?",
+  cancelDescription = "Balance and stock go back to before this entry. Then enter the correct one.",
   onCancel,
   editContent,
   href,
@@ -49,6 +49,7 @@ export function RowActions({
   allowEdit = true,
   allowDelete = true,
   allowCancel = false,
+  cancelLabel = "Update",
   className,
 }: {
   viewFields: DetailField[];
@@ -68,6 +69,8 @@ export function RowActions({
   allowDelete?: boolean;
   /** Soft-cancel a posted trading entry (ledger/stock reversed). */
   allowCancel?: boolean;
+  /** Visible table label for cancel/fix (default: Update). */
+  cancelLabel?: string;
   className?: string;
 }) {
   const router = useRouter();
@@ -139,12 +142,15 @@ export function RowActions({
           type="button"
           variant="ghost"
           size="sm"
-          className={cn(tableIconBtn, "text-amber-700 hover:bg-amber-50 hover:text-amber-800")}
+          className={cn(
+            "inline-flex h-8 shrink-0 items-center gap-1 rounded-lg px-2 text-amber-800 hover:bg-amber-50 hover:text-amber-900",
+          )}
           onClick={() => setMode("cancel")}
-          aria-label="Cancel entry"
-          title="Cancel / fix mistake"
+          aria-label={cancelLabel}
+          title={`${cancelLabel} — reverse this entry, then enter the correct one`}
         >
           <Undo2 className="h-3.5 w-3.5" />
+          <span className="text-xs font-semibold">{cancelLabel}</span>
         </Button>
       ) : null}
 
@@ -183,7 +189,7 @@ export function RowActions({
                 size="sm"
                 onClick={() => setMode("cancel")}
               >
-                Cancel / fix mistake
+                {cancelLabel}
               </Button>
             ) : null}
           </div>
@@ -227,7 +233,7 @@ export function RowActions({
             loading={busy}
             onClick={() => void runAction(onCancel, "Cancel failed")}
           >
-            {busy ? "Cancelling..." : "Cancel this entry"}
+            {busy ? "Updating..." : "Yes, reverse entry"}
           </Button>
         </div>
       </Dialog>

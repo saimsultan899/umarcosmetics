@@ -2509,6 +2509,26 @@ button[aria-haspopup="listbox"]:focus-visible {
     margin: 0 !important;
   }
 
+  /* Batch sale invoices: one half-A4 sheet per page (checkboxes → Print selected). */
+  .batch-sale-prints .print-sheet {
+    position: relative !important;
+    left: auto !important;
+    right: auto !important;
+    top: auto !important;
+    page-break-after: always;
+    break-after: page;
+    overflow: hidden !important;
+  }
+  .batch-sale-prints .print-sheet:last-child,
+  .batch-sale-prints .batch-sale-print-item:last-child .print-sheet {
+    page-break-after: auto;
+    break-after: auto;
+  }
+  .batch-sale-prints .batch-sale-print-item {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
   /* Other reports hidden when Print is scoped to one sheet */
   .print-sheet.print-skip {
     display: none !important;

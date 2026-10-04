@@ -87,6 +87,7 @@ export default async function SaleInvoicesPage({
           summary={list.summary}
           showPaymentFilter
           showPrint
+          enableBatchPrint
           warehouses={warehouses}
         />
       </Suspense>

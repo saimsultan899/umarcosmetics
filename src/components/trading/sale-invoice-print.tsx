@@ -115,6 +115,8 @@ export function SaleInvoicePrint({
   autoPrint = false,
   isWalkIn = false,
   companyId = "",
+  embedded = false,
+  forceStandard = false,
 }: {
   companyName: string;
   companyPhone?: string | null;
@@ -147,6 +149,10 @@ export function SaleInvoicePrint({
   /** Cash counter sale with no ledger (party code WALKIN). */
   isWalkIn?: boolean;
   companyId?: string;
+  /** Hide chrome — used inside batch print (one toolbar for all). */
+  embedded?: boolean;
+  /** Always use half-A4 sheet (no thermal) — safest for batch print. */
+  forceStandard?: boolean;
 }) {
   const router = useRouter();
   const paidOnBill = Math.max(0, paid);
@@ -172,12 +178,18 @@ export function SaleInvoicePrint({
   const urlSlip = useSlipQuery();
   const [manualLayout, setManualLayout] = useState<WalkInSlipLayout | null>(null);
   const layout = manualLayout ?? urlSlip ?? savedDefault;
-  const showSheet = !isWalkIn || clientReady;
-  const showThermal = isWalkIn && clientReady && layout === "thermal";
+  const showSheet = !isWalkIn || clientReady || forceStandard || embedded;
+  const showThermal =
+    !forceStandard &&
+    !embedded &&
+    isWalkIn &&
+    clientReady &&
+    layout === "thermal";
 
   useEffect(() => {
+    if (embedded) return;
     installDesktopPrint();
-  }, []);
+  }, [embedded]);
 
   useEffect(() => {
     if (!showThermal) return;
@@ -195,6 +207,7 @@ export function SaleInvoicePrint({
   }
 
   useEffect(() => {
+    if (embedded) return;
     const onBeforePrint = () => {
       savedTitle.current = document.title;
       document.title = " ";
@@ -208,9 +221,10 @@ export function SaleInvoicePrint({
       window.removeEventListener("beforeprint", onBeforePrint);
       window.removeEventListener("afterprint", onAfterPrint);
     };
-  }, []);
+  }, [embedded]);
 
   useEffect(() => {
+    if (embedded) return;
     const onKey = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "p") return;
       if (!showSheet) return;
@@ -225,10 +239,10 @@ export function SaleInvoicePrint({
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [showThermal, showSheet]);
+  }, [embedded, showThermal, showSheet]);
 
   useEffect(() => {
-    if (!autoPrint || !showSheet) return;
+    if (embedded || !autoPrint || !showSheet) return;
     const t = window.setTimeout(() => {
       if (showThermal) {
         printThermalSlip(
@@ -239,7 +253,7 @@ export function SaleInvoicePrint({
       printWithAutoPaper("a5");
     }, 300);
     return () => window.clearTimeout(t);
-  }, [autoPrint, showSheet, showThermal]);
+  }, [embedded, autoPrint, showSheet, showThermal]);
 
   function setWalkInDefault(next: WalkInSlipLayout) {
     if (!companyId) return;
@@ -248,67 +262,69 @@ export function SaleInvoicePrint({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="no-print flex flex-wrap items-center justify-end gap-2">
-        <p className="mr-auto text-sm text-[var(--muted)]">
-          {showThermal
-            ? "80mm thermal · walk-in cash slip"
-            : isWalkIn
-              ? savedDefault === "thermal"
-                ? "Standard invoice for this bill. Next walk-in still uses the thermal slip."
-                : "Half A4 invoice. Turn on thermal to use it for every walk-in sale."
-              : "Half A4 · loads on right side of paper"}
-        </p>
-        {isWalkIn ? (
-          <label className="flex items-center gap-2 text-sm font-medium text-[var(--ink)]">
-            <input
-              type="checkbox"
-              className="h-4 w-4 accent-[var(--brand)]"
-              checked={savedDefault === "thermal"}
-              onChange={(e) =>
-                setWalkInDefault(e.target.checked ? "thermal" : "standard")
+    <div className={embedded ? "batch-sale-print-item" : "space-y-4"}>
+      {!embedded ? (
+        <div className="no-print flex flex-wrap items-center justify-end gap-2">
+          <p className="mr-auto text-sm text-[var(--muted)]">
+            {showThermal
+              ? "80mm thermal · walk-in cash slip"
+              : isWalkIn
+                ? savedDefault === "thermal"
+                  ? "Standard invoice for this bill. Next walk-in still uses the thermal slip."
+                  : "Half A4 invoice. Turn on thermal to use it for every walk-in sale."
+                : "Half A4 · loads on right side of paper"}
+          </p>
+          {isWalkIn ? (
+            <label className="flex items-center gap-2 text-sm font-medium text-[var(--ink)]">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-[var(--brand)]"
+                checked={savedDefault === "thermal"}
+                onChange={(e) =>
+                  setWalkInDefault(e.target.checked ? "thermal" : "standard")
+                }
+              />
+              Thermal default for walk-in
+            </label>
+          ) : null}
+          {isWalkIn && showThermal ? (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setManualLayout("standard")}
+            >
+              Standard invoice
+            </Button>
+          ) : null}
+          {isWalkIn && !showThermal ? (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setManualLayout("thermal")}
+            >
+              Thermal receipt
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              if (typeof window !== "undefined" && window.history.length > 1) {
+                router.back();
+              } else {
+                router.push("/sales/invoices");
               }
-            />
-            Thermal default for walk-in
-          </label>
-        ) : null}
-        {isWalkIn && showThermal ? (
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => setManualLayout("standard")}
+            }}
           >
-            Standard invoice
+            <ArrowLeft className="h-4 w-4" />
+            Back
           </Button>
-        ) : null}
-        {isWalkIn && !showThermal ? (
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => setManualLayout("thermal")}
-          >
-            Thermal receipt
+          <Button type="button" onClick={printCurrent}>
+            <Printer className="h-4 w-4" />
+            Print
           </Button>
-        ) : null}
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => {
-            if (typeof window !== "undefined" && window.history.length > 1) {
-              router.back();
-            } else {
-              router.push("/sales/invoices");
-            }
-          }}
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back
-        </Button>
-        <Button type="button" onClick={printCurrent}>
-          <Printer className="h-4 w-4" />
-          Print
-        </Button>
-      </div>
+        </div>
+      ) : null}
 
       {showSheet && showThermal ? (
         <div className="print-sheet thermal-80 mx-auto" data-paper="thermal">

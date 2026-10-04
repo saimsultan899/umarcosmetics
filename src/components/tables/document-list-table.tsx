@@ -12,6 +12,7 @@ import {
 import { TableScroll } from "@/components/tables/table-scroll";
 import { TablePagination } from "@/components/tables/table-pagination";
 import { TableToolbar } from "@/components/tables/table-toolbar";
+import { Button } from "@/components/ui/button";
 import { useSearchInput, useUrlTableState } from "@/hooks/use-url-table-state";
 import type {
   DocumentListRow,
@@ -19,8 +20,15 @@ import type {
 } from "@/lib/queries/documents";
 import type { PaginationMeta } from "@/lib/pagination";
 import { formatPkr } from "@/lib/utils";
-import { Banknote, CreditCard, FileText, ShoppingCart } from "lucide-react";
-import { useMemo } from "react";
+import {
+  Banknote,
+  CreditCard,
+  FileText,
+  Printer,
+  ShoppingCart,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 
 export type { DocumentListRow };
 
@@ -31,6 +39,8 @@ export function DocumentListTable({
   summary,
   showPaymentFilter = false,
   showPrint = false,
+  enableBatchPrint = false,
+  batchPrintHref = "/sales/invoices/print",
   warehouses = [],
   partyColumnLabel = "Customer",
 }: {
@@ -40,9 +50,13 @@ export function DocumentListTable({
   summary: DocumentListSummary;
   showPaymentFilter?: boolean;
   showPrint?: boolean;
+  /** Show checkboxes + Print selected (sale invoices). */
+  enableBatchPrint?: boolean;
+  batchPrintHref?: string;
   warehouses?: Array<{ id: string; name: string }>;
   partyColumnLabel?: string;
 }) {
+  const router = useRouter();
   const filterKeys = useMemo(
     () => [
       ...(showPaymentFilter ? ["payment"] : []),
@@ -58,6 +72,45 @@ export function DocumentListTable({
     | "cash"
     | "credit"
     | "partial";
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    setSelected(new Set());
+  }, [q, filters.payment, filters.warehouse, pagination.page, pagination.pageSize]);
+
+  const pageIds = useMemo(() => rows.map((r) => r.id), [rows]);
+  const allPageSelected =
+    pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+  const selectedCount = selected.size;
+  const colSpan =
+    (showPaymentFilter ? 7 : 6) + (enableBatchPrint ? 1 : 0);
+
+  function toggleOne(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function togglePage() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allPageSelected) {
+        for (const id of pageIds) next.delete(id);
+      } else {
+        for (const id of pageIds) next.add(id);
+      }
+      return next;
+    });
+  }
+
+  function printSelected() {
+    if (!selectedCount) return;
+    const ids = [...selected].join(",");
+    router.push(`${batchPrintHref}?ids=${encodeURIComponent(ids)}`);
+  }
 
   return (
     <div className="space-y-6">
@@ -191,15 +244,50 @@ export function DocumentListTable({
                   onChange={(value) => setFilter("warehouse", value)}
                 />
               ) : null}
+              {enableBatchPrint ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={!selectedCount}
+                  onClick={printSelected}
+                  title={
+                    selectedCount
+                      ? `Print ${selectedCount} selected invoice(s)`
+                      : "Select invoices with the checkboxes first"
+                  }
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  Print selected{selectedCount ? ` (${selectedCount})` : ""}
+                </Button>
+              ) : null}
             </div>
           }
         />
+
+        {enableBatchPrint && selectedCount ? (
+          <p className="mb-2 text-xs text-[var(--muted)]">
+            {selectedCount} selected on this page · Print opens one job with each
+            invoice on its own page.
+          </p>
+        ) : null}
 
         <div className="table-shell">
           <TableScroll loading={isPending}>
             <table>
               <thead>
                 <tr>
+                  {enableBatchPrint ? (
+                    <th className="w-10">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-[var(--brand)]"
+                        checked={allPageSelected}
+                        onChange={togglePage}
+                        aria-label="Select all on this page"
+                        title="Select all on this page"
+                      />
+                    </th>
+                  ) : null}
                   <th>Doc #</th>
                   <th>Date</th>
                   <th>{partyColumnLabel}</th>
@@ -212,7 +300,25 @@ export function DocumentListTable({
               <tbody>
                 {rows.length ? (
                   rows.map((inv) => (
-                    <tr key={inv.id}>
+                    <tr
+                      key={inv.id}
+                      className={
+                        enableBatchPrint && selected.has(inv.id)
+                          ? "bg-[var(--surface-2)]/70"
+                          : undefined
+                      }
+                    >
+                      {enableBatchPrint ? (
+                        <td>
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 accent-[var(--brand)]"
+                            checked={selected.has(inv.id)}
+                            onChange={() => toggleOne(inv.id)}
+                            aria-label={`Select ${inv.docNo}`}
+                          />
+                        </td>
+                      ) : null}
                       <td className="font-medium">{inv.docNo}</td>
                       <td>{inv.date}</td>
                       <td>{inv.partyLabel}</td>
@@ -253,7 +359,7 @@ export function DocumentListTable({
                 ) : (
                   <tr>
                     <td
-                      colSpan={showPaymentFilter ? 7 : 6}
+                      colSpan={colSpan}
                       className="py-8 text-center text-[var(--muted)]"
                     >
                       No documents match this filter.
