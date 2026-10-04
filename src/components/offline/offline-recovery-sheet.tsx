@@ -82,6 +82,7 @@ export function OfflineRecoverySheetPage({
     sector?: string;
     scope?: string;
     party?: string;
+    include?: string;
   };
 }) {
   const urlSp = useSearchParams();
@@ -93,6 +94,7 @@ export function OfflineRecoverySheetPage({
       sector: urlSp.get("sector") ?? initialSp?.sector ?? undefined,
       scope: urlSp.get("scope") ?? initialSp?.scope ?? undefined,
       party: urlSp.get("party") ?? initialSp?.party ?? undefined,
+      include: urlSp.get("include") ?? initialSp?.include ?? undefined,
     };
   }, [urlSp, initialSp]);
 
@@ -214,6 +216,8 @@ export function OfflineRecoverySheetPage({
   const partyIds = parseReportList(sp.party);
   const scopeToken = sp.scope || "all";
   const { scope, warehouseId } = parseScopeToken(scopeToken);
+  const include =
+    sp.include === "dues" || sp.include === "nonzero" ? sp.include : "all";
 
   const townLabel =
     sectors.length === 0
@@ -299,7 +303,7 @@ export function OfflineRecoverySheetPage({
       return true;
     });
 
-    const flat: RecoverySheetRow[] = customerParties.map((p) => {
+    let flat: RecoverySheetRow[] = customerParties.map((p) => {
       const partyId = String(p.id);
       const balance = balanceMap.get(partyId) ?? 0;
       const last = lastSaleByParty.get(partyId);
@@ -329,6 +333,10 @@ export function OfflineRecoverySheetPage({
         last_received_amount: lastRec ? lastRec.amount : null,
       };
     });
+
+    if (include === "dues") flat = flat.filter((r) => r.balance > 0.005);
+    else if (include === "nonzero")
+      flat = flat.filter((r) => Math.abs(r.balance) > 0.005);
 
     const groups = new Map<string, RecoverySheetRow[]>();
     for (const row of flat) {
@@ -373,11 +381,14 @@ export function OfflineRecoverySheetPage({
       });
     }
 
-    let scopeLabel = "All customers";
+    const scopeParts: string[] = [];
     if (scope === "warehouse" && warehouseId) {
       const wh = warehouses.find((w) => w.id === warehouseId);
-      scopeLabel = `Company — ${wh?.name || "Selected"}`;
+      scopeParts.push(`Company — ${wh?.name || "Selected"}`);
     }
+    if (include === "nonzero") scopeParts.push("With ledger balance");
+    else if (include === "dues") scopeParts.push("Due only");
+    const scopeLabel = scopeParts.length ? scopeParts.join(" · ") : "All customers";
 
     return {
       sections,
@@ -387,7 +398,7 @@ export function OfflineRecoverySheetPage({
       brandOptions: [],
       warehouseOptions: warehouses,
     };
-  }, [parties, sales, returns, vouchers, balanceMap, sectors, partyIds, scope, warehouseId, warehouses, to]);
+  }, [parties, sales, returns, vouchers, balanceMap, sectors, partyIds, scope, warehouseId, warehouses, to, include]);
 
   const dueTotal = sheet.grand.dueTotal;
   const dueShops = sheet.flat.filter((r) => Number(r.balance) > 0.005).length;
@@ -580,6 +591,20 @@ export function OfflineRecoverySheetPage({
                 value: `wh:${w.id}`,
                 label: `Company — ${w.name}`,
               })),
+            ]}
+          />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
+            Balance
+          </label>
+          <Select
+            name="include"
+            defaultValue={include}
+            options={[
+              { value: "all", label: "All shops" },
+              { value: "nonzero", label: "With ledger balance only" },
+              { value: "dues", label: "Due only (Dr)" },
             ]}
           />
         </div>

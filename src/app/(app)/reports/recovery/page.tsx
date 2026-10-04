@@ -50,6 +50,7 @@ export default async function RecoverySheetPage({
     sector?: string;
     scope?: string;
     party?: string;
+    include?: string;
   }>;
 }) {
   const sp = await searchParams;
@@ -77,6 +78,8 @@ export default async function RecoverySheetPage({
   const partyIds = parseReportList(sp.party);
   const scopeToken = sp.scope || "all";
   const { scope, brand, warehouseId } = parseScopeToken(scopeToken);
+  const include =
+    sp.include === "dues" || sp.include === "nonzero" ? sp.include : "all";
 
   const townLabel =
     sectors.length === 0
@@ -97,7 +100,7 @@ export default async function RecoverySheetPage({
         brand,
         warehouseId,
         partyIds,
-        include: "all",
+        include,
       }),
       supabase
         .from("parties")
@@ -284,6 +287,20 @@ export default async function RecoverySheetPage({
             Scope (brand / company)
           </label>
           <Select name="scope" defaultValue={scopeToken} options={scopeOptions} />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
+            Balance
+          </label>
+          <Select
+            name="include"
+            defaultValue={include}
+            options={[
+              { value: "all", label: "All shops" },
+              { value: "nonzero", label: "With ledger balance only" },
+              { value: "dues", label: "Due only (Dr)" },
+            ]}
+          />
         </div>
         <ReportFilterActions submitLabel="Apply filters" />
       </UrlFilterForm>

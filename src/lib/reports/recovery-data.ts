@@ -267,6 +267,8 @@ export async function buildRecoverySheet(
   } else if (selectedParties.length > 1) {
     scopeParts.push(`Customers — ${selectedParties.length} selected`);
   }
+  if (include === "nonzero") scopeParts.push("With ledger balance");
+  else if (include === "dues") scopeParts.push("Due only");
   const scopeLabel = scopeParts.length ? scopeParts.join(" · ") : "All customers";
 
   return {
