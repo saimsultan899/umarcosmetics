@@ -1,3 +1,4 @@
+import { CancelDocumentButton } from "@/components/trading/cancel-document-button";
 import { PrintDocument } from "@/components/trading/print-document";
 import { requireCompanyContext } from "@/lib/auth";
 import { formatPkr } from "@/lib/utils";
@@ -126,30 +127,39 @@ export default async function SaleReturnDetailPage({
   );
 
   return (
-    <PrintDocument
-      companyName={company.name}
-      companyAddress={[company.address, company.city].filter(Boolean).join(", ")}
-      companyPhone={company.phone}
-      title="Sale Return"
-      docNo={doc.return_no}
-      date={doc.return_date}
-      partyName={party?.name_en}
-      partyCode={party?.party_code}
-      partyPhone={party?.phone}
-      partyMobile={party?.mobile}
-      warehouseName={companyLabel}
-      lines={lines.map(({ brandCompany: _brand, ...line }) => line)}
-      totals={[
-        { label: "Subtotal", value: formatPkr(doc.subtotal) },
-        { label: "Trade discount", value: formatPkr(doc.discount_total) },
-        { label: "Extra discount", value: formatPkr(Number(doc.extra_discount || 0)) },
-        {
-          label: "Grand total",
-          value: formatPkr(doc.grand_total),
-          strong: true,
-        },
-      ]}
-      autoPrint={autoPrint}
-    />
+    <div className="animate-rise">
+      {doc.status === "posted" ? (
+        <CancelDocumentButton
+          rpc="cancel_sale_return"
+          documentId={doc.id}
+          documentNo={doc.return_no}
+        />
+      ) : null}
+      <PrintDocument
+        companyName={company.name}
+        companyAddress={[company.address, company.city].filter(Boolean).join(", ")}
+        companyPhone={company.phone}
+        title="Sale Return"
+        docNo={doc.return_no}
+        date={doc.return_date}
+        partyName={party?.name_en}
+        partyCode={party?.party_code}
+        partyPhone={party?.phone}
+        partyMobile={party?.mobile}
+        warehouseName={companyLabel}
+        lines={lines.map(({ brandCompany: _brand, ...line }) => line)}
+        totals={[
+          { label: "Subtotal", value: formatPkr(doc.subtotal) },
+          { label: "Trade discount", value: formatPkr(doc.discount_total) },
+          { label: "Extra discount", value: formatPkr(Number(doc.extra_discount || 0)) },
+          {
+            label: "Grand total",
+            value: formatPkr(doc.grand_total),
+            strong: true,
+          },
+        ]}
+        autoPrint={autoPrint}
+      />
+    </div>
   );
 }

@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { Eye, Pencil, Printer, Trash2 } from "lucide-react";
+import { Eye, Pencil, Printer, Trash2, Undo2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -40,11 +40,15 @@ export function RowActions({
   deleteTitle = "Delete",
   deleteDescription = "This will remove the record from this list. It can be restored later if needed.",
   onDelete,
+  cancelTitle = "Cancel entry?",
+  cancelDescription = "Balance and stock go back to before this entry. Then enter the correct one if needed.",
+  onCancel,
   editContent,
   href,
   printHref,
   allowEdit = true,
   allowDelete = true,
+  allowCancel = false,
   className,
 }: {
   viewFields: DetailField[];
@@ -53,29 +57,36 @@ export function RowActions({
   deleteTitle?: string;
   deleteDescription?: string;
   onDelete?: () => Promise<void> | void;
+  cancelTitle?: string;
+  cancelDescription?: string;
+  onCancel?: () => Promise<void> | void;
   editContent?: (close: () => void) => React.ReactNode;
   href?: string;
   /** Opens the printable slip page (shown next to View). */
   printHref?: string;
   allowEdit?: boolean;
   allowDelete?: boolean;
+  /** Soft-cancel a posted trading entry (ledger/stock reversed). */
+  allowCancel?: boolean;
   className?: string;
 }) {
   const router = useRouter();
-  const [mode, setMode] = useState<"view" | "edit" | "delete" | null>(null);
+  const [mode, setMode] = useState<"view" | "edit" | "delete" | "cancel" | null>(
+    null,
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function confirmDelete() {
-    if (!onDelete) return;
+  async function runAction(action?: () => Promise<void> | void, failLabel = "Failed") {
+    if (!action) return;
     setBusy(true);
     setError(null);
     try {
-      await onDelete();
+      await action();
       setMode(null);
       router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Delete failed");
+      setError(e instanceof Error ? e.message : failLabel);
     } finally {
       setBusy(false);
     }
@@ -117,9 +128,23 @@ export function RowActions({
           className={tableIconBtn}
           onClick={() => setMode("edit")}
           aria-label="Edit"
-          title="Edit"
+          title="Edit / Update"
         >
           <Pencil className="h-3.5 w-3.5" />
+        </Button>
+      ) : null}
+
+      {allowCancel && onCancel ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className={cn(tableIconBtn, "text-amber-700 hover:bg-amber-50 hover:text-amber-800")}
+          onClick={() => setMode("cancel")}
+          aria-label="Cancel entry"
+          title="Cancel / fix mistake"
+        >
+          <Undo2 className="h-3.5 w-3.5" />
         </Button>
       ) : null}
 
@@ -144,13 +169,23 @@ export function RowActions({
       >
         <DetailGrid fields={viewFields} />
         {href ? (
-          <div className="mt-5">
+          <div className="mt-5 flex flex-wrap gap-2">
             <Link
               href={href}
               className="inline-flex h-9 items-center rounded-lg bg-[var(--brand)] px-3 text-sm font-medium text-white"
             >
               Open full page
             </Link>
+            {allowCancel && onCancel ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setMode("cancel")}
+              >
+                Cancel / fix mistake
+              </Button>
+            ) : null}
           </div>
         ) : null}
       </Dialog>
@@ -162,6 +197,39 @@ export function RowActions({
         className="sm:max-w-3xl"
       >
         {editContent?.(() => setMode(null))}
+      </Dialog>
+
+      <Dialog
+        open={mode === "cancel"}
+        onClose={() => !busy && setMode(null)}
+        title={cancelTitle}
+        description={cancelDescription}
+      >
+        {error ? (
+          <p className="mb-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+            {error}
+          </p>
+        ) : null}
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={busy}
+            onClick={() => setMode(null)}
+          >
+            Keep entry
+          </Button>
+          <Button
+            type="button"
+            variant="danger"
+            size="sm"
+            loading={busy}
+            onClick={() => void runAction(onCancel, "Cancel failed")}
+          >
+            {busy ? "Cancelling..." : "Cancel this entry"}
+          </Button>
+        </div>
       </Dialog>
 
       <Dialog
@@ -183,14 +251,14 @@ export function RowActions({
             disabled={busy}
             onClick={() => setMode(null)}
           >
-            Cancel
+            Keep
           </Button>
           <Button
             type="button"
             variant="danger"
             size="sm"
             loading={busy}
-            onClick={() => void confirmDelete()}
+            onClick={() => void runAction(onDelete, "Delete failed")}
           >
             {busy ? "Deleting..." : "Delete permanently"}
           </Button>

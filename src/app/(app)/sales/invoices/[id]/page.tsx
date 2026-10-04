@@ -1,4 +1,4 @@
-import { CancelSaleInvoiceButton } from "@/components/trading/cancel-sale-invoice-button";
+import { CancelDocumentButton } from "@/components/trading/cancel-document-button";
 import { SaleInvoicePrint } from "@/components/trading/sale-invoice-print";
 import { requireCompanyContext } from "@/lib/auth";
 import { notFound } from "next/navigation";
@@ -126,9 +126,10 @@ export default async function SaleInvoiceDetailPage({
   return (
     <div className="animate-rise">
       {invoice.status === "posted" ? (
-        <CancelSaleInvoiceButton
-          invoiceId={invoice.id}
-          invoiceNo={invoice.invoice_no}
+        <CancelDocumentButton
+          rpc="cancel_sale_invoice"
+          documentId={invoice.id}
+          documentNo={invoice.invoice_no}
         />
       ) : null}
       <SaleInvoicePrint

@@ -161,7 +161,12 @@ export async function fetchDocumentList(
     .from(config.table)
     .select(selectParts.join(", "), { count: "exact" })
     .eq("company_id", companyId);
-  if (config.table === "sale_invoices") {
+  if (
+    config.table === "sale_invoices" ||
+    config.table === "purchase_invoices" ||
+    config.table === "sale_returns" ||
+    config.table === "purchase_returns"
+  ) {
     listQuery = listQuery.neq("status", "cancelled");
   }
   listQuery = applyDocumentSearch(listQuery, q, config.docNoField);
@@ -182,7 +187,9 @@ export async function fetchDocumentList(
       .order(dateField, { ascending: false })
       .order("created_at", { ascending: false })
       .range(from, to),
-    (config.table === "sale_invoices"
+    (["sale_invoices", "purchase_invoices", "sale_returns", "purchase_returns"].includes(
+      config.table,
+    )
       ? supabase
           .from(config.table)
           .select(recentSelect)

@@ -1,5 +1,6 @@
 "use client";
 
+import { useSyncStatus } from "@/components/offline/sync-provider";
 import { RecoveriesTable } from "@/components/tables/recoveries-table";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { useRecoveryList } from "@/hooks/use-recovery-list";
@@ -16,12 +17,21 @@ export function RecoveriesView({
   initialData?: RecoveryListResult | null;
   initialOffline?: boolean;
 }) {
-  const { rows, pagination, cityOptions, sectorOptions, salesmanOptions, loading } =
-    useRecoveryList({
-      companyId: company.id,
-      initialData,
-      initialOffline,
-    });
+  const sync = useSyncStatus();
+  const isOnline = sync ? sync.online : !initialOffline;
+  const {
+    rows,
+    pagination,
+    cityOptions,
+    sectorOptions,
+    salesmanOptions,
+    loading,
+    refetch,
+  } = useRecoveryList({
+    companyId: company.id,
+    initialData,
+    initialOffline,
+  });
 
   if (loading && !rows.length) return <PageSkeleton />;
 
@@ -33,7 +43,8 @@ export function RecoveriesView({
             Field recoveries
           </h1>
           <p className="mt-1 text-sm text-[var(--muted)]">
-            Collections synced from salesman / office recovery entry
+            Collections synced from salesman / office recovery entry. Use the
+            undo icon on a row to cancel / fix a mistaken collection.
           </p>
         </div>
         <Link
@@ -50,6 +61,8 @@ export function RecoveriesView({
         cityOptions={cityOptions}
         sectorOptions={sectorOptions}
         salesmanOptions={salesmanOptions}
+        canCancel={Boolean(isOnline)}
+        onChanged={() => void refetch()}
       />
     </div>
   );

@@ -11,6 +11,7 @@ import { DetailField, RowActions } from "@/components/ui/row-actions";
 import { useSearchInput, useUrlTableState } from "@/hooks/use-url-table-state";
 import type { RecoveryRow } from "@/lib/queries/recoveries";
 import type { PaginationMeta } from "@/lib/pagination";
+import { createClient } from "@/lib/supabase/client";
 import { formatPkr } from "@/lib/utils";
 
 export function RecoveriesTable({
@@ -19,16 +20,31 @@ export function RecoveriesTable({
   cityOptions = [],
   sectorOptions = [],
   salesmanOptions = [],
+  canCancel = true,
+  onChanged,
 }: {
   rows: RecoveryRow[];
   pagination: PaginationMeta;
   cityOptions?: string[];
   sectorOptions?: string[];
   salesmanOptions?: { value: string; label: string }[];
+  canCancel?: boolean;
+  onChanged?: () => void;
 }) {
   const { q, isPending, setPage, setPageSize, setQuery, setFilter, filters } =
     useUrlTableState(["city", "sector", "salesman"]);
   const search = useSearchInput(q, setQuery);
+
+  async function cancelRecovery(row: RecoveryRow) {
+    const supabase = createClient();
+    const { error } = await supabase.rpc("cancel_recovery", {
+      p_recovery_id: row.id,
+    });
+    if (error) {
+      throw new Error(error.message);
+    }
+    onChanged?.();
+  }
 
   return (
     <div>
@@ -123,6 +139,10 @@ export function RecoveriesTable({
                           viewFields={fields}
                           allowEdit={false}
                           allowDelete={false}
+                          allowCancel={canCancel}
+                          cancelTitle="Cancel this recovery?"
+                          cancelDescription={`Cancel ${formatPkr(r.amount)} for ${party}? The customer balance goes back up by that amount. Use when the same collection was entered twice, then enter the correct one if needed.`}
+                          onCancel={() => cancelRecovery(r)}
                         />
                       </td>
                     </tr>

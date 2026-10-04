@@ -1,3 +1,4 @@
+import { CancelDocumentButton } from "@/components/trading/cancel-document-button";
 import { PrintDocument } from "@/components/trading/print-document";
 import { requireCompanyContext } from "@/lib/auth";
 import { amountInWordsPkr, formatPkr } from "@/lib/utils";
@@ -55,6 +56,13 @@ export default async function PurchaseInvoiceDetailPage({
 
   return (
     <div className="animate-rise">
+      {invoice.status === "posted" ? (
+        <CancelDocumentButton
+          rpc="cancel_purchase_invoice"
+          documentId={invoice.id}
+          documentNo={invoice.invoice_no}
+        />
+      ) : null}
       <PrintDocument
         companyName={company.name}
         companyAddress={distributorAddress || null}

@@ -939,6 +939,7 @@ export function OfflineModulePage({
         salesmanOptions={salesmen
           .filter((s) => s.full_name)
           .map((s) => ({ value: s.full_name!, label: s.full_name! }))}
+        canCancel={false}
       />
     );
   } else if (kind === "gate_passes") {

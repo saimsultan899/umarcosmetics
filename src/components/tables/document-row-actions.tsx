@@ -4,7 +4,55 @@ import { DetailField, RowActions } from "@/components/ui/row-actions";
 import { deleteCachedRow, type CacheStoreName } from "@/lib/offline/local-db";
 import { createClient } from "@/lib/supabase/client";
 
-const NEVER_DELETE = new Set([
+const CANCEL_RPC: Record<
+  string,
+  { rpc: string; param: string; title: string; description: string }
+> = {
+  sale_invoices: {
+    rpc: "cancel_sale_invoice",
+    param: "p_invoice_id",
+    title: "Cancel this sale invoice?",
+    description:
+      "Customer balance and stock go back to before this bill. Then create the correct invoice if needed.",
+  },
+  purchase_invoices: {
+    rpc: "cancel_purchase_invoice",
+    param: "p_invoice_id",
+    title: "Cancel this purchase invoice?",
+    description:
+      "Supplier balance and stock go back to before this bill. Then create the correct purchase if needed.",
+  },
+  sale_returns: {
+    rpc: "cancel_sale_return",
+    param: "p_return_id",
+    title: "Cancel this sale return?",
+    description:
+      "Customer balance and stock go back to before this return. Then create the correct return if needed.",
+  },
+  purchase_returns: {
+    rpc: "cancel_purchase_return",
+    param: "p_return_id",
+    title: "Cancel this purchase return?",
+    description:
+      "Supplier balance and stock go back to before this return. Then create the correct return if needed.",
+  },
+  recoveries: {
+    rpc: "cancel_recovery",
+    param: "p_recovery_id",
+    title: "Cancel this recovery?",
+    description:
+      "Customer balance goes back up by this amount. Use when the same collection was entered twice, then enter the correct one if needed.",
+  },
+  vouchers: {
+    rpc: "cancel_voucher",
+    param: "p_voucher_id",
+    title: "Cancel this voucher?",
+    description:
+      "Party balance goes back to before this cash receipt or payment. Then enter the correct voucher if needed.",
+  },
+};
+
+const NEVER_HARD_DELETE = new Set([
   "sale_invoices",
   "purchase_invoices",
   "vouchers",
@@ -37,9 +85,18 @@ export function DocumentRowActions({
   allowDelete?: boolean;
   showPrint?: boolean;
 }) {
-  const canDelete = allowDelete && !NEVER_DELETE.has(table);
+  const cancel = CANCEL_RPC[table];
+  const canCancel = allowDelete && Boolean(cancel);
+  const canHardDelete = allowDelete && !NEVER_HARD_DELETE.has(table) && !cancel;
 
-  async function remove() {
+  async function cancelEntry() {
+    if (!cancel) return;
+    const supabase = createClient();
+    const { error } = await supabase.rpc(cancel.rpc, { [cancel.param]: id });
+    if (error) throw new Error(error.message);
+  }
+
+  async function hardDelete() {
     try {
       const supabase = createClient();
       if (linesTable && linesFk) {
@@ -71,8 +128,12 @@ export function DocumentRowActions({
       href={href}
       printHref={showPrint ? href : undefined}
       allowEdit={false}
-      allowDelete={canDelete}
-      onDelete={canDelete ? remove : undefined}
+      allowCancel={canCancel}
+      onCancel={canCancel ? cancelEntry : undefined}
+      cancelTitle={cancel?.title}
+      cancelDescription={cancel?.description}
+      allowDelete={canHardDelete}
+      onDelete={canHardDelete ? hardDelete : undefined}
       deleteTitle={`Delete ${title}?`}
       deleteDescription="This permanently removes the document. Stock and ledger effects are not auto-reversed."
     />

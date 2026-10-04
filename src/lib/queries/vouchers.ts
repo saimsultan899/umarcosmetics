@@ -35,7 +35,8 @@ export async function fetchVoucherList(
     .from("vouchers")
     .select("*", { count: "exact" })
     .eq("company_id", companyId)
-    .eq("voucher_type", voucherType);
+    .eq("voucher_type", voucherType)
+    .neq("status", "cancelled");
 
   const term = escapeIlike(q);
   if (term) {
