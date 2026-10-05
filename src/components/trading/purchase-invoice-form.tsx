@@ -182,15 +182,16 @@ export function PurchaseInvoiceForm({
   return (
     <form
       onSubmit={onSubmit}
-      className="space-y-5"
+      className="space-y-3"
       data-enter-root
       onKeyDown={(e) => handleEnterAsNext(e)}
-    >      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div>
+    >
+      <div className="grid items-end gap-2 sm:grid-cols-12">
+        <div className="sm:col-span-2">
           <Label>Date</Label>
           <Input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} required />
         </div>
-        <div className="sm:col-span-2 lg:col-span-2">
+        <div className="sm:col-span-5">
           <PartyCodePicker
             companyId={companyId}
             parties={suppliers}
@@ -202,7 +203,7 @@ export function PurchaseInvoiceForm({
             onChange={(id) => setPartyId(id)}
           />
         </div>
-        <div>
+        <div className="sm:col-span-3">
           <Label>Company</Label>
           <Select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} required>
             {warehouses.map((w) => (
@@ -210,11 +211,11 @@ export function PurchaseInvoiceForm({
             ))}
           </Select>
         </div>
-        <div>
+        <div className="sm:col-span-2">
           <Label>Vendor bill #</Label>
           <Input value={supplierBillNo} onChange={(e) => setSupplierBillNo(e.target.value)} />
         </div>
-        <div className="sm:col-span-2 lg:col-span-4">
+        <div className="sm:col-span-12">
           <Label>Narration</Label>
           <Input value={narration} onChange={(e) => setNarration(e.target.value)} />
         </div>

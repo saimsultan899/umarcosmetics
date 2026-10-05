@@ -102,6 +102,89 @@ export const QtyUnitControl = forwardRef<HTMLInputElement, QtyUnitControlProps>(
       onQtyChange(String(toPieces(breakdown.cartons, loosePcs, packing)));
     }
 
+    const breakdownTitle = canCarton
+      ? `${formatUom(qty, packing, { unitType, baseUnit })}${
+          packing > 1 ? ` · ${packing}/${ctnLabel.toLowerCase()}` : ""
+        }`
+      : pcsLabel;
+
+    if (compact) {
+      return (
+        <div
+          className={cn("flex items-center gap-1", className)}
+          title={breakdownTitle}
+        >
+          {canCarton ? (
+            <div
+              className="inline-flex shrink-0 rounded-md border border-[var(--border)] p-0.5 text-[10px] font-semibold uppercase"
+              role="group"
+              aria-label="Quantity unit"
+            >
+              <button
+                type="button"
+                id={`${groupId}-pcs`}
+                disabled={disabled}
+                onClick={() => setModeSafe("piece")}
+                className={cn(
+                  "rounded px-1 py-0.5",
+                  mode === "piece"
+                    ? "bg-[var(--brand)] text-white"
+                    : "text-[var(--muted)] hover:text-[var(--ink)]",
+                )}
+              >
+                {pcsLabel}
+              </button>
+              <button
+                type="button"
+                id={`${groupId}-ctn`}
+                disabled={disabled}
+                onClick={() => setModeSafe("carton")}
+                className={cn(
+                  "rounded px-1 py-0.5",
+                  mode === "carton"
+                    ? "bg-[var(--brand)] text-white"
+                    : "text-[var(--muted)] hover:text-[var(--ink)]",
+                )}
+              >
+                {ctnLabel}
+              </button>
+            </div>
+          ) : null}
+          <Input
+            ref={qtyInputRef}
+            type="number"
+            min="0"
+            step="1"
+            value={displayQty}
+            disabled={disabled}
+            onChange={(e) => onDisplayQtyChange(e.target.value)}
+            onKeyDown={onQtyKeyDown}
+            className={cn("h-8 w-16 px-1.5 text-sm", qtyClassName)}
+            title={breakdownTitle}
+            aria-label={
+              mode === "carton"
+                ? `Quantity (${ctnLabel})`
+                : `Quantity (${pcsLabel})`
+            }
+          />
+          {mode === "carton" && canCarton ? (
+            <Input
+              type="number"
+              min="0"
+              step="1"
+              value={looseQty}
+              disabled={disabled}
+              onChange={(e) => onLooseChange(e.target.value)}
+              className="h-8 w-12 px-1 text-[11px]"
+              title={`Loose ${pcsLabel}`}
+              aria-label={`Loose ${pcsLabel}`}
+              placeholder={pcsLabel}
+            />
+          ) : null}
+        </div>
+      );
+    }
+
     return (
       <div className={cn("space-y-1", className)}>
         {canCarton ? (

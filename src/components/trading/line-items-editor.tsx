@@ -938,18 +938,18 @@ export const LineItemsEditor = forwardRef<
         </div>
       ) : null}
 
-      <div className="table-grid">
-        <table className="w-full min-w-[920px] text-sm">
+      <div className="table-grid table-grid--dense">
+        <table className="w-full min-w-[780px] text-sm">
           <thead>
             <tr>
-              <th className="w-36 min-w-[8.5rem]">Code / barcode</th>
-              <th>Product</th>
-              <th className="w-32 min-w-[7.5rem]">Qty</th>
-              {enableBonus ? <th className="w-24 min-w-[5rem]">Scheme</th> : null}
-              <th className="w-24 min-w-[5rem]">Rate</th>
-              <th className="w-24 min-w-[5rem]">Discount %</th>
+              <th className="w-24 min-w-[5.5rem]">Code</th>
+              <th className="min-w-[14rem]">Product</th>
+              <th className="w-40 min-w-[9rem]">Qty</th>
+              {enableBonus ? <th className="w-16 min-w-[3.5rem]">Scheme</th> : null}
+              <th className="w-24 min-w-[5.5rem]">Rate</th>
+              <th className="w-16 min-w-[3.75rem]">Disc %</th>
               <th className="w-24 min-w-[5.5rem]">Amount</th>
-              <th className="w-12 min-w-[3rem]" />
+              <th className="w-10 min-w-[2.25rem]" />
             </tr>
           </thead>
           <tbody>
@@ -961,7 +961,7 @@ export const LineItemsEditor = forwardRef<
                   value={draft.product_code}
                   placeholder="Code or scan"
                   autoComplete="off"
-                  className="px-2 font-medium tabular-nums"
+                    className="h-8 px-2 text-sm font-medium tabular-nums"
                   onChange={(e) => setCodeValue(e.target.value)}
                   onKeyDown={onCodeKeyDown}
                 />
@@ -984,18 +984,16 @@ export const LineItemsEditor = forwardRef<
                     draft.qty,
                     draft.bonus || "0",
                   );
-                  if (!note && !over) return null;
+                  if ((!note || note.tone === "ok") && !over) return null;
                   return (
                     <>
-                      {note ? (
+                      {note && note.tone !== "ok" ? (
                         <p
                           className={cn(
-                            "mt-1 text-[10px]",
-                            note.tone === "ok"
-                              ? "text-[var(--brand)]"
-                              : note.tone === "warn"
-                                ? "text-amber-700"
-                                : "text-rose-600",
+                            "mt-0.5 text-[10px]",
+                            note.tone === "warn"
+                              ? "text-amber-700"
+                              : "text-rose-600",
                           )}
                         >
                           {note.text}
@@ -1053,13 +1051,13 @@ export const LineItemsEditor = forwardRef<
                     placeholder="+1"
                     onChange={(e) => patchDraftWithScheme(e.target.value)}
                     onKeyDown={onSchemeEnter}
-                    title="Item-wise shop scheme, e.g. +1 or 10+1"
+                    className="h-8 px-2 text-sm"
+                    title={
+                      Number(draft.bonus) > 0
+                        ? `+${draft.bonus} free`
+                        : "Item-wise shop scheme, e.g. +1 or 10+1"
+                    }
                   />
-                  {Number(draft.bonus) > 0 ? (
-                    <p className="mt-1 text-[10px] text-[var(--muted)]">
-                      +{draft.bonus} free
-                    </p>
-                  ) : null}
                 </td>
               ) : null}
               <td>
@@ -1082,6 +1080,7 @@ export const LineItemsEditor = forwardRef<
                     });
                   }}
                   onKeyDown={onRateEnter}
+                  className="h-8 px-2 text-sm"
                 />
                 {hint ? (
                   <p className="mt-1 text-[10px] text-[var(--brand)]">{hint}</p>
@@ -1098,15 +1097,15 @@ export const LineItemsEditor = forwardRef<
                   value={draft.discount}
                   onChange={(e) => patchDraft({ discount: e.target.value })}
                   onKeyDown={onDiscountEnter}
-                  title="Line discount percent"
+                  className="h-8 px-2 text-sm"
+                  title={
+                    Number(draft.discount) > 0
+                      ? formatPkr(
+                          calcLineDiscount(draft.qty, draft.rate, draft.discount),
+                        )
+                      : "Line discount percent"
+                  }
                 />
-                {Number(draft.discount) > 0 ? (
-                  <p className="mt-1 text-[10px] text-[var(--muted)]">
-                    {formatPkr(
-                      calcLineDiscount(draft.qty, draft.rate, draft.discount),
-                    )}
-                  </p>
-                ) : null}
               </td>
               <td className="font-medium text-[var(--muted)]">
                 {formatPkr(draftAmount)}
@@ -1129,7 +1128,7 @@ export const LineItemsEditor = forwardRef<
               <tr>
                 <td
                   colSpan={enableBonus ? 8 : 7}
-                  className="py-6 text-center text-sm text-[var(--muted)]"
+                  className="py-3 text-center text-sm text-[var(--muted)]"
                 >
                   Added products appear here. Keep using the top row to add more.
                 </td>
@@ -1141,13 +1140,16 @@ export const LineItemsEditor = forwardRef<
                     <Input
                       value={line.product_code}
                       readOnly
-                      className="bg-[var(--surface-2)] px-2 font-medium tabular-nums"
+                      className="h-8 bg-[var(--surface-2)] px-2 text-sm font-medium tabular-nums"
                       tabIndex={-1}
                     />
                     <span className="sr-only">Line {index + 1}</span>
                   </td>
                   <td>
-                    <div className="truncate px-1 text-sm font-medium">
+                    <div
+                      className="truncate px-1 text-sm font-medium"
+                      title={line.product_name || undefined}
+                    >
                       {line.product_name || "—"}
                     </div>
                     {(() => {
@@ -1234,6 +1236,12 @@ export const LineItemsEditor = forwardRef<
                         data-line-scheme="1"
                         value={line.scheme}
                         placeholder="+1"
+                        className="h-8 px-2 text-sm"
+                        title={
+                          Number(line.bonus) > 0
+                            ? `+${line.bonus} free`
+                            : "Item-wise shop scheme"
+                        }
                         onChange={(e) =>
                           patchLineWithScheme(
                             line.key,
@@ -1255,11 +1263,6 @@ export const LineItemsEditor = forwardRef<
                           }
                         }}
                       />
-                      {Number(line.bonus) > 0 ? (
-                        <p className="mt-1 text-[10px] text-[var(--muted)]">
-                          +{line.bonus} free
-                        </p>
-                      ) : null}
                     </td>
                   ) : null}
                   <td>
@@ -1270,6 +1273,12 @@ export const LineItemsEditor = forwardRef<
                       step={AMOUNT_STEP}
                       placeholder={AMOUNT_PLACEHOLDER}
                       value={line.rate}
+                      className="h-8 px-2 text-sm"
+                      title={(() => {
+                        const p = productById.get(line.product_id);
+                        if (!p || !hasCartonPacking(p.packing)) return "Rate";
+                        return `${formatPkr(perCartonRate(line.rate, p.packing))}/${(p.unit_type || "Carton").toLowerCase()}`;
+                      })()}
                       onChange={(e) =>
                         patchLine(line.key, { rate: e.target.value })
                       }
@@ -1287,20 +1296,10 @@ export const LineItemsEditor = forwardRef<
                       }}
                     />
                     {lineHints[line.key] ? (
-                      <p className="mt-1 text-[10px] text-[var(--brand)]">
+                      <p className="mt-0.5 text-[10px] text-[var(--brand)]">
                         {lineHints[line.key]}
                       </p>
                     ) : null}
-                    {(() => {
-                      const p = productById.get(line.product_id);
-                      if (!p || !hasCartonPacking(p.packing)) return null;
-                      return (
-                        <p className="mt-1 text-[10px] text-[var(--muted)]">
-                          {formatPkr(perCartonRate(line.rate, p.packing))}/
-                          {(p.unit_type || "Carton").toLowerCase()}
-                        </p>
-                      );
-                    })()}
                   </td>
                   <td>
                     <Input
@@ -1311,6 +1310,14 @@ export const LineItemsEditor = forwardRef<
                       step={AMOUNT_STEP}
                       placeholder={AMOUNT_PLACEHOLDER}
                       value={line.discount}
+                      className="h-8 px-2 text-sm"
+                      title={
+                        Number(line.discount) > 0
+                          ? formatPkr(
+                              calcLineDiscount(line.qty, line.rate, line.discount),
+                            )
+                          : "Line discount percent"
+                      }
                       onChange={(e) =>
                         patchLine(line.key, { discount: e.target.value })
                       }
@@ -1322,19 +1329,12 @@ export const LineItemsEditor = forwardRef<
                         }
                       }}
                     />
-                    {Number(line.discount) > 0 ? (
-                      <p className="mt-1 text-[10px] text-[var(--muted)]">
-                        {formatPkr(
-                          calcLineDiscount(line.qty, line.rate, line.discount),
-                        )}
-                      </p>
-                    ) : null}
                   </td>
                   <td className="font-medium">{formatPkr(line.amount)}</td>
                   <td>
                     <button
                       type="button"
-                      className="rounded-lg p-2 text-rose-600 hover:bg-rose-50"
+                      className="rounded-lg p-1 text-rose-600 hover:bg-rose-50"
                       onClick={() => removeLine(line.key)}
                       aria-label="Remove line"
                       data-enter-skip
@@ -1350,7 +1350,7 @@ export const LineItemsEditor = forwardRef<
       </div>
 
       <div className="flex flex-wrap items-center justify-end gap-3">
-        <div className="rounded-xl border border-[var(--border)] bg-white px-4 py-3 text-sm">
+        <div className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm">
           <div className="flex flex-col gap-2 sm:items-end">
             <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
               <span className="text-[var(--muted)]">

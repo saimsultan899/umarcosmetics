@@ -1041,6 +1041,16 @@ button[aria-haspopup="listbox"]:focus-visible {
   vertical-align: middle;
 }
 
+.table-grid.table-grid--dense th {
+  padding: 4px 8px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+.table-grid.table-grid--dense td {
+  padding: 2px 6px;
+}
+
 .table-grid thead,
 .table-grid thead tr {
   background: var(--surface-3);

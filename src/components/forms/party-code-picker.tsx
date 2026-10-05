@@ -9,7 +9,6 @@ import {
 } from "@/lib/keyboard/enter-nav";
 import { createClient } from "@/lib/supabase/client";
 import type { Party } from "@/lib/types/database";
-import { formatNumber } from "@/lib/utils";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 function focusAfterParty(codeEl: HTMLElement) {
@@ -141,7 +140,7 @@ export function PartyCodePicker({
   }
 
   return (
-    <div className="min-w-0 space-y-2">
+    <div className="min-w-0 space-y-1">
       {!compact && label ? <Label>{label}</Label> : null}
       <div className="grid min-w-0 gap-2 sm:grid-cols-[7.5rem_minmax(0,1fr)]">
         <Input
@@ -184,35 +183,11 @@ export function PartyCodePicker({
         </Select>
       </div>
 
-      {compact ? (
-        looking ? (
-          <p className="text-[10px] text-[var(--muted)]">Looking up...</p>
-        ) : status ? (
-          <p className="text-[10px] text-rose-700">{status}</p>
-        ) : null
-      ) : selected ? (
-        <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs">
-          <p className="truncate font-medium text-[var(--ink)]">
-            {selected.party_code} — {selected.name_en}
-          </p>
-          <p className="mt-0.5 truncate text-[var(--muted)]">
-            {[selected.city, selected.route, selected.mobile || selected.phone]
-              .filter(Boolean)
-              .join(" · ") || "No contact/sector details"}
-            {Number(selected.credit_limit) > 0
-              ? ` · Credit limit ${formatNumber(selected.credit_limit)}`
-              : ""}
-          </p>
-        </div>
-      ) : looking ? (
-        <p className="text-xs text-[var(--muted)]">Looking up party...</p>
+      {looking ? (
+        <p className="text-[10px] text-[var(--muted)]">Looking up...</p>
       ) : status ? (
-        <p className="text-xs text-rose-700">{status}</p>
-      ) : (
-        <p className="text-xs text-[var(--muted)]">
-          Type party number and press Enter to fetch details
-        </p>
-      )}
+        <p className="text-[10px] text-rose-700">{status}</p>
+      ) : null}
     </div>
   );
 }

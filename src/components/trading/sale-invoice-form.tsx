@@ -473,16 +473,16 @@ export function SaleInvoiceForm({
   return (
     <form
       onSubmit={onSubmit}
-      className="space-y-5"
+      className="space-y-3"
       data-enter-root
       onKeyDown={(e) => handleEnterAsNext(e)}
     >
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div>
+      <div className="grid items-end gap-2 sm:grid-cols-12">
+        <div className="sm:col-span-2">
           <Label>Date</Label>
           <Input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} required />
         </div>
-        <div className="sm:col-span-2 lg:col-span-2">
+        <div className="sm:col-span-6">
           <PartyCodePicker
             companyId={companyId}
             parties={customers}
@@ -497,14 +497,14 @@ export function SaleInvoiceForm({
             }}
           />
         </div>
-        <div>
+        <div className="sm:col-span-2">
           <SalesmanSelect
             salesmen={salesmen}
             value={salesmanId}
             onChange={setSalesmanId}
           />
         </div>
-        <div>
+        <div className="sm:col-span-2">
           <Label>Payment</Label>
           <Select
             value={paymentType}
@@ -575,7 +575,7 @@ export function SaleInvoiceForm({
             </div>
           ) : null}
         </div>
-        <div className="sm:col-span-2 lg:col-span-2">
+        <div className="sm:col-span-8">
           <Label>Narration</Label>
           <Input
             value={narration}
@@ -583,7 +583,7 @@ export function SaleInvoiceForm({
             placeholder="Optional notes"
           />
         </div>
-        <div>
+        <div className="sm:col-span-4" title="Fills automatically when you pick a product.">
           <Label>Company</Label>
           <Select
             value={warehouseId}
@@ -596,9 +596,6 @@ export function SaleInvoiceForm({
               })),
             ]}
           />
-          <p className="mt-1 text-[11px] text-[var(--muted)]">
-            Fills automatically when you pick a product.
-          </p>
         </div>
       </div>
 

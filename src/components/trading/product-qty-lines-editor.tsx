@@ -225,11 +225,7 @@ export const ProductQtyLinesEditor = forwardRef<
 
   return (
     <div className="space-y-2" data-enter-own>
-      <p className="text-xs text-[var(--muted)]">
-        Code → Enter → product → qty (PCS/CTN) → Enter adds the line. Stock is
-        always saved in base units.
-      </p>
-      <div className="table-grid">
+      <div className="table-grid table-grid--dense">
         <table className="w-full min-w-[640px] text-sm">
           <thead>
             <tr className="bg-[var(--surface-2)] text-left text-[11px] uppercase tracking-wide text-[var(--muted)]">
@@ -247,6 +243,7 @@ export const ProductQtyLinesEditor = forwardRef<
                   value={draft.product_code}
                   placeholder="Code"
                   autoComplete="off"
+                  className="h-8 px-2 text-sm"
                   onChange={(e) => setCodeValue(e.target.value)}
                   onKeyDown={onCodeEnter}
                 />
