@@ -477,7 +477,7 @@ export function SaleInvoiceForm({
       data-enter-root
       onKeyDown={(e) => handleEnterAsNext(e)}
     >
-      <div className="grid items-end gap-2 sm:grid-cols-12">
+      <div className="grid items-start gap-2 sm:grid-cols-12">
         <div className="sm:col-span-2">
           <Label>Date</Label>
           <Input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} required />
@@ -520,61 +520,58 @@ export function SaleInvoiceForm({
             <option value="credit">Credit</option>
             <option value="cash">Paid</option>
           </Select>
-          {paymentType === "cash" ? (
-            <div className="mt-2 space-y-2">
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--ink)]">
-                <input
-                  type="checkbox"
-                  checked={walkInCustomer}
-                  onChange={(e) => {
-                    const on = e.target.checked;
-                    setWalkInCustomer(on);
-                    if (on) {
-                      setPartyId("");
-                      setCreditWarning(null);
-                      setAmountPaidStr("");
-                    }
-                  }}
-                  className="h-4 w-4 rounded border-[var(--border)] accent-[var(--brand)]"
-                />
-                <span>Walk-in customer</span>
-              </label>
-              <div>
-                <Label>Amount received</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  step={AMOUNT_STEP}
-                  placeholder={AMOUNT_PLACEHOLDER}
-                  inputMode="decimal"
-                  value={
-                    amountPaidStr.trim() === ""
-                      ? billPreview
-                        ? String(Math.round(billPreview * 100) / 100)
-                        : ""
-                      : amountPaidStr
-                  }
-                  onChange={(e) => setAmountPaidStr(e.target.value)}
-                  disabled={walkInCustomer}
-                />
-                <p className="mt-1 text-sm text-[var(--ink)]">
-                  Paid {formatPkr(paidPreview)}
-                  {remainingPreview > 0.005 ? (
-                    <>
-                      {" · "}
-                      Remaining {formatPkr(remainingPreview)}
-                      <span className="block text-[13px] text-[var(--muted)]">
-                        Remaining posts to this shop receivables.
-                      </span>
-                    </>
-                  ) : billPreview > 0.005 ? (
-                    <span className="text-[var(--muted)]"> · Paid in full</span>
-                  ) : null}
-                </p>
-              </div>
-            </div>
-          ) : null}
         </div>
+        {paymentType === "cash" ? (
+          <div className="flex flex-wrap items-end gap-x-4 gap-y-2 sm:col-span-12">
+            <label className="mb-2 flex cursor-pointer items-center gap-2 text-sm text-[var(--ink)]">
+              <input
+                type="checkbox"
+                checked={walkInCustomer}
+                onChange={(e) => {
+                  const on = e.target.checked;
+                  setWalkInCustomer(on);
+                  if (on) {
+                    setPartyId("");
+                    setCreditWarning(null);
+                    setAmountPaidStr("");
+                  }
+                }}
+                className="h-4 w-4 rounded border-[var(--border)] accent-[var(--brand)]"
+              />
+              <span>Walk-in customer</span>
+            </label>
+            <div className="w-36">
+              <Label>Amount received</Label>
+              <Input
+                type="number"
+                min="0"
+                step={AMOUNT_STEP}
+                placeholder={AMOUNT_PLACEHOLDER}
+                inputMode="decimal"
+                value={
+                  amountPaidStr.trim() === ""
+                    ? billPreview
+                      ? String(Math.round(billPreview * 100) / 100)
+                      : ""
+                    : amountPaidStr
+                }
+                onChange={(e) => setAmountPaidStr(e.target.value)}
+                disabled={walkInCustomer}
+              />
+            </div>
+            <p className="mb-2 text-sm text-[var(--ink)]">
+              Paid {formatPkr(paidPreview)}
+              {remainingPreview > 0.005 ? (
+                <span className="text-[var(--muted)]">
+                  {" · "}
+                  Remaining {formatPkr(remainingPreview)}
+                </span>
+              ) : billPreview > 0.005 ? (
+                <span className="text-[var(--muted)]"> · Paid in full</span>
+              ) : null}
+            </p>
+          </div>
+        ) : null}
         <div className="sm:col-span-8">
           <Label>Narration</Label>
           <Input
