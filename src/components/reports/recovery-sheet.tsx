@@ -78,7 +78,15 @@ function formatRangeDate(iso: string) {
   }).format(d);
 }
 
-type Totals = { count: number; dueTotal: number; crTotal: number; finalTotal: number };
+type Totals = {
+  count: number;
+  dueTotal: number;
+  crTotal: number;
+  finalTotal: number;
+  prevTotal: number;
+  lastSaleTotal: number;
+  lastReceivedTotal: number;
+};
 
 type FlatRow = RecoverySheetRow & { sector: string };
 
@@ -86,12 +94,26 @@ function totalsOf(rows: RecoverySheetRow[]): Totals {
   let dueTotal = 0;
   let crTotal = 0;
   let finalTotal = 0;
+  let prevTotal = 0;
+  let lastSaleTotal = 0;
+  let lastReceivedTotal = 0;
   for (const r of rows) {
     finalTotal += r.final_balance;
+    prevTotal += Number(r.prev_balance || 0);
+    lastSaleTotal += Number(r.last_sale_value || 0);
+    lastReceivedTotal += Number(r.last_received_amount || 0);
     if (r.balance > 0.005) dueTotal += r.balance;
     else if (r.balance < -0.005) crTotal += Math.abs(r.balance);
   }
-  return { count: rows.length, dueTotal, crTotal, finalTotal };
+  return {
+    count: rows.length,
+    dueTotal,
+    crTotal,
+    finalTotal,
+    prevTotal,
+    lastSaleTotal,
+    lastReceivedTotal,
+  };
 }
 
 function lastReceivedLabel(amount: number | null | undefined) {
@@ -371,6 +393,46 @@ export function RecoverySheet({
                 </tr>
               )}
             </tbody>
+            {slice.length ? (
+              <tfoot>
+                <tr>
+                  <td className="font-semibold">Total</td>
+                  <td />
+                  <td className="text-xs text-[var(--muted)]">
+                    {viewTotals.count}{" "}
+                    {viewTotals.count === 1 ? "shop" : "shops"}
+                  </td>
+                  <td className="recovery-balance-table__num font-semibold">
+                    {lastReceivedLabel(viewTotals.lastReceivedTotal)}
+                  </td>
+                  {hideSaleCols ? null : (
+                    <>
+                      <td className="recovery-balance-table__num font-semibold">
+                        {sheetAmount(viewTotals.prevTotal)}
+                      </td>
+                      <td />
+                      <td />
+                      <td className="recovery-balance-table__num font-semibold">
+                        {saleDash(viewTotals.lastSaleTotal)}
+                      </td>
+                    </>
+                  )}
+                  <td
+                    className={
+                      viewTotals.finalTotal > 0.005
+                        ? "recovery-balance-table__num font-semibold text-rose-700"
+                        : viewTotals.finalTotal < -0.005
+                          ? "recovery-balance-table__num font-semibold text-emerald-700"
+                          : "recovery-balance-table__num font-semibold text-[var(--muted)]"
+                    }
+                  >
+                    {balanceLabel(viewTotals.finalTotal)}
+                  </td>
+                  <td />
+                  <td />
+                </tr>
+              </tfoot>
+            ) : null}
           </table>
         </TableScroll>
         <TablePagination

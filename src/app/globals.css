@@ -784,6 +784,14 @@ button[aria-haspopup="listbox"]:focus-visible {
   border-bottom: none;
 }
 
+.table-shell tfoot td {
+  border-top: 2px solid var(--border);
+  border-bottom: none;
+  background: var(--surface-2);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 /* Horizontal scroll for table body only — pagination stays full-width below */
 .table-shell > .table-scroll {
   overflow-x: auto;
