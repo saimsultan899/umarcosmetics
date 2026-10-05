@@ -7,7 +7,7 @@ import { ReportTable } from "@/components/reports/report-table";
 import { StockReportFilters } from "@/components/reports/stock-report-filters";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { formatUomCompact } from "@/lib/pricing/uom";
-import { formatPkr } from "@/lib/utils";
+import { formatCompactPkr, formatPkr} from "@/lib/utils";
 import { getCachedRows } from "@/lib/offline/local-db";
 import { offlineStockSnapshot } from "@/lib/offline/offline-reports";
 import { AlertTriangle, Boxes, Package } from "lucide-react";
@@ -306,7 +306,7 @@ export function OfflineStockReportsPage({
           <DonutChart
             data={valueByCompany}
             centerLabel="Purchase"
-            centerValue={formatPkr(totalPurchaseValue)}
+            centerValue={formatCompactPkr(totalPurchaseValue)}
           />
         </ChartCard>
         <ChartCard

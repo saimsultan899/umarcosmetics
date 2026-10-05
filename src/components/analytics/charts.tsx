@@ -1,6 +1,6 @@
 "use client";
 
-import { formatNumber, formatPkr } from "@/lib/utils";
+import { formatNumber, formatPkr, cn } from "@/lib/utils";
 import {
   Area,
   AreaChart,
@@ -193,14 +193,22 @@ export function DonutChart({
         </PieChart>
       </ResponsiveContainer>
       {centerLabel || centerValue ? (
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center pb-6">
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center pb-7">
           {centerValue ? (
-            <p className="font-[family-name:var(--font-display)] text-lg font-semibold">
+            <p
+              className={cn(
+                "max-w-[56%] px-1 text-center font-[family-name:var(--font-display)] font-semibold leading-tight",
+                centerValue.length > 14 ? "text-sm" : "text-lg",
+              )}
+              title={centerValue}
+            >
               {centerValue}
             </p>
           ) : null}
           {centerLabel ? (
-            <p className="text-[11px] text-[var(--muted)]">{centerLabel}</p>
+            <p className="mt-0.5 max-w-[56%] truncate text-center text-[11px] text-[var(--muted)]">
+              {centerLabel}
+            </p>
           ) : null}
         </div>
       ) : null}

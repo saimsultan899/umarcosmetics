@@ -11,7 +11,7 @@ import { parseReportList } from "@/lib/reports/filter-params";
 import { localDateIso, monthStartLocal } from "@/lib/dates";
 import { getCachedRows } from "@/lib/offline/local-db";
 import { formatReportInvNo } from "@/lib/reports/helpers";
-import { formatPkr } from "@/lib/utils";
+import { formatCompactPkr, formatPkr} from "@/lib/utils";
 import { Banknote, Receipt, Users, Wallet } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -281,7 +281,7 @@ export function OfflineExpenseReportsPage({
           <DonutChart
             data={byCategory}
             centerLabel="Spent"
-            centerValue={formatPkr(totals.amount)}
+            centerValue={formatCompactPkr(totals.amount)}
           />
         </ChartCard>
         <ChartCard

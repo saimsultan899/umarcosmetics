@@ -10,7 +10,7 @@ import { Select } from "@/components/ui/select";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { offlineAccountsBalances, offlinePartyLedger } from "@/lib/offline/offline-reports";
 import { getCachedRows } from "@/lib/offline/local-db";
-import { formatPkr } from "@/lib/utils";
+import { formatCompactPkr, formatPkr} from "@/lib/utils";
 import { ArrowDownLeft, ArrowUpRight, Scale } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -249,7 +249,7 @@ export function OfflineAccountsReportsPage({
           <DonutChart
             data={positionMix}
             centerLabel="Total"
-            centerValue={formatPkr(receivableTotal + payableTotal)}
+            centerValue={formatCompactPkr(receivableTotal + payableTotal)}
           />
         </ChartCard>
       </div>

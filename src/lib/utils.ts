@@ -29,6 +29,21 @@ export function formatPkr(value: number | string | null | undefined) {
   }).format(n);
 }
 
+/** Short money for tight chart centers — keeps digits inside the donut hole. */
+export function formatCompactPkr(value: number | string | null | undefined) {
+  const n = Number(value ?? 0);
+  if (!Number.isFinite(n)) return formatPkr(0);
+  const abs = Math.abs(n);
+  const sign = n < 0 ? "-" : "";
+  if (abs >= 10_000_000) {
+    return `${sign}Rs ${(abs / 10_000_000).toFixed(2)} Cr`;
+  }
+  if (abs >= 100_000) {
+    return `${sign}Rs ${(abs / 100_000).toFixed(2)} L`;
+  }
+  return formatPkr(n);
+}
+
 /**
  * Format a number with fixed decimals (default 156.60 style).
  * Pass digits=0 for whole counts (bills, SKUs).

@@ -15,7 +15,7 @@ import {
   lastNDates,
   sumByDay,
 } from "@/lib/analytics/aggregate";
-import { amountClass, cn, formatNumber, formatPkr } from "@/lib/utils";
+import { amountClass, cn, formatNumber, formatCompactPkr, formatPkr} from "@/lib/utils";
 import {
   AlertTriangle,
   Package,
@@ -294,7 +294,7 @@ export default async function DashboardPage() {
           <DonutChart
             data={mix}
             centerLabel="Sales mix"
-            centerValue={formatPkr(mix.reduce((a, b) => a + b.value, 0))}
+            centerValue={formatCompactPkr(mix.reduce((a, b) => a + b.value, 0))}
           />
         </ChartCard>
       </div>

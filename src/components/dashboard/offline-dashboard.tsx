@@ -23,7 +23,7 @@ import {
   offlineSalesSummary,
   offlineStockSnapshot,
 } from "@/lib/offline/offline-reports";
-import { amountClass, cn, formatNumber, formatPkr } from "@/lib/utils";
+import { amountClass, cn, formatNumber, formatCompactPkr, formatPkr} from "@/lib/utils";
 import {
   AlertTriangle,
   Package,
@@ -387,7 +387,7 @@ export function OfflineDashboard({
           <DonutChart
             data={dash.mix}
             centerLabel="Sales mix"
-            centerValue={formatPkr(
+            centerValue={formatCompactPkr(
               dash.mix.reduce((a, b) => a + b.value, 0),
             )}
           />

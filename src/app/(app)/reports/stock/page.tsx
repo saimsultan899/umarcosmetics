@@ -5,7 +5,6 @@ import { ReportTable } from "@/components/reports/report-table";
 import { StockReportFilters } from "@/components/reports/stock-report-filters";
 import { requireCompanyContext } from "@/lib/auth";
 import { formatUomCompact } from "@/lib/pricing/uom";
-import { formatPkr } from "@/lib/utils";
 import { AlertTriangle, Boxes, Package } from "lucide-react";
 import Link from "next/link";
 
@@ -283,8 +282,8 @@ export default async function StockReportPage({
                     { name: "OK", value: Math.max(filteredBalances.length - low, 0) },
                     { name: "Low", value: low },
                   ].filter((x) => x.value > 0)}
-                  centerValue={formatPkr(purchaseValue)}
-                  centerLabel="Purchase"
+                  centerValue={String(filteredBalances.length)}
+                  centerLabel="SKU rows"
                 />
               </ChartCard>
               <ChartCard

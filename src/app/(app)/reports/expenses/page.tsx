@@ -9,7 +9,7 @@ import { fetchCompanySalesmen } from "@/lib/queries/salesmen";
 import { parseReportList } from "@/lib/reports/filter-params";
 import { buildExpenseReport } from "@/lib/reports/expenses-data";
 import { localDateIso, monthStartLocal } from "@/lib/dates";
-import { formatPkr } from "@/lib/utils";
+import { formatCompactPkr, formatPkr} from "@/lib/utils";
 import { Banknote, Receipt, Users, Wallet } from "lucide-react";
 import Link from "next/link";
 
@@ -124,7 +124,7 @@ export default async function ExpenseReportPage({
           <DonutChart
             data={report.byCategory}
             centerLabel="Spent"
-            centerValue={formatPkr(totals.amount)}
+            centerValue={formatCompactPkr(totals.amount)}
           />
         </ChartCard>
         <ChartCard

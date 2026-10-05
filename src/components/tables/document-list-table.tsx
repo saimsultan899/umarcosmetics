@@ -19,7 +19,7 @@ import type {
   DocumentListSummary,
 } from "@/lib/queries/documents";
 import type { PaginationMeta } from "@/lib/pagination";
-import { formatPkr } from "@/lib/utils";
+import { formatCompactPkr, formatPkr } from "@/lib/utils";
 import {
   Banknote,
   CreditCard,
@@ -123,11 +123,11 @@ export function DocumentListTable({
           hint={title || "Documents matching filter"}
         />
         <StatCard
-          label="Recent total"
+          label="Filtered total"
           value={summary.totalAmount}
           format="money"
           icon={ShoppingCart}
-          hint="Latest 300 documents snapshot"
+          hint="Documents matching current filters"
         />
         {showPaymentFilter ? (
           <>
@@ -164,11 +164,11 @@ export function DocumentListTable({
           <StatCard
             label="Avg document"
             value={
-              pagination.total ? summary.totalAmount / Math.min(300, pagination.total) : 0
+              pagination.total ? summary.totalAmount / pagination.total : 0
             }
             format="money"
             tone="neutral"
-            hint="Recent average"
+            hint="Average of filtered documents"
           />
         )}
       </StatsGrid>
@@ -177,22 +177,22 @@ export function DocumentListTable({
         <ChartCard
           className="lg:col-span-2"
           title="Daily total"
-          subtitle="Recent documents"
+          subtitle="Matching filters"
         >
           <TrendAreaChart data={summary.trend} valueLabel="Amount" />
         </ChartCard>
         {showPaymentFilter ? (
-          <ChartCard title="Payment mix" subtitle="Recent documents">
+          <ChartCard title="Payment mix" subtitle="Matching filters">
             <DonutChart
               data={summary.mix}
-              centerValue={formatPkr(summary.totalAmount)}
+              centerValue={formatCompactPkr(summary.totalAmount)}
               centerLabel="Total"
             />
           </ChartCard>
         ) : (
-          <ChartCard title="Summary" subtitle="Recent amount">
+          <ChartCard title="Summary" subtitle="Filtered amount">
             <div className="flex h-full min-h-[220px] flex-col justify-center gap-3">
-              <p className="text-sm text-[var(--muted)]">Recent total</p>
+              <p className="text-sm text-[var(--muted)]">Filtered total</p>
               <p className="font-[family-name:var(--font-display)] text-3xl font-semibold">
                 {formatPkr(summary.totalAmount)}
               </p>

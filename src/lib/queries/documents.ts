@@ -188,26 +188,34 @@ export async function fetchDocumentList(
     ? `${dateField}, grand_total, ${config.paymentField}`
     : `${dateField}, grand_total`;
 
+  const isTradingDoc = [
+    "sale_invoices",
+    "purchase_invoices",
+    "sale_returns",
+    "purchase_returns",
+  ].includes(config.table);
+
+  let summaryQuery = supabase
+    .from(config.table)
+    .select(recentSelect)
+    .eq("company_id", companyId);
+  if (isTradingDoc) {
+    summaryQuery = summaryQuery.neq("status", "cancelled");
+  }
+  summaryQuery = applyDocumentSearch(summaryQuery, q, config.docNoField);
+  if (warehouseId && config.warehouseSelect) {
+    summaryQuery = summaryQuery.eq("warehouse_id", warehouseId);
+  }
+  if (options?.showPaymentFilter && payment !== "all" && config.paymentField) {
+    summaryQuery = summaryQuery.eq(config.paymentField, payment);
+  }
+
   const [{ data, count, error }, recent] = await Promise.all([
     listQuery
       .order(dateField, { ascending: false })
       .order("created_at", { ascending: false })
       .range(from, to),
-    (["sale_invoices", "purchase_invoices", "sale_returns", "purchase_returns"].includes(
-      config.table,
-    )
-      ? supabase
-          .from(config.table)
-          .select(recentSelect)
-          .eq("company_id", companyId)
-          .neq("status", "cancelled")
-      : supabase
-          .from(config.table)
-          .select(recentSelect)
-          .eq("company_id", companyId)
-    )
-      .order(dateField, { ascending: false })
-      .limit(300),
+    summaryQuery.order(dateField, { ascending: false }).limit(5000),
   ]);
 
   if (error) throw new Error(error.message);

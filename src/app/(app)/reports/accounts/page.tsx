@@ -7,7 +7,7 @@ import { UrlFilterForm } from "@/components/reports/url-filter-form";
 import { Select } from "@/components/ui/select";
 import { requireCompanyContext } from "@/lib/auth";
 import { localDateIso } from "@/lib/dates";
-import { formatPkr } from "@/lib/utils";
+import { formatCompactPkr, formatPkr} from "@/lib/utils";
 import { ArrowDownLeft, ArrowUpRight, Scale } from "lucide-react";
 import Link from "next/link";
 
@@ -228,7 +228,7 @@ export default async function AccountsReportPage({
           <ChartCard title="AR vs AP" subtitle="Money in vs money out">
             <DonutChart
               data={positionMix}
-              centerValue={formatPkr(Math.abs(net))}
+              centerValue={formatCompactPkr(Math.abs(net))}
               centerLabel="Net"
             />
           </ChartCard>

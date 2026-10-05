@@ -215,8 +215,8 @@ export function ProductsTable({
         <ChartCard title="Stock health" subtitle="Current page">
           <DonutChart
             data={stats.health}
-            centerValue={formatPkr(stats.stockValue)}
-            centerLabel="Retail"
+            centerValue={String(stats.total)}
+            centerLabel="SKUs"
           />
         </ChartCard>
         <ChartCard title="By company" subtitle="Current page">

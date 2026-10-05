@@ -6,7 +6,7 @@ import { ReportTable } from "@/components/reports/report-table";
 import { requireCompanyContext } from "@/lib/auth";
 import { buildProfitReport } from "@/lib/reports/profit-data";
 import { resolveProfitPeriod } from "@/lib/reports/profit-periods";
-import { amountClass, cn, formatPkr } from "@/lib/utils";
+import { amountClass, cn, formatCompactPkr, formatPkr} from "@/lib/utils";
 import {
   Banknote,
   Percent,
@@ -188,7 +188,7 @@ export default async function ProfitReportPage({
           <DonutChart
             data={expenseMix}
             centerLabel="Spent"
-            centerValue={formatPkr(summary.expenses)}
+            centerValue={formatCompactPkr(summary.expenses)}
           />
         </ChartCard>
       </div>

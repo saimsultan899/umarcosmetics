@@ -8,7 +8,7 @@ import {
 } from "@/components/reports/url-filter-form";
 import { requireCompanyContext } from "@/lib/auth";
 import { localDateIso } from "@/lib/dates";
-import { formatPkr } from "@/lib/utils";
+import { formatCompactPkr, formatPkr} from "@/lib/utils";
 import { AlertTriangle, Clock3, Wallet } from "lucide-react";
 import Link from "next/link";
 
@@ -145,7 +145,7 @@ export default async function AgingReportPage({
               { name: "90+", value: totals.b90 },
               { name: "Other", value: totals.other },
             ].filter((x) => x.value > 0)}
-            centerValue={formatPkr(totals.balance)}
+            centerValue={formatCompactPkr(totals.balance)}
             centerLabel="Total due"
           />
         </ChartCard>
