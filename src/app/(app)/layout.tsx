@@ -10,29 +10,17 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { profile, memberships, supabase, user, offline } = await getMemberships();
+  const { profile, memberships, user } = await getMemberships();
 
-  let company: Company | null = null;
-
-  if (offline) {
-    const mem = memberships.find((m) => m.company_id === profile?.active_company_id);
-    company = (mem?.companies as Company | undefined) || null;
-  } else if (profile?.active_company_id) {
-    const result = await Promise.race([
-      Promise.resolve(
-        supabase
-          .from("companies")
-          .select("*")
-          .eq("id", profile.active_company_id)
-          .maybeSingle(),
-      ),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
-    ]);
-    company = (result?.data as Company | null) || null;
-    if (!company) {
-      const mem = memberships.find((m) => m.company_id === profile.active_company_id);
-      company = (mem?.companies as Company | undefined) || null;
-    }
+  const mem = memberships.find((m) => m.company_id === profile?.active_company_id);
+  const embedded = mem?.companies;
+  const companyRow = Array.isArray(embedded) ? embedded[0] : embedded;
+  let company: Company | null = (companyRow as Company | undefined) || null;
+  if (company && "organizations" in company) {
+    const { organizations: _organizations, ...rest } = company as Company & {
+      organizations?: unknown;
+    };
+    company = rest as Company;
   }
 
   const activeMembership = memberships.find(

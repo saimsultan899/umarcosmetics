@@ -41,6 +41,8 @@ type DocumentTableConfig = {
   hrefPrefix: string;
   linesTable: string;
   linesFk: string;
+  /** Columns the list actually renders. Avoids shipping every document field. */
+  columns: string;
   mapExtra?: (row: Record<string, unknown>) => Array<{ label: string; value: string }>;
 };
 
@@ -54,6 +56,7 @@ const SALE_CONFIG: DocumentTableConfig = {
   hrefPrefix: "/sales/invoices",
   linesTable: "sale_invoice_items",
   linesFk: "sale_invoice_id",
+  columns: "id, invoice_no, invoice_date, payment_type, grand_total",
 };
 
 const PURCHASE_CONFIG: DocumentTableConfig = {
@@ -65,6 +68,7 @@ const PURCHASE_CONFIG: DocumentTableConfig = {
   hrefPrefix: "/purchases/invoices",
   linesTable: "purchase_invoice_items",
   linesFk: "purchase_invoice_id",
+  columns: "id, invoice_no, invoice_date, grand_total, supplier_bill_no",
   mapExtra: (inv) => [
     {
       label: "Vendor bill #",
@@ -82,6 +86,7 @@ const SALE_RETURN_CONFIG: DocumentTableConfig = {
   hrefPrefix: "/sales/returns",
   linesTable: "sale_return_items",
   linesFk: "sale_return_id",
+  columns: "id, return_no, return_date, grand_total",
 };
 
 const PURCHASE_RETURN_CONFIG: DocumentTableConfig = {
@@ -93,6 +98,7 @@ const PURCHASE_RETURN_CONFIG: DocumentTableConfig = {
   hrefPrefix: "/purchases/returns",
   linesTable: "purchase_return_items",
   linesFk: "purchase_return_id",
+  columns: "id, return_no, return_date, grand_total",
 };
 
 function mapDocumentRow(
@@ -152,7 +158,7 @@ export async function fetchDocumentList(
   const warehouseId = spString(searchParams, "warehouse") || "";
 
   const selectParts = [
-    "*",
+    config.columns,
     config.partySelect,
     config.warehouseSelect,
   ].filter(Boolean);
@@ -266,6 +272,7 @@ const EXPIRY_RECEIPT_CONFIG: DocumentTableConfig = {
   hrefPrefix: "/inventory/expiry/receipts",
   linesTable: "expiry_receipt_items",
   linesFk: "receipt_id",
+  columns: "id, receipt_no, receipt_date, grand_total, period_from, period_to",
   mapExtra: (row) =>
     row.period_from && row.period_to
       ? [
@@ -286,6 +293,7 @@ const EXPIRY_CLAIM_CONFIG: DocumentTableConfig = {
   hrefPrefix: "/inventory/expiry/claims",
   linesTable: "expiry_claim_items",
   linesFk: "claim_id",
+  columns: "id, claim_no, claim_date, grand_total, claim_status",
   mapExtra: (row) => [
     {
       label: "Claim status",

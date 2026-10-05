@@ -90,12 +90,6 @@ export default async function DashboardPage() {
         .eq("company_id", company.id)
         .gte("recovery_date", from14),
       supabase
-        .from("sale_invoices")
-        .select("payment_type, grand_total")
-        .eq("company_id", company.id)
-        .eq("status", "posted")
-        .gte("invoice_date", from14),
-      supabase
         .from("expenses")
         .select("expense_date, amount, category")
         .eq("company_id", company.id)
@@ -122,9 +116,9 @@ export default async function DashboardPage() {
     { data: salesRows },
     { data: purchaseRows },
     { data: recoveryRows },
-    { data: paymentMix },
     { data: expenseRows },
   ] = cloud;
+  const paymentMix = salesRows;
 
   const s = (snap || {}) as Record<string, number>;
   const debtors = ((topDebtors || []) as Array<{

@@ -1,7 +1,8 @@
 import { StockTransfersView } from "@/components/inventory/stock-transfers-view";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
+import { requireCompanyContext } from "@/lib/auth";
 import { fetchStockTransferList, type StockTransferListResult } from "@/lib/queries/stock-transfers";
-import { loadTradingMasters } from "@/lib/trading-data";
+import type { Warehouse } from "@/lib/types/database";
 import { Suspense } from "react";
 
 export default async function StockTransfersPage({
@@ -10,13 +11,23 @@ export default async function StockTransfersPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
-  const { company, products, warehouses, supabase, offline } =
-    await loadTradingMasters();
+  const { company, supabase, offline } = await requireCompanyContext();
 
   let initialData: StockTransferListResult | null = null;
+  let warehouses: Warehouse[] = [];
   if (!offline) {
     try {
-      initialData = await fetchStockTransferList(supabase, company.id, sp);
+      const [list, warehouseRes] = await Promise.all([
+        fetchStockTransferList(supabase, company.id, sp),
+        supabase
+          .from("warehouses")
+          .select("*")
+          .eq("company_id", company.id)
+          .eq("is_active", true)
+          .order("name"),
+      ]);
+      initialData = list;
+      warehouses = (warehouseRes.data || []) as Warehouse[];
     } catch {
       initialData = null;
     }
@@ -28,7 +39,6 @@ export default async function StockTransfersPage({
         company={company}
         initialData={initialData}
         initialWarehouses={warehouses}
-        initialProducts={products}
         initialOffline={offline}
       />
     </Suspense>

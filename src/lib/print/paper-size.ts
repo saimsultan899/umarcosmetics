@@ -127,9 +127,30 @@ function stripPageAtRules(css: string) {
   return out;
 }
 
-function collectedCss() {
-  let css = "";
+let cachedPrintCss: { key: string; css: string } | null = null;
+
+function stylesheetKey() {
+  return Array.from(document.querySelectorAll("style, link[rel='stylesheet']"))
+    .map((node) =>
+      node instanceof HTMLLinkElement
+        ? node.href
+        : String((node.textContent || "").length),
+    )
+    .join("|");
+}
+
+/** Copy page CSS once. Walking every rule on each Print click freezes the tab. */
+export function collectedCss() {
+  const key = stylesheetKey();
+  if (cachedPrintCss?.key === key) return cachedPrintCss.css;
+
+  let raw = "";
   for (const sheet of Array.from(document.styleSheets)) {
+    const node = sheet.ownerNode;
+    if (node instanceof HTMLStyleElement && node.textContent) {
+      raw += `${node.textContent}\n`;
+      continue;
+    }
     let rules: CSSRuleList;
     try {
       rules = sheet.cssRules;
@@ -137,10 +158,21 @@ function collectedCss() {
       continue;
     }
     for (const rule of Array.from(rules)) {
-      css += `${stripPageAtRules(rule.cssText)}\n`;
+      raw += `${rule.cssText}\n`;
     }
   }
+  const css = stripPageAtRules(raw);
+  cachedPrintCss = { key, css };
   return css;
+}
+
+export function warmPrintCss() {
+  if (typeof document === "undefined") return;
+  try {
+    collectedCss();
+  } catch {
+    /* print still works; the click will collect CSS */
+  }
 }
 
 function pageRule(paper: PrintPaperSize) {

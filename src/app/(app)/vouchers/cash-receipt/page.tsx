@@ -2,7 +2,6 @@ import { VouchersView } from "@/components/vouchers/vouchers-view";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { requireCompanyContext } from "@/lib/auth";
 import { fetchVoucherList, type VoucherListResult } from "@/lib/queries/vouchers";
-import type { Party } from "@/lib/types/database";
 import { Suspense } from "react";
 
 export default async function CashReceiptPage({
@@ -14,16 +13,10 @@ export default async function CashReceiptPage({
   const { supabase, company, offline } = await requireCompanyContext();
 
   let initialData: VoucherListResult | null = null;
-  let initialParties: Party[] = [];
 
   if (!offline) {
     try {
-      const [{ data: parties }, list] = await Promise.all([
-        supabase.from("parties").select("*").eq("company_id", company.id).eq("is_active", true).order("name_en"),
-        fetchVoucherList(supabase, company.id, sp, "CR"),
-      ]);
-      initialParties = (parties as Party[]) || [];
-      initialData = list;
+      initialData = await fetchVoucherList(supabase, company.id, sp, "CR");
     } catch {
       initialData = null;
     }
@@ -35,7 +28,6 @@ export default async function CashReceiptPage({
         company={company}
         kind="CR"
         initialData={initialData}
-        initialParties={initialParties}
         initialOffline={offline}
       />
     </Suspense>

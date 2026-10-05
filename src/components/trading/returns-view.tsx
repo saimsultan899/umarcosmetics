@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { CreateDialogButton, PageHeading } from "@/components/ui/create-dialog";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { useReturnsList, type ReturnKind } from "@/hooks/use-returns-list";
+import { CatalogSlot, useTradingCatalog } from "@/lib/trading/catalog-client";
 import type { DocumentListRow, DocumentListSummary } from "@/lib/queries/documents";
 import type { PaginationMeta } from "@/lib/pagination";
 import type { Company, Party, Product, Warehouse } from "@/lib/types/database";
@@ -82,6 +83,10 @@ export function ReturnsView({
       initialWarehouses,
       initialOffline,
     });
+  const catalog = useTradingCatalog(company.id, { enabled: !initialOffline });
+  const formParties = parties.length ? parties : catalog.parties;
+  const formProducts = products.length ? products : catalog.products;
+  const formWarehouses = warehouses.length ? warehouses : catalog.warehouses;
 
   const meta = META[kind];
 
@@ -105,14 +110,19 @@ export function ReturnsView({
               description={meta.addDescription}
               size="xl"
             >
-              <ReturnForm
-                kind={kind}
-                companyId={company.id}
-                organizationId={company.organization_id}
-                parties={parties}
-                products={products}
-                warehouses={warehouses}
-              />
+              <CatalogSlot
+                ready={initialOffline || parties.length > 0 || catalog.ready}
+                error={catalog.error}
+              >
+                <ReturnForm
+                  kind={kind}
+                  companyId={company.id}
+                  organizationId={company.organization_id}
+                  parties={formParties}
+                  products={formProducts}
+                  warehouses={formWarehouses}
+                />
+              </CatalogSlot>
             </CreateDialogButton>
           </>
         }
@@ -123,7 +133,7 @@ export function ReturnsView({
         rows={rows}
         pagination={pagination}
         summary={summary}
-        warehouses={warehouses}
+        warehouses={formWarehouses}
         showPrint={meta.showPrint}
         partyColumnLabel={meta.partyColumnLabel}
       />

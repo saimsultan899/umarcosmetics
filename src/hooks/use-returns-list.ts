@@ -197,7 +197,7 @@ export function useReturnsList({
       return;
     }
 
-    // Online
+    // Online — masters stay in the session catalog. Only the list follows the filter.
     setLoading(true);
     try {
       const supabase = createClient();
@@ -205,18 +205,7 @@ export function useReturnsList({
         kind === "sale"
           ? documentListConfigs.saleReturn
           : documentListConfigs.purchaseReturn;
-
-      const [{ data: partyData }, { data: prodData }, { data: whData }, list] =
-        await Promise.all([
-          supabase.from("parties").select("*").eq("company_id", companyId).eq("is_active", true).order("name_en"),
-          supabase.from("products").select("*").eq("company_id", companyId).eq("is_active", true).order("code"),
-          supabase.from("warehouses").select("*").eq("company_id", companyId).eq("is_active", true).order("name"),
-          fetchDocumentList(supabase, companyId, spRecord, config),
-        ]);
-
-      setParties((partyData as Party[]) || []);
-      setProducts((prodData as Product[]) || []);
-      setWarehouses((whData as Warehouse[]) || []);
+      const list = await fetchDocumentList(supabase, companyId, spRecord, config);
       setData(list);
     } catch (err) {
       console.error(`Failed to fetch online ${kind} returns:`, err);

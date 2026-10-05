@@ -13,7 +13,7 @@ import {
   holdThermalZeroMargin,
   printThermalSlip,
 } from "@/lib/print/thermal-page";
-import { printWithAutoPaper } from "@/lib/print/paper-size";
+import { printWithAutoPaper, warmPrintCss } from "@/lib/print/paper-size";
 import { formatReportInvNo } from "@/lib/reports/helpers";
 import { cn, formatNumber, formatPkr } from "@/lib/utils";
 import { ArrowLeft, Printer } from "lucide-react";
@@ -206,6 +206,13 @@ export function SaleInvoicePrint({
   useEffect(() => {
     if (embedded) return;
     installDesktopPrint();
+    const idle = window.requestIdleCallback?.bind(window);
+    if (idle) {
+      const id = idle(() => warmPrintCss());
+      return () => window.cancelIdleCallback?.(id);
+    }
+    const timer = window.setTimeout(() => warmPrintCss(), 200);
+    return () => window.clearTimeout(timer);
   }, [embedded]);
 
   useEffect(() => {

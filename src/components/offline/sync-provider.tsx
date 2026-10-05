@@ -13,7 +13,6 @@ import {
   autoRefreshStaleCaches,
   cacheSessionData,
   getCachedSessionData,
-  refreshAllCaches,
 } from "@/lib/offline/cache-manager";
 import {
   hasOfflineSessionCookie,
@@ -239,7 +238,7 @@ export function SyncProvider({
     if (online) {
       setOfflineSessionCookie(false);
       if (companyId) {
-        void refreshAllCaches(companyId);
+        void autoRefreshStaleCaches(companyId);
       }
       if (pending.total > 0) {
         void runSync();

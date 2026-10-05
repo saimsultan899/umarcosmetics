@@ -14,6 +14,7 @@ import {
   useExpiryWarehouse,
   type ExpiryWarehouseData,
 } from "@/hooks/use-expiry-warehouse";
+import { CatalogSlot, useTradingCatalog } from "@/lib/trading/catalog-client";
 import type { Company, Party, Product, Warehouse } from "@/lib/types/database";
 import { cn, formatPkr } from "@/lib/utils";
 import { Archive, FileText, Package, Truck } from "lucide-react";
@@ -59,6 +60,10 @@ export function ExpiryWarehouseView({
     initialWarehouses,
     initialOffline,
   });
+  const catalog = useTradingCatalog(company.id, { enabled: !initialOffline });
+  const formParties = parties.length ? parties : catalog.parties;
+  const formProducts = products.length ? products : catalog.products;
+  const formWarehouses = warehouses.length ? warehouses : catalog.warehouses;
 
   if (loading && !stock.length && !receipts.rows.length && !claims.rows.length) {
     return <PageSkeleton />;
@@ -78,13 +83,18 @@ export function ExpiryWarehouseView({
                 description="Load billed items for a date range, then adjust qty or amount to recover the shop’s balance."
                 size="xl"
               >
-                <ExpiryReceiptForm
-                  companyId={company.id}
-                  organizationId={company.organization_id}
-                  parties={parties}
-                  products={products}
-                  onDone={refetch}
-                />
+                <CatalogSlot
+                  ready={initialOffline || parties.length > 0 || catalog.ready}
+                  error={catalog.error}
+                >
+                  <ExpiryReceiptForm
+                    companyId={company.id}
+                    organizationId={company.organization_id}
+                    parties={formParties}
+                    products={formProducts}
+                    onDone={refetch}
+                  />
+                </CatalogSlot>
               </CreateDialogButton>
               <CreateDialogButton
                 label="Vendor claim"
@@ -92,14 +102,19 @@ export function ExpiryWarehouseView({
                 description="The company will verify the goods. Settle later if they accept, reject, or split the claim."
                 size="xl"
               >
-                <ExpiryClaimForm
-                  companyId={company.id}
-                  organizationId={company.organization_id}
-                  parties={parties}
-                  warehouses={warehouses}
-                  stock={stock}
-                  onDone={refetch}
-                />
+                <CatalogSlot
+                  ready={initialOffline || parties.length > 0 || catalog.ready}
+                  error={catalog.error}
+                >
+                  <ExpiryClaimForm
+                    companyId={company.id}
+                    organizationId={company.organization_id}
+                    parties={formParties}
+                    warehouses={formWarehouses}
+                    stock={stock}
+                    onDone={refetch}
+                  />
+                </CatalogSlot>
               </CreateDialogButton>
             </>
           }
@@ -183,7 +198,7 @@ export function ExpiryWarehouseView({
           rows={claims.rows}
           pagination={claims.pagination}
           summary={claims.summary}
-          warehouses={warehouses}
+          warehouses={formWarehouses}
           partyColumnLabel="Vendor"
           showPrint
         />

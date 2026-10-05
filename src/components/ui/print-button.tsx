@@ -5,6 +5,7 @@ import { installDesktopPrint } from "@/lib/desktop-print";
 import {
   clearPrintPaper,
   printWithAutoPaper,
+  warmPrintCss,
 } from "@/lib/print/paper-size";
 import { Printer } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -26,6 +27,13 @@ export function PrintButton({
 
   useEffect(() => {
     installDesktopPrint();
+    const idle = window.requestIdleCallback?.bind(window);
+    if (idle) {
+      const id = idle(() => warmPrintCss());
+      return () => window.cancelIdleCallback?.(id);
+    }
+    const timer = window.setTimeout(() => warmPrintCss(), 300);
+    return () => window.clearTimeout(timer);
   }, []);
 
   function onPrint() {

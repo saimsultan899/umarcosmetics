@@ -12,6 +12,7 @@ import {
 } from "@/lib/offline/offline-shell";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 
 export type AuthUser = VerifiedAuthUser;
 
@@ -64,7 +65,7 @@ function membershipsFromShell(shell: OfflineShellSnapshot): CompanyMember[] {
   })) as CompanyMember[];
 }
 
-export async function requireUser() {
+export const requireUser = cache(async function requireUser() {
   const shell = await readOfflineShell();
   if (shell) {
     const supabase = await createClient();
@@ -116,9 +117,9 @@ export async function requireUser() {
     redirect("/login");
   }
   return { supabase, user, offline: false as const };
-}
+});
 
-export async function getProfile() {
+export const getProfile = cache(async function getProfile() {
   const shell = await readOfflineShell();
   if (shell) {
     const supabase = await createClient();
@@ -166,9 +167,20 @@ export async function getProfile() {
     profile: (result?.data as Profile | null) || null,
     offline: false as const,
   };
+});
+
+function companyFromMembership(
+  company: CompanyMember["companies"] | CompanyMember["companies"][] | null | undefined,
+): Company | null {
+  const row = Array.isArray(company) ? company[0] : company;
+  if (!row) return null;
+  const { organizations: _organizations, ...rest } = row as Company & {
+    organizations?: unknown;
+  };
+  return rest;
 }
 
-export async function getMemberships() {
+export const getMemberships = cache(async function getMemberships() {
   const shell = await readOfflineShell();
   if (shell) {
     const supabase = await createClient();
@@ -190,19 +202,15 @@ export async function getMemberships() {
     };
   }
 
-  const { supabase, user, profile, offline } = await getProfile();
+  const { supabase, user, offline } = await requireUser();
   if (offline) {
     const fallback = await readShellCookieOnly();
-    // Superadmins never carry tenant memberships in the offline shell.
+    const profile = fallback ? profileFromShell(fallback) : null;
     if (profile?.is_super_admin || fallback?.isSuperAdmin) {
       return {
         supabase,
         user,
-        profile: profile
-          ? { ...profile, active_company_id: null }
-          : fallback
-            ? { ...profileFromShell(fallback), active_company_id: null }
-            : null,
+        profile: profile ? { ...profile, active_company_id: null } : null,
         memberships: [],
         offline: true as const,
       };
@@ -216,7 +224,36 @@ export async function getMemberships() {
     };
   }
 
-  // Platform console accounts are not company members.
+  // Profile and memberships are independent. One round trip, not two.
+  const [profileResult, result] = await Promise.all([
+    withTimeout(
+      supabase.from("profiles").select("*").eq("id", user.id).single(),
+      5000,
+    ),
+    withTimeout(
+      supabase
+        .from("company_members")
+        .select("*, companies(*, organizations(status))")
+        .eq("user_id", user.id)
+        .eq("is_active", true),
+      5000,
+    ),
+  ]);
+
+  let profile = (profileResult?.data as Profile | null) || null;
+  if (!profile || !result) {
+    const fallback = await readShellCookieOnly();
+    if (fallback) {
+      return {
+        supabase,
+        user: userFromShell(fallback),
+        profile: profileFromShell(fallback),
+        memberships: fallback.isSuperAdmin ? [] : membershipsFromShell(fallback),
+        offline: true as const,
+      };
+    }
+  }
+
   if (profile?.is_super_admin) {
     return {
       supabase,
@@ -226,15 +263,6 @@ export async function getMemberships() {
       offline: false as const,
     };
   }
-
-  const result = await withTimeout(
-    supabase
-      .from("company_members")
-      .select("*, companies(*, organizations(status))")
-      .eq("user_id", user.id)
-      .eq("is_active", true),
-    5000,
-  );
 
   if (!result) {
     const fallback = await readShellCookieOnly();
@@ -272,7 +300,7 @@ export async function getMemberships() {
     memberships,
     offline: false as const,
   };
-}
+});
 
 /** Platform SaaS console — requires online + profiles.is_super_admin. */
 export async function requireSuperAdmin() {
@@ -304,7 +332,7 @@ export async function requireSuperAdmin() {
   };
 }
 
-export async function requireCompanyContext() {
+export const requireCompanyContext = cache(async function requireCompanyContext() {
   const ctx = await getMemberships();
   const { profile, memberships, supabase, offline } = ctx;
 
@@ -332,6 +360,20 @@ export async function requireCompanyContext() {
       company,
       membership,
       offline: true as const,
+    };
+  }
+
+  // Memberships already include the company row and the active/org checks.
+  const membershipHit = memberships.find(
+    (m) => m.company_id === profile.active_company_id,
+  );
+  const embedded = companyFromMembership(membershipHit?.companies);
+  if (embedded) {
+    return {
+      ...ctx,
+      company: embedded,
+      membership: membershipHit,
+      offline: false as const,
     };
   }
 
@@ -392,4 +434,4 @@ export async function requireCompanyContext() {
     membership,
     offline: false as const,
   };
-}
+});

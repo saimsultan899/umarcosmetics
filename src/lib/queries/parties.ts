@@ -100,24 +100,46 @@ function baseQuery(supabase: SupabaseClient, companyId: string) {
     .eq("company_id", companyId);
 }
 
-async function countWithFilters(
-  supabase: SupabaseClient,
-  companyId: string,
-  view: PartyViewFilter,
-  subtype: PartySubtypeFilter,
-  q: string,
-  location: PartyLocationFilters,
-  extra?: (q: any) => any,
-) {
-  let query = baseQuery(supabase, companyId).eq("is_active", true);
-  query = applyViewFilter(query, view);
-  query = applySubtypeFilter(query, subtype);
-  query = applySearch(query, q);
-  query = applyPartyLocationFilters(query, location);
-  if (extra) query = extra(query);
-  const { count, error } = await query;
-  if (error) throw new Error(error.message);
-  return count ?? 0;
+type PartyStatRow = {
+  party_type: PartyType | null;
+  party_subtype: string | null;
+  credit_limit: number | null;
+  city: string | null;
+  route: string | null;
+  head: string | null;
+  party_code: string | null;
+  name_en: string | null;
+  name_ur: string | null;
+  mobile: string | null;
+  phone: string | null;
+};
+
+function matchesPartySearch(row: PartyStatRow, q: string) {
+  if (!q) return true;
+  const needle = q.toLowerCase();
+  return [
+    row.party_code,
+    row.name_en,
+    row.name_ur,
+    row.city,
+    row.route,
+    row.head,
+    row.mobile,
+    row.phone,
+  ].some((value) => (value || "").toLowerCase().includes(needle));
+}
+
+function matchesPartyLocation(row: PartyStatRow, location: PartyLocationFilters) {
+  if (location.city && row.city !== location.city) return false;
+  if (location.sector && row.route !== location.sector) return false;
+  if (location.head && row.head !== location.head) return false;
+  return true;
+}
+
+function matchesPartyView(row: PartyStatRow, view: PartyViewFilter) {
+  if (view === "ledger") return LEDGER_TYPES.includes(row.party_type as PartyType);
+  if (view === "trading") return row.party_type === "PARTY";
+  return true;
 }
 
 function aggregateCities(rows: Array<{ city: string | null }>) {
@@ -196,69 +218,16 @@ export async function fetchPartyList(
   listQuery = applySearch(listQuery, q);
   listQuery = applyPartyLocationFilters(listQuery, location);
 
-  const [
-    { data, count, error },
-    customers,
-    suppliers,
-    withCreditLimit,
-    customerOnly,
-    supplierOnly,
-    bothCount,
-    otherCount,
-    assetsCount,
-    capitalCount,
-    expensesCount,
-    incomeCount,
-    cityRows,
-    locationRows,
-    savedLocations,
-  ] = await Promise.all([
+  const [{ data, count, error }, slim, savedLocations] = await Promise.all([
     listQuery.order("party_code", { ascending: true }).range(from, to),
-    countWithFilters(supabase, companyId, view, "customer", q, location),
-    countWithFilters(supabase, companyId, view, "supplier", q, location),
-    countWithFilters(supabase, companyId, view, "credit", q, location),
-    countWithFilters(supabase, companyId, view, "all", q, location, (qb) =>
-      qb.eq("party_subtype", "customer"),
-    ),
-    countWithFilters(supabase, companyId, view, "all", q, location, (qb) =>
-      qb.eq("party_subtype", "supplier"),
-    ),
-    countWithFilters(supabase, companyId, view, "all", q, location, (qb) =>
-      qb.eq("party_subtype", "both"),
-    ),
-    countWithFilters(supabase, companyId, view, "all", q, location, (qb) =>
-      qb.eq("party_subtype", "other"),
-    ),
-    countWithFilters(supabase, companyId, "ledger", "all", q, location, (qb) =>
-      qb.eq("party_type", "ASSETS"),
-    ),
-    countWithFilters(supabase, companyId, "ledger", "all", q, location, (qb) =>
-      qb.eq("party_type", "CAPITAL"),
-    ),
-    countWithFilters(supabase, companyId, "ledger", "all", q, location, (qb) =>
-      qb.eq("party_type", "EXPENSES"),
-    ),
-    countWithFilters(supabase, companyId, "ledger", "all", q, location, (qb) =>
-      qb.eq("party_type", "INCOME"),
-    ),
-    (async () => {
-      let query = supabase
-        .from("parties")
-        .select("city")
-        .eq("company_id", companyId)
-        .eq("is_active", true);
-      query = applyViewFilter(query, view);
-      query = applySubtypeFilter(query, subtype);
-      query = applySearch(query, q);
-      query = applyPartyLocationFilters(query, location);
-      return query.limit(5000);
-    })(),
     supabase
       .from("parties")
-      .select("city, route, head")
+      .select(
+        "party_type, party_subtype, credit_limit, city, route, head, party_code, name_en, name_ur, mobile, phone",
+      )
       .eq("company_id", companyId)
       .eq("is_active", true)
-      .limit(5000),
+      .limit(20000),
     supabase
       .from("company_locations")
       .select("kind, name")
@@ -266,10 +235,51 @@ export async function fetchPartyList(
   ]);
 
   if (error) throw new Error(error.message);
+  if (slim.error) throw new Error(slim.error.message);
+
+  const activeRows = (slim.data || []) as PartyStatRow[];
+  const inView = (row: PartyStatRow, nextView: PartyViewFilter = view) =>
+    matchesPartyView(row, nextView) &&
+    matchesPartySearch(row, q) &&
+    matchesPartyLocation(row, location);
+  const filtered = activeRows.filter((row) => inView(row));
+  const customers = filtered.filter((row) =>
+    row.party_subtype === "customer" || row.party_subtype === "both",
+  ).length;
+  const suppliers = filtered.filter((row) =>
+    row.party_subtype === "supplier" || row.party_subtype === "both",
+  ).length;
+  const withCreditLimit = filtered.filter(
+    (row) => Number(row.credit_limit) > 0,
+  ).length;
+  const customerOnly = filtered.filter((row) => row.party_subtype === "customer").length;
+  const supplierOnly = filtered.filter((row) => row.party_subtype === "supplier").length;
+  const bothCount = filtered.filter((row) => row.party_subtype === "both").length;
+  const otherCount = filtered.filter((row) => row.party_subtype === "other").length;
+  const ledgerRows = activeRows.filter(
+    (row) =>
+      matchesPartyView(row, "ledger") &&
+      matchesPartySearch(row, q) &&
+      matchesPartyLocation(row, location),
+  );
+  const assetsCount = ledgerRows.filter((row) => row.party_type === "ASSETS").length;
+  const capitalCount = ledgerRows.filter((row) => row.party_type === "CAPITAL").length;
+  const expensesCount = ledgerRows.filter((row) => row.party_type === "EXPENSES").length;
+  const incomeCount = ledgerRows.filter((row) => row.party_type === "INCOME").length;
+  const cityData = filtered.filter((row) => {
+    if (subtype === "credit") return Number(row.credit_limit) > 0;
+    if (subtype === "customer") {
+      return row.party_subtype === "customer" || row.party_subtype === "both";
+    }
+    if (subtype === "supplier") {
+      return row.party_subtype === "supplier" || row.party_subtype === "both";
+    }
+    if (subtype === "both" || subtype === "other") return row.party_subtype === subtype;
+    return true;
+  });
 
   const total = count ?? 0;
   const meta = buildPaginationMeta(total, paginationParams);
-  const cityData = cityRows.data || [];
 
   const subtypeMix = [
     { name: "Customers", value: customerOnly },
@@ -299,13 +309,13 @@ export async function fetchPartyList(
       mode: view,
     },
     cityOptions: distinctSorted([
-      ...(locationRows.data || []).map((r) => r.city),
+      ...activeRows.map((r) => r.city),
       ...((savedLocations.data || []) as Array<{ kind: string; name: string }>)
         .filter((r) => r.kind === "city")
         .map((r) => r.name),
     ]),
     sectorOptions: distinctSorted([
-      ...(locationRows.data || []).map((r) => r.route),
+      ...activeRows.map((r) => r.route),
       ...((savedLocations.data || []) as Array<{ kind: string; name: string }>)
         .filter((r) => r.kind === "sector")
         .map((r) => r.name),

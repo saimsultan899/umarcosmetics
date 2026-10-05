@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/create-dialog";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { useGatePassList } from "@/hooks/use-inventory-lists";
+import { CatalogSlot, useTradingCatalog } from "@/lib/trading/catalog-client";
 import type { GatePassListResult } from "@/lib/queries/gate-passes";
 import type { Company, Party, Product, Warehouse } from "@/lib/types/database";
 
@@ -35,8 +36,15 @@ export function GatePassesView({
       initialProducts,
       initialOffline,
     });
-
-  const canCreate = products.length > 0;
+  const catalog = useTradingCatalog(company.id, { enabled: !initialOffline });
+  const formParties = parties.length ? parties : catalog.parties;
+  const formProducts = products.length ? products : catalog.products;
+  const formWarehouses = warehouses.length ? warehouses : catalog.warehouses;
+  const canCreate =
+    initialOffline ||
+    !catalog.ready ||
+    Boolean(catalog.error) ||
+    formProducts.length > 0;
 
   if (loading && !rows.length) {
     return <PageSkeleton />;
@@ -56,16 +64,21 @@ export function GatePassesView({
             disabled={!canCreate}
             disabledHint="Add products first, then create a gate pass from the catalog."
           >
-            <GatePassForm
-              companyId={company.id}
-              organizationId={company.organization_id}
-              companyName={company.name}
-              companyCity={company.city}
-              companyNtn={company.ntn}
-              parties={parties}
-              products={products}
-              warehouses={warehouses}
-            />
+            <CatalogSlot
+              ready={initialOffline || products.length > 0 || catalog.ready}
+              error={catalog.error}
+            >
+              <GatePassForm
+                companyId={company.id}
+                organizationId={company.organization_id}
+                companyName={company.name}
+                companyCity={company.city}
+                companyNtn={company.ntn}
+                parties={formParties}
+                products={formProducts}
+                warehouses={formWarehouses}
+              />
+            </CatalogSlot>
           </CreateDialogButton>
         }
       />
@@ -73,7 +86,7 @@ export function GatePassesView({
       <GatePassesTable
         rows={rows}
         pagination={pagination}
-        warehouses={warehouses}
+        warehouses={formWarehouses}
       />
     </div>
   );

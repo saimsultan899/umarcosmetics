@@ -1,18 +1,14 @@
 import { DocumentListTable } from "@/components/tables/document-list-table";
 import { OfflineTradingListPage } from "@/components/offline/offline-trading-list";
-import { SaleInvoiceForm } from "@/components/trading/sale-invoice-form";
 import {
-  CreateDialogButton,
-  PageHeading,
-} from "@/components/ui/create-dialog";
-import { PageSkeleton } from "@/components/ui/page-skeleton";
-import { loadTradingMasters } from "@/lib/trading-data";
-import { fetchCompanySalesmen } from "@/lib/queries/salesmen";
+  SaleInvoiceCreateButton,
+} from "@/components/trading/lazy-invoice-create";
+import { PageHeading } from "@/components/ui/create-dialog";
+import { requireCompanyContext } from "@/lib/auth";
 import {
   documentListConfigs,
   fetchDocumentList,
 } from "@/lib/queries/documents";
-import { Suspense } from "react";
 
 export default async function SaleInvoicesPage({
   searchParams,
@@ -20,8 +16,7 @@ export default async function SaleInvoicesPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
-  const masters = await loadTradingMasters();
-  const { company, parties, products, warehouses, supabase, offline } = masters;
+  const { company, supabase, offline } = await requireCompanyContext();
 
   if (offline) {
     return (
@@ -33,11 +28,13 @@ export default async function SaleInvoicesPage({
     );
   }
 
-  const [{ data: stockRows }, list, salesmen] = await Promise.all([
+  const [{ data: warehouses }, list] = await Promise.all([
     supabase
-      .from("stock_balances")
-      .select("product_id, warehouse_id, qty")
-      .eq("company_id", company.id),
+      .from("warehouses")
+      .select("id, name")
+      .eq("company_id", company.id)
+      .eq("is_active", true)
+      .order("name"),
     fetchDocumentList(
       supabase,
       company.id,
@@ -45,52 +42,26 @@ export default async function SaleInvoicesPage({
       documentListConfigs.sale,
       { showPaymentFilter: true },
     ),
-    fetchCompanySalesmen(supabase, company.id),
   ]);
-
-  const canCreate =
-    parties.length > 0 && products.length > 0 && warehouses.length > 0;
 
   return (
     <div className="animate-rise space-y-6">
       <PageHeading
         title="Sale Invoice"
         description="Post counter / credit sales and deduct stock."
-        actions={
-          <CreateDialogButton
-            label="New sale"
-            title="New sale invoice"
-            description="Post a sale and deduct company stock"
-            size="xl"
-            disabled={!canCreate}
-            disabledHint="Add at least one customer, product, and company first."
-          >
-            <SaleInvoiceForm
-              companyId={company.id}
-              organizationId={company.organization_id}
-              parties={parties}
-              products={products}
-              warehouses={warehouses}
-              stockBalances={stockRows || []}
-              salesmen={salesmen}
-              saleStockPolicy={company.sale_stock_policy === "block" ? "block" : "confirm"}
-            />
-          </CreateDialogButton>
-        }
+        actions={<SaleInvoiceCreateButton company={company} />}
       />
 
-      <Suspense fallback={<PageSkeleton />}>
-        <DocumentListTable
-          title="Sale invoices"
-          rows={list.rows}
-          pagination={list.pagination}
-          summary={list.summary}
-          showPaymentFilter
-          showPrint
-          enableBatchPrint
-          warehouses={warehouses}
-        />
-      </Suspense>
+      <DocumentListTable
+        title="Sale invoices"
+        rows={list.rows}
+        pagination={list.pagination}
+        summary={list.summary}
+        showPaymentFilter
+        showPrint
+        enableBatchPrint
+        warehouses={warehouses || []}
+      />
     </div>
   );
 }

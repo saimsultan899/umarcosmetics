@@ -161,19 +161,11 @@ export function useGatePassList({
       return;
     }
 
-    // Online
+    // Online — catalog loads masters. Filtering only refreshes the list.
     setLoading(true);
     try {
       const supabase = createClient();
-      const [whRes, prRes, prodRes, list] = await Promise.all([
-        supabase.from("warehouses").select("*").eq("company_id", companyId).eq("is_active", true).order("name"),
-        supabase.from("parties").select("*").eq("company_id", companyId).eq("is_active", true).order("name_en"),
-        supabase.from("products").select("*").eq("company_id", companyId).eq("is_active", true).order("code"),
-        fetchGatePassList(supabase, companyId, spRecord),
-      ]);
-      setWarehouses((whRes.data as Warehouse[]) || []);
-      setParties((prRes.data as Party[]) || []);
-      setProducts((prodRes.data as Product[]) || []);
+      const list = await fetchGatePassList(supabase, companyId, spRecord);
       setData(list);
     } catch (err) {
       console.error("Failed to fetch online gate passes:", err);
@@ -309,20 +301,10 @@ export function useLoadSheetList({
       return;
     }
 
-    // Online
     setLoading(true);
     try {
       const supabase = createClient();
-      const { fetchCompanySalesmen } = await import("@/lib/queries/salesmen");
-      const [whRes, prodRes, sms, list] = await Promise.all([
-        supabase.from("warehouses").select("*").eq("company_id", companyId).eq("is_active", true).order("name"),
-        supabase.from("products").select("*").eq("company_id", companyId).eq("is_active", true).order("code"),
-        fetchCompanySalesmen(supabase, companyId),
-        fetchLoadSheetList(supabase, companyId, spRecord),
-      ]);
-      setWarehouses((whRes.data as Warehouse[]) || []);
-      setProducts((prodRes.data as Product[]) || []);
-      setSalesmen(sms);
+      const list = await fetchLoadSheetList(supabase, companyId, spRecord);
       setData(list);
     } catch (err) {
       console.error("Failed to fetch online load sheets:", err);
@@ -447,17 +429,10 @@ export function useStockTransferList({
       return;
     }
 
-    // Online
     setLoading(true);
     try {
       const supabase = createClient();
-      const [whRes, prodRes, list] = await Promise.all([
-        supabase.from("warehouses").select("*").eq("company_id", companyId).eq("is_active", true).order("name"),
-        supabase.from("products").select("*").eq("company_id", companyId).eq("is_active", true).order("code"),
-        fetchStockTransferList(supabase, companyId, spRecord),
-      ]);
-      setWarehouses((whRes.data as Warehouse[]) || []);
-      setProducts((prodRes.data as Product[]) || []);
+      const list = await fetchStockTransferList(supabase, companyId, spRecord);
       setData(list);
     } catch (err) {
       console.error("Failed to fetch online stock transfers:", err);

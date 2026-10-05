@@ -295,11 +295,7 @@ export function useVoucherList({
     setLoading(true);
     try {
       const supabase = createClient();
-      const [{ data: partyData }, list] = await Promise.all([
-        supabase.from("parties").select("*").eq("company_id", companyId).eq("is_active", true).order("name_en"),
-        fetchVoucherList(supabase, companyId, spRecord, kind),
-      ]);
-      setParties((partyData as Party[]) || []);
+      const list = await fetchVoucherList(supabase, companyId, spRecord, kind);
       setData(list);
     } catch (err) {
       console.error(`Failed to fetch online vouchers (${kind}):`, err);

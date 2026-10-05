@@ -1,6 +1,6 @@
 import { ReturnsView } from "@/components/trading/returns-view";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
-import { loadTradingMasters } from "@/lib/trading-data";
+import { requireCompanyContext } from "@/lib/auth";
 import {
   documentListConfigs,
   fetchDocumentList,
@@ -8,6 +8,7 @@ import {
   type DocumentListSummary,
 } from "@/lib/queries/documents";
 import type { PaginationMeta } from "@/lib/pagination";
+import type { Warehouse } from "@/lib/types/database";
 import { Suspense } from "react";
 
 type ReturnListResult = {
@@ -22,18 +23,28 @@ export default async function PurchaseReturnsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
-  const { company, parties, products, warehouses, supabase, offline } =
-    await loadTradingMasters();
+  const { company, supabase, offline } = await requireCompanyContext();
 
   let initialData: ReturnListResult | null = null;
+  let warehouses: Warehouse[] = [];
   if (!offline) {
     try {
-      initialData = await fetchDocumentList(
-        supabase,
-        company.id,
-        sp,
-        documentListConfigs.purchaseReturn,
-      );
+      const [list, warehouseRes] = await Promise.all([
+        fetchDocumentList(
+          supabase,
+          company.id,
+          sp,
+          documentListConfigs.purchaseReturn,
+        ),
+        supabase
+          .from("warehouses")
+          .select("*")
+          .eq("company_id", company.id)
+          .eq("is_active", true)
+          .order("name"),
+      ]);
+      initialData = list;
+      warehouses = (warehouseRes.data || []) as Warehouse[];
     } catch {
       initialData = null;
     }
@@ -45,8 +56,6 @@ export default async function PurchaseReturnsPage({
         company={company}
         kind="purchase"
         initialData={initialData}
-        initialParties={parties}
-        initialProducts={products}
         initialWarehouses={warehouses}
         initialOffline={offline}
       />

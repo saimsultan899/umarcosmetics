@@ -68,22 +68,23 @@ export async function loadSaleInvoicePrintData(
     preparedByFallback?: string | null;
   },
 ): Promise<SaleInvoicePrintData | null> {
-  const { data: invoice } = await supabase
-    .from("sale_invoices")
-    .select(
-      "*, parties(name_en, party_code, address, city, phone, mobile, contact_person, route, head), warehouses(name), salesman:salesmen!sale_invoices_salesman_id_fkey(full_name, phone)",
-    )
-    .eq("id", opts.invoiceId)
-    .eq("company_id", opts.companyId)
-    .maybeSingle();
+  const [{ data: invoice }, { data: items }] = await Promise.all([
+    supabase
+      .from("sale_invoices")
+      .select(
+        "*, parties(name_en, party_code, address, city, phone, mobile, contact_person, route, head), warehouses(name), salesman:salesmen!sale_invoices_salesman_id_fkey(full_name, phone)",
+      )
+      .eq("id", opts.invoiceId)
+      .eq("company_id", opts.companyId)
+      .maybeSingle(),
+    supabase
+      .from("sale_invoice_items")
+      .select("*")
+      .eq("sale_invoice_id", opts.invoiceId)
+      .order("sort_order"),
+  ]);
 
   if (!invoice) return null;
-
-  const { data: items } = await supabase
-    .from("sale_invoice_items")
-    .select("*")
-    .eq("sale_invoice_id", opts.invoiceId)
-    .order("sort_order");
 
   const [{ data: balanceBeforeRaw }, { data: recoveryRows }] = await Promise.all([
     supabase.rpc("get_party_balance_before", {

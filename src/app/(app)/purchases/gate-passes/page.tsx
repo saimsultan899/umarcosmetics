@@ -1,7 +1,8 @@
 import { GatePassesView } from "@/components/inventory/gate-passes-view";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
+import { requireCompanyContext } from "@/lib/auth";
 import { fetchGatePassList, type GatePassListResult } from "@/lib/queries/gate-passes";
-import { loadTradingMasters } from "@/lib/trading-data";
+import type { Warehouse } from "@/lib/types/database";
 import { Suspense } from "react";
 
 export default async function GatePassesPage({
@@ -10,13 +11,23 @@ export default async function GatePassesPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
-  const { company, parties, products, warehouses, supabase, offline } =
-    await loadTradingMasters();
+  const { company, supabase, offline } = await requireCompanyContext();
 
   let initialData: GatePassListResult | null = null;
+  let warehouses: Warehouse[] = [];
   if (!offline) {
     try {
-      initialData = await fetchGatePassList(supabase, company.id, sp);
+      const [list, warehouseRes] = await Promise.all([
+        fetchGatePassList(supabase, company.id, sp),
+        supabase
+          .from("warehouses")
+          .select("*")
+          .eq("company_id", company.id)
+          .eq("is_active", true)
+          .order("name"),
+      ]);
+      initialData = list;
+      warehouses = (warehouseRes.data || []) as Warehouse[];
     } catch {
       initialData = null;
     }
@@ -28,8 +39,6 @@ export default async function GatePassesPage({
         company={company}
         initialData={initialData}
         initialWarehouses={warehouses}
-        initialParties={parties}
-        initialProducts={products}
         initialOffline={offline}
       />
     </Suspense>

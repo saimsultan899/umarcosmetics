@@ -78,14 +78,14 @@ export async function fetchProductList(
 
   let valueQuery = supabase
     .from("products")
-    .select("id, code, name_en, retail_rate, purchase_rate")
+    .select("id, code, name_en, retail_rate, purchase_rate, reorder_level, is_active")
     .eq("company_id", companyId)
     .limit(10000);
   valueQuery = applyProductView(valueQuery, view);
   valueQuery = applyProductWarehouse(valueQuery, warehouseId);
   valueQuery = applyProductSearch(valueQuery, q);
 
-  const [{ data, count, error }, { data: balances }, { count: withReorder }, { data: valued }] =
+  const [{ data, count, error }, { data: balances }, { data: valued }] =
     await Promise.all([
       listQuery.order("code", { ascending: true }).range(from, to),
       supabase
@@ -93,17 +93,6 @@ export async function fetchProductList(
         .select("product_id, qty, products(code, reorder_level)")
         .eq("company_id", companyId)
         .limit(8000),
-      (async () => {
-        let query = supabase
-          .from("products")
-          .select("*", { count: "exact", head: true })
-          .eq("company_id", companyId)
-          .eq("is_active", true)
-          .gt("reorder_level", 0);
-        query = applyProductWarehouse(query, warehouseId);
-        query = applyProductSearch(query, q);
-        return query;
-      })(),
       valueQuery,
     ]);
 
@@ -175,7 +164,9 @@ export async function fetchProductList(
       total,
       stockValue,
       purchaseValue,
-      withReorder: withReorder ?? 0,
+      withReorder: (valued || []).filter(
+        (product) => product.is_active && Number(product.reorder_level) > 0,
+      ).length,
       lowStock: lowStockCodes.length,
       makerBars: [...makers.entries()]
         .map(([name, value]) => ({ name, value }))

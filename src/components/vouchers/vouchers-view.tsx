@@ -6,6 +6,7 @@ import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { CashVoucherForm } from "@/components/vouchers/voucher-lines-form";
 import { JournalVoucherForm } from "@/components/vouchers/journal-form";
 import { useVoucherList } from "@/hooks/use-voucher-lists";
+import { CatalogSlot, useTradingCatalog } from "@/lib/trading/catalog-client";
 import type { VoucherListResult } from "@/lib/queries/vouchers";
 import type { Company, Party } from "@/lib/types/database";
 
@@ -73,6 +74,8 @@ export function VouchersView({
     initialParties,
     initialOffline,
   });
+  const catalog = useTradingCatalog(company.id, { enabled: !initialOffline });
+  const formParties = parties.length ? parties : catalog.parties;
 
   const meta = VOUCHER_META[kind];
 
@@ -90,22 +93,27 @@ export function VouchersView({
             description={meta.addDescription}
             size="xl"
           >
-            {kind === "JV" ? (
-              <JournalVoucherForm
-                companyId={company.id}
-                organizationId={company.organization_id}
-                parties={parties}
-                onDone={refetch}
-              />
-            ) : (
-              <CashVoucherForm
-                kind={kind}
-                companyId={company.id}
-                organizationId={company.organization_id}
-                parties={parties}
-                onDone={refetch}
-              />
-            )}
+            <CatalogSlot
+              ready={initialOffline || parties.length > 0 || catalog.ready}
+              error={catalog.error}
+            >
+              {kind === "JV" ? (
+                <JournalVoucherForm
+                  companyId={company.id}
+                  organizationId={company.organization_id}
+                  parties={formParties}
+                  onDone={refetch}
+                />
+              ) : (
+                <CashVoucherForm
+                  kind={kind}
+                  companyId={company.id}
+                  organizationId={company.organization_id}
+                  parties={formParties}
+                  onDone={refetch}
+                />
+              )}
+            </CatalogSlot>
           </CreateDialogButton>
         }
       />

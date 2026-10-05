@@ -380,9 +380,6 @@ export function useExpiryWarehouse({
         claims,
         monthReceiptsRes,
         openClaimsRes,
-        partyRes,
-        prodRes,
-        whRes,
       ] = await Promise.all([
         fetchExpiryStock(supabase, company.id),
         fetchDocumentList(
@@ -407,29 +404,7 @@ export function useExpiryWarehouse({
           .select("id", { count: "exact", head: true })
           .eq("company_id", company.id)
           .eq("claim_status", "open"),
-        supabase
-          .from("parties")
-          .select("*")
-          .eq("company_id", company.id)
-          .eq("is_active", true)
-          .order("name_en"),
-        supabase
-          .from("products")
-          .select("*")
-          .eq("company_id", company.id)
-          .eq("is_active", true)
-          .order("code"),
-        supabase
-          .from("warehouses")
-          .select("*")
-          .eq("company_id", company.id)
-          .eq("is_active", true)
-          .order("name"),
       ]);
-
-      setParties((partyRes.data as Party[]) || []);
-      setProducts((prodRes.data as Product[]) || []);
-      setWarehouses((whRes.data as Warehouse[]) || []);
 
       const onHandQty = stock.reduce((s, r) => s + r.qty, 0);
       const onHandValue = stock.reduce((s, r) => s + r.amount, 0);

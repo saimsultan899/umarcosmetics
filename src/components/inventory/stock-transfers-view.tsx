@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/create-dialog";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { useStockTransferList } from "@/hooks/use-inventory-lists";
+import { CatalogSlot, useTradingCatalog } from "@/lib/trading/catalog-client";
 import type { StockTransferListResult } from "@/lib/queries/stock-transfers";
 import type { Company, Product, Warehouse } from "@/lib/types/database";
 
@@ -32,6 +33,9 @@ export function StockTransfersView({
       initialProducts,
       initialOffline,
     });
+  const catalog = useTradingCatalog(company.id, { enabled: !initialOffline });
+  const formProducts = products.length ? products : catalog.products;
+  const formWarehouses = warehouses.length ? warehouses : catalog.warehouses;
 
   if (loading && !rows.length) {
     return <PageSkeleton />;
@@ -48,15 +52,20 @@ export function StockTransfersView({
             title="New company transfer"
             description="Move stock between companies"
             size="lg"
-            disabled={warehouses.length < 2}
+            disabled={formWarehouses.length < 2}
             disabledHint="Create at least two companies before transferring stock."
           >
-            <StockTransferForm
-              companyId={company.id}
-              organizationId={company.organization_id}
-              products={products}
-              warehouses={warehouses}
-            />
+            <CatalogSlot
+              ready={initialOffline || products.length > 0 || catalog.ready}
+              error={catalog.error}
+            >
+              <StockTransferForm
+                companyId={company.id}
+                organizationId={company.organization_id}
+                products={formProducts}
+                warehouses={formWarehouses}
+              />
+            </CatalogSlot>
           </CreateDialogButton>
         }
       />
@@ -64,7 +73,7 @@ export function StockTransfersView({
       <TransfersTable
         rows={rows}
         pagination={pagination}
-        warehouses={warehouses}
+        warehouses={formWarehouses}
       />
     </div>
   );

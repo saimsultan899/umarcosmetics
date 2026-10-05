@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/create-dialog";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { useLoadSheetList } from "@/hooks/use-inventory-lists";
+import { CatalogSlot, useTradingCatalog } from "@/lib/trading/catalog-client";
 import type { LoadSheetListResult } from "@/lib/queries/load-sheets";
 import type { Company, Product, Warehouse } from "@/lib/types/database";
 import Link from "next/link";
@@ -37,8 +38,17 @@ export function LoadSheetsView({
       initialSalesmen,
       initialOffline,
     });
-
-  const canCreate = warehouses.length > 0 && products.length > 0;
+  const catalog = useTradingCatalog(company.id, {
+    enabled: !initialOffline,
+    salesmen: true,
+  });
+  const formProducts = products.length ? products : catalog.products;
+  const formWarehouses = warehouses.length ? warehouses : catalog.warehouses;
+  const canCreate =
+    initialOffline ||
+    !catalog.ready ||
+    Boolean(catalog.error) ||
+    (formWarehouses.length > 0 && formProducts.length > 0);
 
   if (loading && !rows.length) {
     return <PageSkeleton />;
@@ -64,13 +74,18 @@ export function LoadSheetsView({
               disabled={!canCreate}
               disabledHint="Add products and companies first, then create van loads."
             >
-              <LoadSheetForm
-                companyId={company.id}
-                organizationId={company.organization_id}
-                products={products}
-                warehouses={warehouses}
-                salesmen={salesmen}
-              />
+              <CatalogSlot
+                ready={initialOffline || products.length > 0 || catalog.ready}
+                error={catalog.error}
+              >
+                <LoadSheetForm
+                  companyId={company.id}
+                  organizationId={company.organization_id}
+                  products={formProducts}
+                  warehouses={formWarehouses}
+                  salesmen={salesmen.length ? salesmen : catalog.salesmen}
+                />
+              </CatalogSlot>
             </CreateDialogButton>
           </>
         }
@@ -79,7 +94,7 @@ export function LoadSheetsView({
       <LoadSheetsTable
         rows={rows}
         pagination={pagination}
-        warehouses={warehouses}
+        warehouses={formWarehouses}
       />
     </div>
   );

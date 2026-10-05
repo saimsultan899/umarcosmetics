@@ -1,6 +1,7 @@
 import { ExpiryWarehouseView } from "@/components/expiry/expiry-warehouse-view";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
-import { loadTradingMasters } from "@/lib/trading-data";
+import { requireCompanyContext } from "@/lib/auth";
+import type { Warehouse } from "@/lib/types/database";
 import {
   documentListConfigs,
   fetchDocumentList,
@@ -15,10 +16,10 @@ export default async function ExpiryWarehousePage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
-  const { company, parties, products, warehouses, supabase, offline } =
-    await loadTradingMasters();
+  const { company, supabase, offline } = await requireCompanyContext();
 
   let initialData: ExpiryWarehouseData | null = null;
+  let warehouses: Warehouse[] = [];
 
   if (!offline) {
     try {
@@ -26,7 +27,7 @@ export default async function ExpiryWarehousePage({
       monthStart.setDate(1);
       const monthFrom = monthStart.toISOString().slice(0, 10);
 
-      const [stock, receipts, claims, monthReceipts, openClaims] =
+      const [stock, receipts, claims, monthReceipts, openClaims, warehouseRes] =
         await Promise.all([
           fetchExpiryStock(supabase, company.id),
           fetchDocumentList(
@@ -51,7 +52,14 @@ export default async function ExpiryWarehousePage({
             .select("id", { count: "exact", head: true })
             .eq("company_id", company.id)
             .eq("claim_status", "open"),
+          supabase
+            .from("warehouses")
+            .select("*")
+            .eq("company_id", company.id)
+            .eq("is_active", true)
+            .order("name"),
         ]);
+      warehouses = (warehouseRes.data || []) as Warehouse[];
 
       const onHandQty = stock.reduce((s, r) => s + r.qty, 0);
       const onHandValue = stock.reduce((s, r) => s + r.amount, 0);
@@ -83,8 +91,6 @@ export default async function ExpiryWarehousePage({
       <ExpiryWarehouseView
         company={company}
         initialData={initialData}
-        initialParties={parties}
-        initialProducts={products}
         initialWarehouses={warehouses}
         initialOffline={offline}
       />
