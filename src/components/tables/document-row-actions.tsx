@@ -1,8 +1,13 @@
 "use client";
 
+import {
+  PostedDocumentEditor,
+  postedEditIsWide,
+} from "@/components/trading/posted-document-editor";
 import { DetailField, RowActions } from "@/components/ui/row-actions";
 import { deleteCachedRow, type CacheStoreName } from "@/lib/offline/local-db";
 import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
 
 const CANCEL_RPC: Record<
   string,
@@ -11,44 +16,44 @@ const CANCEL_RPC: Record<
   sale_invoices: {
     rpc: "cancel_sale_invoice",
     param: "p_invoice_id",
-    title: "Update / fix this sale invoice?",
+    title: "Delete this sale invoice?",
     description:
-      "Customer balance and stock go back to before this bill. Then create the correct invoice.",
+      "Stock goes back and the customer balance is reversed. The invoice number stays unused in the list.",
   },
   purchase_invoices: {
     rpc: "cancel_purchase_invoice",
     param: "p_invoice_id",
-    title: "Update / fix this purchase invoice?",
+    title: "Delete this purchase invoice?",
     description:
-      "Supplier balance and stock go back to before this bill. Then create the correct purchase.",
+      "Stock goes back and the supplier balance is reversed.",
   },
   sale_returns: {
     rpc: "cancel_sale_return",
     param: "p_return_id",
-    title: "Update / fix this sale return?",
+    title: "Delete this sale return?",
     description:
-      "Customer balance and stock go back to before this return. Then create the correct return.",
+      "Stock and the customer balance go back to before this return.",
   },
   purchase_returns: {
     rpc: "cancel_purchase_return",
     param: "p_return_id",
-    title: "Update / fix this purchase return?",
+    title: "Delete this purchase return?",
     description:
-      "Supplier balance and stock go back to before this return. Then create the correct return.",
+      "Stock and the supplier balance go back to before this return.",
   },
   recoveries: {
     rpc: "cancel_recovery",
     param: "p_recovery_id",
-    title: "Update / fix this recovery?",
+    title: "Delete this recovery?",
     description:
-      "Customer balance goes back up by this amount. Then enter the correct collection if needed.",
+      "The customer balance goes back up by this amount.",
   },
   vouchers: {
     rpc: "cancel_voucher",
     param: "p_voucher_id",
-    title: "Update / fix this voucher?",
+    title: "Delete this voucher?",
     description:
-      "Party balance goes back to before this cash receipt or payment. Then enter the correct voucher.",
+      "Party balances go back to before this voucher.",
   },
 };
 
@@ -85,8 +90,9 @@ export function DocumentRowActions({
   allowDelete?: boolean;
   showPrint?: boolean;
 }) {
+  const router = useRouter();
   const cancel = CANCEL_RPC[table];
-  const canCancel = allowDelete && Boolean(cancel);
+  const canReverse = allowDelete && Boolean(cancel);
   const canHardDelete = allowDelete && !NEVER_HARD_DELETE.has(table) && !cancel;
 
   async function cancelEntry() {
@@ -127,16 +133,36 @@ export function DocumentRowActions({
       viewFields={fields}
       href={href}
       printHref={showPrint ? href : undefined}
-      allowEdit={false}
-      allowCancel={canCancel}
-      onCancel={canCancel ? cancelEntry : undefined}
-      cancelLabel="Update"
-      cancelTitle={cancel?.title}
-      cancelDescription={cancel?.description}
-      allowDelete={canHardDelete}
-      onDelete={canHardDelete ? hardDelete : undefined}
-      deleteTitle={`Delete ${title}?`}
-      deleteDescription="This permanently removes the document. Stock and ledger effects are not auto-reversed."
+      editTitle={`Edit ${title}`}
+      editClassName={
+        postedEditIsWide(table)
+          ? "max-w-[96vw] sm:max-w-6xl lg:max-w-7xl xl:max-w-[1360px]"
+          : undefined
+      }
+      allowEdit={canReverse}
+      editContent={
+        canReverse
+          ? (close) => (
+              <PostedDocumentEditor
+                table={table}
+                id={id}
+                onDone={() => {
+                  close();
+                  router.refresh();
+                }}
+              />
+            )
+          : undefined
+      }
+      allowCancel={false}
+      allowDelete={canReverse || canHardDelete}
+      onDelete={canReverse ? cancelEntry : canHardDelete ? hardDelete : undefined}
+      deleteTitle={cancel?.title || `Delete ${title}?`}
+      deleteDescription={
+        cancel?.description ||
+        "This permanently removes the document. Stock and ledger effects are not auto-reversed."
+      }
+      deleteConfirmLabel={canReverse ? "Delete entry" : "Delete permanently"}
     />
   );
 }

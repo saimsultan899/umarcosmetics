@@ -7,12 +7,14 @@ import {
 } from "@/components/tables/table-filter-select";
 import { TablePagination } from "@/components/tables/table-pagination";
 import { TableToolbar } from "@/components/tables/table-toolbar";
+import { PostedDocumentEditor } from "@/components/trading/posted-document-editor";
 import { DetailField, RowActions } from "@/components/ui/row-actions";
 import { useSearchInput, useUrlTableState } from "@/hooks/use-url-table-state";
 import type { RecoveryRow } from "@/lib/queries/recoveries";
 import type { PaginationMeta } from "@/lib/pagination";
 import { createClient } from "@/lib/supabase/client";
 import { formatPkr } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 
 export function RecoveriesTable({
   rows,
@@ -31,6 +33,7 @@ export function RecoveriesTable({
   canCancel?: boolean;
   onChanged?: () => void;
 }) {
+  const router = useRouter();
   const { q, isPending, setPage, setPageSize, setQuery, setFilter, filters } =
     useUrlTableState(["city", "sector", "salesman"]);
   const search = useSearchInput(q, setQuery);
@@ -137,13 +140,29 @@ export function RecoveriesTable({
                         <RowActions
                           viewTitle="Recovery details"
                           viewFields={fields}
-                          allowEdit={false}
-                          allowDelete={false}
-                          allowCancel={canCancel}
-                          cancelLabel="Update"
-                          cancelTitle="Update / fix this recovery?"
-                          cancelDescription={`Reverse ${formatPkr(r.amount)} for ${party}? The customer balance goes back up by that amount. Then enter the correct collection if needed.`}
-                          onCancel={() => cancelRecovery(r)}
+                          editTitle="Edit recovery"
+                          allowEdit={canCancel}
+                          editContent={
+                            canCancel
+                              ? (close) => (
+                                  <PostedDocumentEditor
+                                    table="recoveries"
+                                    id={r.id}
+                                    onDone={() => {
+                                      close();
+                                      onChanged?.();
+                                      router.refresh();
+                                    }}
+                                  />
+                                )
+                              : undefined
+                          }
+                          allowCancel={false}
+                          allowDelete={canCancel}
+                          deleteTitle="Delete this recovery?"
+                          deleteDescription={`Reverse ${formatPkr(r.amount)} for ${party}. The customer balance goes back up by that amount.`}
+                          deleteConfirmLabel="Delete entry"
+                          onDelete={() => cancelRecovery(r)}
                         />
                       </td>
                     </tr>

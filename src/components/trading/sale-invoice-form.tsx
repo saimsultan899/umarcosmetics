@@ -51,6 +51,22 @@ export type StockBalanceLite = {
   qty: number;
 };
 
+export type SaleInvoiceEdit = {
+  id: string;
+  invoiceNo: string;
+  partyId: string;
+  salesmanId: string;
+  warehouseId: string;
+  invoiceDate: string;
+  paymentType: PaymentType;
+  amountPaid: number;
+  walkIn: boolean;
+  narration: string;
+  extraDiscount: string;
+  lines: LineItemDraft[];
+  outstanding: number;
+};
+
 export function SaleInvoiceForm({
   companyId,
   organizationId,
@@ -60,6 +76,7 @@ export function SaleInvoiceForm({
   stockBalances = [],
   salesmen = [],
   saleStockPolicy = "confirm",
+  editing,
   onDone,
 }: {
   companyId: string;
@@ -70,6 +87,7 @@ export function SaleInvoiceForm({
   stockBalances?: StockBalanceLite[];
   salesmen?: SalesmanOption[];
   saleStockPolicy?: SaleStockPolicy;
+  editing?: SaleInvoiceEdit;
   onDone?: () => void;
 }) {
   const router = useRouter();
@@ -116,16 +134,22 @@ export function SaleInvoiceForm({
   }, [stockBalances]);
 
 
-  const [partyId, setPartyId] = useState("");
-  const [salesmanId, setSalesmanId] = useState("");
-  const [warehouseId, setWarehouseId] = useState("");
-  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10));
-  const [paymentType, setPaymentType] = useState<PaymentType>("credit");
-  const [amountPaidStr, setAmountPaidStr] = useState("");
-  const [walkInCustomer, setWalkInCustomer] = useState(false);
-  const [narration, setNarration] = useState("");
-  const [extraDiscount, setExtraDiscount] = useState("");
-  const [lines, setLines] = useState<LineItemDraft[]>([]);
+  const [partyId, setPartyId] = useState(editing?.partyId || "");
+  const [salesmanId, setSalesmanId] = useState(editing?.salesmanId || "");
+  const [warehouseId, setWarehouseId] = useState(editing?.warehouseId || "");
+  const [invoiceDate, setInvoiceDate] = useState(
+    editing?.invoiceDate || new Date().toISOString().slice(0, 10),
+  );
+  const [paymentType, setPaymentType] = useState<PaymentType>(
+    editing?.paymentType === "partial" ? "cash" : editing?.paymentType || "credit",
+  );
+  const [amountPaidStr, setAmountPaidStr] = useState(
+    editing && editing.paymentType !== "credit" ? String(editing.amountPaid) : "",
+  );
+  const [walkInCustomer, setWalkInCustomer] = useState(Boolean(editing?.walkIn));
+  const [narration, setNarration] = useState(editing?.narration || "");
+  const [extraDiscount, setExtraDiscount] = useState(editing?.extraDiscount || "");
+  const [lines, setLines] = useState<LineItemDraft[]>(editing?.lines || []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creditWarning, setCreditWarning] = useState<string | null>(null);
@@ -203,13 +227,25 @@ export function SaleInvoiceForm({
         (needByProduct.get(l.product_id) || 0) + need,
       );
     }
+    const restoredByProduct = new Map<string, number>();
+    if (editing) {
+      for (const line of editing.lines) {
+        restoredByProduct.set(
+          line.product_id,
+          (restoredByProduct.get(line.product_id) || 0) +
+            Number(line.qty || 0) +
+            Number(line.bonus || 0),
+        );
+      }
+    }
     for (const [productId, need] of needByProduct) {
       const product = products.find((p) => p.id === productId);
       const stockWh = product?.default_warehouse_id || resolvedWarehouse;
       const onHand =
-        stockByProduct
+        (stockByProduct
           .get(productId)
-          ?.find((e) => e.warehouseId === stockWh)?.qty ?? 0;
+          ?.find((e) => e.warehouseId === stockWh)?.qty ?? 0) +
+        (restoredByProduct.get(productId) || 0);
       if (need > onHand + 1e-9) {
         const companyName =
           warehouses.find((w) => w.id === stockWh)?.name || "selected company";
@@ -226,9 +262,10 @@ export function SaleInvoiceForm({
         const product = products.find((p) => p.id === productId);
         const stockWh = product?.default_warehouse_id || resolvedWarehouse;
         const onHand =
-          stockByProduct
+          (stockByProduct
             .get(productId)
-            ?.find((e) => e.warehouseId === stockWh)?.qty ?? 0;
+            ?.find((e) => e.warehouseId === stockWh)?.qty ?? 0) +
+          (restoredByProduct.get(productId) || 0);
         const companyName =
           warehouses.find((w) => w.id === stockWh)?.name || "selected company";
         const label = product
@@ -310,7 +347,10 @@ export function SaleInvoiceForm({
           ]);
           const balance =
             balanceResult && "data" in balanceResult ? balanceResult.data : null;
-          const projected = Number(balance || 0) + grand_total - amountPaid;
+          const alreadyBooked =
+            editing && editing.partyId === partyId ? editing.outstanding : 0;
+          const projected =
+            Number(balance || 0) - alreadyBooked + grand_total - amountPaid;
           if (projected > Number(party.credit_limit)) {
             const proceed = window.confirm(
               `This sale may exceed credit limit.\nProjected balance: ${formatNumber(projected)}\nLimit: ${formatNumber(party.credit_limit)}\n\nContinue anyway?`,
@@ -327,18 +367,39 @@ export function SaleInvoiceForm({
     }
 
     try {
-      const stockChanges = valid.map((l) => ({
-        productId: l.product_id,
-        warehouseId: resolvedWarehouse,
-        delta: -(Number(l.qty) + Number(l.bonus || 0)),
+      const oldNeed = new Map<string, number>();
+      if (editing) {
+        for (const line of editing.lines) {
+          oldNeed.set(
+            line.product_id,
+            (oldNeed.get(line.product_id) || 0) +
+              Number(line.qty || 0) +
+              Number(line.bonus || 0),
+          );
+        }
+      }
+      const stockIds = new Set<string>([
+        ...oldNeed.keys(),
+        ...valid.map((l) => l.product_id),
+      ]);
+      const stockChanges = [...stockIds].map((productId) => ({
+        productId,
+        warehouseId:
+          products.find((p) => p.id === productId)?.default_warehouse_id ||
+          resolvedWarehouse,
+        delta:
+          (oldNeed.get(productId) || 0) - (needByProduct.get(productId) || 0),
       }));
 
       const res = await offlineAwareSubmit({
-        mutationType: "sale_invoice",
+        mutationType: editing ? "sale_invoice_update" : "sale_invoice",
         companyId,
         organizationId,
         stockChanges,
         payload: {
+          ...(editing
+            ? { invoice_id: editing.id, invoice_no: editing.invoiceNo }
+            : {}),
           organization_id: organizationId,
           company_id: companyId,
           invoice_date: invoiceDate,
@@ -389,6 +450,10 @@ export function SaleInvoiceForm({
       setLoading(false);
       closeDialog?.();
       onDone?.();
+      if (editing) {
+        router.refresh();
+        return;
+      }
       const printThermal =
         walkInActive && readWalkInSlip(companyId) === "thermal";
       if (res.source === "offline" && !printThermal) {
@@ -564,7 +629,13 @@ export function SaleInvoiceForm({
       ) : null}
 
       <Button type="submit" loading={loading}>
-        {loading ? "Posting invoice..." : "Save & post sale invoice"}
+        {loading
+          ? editing
+            ? "Updating invoice..."
+            : "Posting invoice..."
+          : editing
+            ? "Update sale invoice"
+            : "Save & post sale invoice"}
       </Button>
     </form>
   );

@@ -25,24 +25,40 @@ function emptyLine(): Line {
   return { key: crypto.randomUUID(), party_id: "", amount: "", narration: "" };
 }
 
+export type CashVoucherEdit = {
+  id: string;
+  voucherNo: string;
+  date: string;
+  narration: string;
+  lines: { party_id: string; amount: string; narration: string }[];
+};
+
 export function CashVoucherForm({
   kind,
   companyId,
   organizationId,
   parties,
+  editing,
   onDone,
 }: {
   kind: "CR" | "CP";
   companyId: string;
   organizationId: string;
   parties: Party[];
+  editing?: CashVoucherEdit;
   onDone?: () => void;
 }) {
   const router = useRouter();
   const closeDialog = useCreateDialogClose();
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [narration, setNarration] = useState("");
-  const [lines, setLines] = useState<Line[]>([emptyLine()]);
+  const [date, setDate] = useState(
+    editing?.date || new Date().toISOString().slice(0, 10),
+  );
+  const [narration, setNarration] = useState(editing?.narration || "");
+  const [lines, setLines] = useState<Line[]>(
+    editing?.lines.length
+      ? editing.lines.map((line) => ({ key: crypto.randomUUID(), ...line }))
+      : [emptyLine()],
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,10 +76,19 @@ export function CashVoucherForm({
     setLoading(true);
     try {
       const res = await offlineAwareSubmit({
-        mutationType: kind === "CR" ? "cash_receipt" : "cash_payment",
+        mutationType: editing
+          ? kind === "CR"
+            ? "cash_receipt_update"
+            : "cash_payment_update"
+          : kind === "CR"
+            ? "cash_receipt"
+            : "cash_payment",
         companyId,
         organizationId,
         payload: {
+          ...(editing
+            ? { voucher_id: editing.id, voucher_no: editing.voucherNo }
+            : {}),
           organization_id: organizationId,
           company_id: companyId,
           voucher_date: date,
@@ -80,7 +105,7 @@ export function CashVoucherForm({
       closeDialog?.();
       onDone?.();
       const slug = kind === "CR" ? "cash-receipt" : "cash-payment";
-      if (res.source === "offline") {
+      if (editing || res.source === "offline") {
         router.refresh();
       } else {
         router.push(`/vouchers/${slug}/${res.id}`);
@@ -202,7 +227,17 @@ export function CashVoucherForm({
       ) : null}
 
       <Button type="submit" loading={loading}>
-        {loading ? "Posting..." : kind === "CR" ? "Save cash receipt" : "Save cash payment"}
+        {loading
+          ? editing
+            ? "Updating..."
+            : "Posting..."
+          : editing
+            ? kind === "CR"
+              ? "Update cash receipt"
+              : "Update cash payment"
+            : kind === "CR"
+              ? "Save cash receipt"
+              : "Save cash payment"}
       </Button>
     </form>
   );

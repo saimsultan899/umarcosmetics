@@ -1,6 +1,8 @@
 "use client";
 
+import { PostedDocumentEditor } from "@/components/trading/posted-document-editor";
 import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -13,31 +15,35 @@ type CancelRpc =
 
 const CANCEL_COPY: Record<
   CancelRpc,
-  { label: string; body: string; redirect: string; param: string }
+  { body: string; redirect: string; param: string; table: string; wide: boolean }
 > = {
   cancel_sale_invoice: {
-    label: "Update / fix this invoice",
-    body: "Customer balance and stock go back to before this bill. Then create the correct invoice.",
+    body: "Stock goes back and the customer balance is reversed.",
     redirect: "/sales/invoices",
     param: "p_invoice_id",
+    table: "sale_invoices",
+    wide: true,
   },
   cancel_purchase_invoice: {
-    label: "Update / fix this purchase",
-    body: "Supplier balance and stock go back to before this bill. Then create the correct purchase.",
+    body: "Stock goes back and the supplier balance is reversed.",
     redirect: "/purchases/invoices",
     param: "p_invoice_id",
+    table: "purchase_invoices",
+    wide: true,
   },
   cancel_sale_return: {
-    label: "Update / fix this return",
-    body: "Customer balance and stock go back to before this return. Then create the correct return.",
+    body: "Stock and the customer balance go back to before this return.",
     redirect: "/sales/returns",
     param: "p_return_id",
+    table: "sale_returns",
+    wide: true,
   },
   cancel_purchase_return: {
-    label: "Update / fix this return",
-    body: "Supplier balance and stock go back to before this return. Then create the correct return.",
+    body: "Stock and the supplier balance go back to before this return.",
     redirect: "/purchases/returns",
     param: "p_return_id",
+    table: "purchase_returns",
+    wide: true,
   },
 };
 
@@ -51,12 +57,13 @@ export function CancelDocumentButton({
   documentNo: string;
 }) {
   const router = useRouter();
+  const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const copy = CANCEL_COPY[rpc];
 
-  async function cancelDocument() {
-    const proceed = window.confirm(`Update / fix ${documentNo}?\n\n${copy.body}`);
+  async function deleteDocument() {
+    const proceed = window.confirm(`Delete ${documentNo}?\n\n${copy.body}`);
     if (!proceed) return;
     setLoading(true);
     setError(null);
@@ -74,22 +81,47 @@ export function CancelDocumentButton({
   }
 
   return (
-    <div className="mb-4 no-print rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3">
-      <p className="text-sm font-medium text-amber-950">
-        Entered wrong? Use Update to reverse this entry, then create the correct one.
+    <div className="mb-4 no-print rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3">
+      <p className="text-sm font-medium text-[var(--ink)]">
+        Edit {documentNo} in the same form, or delete it if it should not stay on the books.
       </p>
-      <p className="mt-1 text-xs text-amber-900/80">{copy.body}</p>
-      <div className="mt-3">
+      <p className="mt-1 text-xs text-[var(--muted)]">{copy.body}</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button type="button" size="sm" onClick={() => setEditing(true)}>
+          Edit
+        </Button>
         <Button
           type="button"
           variant="secondary"
+          size="sm"
           loading={loading}
-          onClick={() => void cancelDocument()}
+          onClick={() => void deleteDocument()}
         >
-          {copy.label}
+          Delete
         </Button>
       </div>
       {error ? <p className="mt-2 text-sm text-rose-700">{error}</p> : null}
+      <Dialog
+        open={editing}
+        onClose={() => setEditing(false)}
+        title={`Edit ${documentNo}`}
+        className={
+          copy.wide
+            ? "max-w-[96vw] sm:max-w-6xl lg:max-w-7xl xl:max-w-[1360px]"
+            : undefined
+        }
+      >
+        {editing ? (
+          <PostedDocumentEditor
+            table={copy.table}
+            id={documentId}
+            onDone={() => {
+              setEditing(false);
+              router.refresh();
+            }}
+          />
+        ) : null}
+      </Dialog>
     </div>
   );
 }

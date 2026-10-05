@@ -28,7 +28,15 @@ export type OfflineMutationType =
   | "expiry_receipt"
   | "expiry_claim"
   | "expiry_settle"
-  | "salesman_invite";
+  | "salesman_invite"
+  | "sale_invoice_update"
+  | "purchase_invoice_update"
+  | "sale_return_update"
+  | "purchase_return_update"
+  | "cash_receipt_update"
+  | "cash_payment_update"
+  | "journal_voucher_update"
+  | "recovery_update";
 
 // ── Mutation record (queued write) ──────────────────────────────────
 export type OfflineMutation = {

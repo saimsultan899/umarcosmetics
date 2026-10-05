@@ -18,12 +18,25 @@ import { type LineItemDraft, calcLineDiscount } from "@/lib/types/trading";
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useRef, useState } from "react";
 
+export type PurchaseInvoiceEdit = {
+  id: string;
+  invoiceNo: string;
+  partyId: string;
+  warehouseId: string;
+  invoiceDate: string;
+  supplierBillNo: string;
+  narration: string;
+  extraDiscount: string;
+  lines: LineItemDraft[];
+};
+
 export function PurchaseInvoiceForm({
   companyId,
   organizationId,
   parties,
   products,
   warehouses,
+  editing,
   onDone,
 }: {
   companyId: string;
@@ -31,6 +44,7 @@ export function PurchaseInvoiceForm({
   parties: Party[];
   products: Product[];
   warehouses: Warehouse[];
+  editing?: PurchaseInvoiceEdit;
   onDone?: () => void;
 }) {
   const router = useRouter();
@@ -47,13 +61,17 @@ export function PurchaseInvoiceForm({
     [parties],
   );
 
-  const [partyId, setPartyId] = useState("");
-  const [warehouseId, setWarehouseId] = useState(warehouses[0]?.id || "");
-  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10));
-  const [supplierBillNo, setSupplierBillNo] = useState("");
-  const [narration, setNarration] = useState("");
-  const [extraDiscount, setExtraDiscount] = useState("");
-  const [lines, setLines] = useState<LineItemDraft[]>([]);
+  const [partyId, setPartyId] = useState(editing?.partyId || "");
+  const [warehouseId, setWarehouseId] = useState(
+    editing?.warehouseId || warehouses[0]?.id || "",
+  );
+  const [invoiceDate, setInvoiceDate] = useState(
+    editing?.invoiceDate || new Date().toISOString().slice(0, 10),
+  );
+  const [supplierBillNo, setSupplierBillNo] = useState(editing?.supplierBillNo || "");
+  const [narration, setNarration] = useState(editing?.narration || "");
+  const [extraDiscount, setExtraDiscount] = useState(editing?.extraDiscount || "");
+  const [lines, setLines] = useState<LineItemDraft[]>(editing?.lines || []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -79,19 +97,39 @@ export function PurchaseInvoiceForm({
 
     setLoading(true);
     try {
-      const stockChanges = valid.map((l) => ({
-        productId: l.product_id,
+      const oldNeed = new Map<string, number>();
+      if (editing) {
+        for (const line of editing.lines) {
+          oldNeed.set(
+            line.product_id,
+            (oldNeed.get(line.product_id) || 0) + Number(line.qty || 0),
+          );
+        }
+      }
+      const newNeed = new Map<string, number>();
+      for (const line of valid) {
+        newNeed.set(
+          line.product_id,
+          (newNeed.get(line.product_id) || 0) + Number(line.qty || 0),
+        );
+      }
+      const stockIds = new Set<string>([...oldNeed.keys(), ...newNeed.keys()]);
+      const stockChanges = [...stockIds].map((productId) => ({
+        productId,
         warehouseId,
-        delta: Number(l.qty),
+        delta: (newNeed.get(productId) || 0) - (oldNeed.get(productId) || 0),
       }));
 
       const vendor = suppliers.find((s) => s.id === partyId);
       const res = await offlineAwareSubmit({
-        mutationType: "purchase_invoice",
+        mutationType: editing ? "purchase_invoice_update" : "purchase_invoice",
         companyId,
         organizationId,
         stockChanges,
         payload: {
+          ...(editing
+            ? { invoice_id: editing.id, invoice_no: editing.invoiceNo }
+            : {}),
           organization_id: organizationId,
           company_id: companyId,
           invoice_date: invoiceDate,
@@ -129,7 +167,7 @@ export function PurchaseInvoiceForm({
       setLoading(false);
       closeDialog?.();
       onDone?.();
-      if (res.source === "offline") {
+      if (editing || res.source === "offline") {
         router.refresh();
       } else {
         router.push(`/purchases/invoices/${res.id}`);
@@ -202,7 +240,13 @@ export function PurchaseInvoiceForm({
       ) : null}
 
       <Button type="submit" loading={loading}>
-        {loading ? "Posting..." : "Save & post purchase invoice"}
+        {loading
+          ? editing
+            ? "Updating..."
+            : "Posting..."
+          : editing
+            ? "Update purchase invoice"
+            : "Save & post purchase invoice"}
       </Button>
     </form>
   );

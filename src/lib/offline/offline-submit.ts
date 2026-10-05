@@ -42,6 +42,14 @@ const MUTATION_RPC_MAP: Record<string, string> = {
   expiry_claim: "create_expiry_claim",
   expiry_settle: "settle_expiry_claim",
   salesman_invite: "create_salesman_invite",
+  sale_invoice_update: "update_sale_invoice",
+  purchase_invoice_update: "update_purchase_invoice",
+  sale_return_update: "update_sale_return",
+  purchase_return_update: "update_purchase_return",
+  cash_receipt_update: "update_cash_receipt",
+  cash_payment_update: "update_cash_payment",
+  journal_voucher_update: "update_journal_voucher",
+  recovery_update: "update_recovery",
 };
 
 /** Server rejected the write for a real business reason — do not queue offline. */
@@ -55,7 +63,21 @@ export function isBusinessRuleError(message: string) {
     m.includes("add at least one") ||
     m.includes("already exists") ||
     m.includes("duplicate key") ||
-    m.includes("unique constraint")
+    m.includes("unique constraint") ||
+    m.includes("already cancelled") ||
+    m.includes("already posted against") ||
+    m.includes("far above stock") ||
+    m.includes("does not sell past stock") ||
+    m.includes("must pay") ||
+    m.includes("select a customer") ||
+    m.includes("no amount due") ||
+    m.includes("only owes") ||
+    m.includes("would create credit") ||
+    m.includes("more than that invoice") ||
+    m.includes("not on that sale") ||
+    m.includes("belongs to a customer recovery") ||
+    m.includes("more than the amount due") ||
+    m.includes("does not match")
   );
 }
 
@@ -358,7 +380,9 @@ async function persistMutationToSqlite(opts: {
   // Sale / purchase typed tables
   if (
     opts.mutationType === "sale_invoice" ||
-    opts.mutationType === "purchase_invoice"
+    opts.mutationType === "sale_invoice_update" ||
+    opts.mutationType === "purchase_invoice" ||
+    opts.mutationType === "purchase_invoice_update"
   ) {
     const items = Array.isArray(opts.payload.items)
       ? (opts.payload.items as Record<string, unknown>[])
@@ -386,7 +410,8 @@ async function persistMutationToSqlite(opts: {
       lines,
     };
     const result =
-      opts.mutationType === "sale_invoice"
+      opts.mutationType === "sale_invoice" ||
+      opts.mutationType === "sale_invoice_update"
         ? await localSaveSaleInvoice(doc)
         : await localSavePurchaseInvoice(doc);
     if (!result.ok) return result;
@@ -577,6 +602,14 @@ function getSuccessMessage(type: OfflineMutationType): string {
   const messages: Record<string, string> = {
     recovery: "Recovery posted successfully.",
     sale_invoice: "Sale invoice created.",
+    sale_invoice_update: "Sale invoice updated.",
+    purchase_invoice_update: "Purchase invoice updated.",
+    sale_return_update: "Sale return updated.",
+    purchase_return_update: "Purchase return updated.",
+    cash_receipt_update: "Cash receipt updated.",
+    cash_payment_update: "Cash payment updated.",
+    journal_voucher_update: "Journal voucher updated.",
+    recovery_update: "Recovery updated.",
     purchase_invoice: "Purchase invoice created.",
     sale_return: "Sale return created.",
     purchase_return: "Purchase return created.",

@@ -50,6 +50,8 @@ export function RowActions({
   allowDelete = true,
   allowCancel = false,
   cancelLabel = "Update",
+  editClassName,
+  deleteConfirmLabel = "Delete permanently",
   className,
 }: {
   viewFields: DetailField[];
@@ -71,6 +73,9 @@ export function RowActions({
   allowCancel?: boolean;
   /** Visible table label for cancel/fix (default: Update). */
   cancelLabel?: string;
+  /** Extra width for forms that match the New invoice dialog. */
+  editClassName?: string;
+  deleteConfirmLabel?: string;
   className?: string;
 }) {
   const router = useRouter();
@@ -200,9 +205,9 @@ export function RowActions({
         open={mode === "edit"}
         onClose={() => setMode(null)}
         title={editTitle}
-        className="sm:max-w-3xl"
+        className={cn("sm:max-w-3xl", editClassName)}
       >
-        {editContent?.(() => setMode(null))}
+        {mode === "edit" ? editContent?.(() => setMode(null)) : null}
       </Dialog>
 
       <Dialog
@@ -266,7 +271,7 @@ export function RowActions({
             loading={busy}
             onClick={() => void runAction(onDelete, "Delete failed")}
           >
-            {busy ? "Deleting..." : "Delete permanently"}
+            {busy ? "Deleting..." : deleteConfirmLabel}
           </Button>
         </div>
       </Dialog>

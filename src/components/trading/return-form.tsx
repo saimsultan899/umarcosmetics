@@ -183,6 +183,19 @@ function toReturnInvoice(
   };
 }
 
+export type ReturnEdit = {
+  id: string;
+  returnNo: string;
+  partyId: string;
+  warehouseId: string;
+  returnDate: string;
+  narration: string;
+  extraDiscount: string;
+  invoiceId: string | null;
+  lines: LineItemDraft[];
+  grandTotal: number;
+};
+
 export function ReturnForm({
   kind,
   companyId,
@@ -190,6 +203,7 @@ export function ReturnForm({
   parties,
   products,
   warehouses,
+  editing,
   onDone,
 }: {
   kind: "sale" | "purchase";
@@ -198,6 +212,7 @@ export function ReturnForm({
   parties: Party[];
   products: Product[];
   warehouses: Warehouse[];
+  editing?: ReturnEdit;
   onDone?: () => void;
 }) {
   const router = useRouter();
@@ -220,37 +235,67 @@ export function ReturnForm({
     );
   }, [kind, parties]);
 
-  const [partyId, setPartyId] = useState("");
-  const [warehouseId, setWarehouseId] = useState(warehouses[0]?.id || "");
-  const [returnDate, setReturnDate] = useState(new Date().toISOString().slice(0, 10));
-  const [narration, setNarration] = useState("");
-  const [extraDiscount, setExtraDiscount] = useState("");
-  const [lines, setLines] = useState<LineItemDraft[]>([]);
+  const [partyId, setPartyId] = useState(editing?.partyId || "");
+  const [warehouseId, setWarehouseId] = useState(
+    editing?.warehouseId || warehouses[0]?.id || "",
+  );
+  const [returnDate, setReturnDate] = useState(
+    editing?.returnDate || new Date().toISOString().slice(0, 10),
+  );
+  const [narration, setNarration] = useState(editing?.narration || "");
+  const [extraDiscount, setExtraDiscount] = useState(editing?.extraDiscount || "");
+  const [lines, setLines] = useState<LineItemDraft[]>(editing?.lines || []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [invoices, setInvoices] = useState<ReturnInvoice[]>([]);
-  const [invoiceId, setInvoiceId] = useState("");
+  const [invoiceId, setInvoiceId] = useState(editing?.invoiceId || "");
   const [caps, setCaps] = useState<Map<string, { qty: number; bonus: number }>>(new Map());
   const [partyDue, setPartyDue] = useState<number | null>(null);
   const [recoveredTotal, setRecoveredTotal] = useState(0);
-  const extraEdited = useRef(false);
+  const extraEdited = useRef(Boolean(editing));
   const invoiceBasis = useRef<{ extra: number; linesTotal: number } | null>(null);
+  const preserveEdit = useRef(Boolean(editing));
+  const editingRef = useRef(editing);
+  editingRef.current = editing;
 
   useEffect(() => {
     if (kind !== "sale") return;
-    extraEdited.current = false;
-    invoiceBasis.current = null;
-    setInvoiceId("");
+    const keep = preserveEdit.current;
+    preserveEdit.current = false;
+    if (!keep) {
+      extraEdited.current = false;
+      invoiceBasis.current = null;
+      setInvoiceId("");
+      setCaps(new Map());
+      setLines([]);
+      setExtraDiscount("");
+    }
     setInvoices([]);
-    setCaps(new Map());
-    setLines([]);
-    setExtraDiscount("");
     if (!partyId) return;
 
     let cancelled = false;
     void (async () => {
       const loaded = await loadPartyInvoices(companyId, partyId);
-      if (!cancelled) setInvoices(loaded);
+      if (cancelled) return;
+      setInvoices(loaded);
+      const current = editingRef.current;
+      if (!keep || !current?.invoiceId) return;
+      setInvoiceId(current.invoiceId);
+      const invoice = loaded.find((inv) => inv.id === current.invoiceId);
+      const nextCaps = new Map<string, { qty: number; bonus: number }>();
+      if (invoice) {
+        for (const item of invoice.items) {
+          nextCaps.set(item.product_id, { qty: item.qty, bonus: item.bonus });
+        }
+      }
+      for (const line of current.lines) {
+        const cur = nextCaps.get(line.product_id) || { qty: 0, bonus: 0 };
+        nextCaps.set(line.product_id, {
+          qty: cur.qty + Number(line.qty || 0),
+          bonus: cur.bonus + Number(line.bonus || 0),
+        });
+      }
+      setCaps(nextCaps);
     })();
     return () => {
       cancelled = true;
@@ -392,18 +437,23 @@ export function ReturnForm({
     }
     const grand_total = Math.max(0, linesTotal - extra);
 
-    if (kind === "sale" && partyDue != null && grand_total > partyDue + 0.005) {
+    const dueForCheck =
+      partyDue == null
+        ? null
+        : partyDue +
+          (editing && partyId === editing.partyId ? editing.grandTotal : 0);
+    if (kind === "sale" && dueForCheck != null && grand_total > dueForCheck + 0.005) {
       const recoveryNote =
         recoveredTotal > 0.005
           ? ` Recoveries already recorded: ${formatPkr(recoveredTotal)}.`
           : "";
-      if (partyDue <= 0.005) {
+      if (dueForCheck <= 0.005) {
         setError(
           `This customer has no amount due. A sale return would create credit. Cancel the recovery first if goods are coming back.${recoveryNote}`,
         );
       } else {
         setError(
-          `This customer only owes ${formatPkr(partyDue)}. A return of ${formatPkr(grand_total)} would create credit. Cancel the recovery first, or return only the unpaid amount.${recoveryNote}`,
+          `This customer only owes ${formatPkr(dueForCheck)}. A return of ${formatPkr(grand_total)} would create credit. Cancel the recovery first, or return only the unpaid amount.${recoveryNote}`,
         );
       }
       return;
@@ -411,22 +461,47 @@ export function ReturnForm({
 
     setLoading(true);
     try {
-      const stockChanges = valid.map((l) => ({
-        productId: l.product_id,
+      const signedNeed = (qty: number, bonus: number) =>
+        kind === "sale" ? qty + bonus : -(qty + bonus);
+      const oldNeed = new Map<string, number>();
+      if (editing) {
+        for (const line of editing.lines) {
+          oldNeed.set(
+            line.product_id,
+            (oldNeed.get(line.product_id) || 0) +
+              signedNeed(Number(line.qty || 0), Number(line.bonus || 0)),
+          );
+        }
+      }
+      const newNeed = new Map<string, number>();
+      for (const line of valid) {
+        newNeed.set(
+          line.product_id,
+          (newNeed.get(line.product_id) || 0) +
+            signedNeed(Number(line.qty || 0), Number(line.bonus || 0)),
+        );
+      }
+      const stockIds = new Set<string>([...oldNeed.keys(), ...newNeed.keys()]);
+      const stockChanges = [...stockIds].map((productId) => ({
+        productId,
         warehouseId,
-        delta:
-          kind === "sale"
-            ? Number(l.qty) + Number(l.bonus || 0)
-            : -(Number(l.qty) + Number(l.bonus || 0)),
+        delta: (newNeed.get(productId) || 0) - (oldNeed.get(productId) || 0),
       }));
 
       const party = parties.find((p) => p.id === partyId);
       const res = await offlineAwareSubmit({
-        mutationType: kind === "sale" ? "sale_return" : "purchase_return",
+        mutationType: editing
+          ? kind === "sale"
+            ? "sale_return_update"
+            : "purchase_return_update"
+          : kind === "sale"
+            ? "sale_return"
+            : "purchase_return",
         companyId,
         organizationId,
         stockChanges,
         payload: {
+          ...(editing ? { return_id: editing.id, return_no: editing.returnNo } : {}),
           organization_id: organizationId,
           company_id: companyId,
           return_date: returnDate,
@@ -466,7 +541,7 @@ export function ReturnForm({
       closeDialog?.();
       onDone?.();
       const basePath = kind === "sale" ? "/sales/returns" : "/purchases/returns";
-      if (res.source === "offline") {
+      if (editing || res.source === "offline") {
         router.refresh();
       } else {
         router.push(`${basePath}/${res.id}`);
@@ -578,7 +653,13 @@ export function ReturnForm({
       ) : null}
 
       <Button type="submit" loading={loading}>
-        {loading ? "Posting..." : `Save & post ${kind} return`}
+        {loading
+          ? editing
+            ? "Updating..."
+            : "Posting..."
+          : editing
+            ? `Update ${kind} return`
+            : `Save & post ${kind} return`}
       </Button>
     </form>
   );

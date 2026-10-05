@@ -32,22 +32,43 @@ function emptyLine(): Line {
   };
 }
 
+export type JournalVoucherEdit = {
+  id: string;
+  voucherNo: string;
+  date: string;
+  narration: string;
+  lines: {
+    debit_party_id: string;
+    credit_party_id: string;
+    amount: string;
+    narration: string;
+  }[];
+};
+
 export function JournalVoucherForm({
   companyId,
   organizationId,
   parties,
+  editing,
   onDone,
 }: {
   companyId: string;
   organizationId: string;
   parties: Party[];
+  editing?: JournalVoucherEdit;
   onDone?: () => void;
 }) {
   const router = useRouter();
   const closeDialog = useCreateDialogClose();
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [narration, setNarration] = useState("");
-  const [lines, setLines] = useState<Line[]>([emptyLine()]);
+  const [date, setDate] = useState(
+    editing?.date || new Date().toISOString().slice(0, 10),
+  );
+  const [narration, setNarration] = useState(editing?.narration || "");
+  const [lines, setLines] = useState<Line[]>(
+    editing?.lines.length
+      ? editing.lines.map((line) => ({ key: crypto.randomUUID(), ...line }))
+      : [emptyLine()],
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const total = lines.reduce((s, l) => s + Number(l.amount || 0), 0);
@@ -70,10 +91,13 @@ export function JournalVoucherForm({
     setLoading(true);
     try {
       const res = await offlineAwareSubmit({
-        mutationType: "journal_voucher",
+        mutationType: editing ? "journal_voucher_update" : "journal_voucher",
         companyId,
         organizationId,
         payload: {
+          ...(editing
+            ? { voucher_id: editing.id, voucher_no: editing.voucherNo }
+            : {}),
           organization_id: organizationId,
           company_id: companyId,
           voucher_date: date,
@@ -90,7 +114,7 @@ export function JournalVoucherForm({
       setLoading(false);
       closeDialog?.();
       onDone?.();
-      if (res.source === "offline") {
+      if (editing || res.source === "offline") {
         router.refresh();
       } else {
         router.push(`/vouchers/journal/${res.id}`);
@@ -229,7 +253,13 @@ export function JournalVoucherForm({
       ) : null}
 
       <Button type="submit" loading={loading}>
-        {loading ? "Posting..." : "Save journal voucher"}
+        {loading
+          ? editing
+            ? "Updating..."
+            : "Posting..."
+          : editing
+            ? "Update journal voucher"
+            : "Save journal voucher"}
       </Button>
     </form>
   );
