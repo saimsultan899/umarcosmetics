@@ -11,6 +11,7 @@ export function SalesmanSelect({
   required,
   label = "Salesman",
   hint,
+  hideHint = false,
 }: {
   salesmen: SalesmanOption[];
   value: string;
@@ -18,6 +19,7 @@ export function SalesmanSelect({
   required?: boolean;
   label?: string;
   hint?: string;
+  hideHint?: boolean;
 }) {
   if (!salesmen.length) {
     return (
@@ -45,7 +47,7 @@ export function SalesmanSelect({
           </option>
         ))}
       </Select>
-      {hint ? (
+      {hideHint ? null : hint ? (
         <p className="mt-1 text-[11px] text-[var(--muted)]">{hint}</p>
       ) : (
         <p className="mt-1 text-[11px] text-[var(--muted)]">

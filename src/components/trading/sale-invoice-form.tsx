@@ -24,7 +24,7 @@ import {
   reviewSaleStock,
   type SaleStockPolicy,
 } from "@/lib/trading/sale-stock-policy";
-import { AMOUNT_PLACEHOLDER, AMOUNT_STEP, formatNumber, formatPkr } from "@/lib/utils";
+import { formatNumber } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
@@ -141,10 +141,9 @@ export function SaleInvoiceForm({
     editing?.invoiceDate || new Date().toISOString().slice(0, 10),
   );
   const [paymentType, setPaymentType] = useState<PaymentType>(
-    editing?.paymentType === "partial" ? "cash" : editing?.paymentType || "credit",
-  );
-  const [amountPaidStr, setAmountPaidStr] = useState(
-    editing && editing.paymentType !== "credit" ? String(editing.amountPaid) : "",
+    editing?.paymentType === "partial" || editing?.paymentType === "cash"
+      ? "cash"
+      : editing?.paymentType || "credit",
   );
   const [walkInCustomer, setWalkInCustomer] = useState(Boolean(editing?.walkIn));
   const [narration, setNarration] = useState(editing?.narration || "");
@@ -157,22 +156,6 @@ export function SaleInvoiceForm({
   const party = customers.find((p) => p.id === partyId);
   const walkInActive = paymentType === "cash" && walkInCustomer;
   const customerRequired = !walkInActive;
-  const { grand_total: linesTotal } = summarizeLines(lines);
-  const extraPreview = Math.max(0, Number(extraDiscount) || 0);
-  const billPreview = Math.max(0, linesTotal - extraPreview);
-  const paidPreview =
-    paymentType === "cash"
-      ? Math.min(
-          billPreview,
-          Math.max(
-            0,
-            amountPaidStr.trim() === ""
-              ? billPreview
-              : Number(amountPaidStr) || 0,
-          ),
-        )
-      : 0;
-  const remainingPreview = Math.max(0, billPreview - paidPreview);
 
   async function checkCreditLimit(nextPartyId: string) {
     setCreditWarning(null);
@@ -306,31 +289,8 @@ export function SaleInvoiceForm({
     }
     const grand_total = Math.max(0, linesTotal - extra);
 
-    let resolvedPayment: PaymentType = paymentType;
-    let amountPaid = 0;
-    if (paymentType === "cash") {
-      const rawPaid =
-        amountPaidStr.trim() === "" ? grand_total : Number(amountPaidStr);
-      if (!Number.isFinite(rawPaid) || rawPaid < 0) {
-        setLoading(false);
-        setError("Enter a valid amount received.");
-        return;
-      }
-      amountPaid = Math.min(grand_total, Math.round(rawPaid * 100) / 100);
-      const remaining = Math.max(0, grand_total - amountPaid);
-      if (walkInActive && remaining > 0.005) {
-        setLoading(false);
-        setError("Walk-in customer must pay the full bill. Remaining cannot go on credit.");
-        return;
-      }
-      if (amountPaid < 0.005) {
-        setLoading(false);
-        setError("Enter the amount received, or save the bill as Credit.");
-        return;
-      }
-      resolvedPayment = remaining > 0.005 ? "partial" : "cash";
-      if (resolvedPayment === "cash") amountPaid = grand_total;
-    }
+    const resolvedPayment: PaymentType = paymentType === "cash" ? "cash" : "credit";
+    const amountPaid = resolvedPayment === "cash" ? grand_total : 0;
 
     if (grand_total - amountPaid > 0.005 && party && Number(party.credit_limit) > 0) {
       // Skip cloud balance check when offline — don't block local save.
@@ -497,82 +457,43 @@ export function SaleInvoiceForm({
             }}
           />
         </div>
-        <div className="sm:col-span-2">
-          <SalesmanSelect
-            salesmen={salesmen}
-            value={salesmanId}
-            onChange={setSalesmanId}
-          />
-        </div>
-        <div className="sm:col-span-2">
-          <Label>Payment</Label>
-          <Select
-            value={paymentType}
-            onChange={(e) => {
-              const next = (e.target.value as PaymentType) || "credit";
-              setPaymentType(next);
-              if (next !== "cash") {
-                setWalkInCustomer(false);
-                setAmountPaidStr("");
-              }
-            }}
-          >
-            <option value="credit">Credit</option>
-            <option value="cash">Paid</option>
-          </Select>
-        </div>
-        {paymentType === "cash" ? (
-          <div className="flex flex-wrap items-end gap-x-4 gap-y-2 sm:col-span-12">
-            <label className="mb-2 flex cursor-pointer items-center gap-2 text-sm text-[var(--ink)]">
-              <input
-                type="checkbox"
-                checked={walkInCustomer}
+        <div className="sm:col-span-4">
+          <div className="flex items-end gap-3">
+            <div className="w-40 shrink-0">
+              <Label>Payment</Label>
+              <Select
+                value={paymentType}
                 onChange={(e) => {
-                  const on = e.target.checked;
-                  setWalkInCustomer(on);
-                  if (on) {
-                    setPartyId("");
-                    setCreditWarning(null);
-                    setAmountPaidStr("");
-                  }
+                  const next = (e.target.value as PaymentType) || "credit";
+                  setPaymentType(next);
+                  if (next !== "cash") setWalkInCustomer(false);
                 }}
-                className="h-4 w-4 rounded border-[var(--border)] accent-[var(--brand)]"
-              />
-              <span>Walk-in customer</span>
-            </label>
-            <div className="w-36">
-              <Label>Amount received</Label>
-              <Input
-                type="number"
-                min="0"
-                step={AMOUNT_STEP}
-                placeholder={AMOUNT_PLACEHOLDER}
-                inputMode="decimal"
-                value={
-                  amountPaidStr.trim() === ""
-                    ? billPreview
-                      ? String(Math.round(billPreview * 100) / 100)
-                      : ""
-                    : amountPaidStr
-                }
-                onChange={(e) => setAmountPaidStr(e.target.value)}
-                disabled={walkInCustomer}
-              />
+              >
+                <option value="credit">Credit</option>
+                <option value="cash">Paid</option>
+              </Select>
             </div>
-            <p className="mb-2 text-sm text-[var(--ink)]">
-              Paid {formatPkr(paidPreview)}
-              {remainingPreview > 0.005 ? (
-                <span className="text-[var(--muted)]">
-                  {" · "}
-                  Remaining {formatPkr(remainingPreview)}
-                </span>
-              ) : billPreview > 0.005 ? (
-                <span className="text-[var(--muted)]"> · Paid in full</span>
-              ) : null}
-            </p>
+            {paymentType === "cash" ? (
+              <label className="mb-2.5 flex cursor-pointer items-center gap-2 text-sm text-[var(--ink)]">
+                <input
+                  type="checkbox"
+                  checked={walkInCustomer}
+                  onChange={(e) => {
+                    const on = e.target.checked;
+                    setWalkInCustomer(on);
+                    if (on) {
+                      setPartyId("");
+                      setCreditWarning(null);
+                    }
+                  }}
+                  className="h-4 w-4 rounded border-[var(--border)] accent-[var(--brand)]"
+                />
+                <span>Walk-in customer</span>
+              </label>
+            ) : null}
           </div>
-        ) : null}
-        <div className="sm:col-span-8">
+        </div>
+        <div className={salesmen.length ? "sm:col-span-6" : "sm:col-span-8"}>
           <Label>Narration</Label>
           <Input
             value={narration}
@@ -580,6 +501,16 @@ export function SaleInvoiceForm({
             placeholder="Optional notes"
           />
         </div>
+        {salesmen.length ? (
+          <div className="sm:col-span-2">
+            <SalesmanSelect
+              salesmen={salesmen}
+              value={salesmanId}
+              onChange={setSalesmanId}
+              hideHint
+            />
+          </div>
+        ) : null}
         <div className="sm:col-span-4" title="Fills automatically when you pick a product.">
           <Label>Company</Label>
           <Select

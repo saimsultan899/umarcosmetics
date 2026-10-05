@@ -984,32 +984,10 @@ export const LineItemsEditor = forwardRef<
                     draft.qty,
                     draft.bonus || "0",
                   );
-                  if ((!note || note.tone === "ok") && !over) return null;
+                  const text = over || (note && note.tone !== "ok" ? note.text : "");
+                  if (!text) return null;
                   return (
-                    <>
-                      {note && note.tone !== "ok" ? (
-                        <p
-                          className={cn(
-                            "mt-0.5 text-[10px]",
-                            note.tone === "warn"
-                              ? "text-amber-700"
-                              : "text-rose-600",
-                          )}
-                        >
-                          {note.text}
-                        </p>
-                      ) : null}
-                      {over ? (
-                        <p
-                          className={cn(
-                            "mt-1 text-[10px] font-medium",
-                            allowOversell ? "text-amber-700" : "text-rose-600",
-                          )}
-                        >
-                          {over}
-                        </p>
-                      ) : null}
-                    </>
+                    <p className="mt-0.5 text-[10px] text-rose-600">{text}</p>
                   );
                 })()}
               </td>
@@ -1160,30 +1138,11 @@ export const LineItemsEditor = forwardRef<
                         line.bonus || "0",
                         line.key,
                       );
-                      if (over) {
-                        return (
-                          <p
-                            className={cn(
-                              "px-1 text-[10px] font-medium",
-                              allowOversell ? "text-amber-700" : "text-rose-600",
-                            )}
-                          >
-                            {over}
-                          </p>
-                        );
-                      }
-                      if (!note || note.tone === "ok") return null;
+                      const text =
+                        over || (note && note.tone !== "ok" ? note.text : "");
+                      if (!text) return null;
                       return (
-                        <p
-                          className={cn(
-                            "px-1 text-[10px]",
-                            note.tone === "warn"
-                              ? "text-amber-700"
-                              : "text-rose-600",
-                          )}
-                        >
-                          {note.text}
-                        </p>
+                        <p className="px-1 text-[10px] text-rose-600">{text}</p>
                       );
                     })()}
                   </td>
