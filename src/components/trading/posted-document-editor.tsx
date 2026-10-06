@@ -15,8 +15,14 @@ import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { createClient } from "@/lib/supabase/client";
 import { useTradingCatalog } from "@/lib/trading/catalog-client";
 import type { LineItemDraft, PaymentType } from "@/lib/types/trading";
+import { AMOUNT_PLACEHOLDER, AMOUNT_STEP, formatPkr } from "@/lib/utils";
+import {
+  findSameDayRecoveries,
+  formatRecoveryWhen,
+  type SameDayRecovery,
+} from "@/lib/vouchers/same-day-recovery";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
 const WIDE_TABLES = new Set([
   "sale_invoices",
@@ -302,14 +308,86 @@ function RecoveryEditForm({
   doc: Record<string, unknown>;
   onDone: () => void;
 }) {
-  const [partyId, setPartyId] = useState(String(doc.party_id || ""));
+  const originalPartyId = String(doc.party_id || "");
+  const originalAmount = Number(doc.amount || 0);
+  const [partyId, setPartyId] = useState(originalPartyId);
   const [date, setDate] = useState(asDate(doc.recovery_date));
-  const [amount, setAmount] = useState(String(doc.amount || ""));
+  const [amount, setAmount] = useState(
+    originalAmount > 0 ? String(originalAmount) : "",
+  );
   const [remarks, setRemarks] = useState(String(doc.remarks || ""));
   const [salesmanId, setSalesmanId] = useState(String(doc.salesman_id || ""));
+  const [ledgerBalance, setLedgerBalance] = useState<number | null>(null);
+  const [todayRecoveries, setTodayRecoveries] = useState<SameDayRecovery[]>([]);
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const party = useMemo(
+    () => parties.find((p) => p.id === partyId) || null,
+    [parties, partyId],
+  );
+
+  // Current ledger already includes this recovery. Add it back so due matches
+  // what update_recovery allows after reversing the old credit.
+  const dueBalance = useMemo(() => {
+    if (ledgerBalance == null) return null;
+    if (partyId && partyId === originalPartyId) {
+      return ledgerBalance + originalAmount;
+    }
+    return ledgerBalance;
+  }, [ledgerBalance, partyId, originalPartyId, originalAmount]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadBalance(id: string) {
+      if (!id) {
+        setLedgerBalance(null);
+        return;
+      }
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        setLedgerBalance(null);
+        return;
+      }
+      try {
+        const supabase = createClient();
+        const result = await Promise.race([
+          supabase.rpc("get_party_balance", {
+            p_company_id: companyId,
+            p_party_id: id,
+            p_as_of: date,
+          }),
+          new Promise<null>((r) => setTimeout(() => r(null), 3000)),
+        ]);
+        const data =
+          result && typeof result === "object" && "data" in result
+            ? (result as { data: unknown }).data
+            : null;
+        if (!cancelled) setLedgerBalance(data == null ? null : Number(data));
+      } catch {
+        if (!cancelled) setLedgerBalance(null);
+      }
+    }
+    void loadBalance(partyId);
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId, partyId, date]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!partyId) {
+      setTodayRecoveries([]);
+      return;
+    }
+    void findSameDayRecoveries(companyId, partyId, date).then((rows) => {
+      if (cancelled) return;
+      setTodayRecoveries(rows.filter((row) => String(row.id || "") !== String(doc.id)));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId, partyId, date, doc.id]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -319,7 +397,30 @@ function RecoveryEditForm({
       setError("Select the customer and enter the amount received.");
       return;
     }
-    const party = parties.find((p) => p.id === partyId);
+    if (dueBalance != null && dueBalance <= 0.005) {
+      setError("This customer has no amount due. The recovery was not saved.");
+      return;
+    }
+    if (dueBalance != null && value > dueBalance + 0.005) {
+      setError(
+        `Recovery is more than the amount due (${formatPkr(dueBalance)}). The recovery was not saved.`,
+      );
+      return;
+    }
+    if (todayRecoveries.length) {
+      const listed = todayRecoveries
+        .map((row) => {
+          const when = formatRecoveryWhen(row.at);
+          return when ? `${formatPkr(row.amount)} at ${when}` : formatPkr(row.amount);
+        })
+        .join(", ");
+      const shop = party?.name_en || "This customer";
+      const ok = window.confirm(
+        `${shop} already has another recovery today${listed ? `: ${listed}` : ""}.\n\nUpdate this recovery anyway?`,
+      );
+      if (!ok) return;
+    }
+
     setLoading(true);
     try {
       await offlineAwareSubmit({
@@ -355,21 +456,32 @@ function RecoveryEditForm({
       data-enter-root
       onKeyDown={(e) => handleEnterAsNext(e)}
     >
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--muted)]">
+        Edit like a sale invoice: change customer, date, amount, or salesman. Ledger and
+        customer receivable update when you save.
+      </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <Label>Date</Label>
           <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
         </div>
         <div>
-          <Label>Amount</Label>
+          <Label>Amount received</Label>
           <Input
             type="number"
             min="0"
-            step="0.01"
+            step={AMOUNT_STEP}
+            placeholder={AMOUNT_PLACEHOLDER}
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             required
           />
+          {dueBalance != null ? (
+            <p className="mt-1 text-[11px] text-[var(--muted)]">
+              Amount due (after reversing this entry):{" "}
+              <span className="font-semibold text-[var(--ink)]">{formatPkr(dueBalance)}</span>
+            </p>
+          ) : null}
         </div>
         <div className="sm:col-span-2">
           <PartyCodePicker
@@ -382,18 +494,31 @@ function RecoveryEditForm({
             onChange={setPartyId}
           />
         </div>
-        <div>
-          <SalesmanSelect salesmen={salesmen} value={salesmanId} onChange={setSalesmanId} />
-        </div>
-        <div>
+        {salesmen.length ? (
+          <div>
+            <SalesmanSelect
+              salesmen={salesmen}
+              value={salesmanId}
+              onChange={setSalesmanId}
+              hideHint
+            />
+          </div>
+        ) : null}
+        <div className={salesmen.length ? "" : "sm:col-span-2"}>
           <Label>Remarks</Label>
           <Input value={remarks} onChange={(e) => setRemarks(e.target.value)} />
         </div>
       </div>
+      {todayRecoveries.length ? (
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          This shop already has {todayRecoveries.length} other recovery
+          {todayRecoveries.length === 1 ? "" : "ies"} today.
+        </p>
+      ) : null}
       {error ? (
         <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>
       ) : null}
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
         <Button type="submit" loading={loading}>
           {loading ? "Updating..." : "Update recovery"}
         </Button>

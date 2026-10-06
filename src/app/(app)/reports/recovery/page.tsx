@@ -1,6 +1,7 @@
 import { ChartCard } from "@/components/analytics/chart-card";
 import { RankBars, TrendAreaChart } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
+import { RecentRecoveriesList } from "@/components/recoveries/recent-recoveries-list";
 import { RecoverySheet } from "@/components/reports/recovery-sheet";
 import { FilterMultiSelect, ReportFilterActions } from "@/components/reports/report-filters";
 import { UrlFilterForm } from "@/components/reports/url-filter-form";
@@ -319,36 +320,27 @@ export default async function RecoverySheetPage({
         <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
           Recent recoveries
         </h2>
-        <div className="mt-3 space-y-2">
-          {(recent || []).length ? (
-            recent!.map((r) => {
-              const party = one(r.parties);
-              return (
-                <div
-                  key={r.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--border)] px-3 py-2 text-sm"
-                >
-                  <div>
-                    <p className="font-medium">
-                      {party?.party_code} — {party?.name_en}
-                    </p>
-                    <p className="text-xs text-[var(--muted)]">
-                      {r.recovery_date}
-                      {r.remarks ? ` · ${r.remarks}` : ""}
-                    </p>
-                  </div>
-                  <p className="font-semibold text-emerald-700">
-                    {formatPkr(r.amount)}
-                  </p>
-                </div>
-              );
-            })
-          ) : (
-            <p className="text-sm text-[var(--muted)]">
-              No recoveries recorded yet.
-            </p>
-          )}
-        </div>
+        <p className="mt-1 text-sm text-[var(--muted)]">
+          Edit with the pencil (customer, amount, date, salesman) or delete to reverse the receivable.
+        </p>
+        <RecentRecoveriesList
+          canEdit={!offline}
+          rows={(recent || []).map((r) => {
+            const party = one(r.parties);
+            return {
+              id: String(r.id),
+              recovery_date: String(r.recovery_date || ""),
+              amount: Number(r.amount || 0),
+              remarks: r.remarks ? String(r.remarks) : null,
+              parties: party
+                ? {
+                    party_code: String(party.party_code || ""),
+                    name_en: String(party.name_en || ""),
+                  }
+                : null,
+            };
+          })}
+        />
       </div>
     </div>
   );

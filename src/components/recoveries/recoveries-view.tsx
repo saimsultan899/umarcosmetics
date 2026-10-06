@@ -43,9 +43,9 @@ export function RecoveriesView({
             Field recoveries
           </h1>
           <p className="mt-1 text-sm text-[var(--muted)]">
-            Collections synced from salesman / office recovery entry. Use
-            Update on a row to reverse a mistaken collection, then enter the
-            correct one.
+            Collections from salesman / office recovery entry. Use the pencil to
+            edit a posted recovery (customer, amount, date, salesman) — same as
+            editing a sale invoice. Delete reverses the receivable.
           </p>
         </div>
         <Link

@@ -140,7 +140,8 @@ export function RecoveriesTable({
                         <RowActions
                           viewTitle="Recovery details"
                           viewFields={fields}
-                          editTitle="Edit recovery"
+                          editTitle={`Edit recovery — ${party}`}
+                          editClassName="sm:max-w-3xl"
                           allowEdit={canCancel}
                           editContent={
                             canCancel
@@ -160,7 +161,7 @@ export function RecoveriesTable({
                           allowCancel={false}
                           allowDelete={canCancel}
                           deleteTitle="Delete this recovery?"
-                          deleteDescription={`Reverse ${formatPkr(r.amount)} for ${party}. The customer balance goes back up by that amount.`}
+                          deleteDescription={`Reverse ${formatPkr(r.amount)} for ${party}. The customer receivable goes back up by that amount.`}
                           deleteConfirmLabel="Delete entry"
                           onDelete={() => cancelRecovery(r)}
                         />
