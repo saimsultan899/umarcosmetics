@@ -76,20 +76,40 @@ export default async function AccountsReportPage({
   const selectedParty = parties?.find((p) => p.id === sp.party);
 
   if (view === "ledger" && sp.party) {
-    const { data: opening } = await supabase
-      .from("parties")
-      .select("opening_balance")
-      .eq("id", sp.party)
-      .maybeSingle();
+    const [{ data: opening }, { data: ledger }, { data: partyRecoveries }] =
+      await Promise.all([
+        supabase
+          .from("parties")
+          .select("opening_balance")
+          .eq("id", sp.party)
+          .maybeSingle(),
+        supabase
+          .from("ledger_entries")
+          .select("entry_date, debit, credit, narration, voucher_type, ref_table, ref_id")
+          .eq("company_id", company.id)
+          .eq("party_id", sp.party)
+          .order("entry_date", { ascending: true })
+          .order("created_at", { ascending: true })
+          .limit(500),
+        supabase
+          .from("recoveries")
+          .select("id, voucher_id")
+          .eq("company_id", company.id)
+          .eq("party_id", sp.party)
+          .order("recovery_date", { ascending: false })
+          .limit(500),
+      ]);
 
-    const { data: ledger } = await supabase
-      .from("ledger_entries")
-      .select("entry_date, debit, credit, narration, voucher_type")
-      .eq("company_id", company.id)
-      .eq("party_id", sp.party)
-      .order("entry_date", { ascending: true })
-      .order("created_at", { ascending: true })
-      .limit(500);
+    const recoveryByRef = new Map<string, string>();
+    for (const rec of partyRecoveries || []) {
+      const id = String(rec.id);
+      recoveryByRef.set(id, id);
+      if (rec.voucher_id) recoveryByRef.set(String(rec.voucher_id), id);
+    }
+
+    const partyLabel = selectedParty
+      ? `${selectedParty.party_code} — ${selectedParty.name_en}`
+      : "Customer";
 
     let running = Number(opening?.opening_balance || 0);
     ledgerRows = [
@@ -103,6 +123,10 @@ export default async function AccountsReportPage({
       },
       ...(ledger || []).map((e) => {
         running += Number(e.debit) - Number(e.credit);
+        const recoveryId =
+          e.ref_id && (e.voucher_type === "CR" || e.narration === "Recovery")
+            ? recoveryByRef.get(String(e.ref_id)) || ""
+            : "";
         return {
           Date: e.entry_date,
           Type: e.voucher_type || "—",
@@ -110,6 +134,14 @@ export default async function AccountsReportPage({
           Debit: Number(e.debit),
           Credit: Number(e.credit),
           Balance: signedText(running),
+          ...(recoveryId
+            ? {
+                _recovery_id: recoveryId,
+                _company_id: company.id,
+                _party_id: sp.party,
+                _party_label: partyLabel,
+              }
+            : {}),
         };
       }),
     ];

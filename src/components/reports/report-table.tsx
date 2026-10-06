@@ -1,5 +1,6 @@
 "use client";
 
+import { PartyRecoveriesManager } from "@/components/recoveries/party-recoveries-manager";
 import { PrintOrgCompany } from "@/components/print/print-org-company";
 import { ExportButtons } from "@/components/reports/export-buttons";
 import { TableScroll } from "@/components/tables/table-scroll";
@@ -8,7 +9,9 @@ import { TableToolbar } from "@/components/tables/table-toolbar";
 import { DetailField, RowActions } from "@/components/ui/row-actions";
 import { useUrlTableState } from "@/hooks/use-url-table-state";
 import { formatNumber, formatPkr } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 function isMetaKey(key: string) {
@@ -95,6 +98,7 @@ export function ReportTable({
 }) {
   const { page, pageSize, isPending, setPage, setPageSize } =
     useUrlTableState();
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [printedAt, setPrintedAt] = useState("");
   const columns = visibleColumns(rows[0]);
@@ -212,6 +216,19 @@ export function ReportTable({
                     typeof row._href === "string" && row._href
                       ? row._href
                       : undefined;
+                  const recoveryId =
+                    typeof row._recovery_id === "string" ? row._recovery_id : "";
+                  const companyId =
+                    typeof row._company_id === "string" ? row._company_id : "";
+                  const partyId =
+                    typeof row._party_id === "string" ? row._party_id : "";
+                  const partyLabel =
+                    typeof row._party_label === "string"
+                      ? row._party_label
+                      : "Customer";
+                  const canManageRecovery = Boolean(
+                    recoveryId && companyId && partyId,
+                  );
                   return (
                     <tr key={`${from}-${idx}`}>
                       {columns.map((c) => {
@@ -239,8 +256,40 @@ export function ReportTable({
                           viewFields={rowFields(row, columns)}
                           href={href}
                           printHref={href}
-                          allowEdit={false}
-                          allowDelete={false}
+                          editTitle={`Recoveries — ${partyLabel}`}
+                          editClassName="sm:max-w-3xl"
+                          allowEdit={canManageRecovery}
+                          editContent={
+                            canManageRecovery
+                              ? (close) => (
+                                  <PartyRecoveriesManager
+                                    companyId={companyId}
+                                    partyId={partyId}
+                                    partyLabel={partyLabel}
+                                    onDone={() => {
+                                      close();
+                                      router.refresh();
+                                    }}
+                                  />
+                                )
+                              : undefined
+                          }
+                          allowDelete={canManageRecovery}
+                          deleteTitle="Delete this recovery?"
+                          deleteDescription="The shop balance goes back up by this recovery amount. Use this when the same collection was saved twice."
+                          deleteConfirmLabel="Delete entry"
+                          onDelete={
+                            canManageRecovery
+                              ? async () => {
+                                  const supabase = createClient();
+                                  const { error } = await supabase.rpc(
+                                    "cancel_recovery",
+                                    { p_recovery_id: recoveryId },
+                                  );
+                                  if (error) throw new Error(error.message);
+                                }
+                              : undefined
+                          }
                         />
                       </td>
                     </tr>

@@ -170,8 +170,8 @@ export default async function RecoverySheetPage({
           </h1>
           <p className="mt-1 text-sm text-[var(--muted)]">
             Shop balances (Dr/Cr) for field collection — {company.name}. Use
-            View / Edit / Delete on each row for the last recovery (same as sale
-            invoices).
+            View / Edit / Delete on each row. Edit lists every recovery for that
+            shop so a duplicate can be searched and deleted.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -308,6 +308,7 @@ export default async function RecoverySheetPage({
         sections={sheet.sections}
         grand={sheet.grand}
         canEdit
+        companyId={company.id}
       />
     </div>
   );

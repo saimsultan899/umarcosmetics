@@ -4,7 +4,7 @@ import { ExportButtons } from "@/components/reports/export-buttons";
 import { TablePagination } from "@/components/tables/table-pagination";
 import { TableScroll } from "@/components/tables/table-scroll";
 import { TableToolbar } from "@/components/tables/table-toolbar";
-import { PostedDocumentEditor } from "@/components/trading/posted-document-editor";
+import { PartyRecoveriesManager } from "@/components/recoveries/party-recoveries-manager";
 import { DetailField, RowActions } from "@/components/ui/row-actions";
 import { useUrlTableState } from "@/hooks/use-url-table-state";
 import type {
@@ -151,6 +151,7 @@ export function RecoverySheet({
   sections,
   grand,
   canEdit = true,
+  companyId,
 }: {
   companyName: string;
   from: string;
@@ -160,6 +161,7 @@ export function RecoverySheet({
   salesmanLabel?: string;
   sections: RecoverySheetSection[];
   grand: RecoverySheetResult["grand"];
+  companyId?: string;
   /** View / edit / delete last recovery on each shop row (online). */
   canEdit?: boolean;
 }) {
@@ -480,15 +482,16 @@ export function RecoverySheet({
                               : `Shop — ${partyLabel}`
                           }
                           viewFields={rowFields(r)}
-                          editTitle={`Edit recovery — ${partyLabel}`}
+                          editTitle={`Recoveries — ${partyLabel}`}
                           editClassName="sm:max-w-3xl"
-                          allowEdit={canEdit && hasRecovery}
+                          allowEdit={canEdit && hasRecovery && Boolean(companyId)}
                           editContent={
-                            canEdit && r.last_received_id
+                            canEdit && companyId && hasRecovery
                               ? (close) => (
-                                  <PostedDocumentEditor
-                                    table="recoveries"
-                                    id={r.last_received_id!}
+                                  <PartyRecoveriesManager
+                                    companyId={companyId}
+                                    partyId={r.party_id}
+                                    partyLabel={partyLabel}
                                     onDone={() => {
                                       close();
                                       router.refresh();
@@ -499,10 +502,10 @@ export function RecoverySheet({
                           }
                           allowCancel={false}
                           allowDelete={canEdit && hasRecovery}
-                          deleteTitle="Delete this recovery?"
+                          deleteTitle="Delete the latest recovery?"
                           deleteDescription={
                             hasRecovery
-                              ? `Reverse ${formatPkr(Number(r.last_received_amount || 0))} for ${partyLabel}. The customer receivable goes back up by that amount.`
+                              ? `This removes only the latest recovery (${formatPkr(Number(r.last_received_amount || 0))}) for ${partyLabel}. Use Edit to search every recovery and delete a duplicate.`
                               : undefined
                           }
                           deleteConfirmLabel="Delete entry"
