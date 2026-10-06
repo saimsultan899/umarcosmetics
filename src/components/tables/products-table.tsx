@@ -143,21 +143,24 @@ export function ProductsTable({
 
   async function remove(id: string) {
     const supabase = createClient();
-    const { error } = await supabase
-      .from("products")
-      .delete()
-      .eq("id", id)
-      .eq("company_id", companyId);
+    // Cancelling a sale keeps invoice lines + stock history, so a plain DELETE
+    // hits FK errors. delete_product clears cancelled-only links when safe.
+    const { error } = await supabase.rpc("delete_product", {
+      p_product_id: id,
+    });
     if (error) {
-      if (error.code === "23503") {
-        throw new Error(
-          "This product is already on a bill or stock movement, so it cannot be removed.",
-        );
-      }
-      if (/organization admin/i.test(error.message)) {
+      const msg = error.message || "";
+      if (/organization admin/i.test(msg)) {
         throw new Error("Only the organization admin can delete products.");
       }
-      throw new Error(error.message);
+      if (/posted documents/i.test(msg) || error.code === "23503") {
+        throw new Error(
+          msg.includes("posted documents")
+            ? msg
+            : "This product is still on a posted bill or stock document. Cancelling a sale keeps history — mark the product inactive instead.",
+        );
+      }
+      throw new Error(msg);
     }
     await deleteCachedRow("products", id).catch(() => {});
     onChanged?.();
@@ -332,7 +335,7 @@ export function ProductsTable({
                           }
                           deleteDescription={
                             canDelete
-                              ? "This removes the product from the catalog. A product already used on a bill cannot be removed."
+                              ? "Removes the product if it is not on any posted bill. Cancelled sales are OK. If it is still on a posted bill, mark it inactive instead."
                               : "The product stays on old invoices and is hidden from new ones. This does not delete it."
                           }
                           viewFields={productFields(
