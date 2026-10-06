@@ -4,6 +4,8 @@ import { ExportButtons } from "@/components/reports/export-buttons";
 import { TablePagination } from "@/components/tables/table-pagination";
 import { TableScroll } from "@/components/tables/table-scroll";
 import { TableToolbar } from "@/components/tables/table-toolbar";
+import { PostedDocumentEditor } from "@/components/trading/posted-document-editor";
+import { DetailField, RowActions } from "@/components/ui/row-actions";
 import { useUrlTableState } from "@/hooks/use-url-table-state";
 import type {
   RecoverySheetResult,
@@ -11,7 +13,9 @@ import type {
   RecoverySheetSection,
 } from "@/lib/reports/recovery-data";
 import { formatReportDate, formatReportInvNo } from "@/lib/reports/helpers";
-import { formatNumber } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
+import { formatNumber, formatPkr } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 const TZ = "Asia/Karachi";
@@ -146,6 +150,7 @@ export function RecoverySheet({
   salesmanLabel = "All Salesmen",
   sections,
   grand,
+  canEdit = true,
 }: {
   companyName: string;
   from: string;
@@ -155,13 +160,62 @@ export function RecoverySheet({
   salesmanLabel?: string;
   sections: RecoverySheetSection[];
   grand: RecoverySheetResult["grand"];
+  /** View / edit / delete last recovery on each shop row (online). */
+  canEdit?: boolean;
 }) {
+  const router = useRouter();
   const { page, pageSize, isPending, setPage, setPageSize } =
     useUrlTableState();
   const [query, setQuery] = useState("");
   const [printedAt, setPrintedAt] = useState<Date | null>(null);
   const [hideSaleCols, setHideSaleCols] = useState(true);
   const savedTitle = useRef("");
+
+  async function cancelRecovery(id: string) {
+    const supabase = createClient();
+    const { error } = await supabase.rpc("cancel_recovery", {
+      p_recovery_id: id,
+    });
+    if (error) throw new Error(error.message);
+  }
+
+  function rowFields(r: FlatRow): DetailField[] {
+    return [
+      { label: "Sector", value: r.sector },
+      { label: "Acc ID", value: r.party_code },
+      { label: "Customer", value: r.name_en },
+      { label: "Final bal.", value: balanceLabel(r.final_balance) },
+      {
+        label: "Last received",
+        value:
+          r.last_received_amount != null && r.last_received_amount > 0.005
+            ? formatPkr(r.last_received_amount)
+            : "—",
+      },
+      {
+        label: "Last received date",
+        value: r.last_received_date || "—",
+      },
+      ...(hideSaleCols
+        ? []
+        : [
+            {
+              label: "Prev. bal.",
+              value: sheetAmount(r.prev_balance) || "—",
+            },
+            {
+              label: "Last sale",
+              value: r.last_sale_id
+                ? `${formatReportInvNo(r.last_sale_id)} · ${
+                    r.last_sale_date
+                      ? formatSheetDate(r.last_sale_date)
+                      : ""
+                  } · ${saleDash(r.last_sale_value)}`
+                : "—",
+            },
+          ]),
+    ];
+  }
 
   useEffect(() => {
     setPrintedAt(new Date());
@@ -212,28 +266,53 @@ export function RecoverySheet({
     scopeLabel && scopeLabel !== "All parties" && scopeLabel !== "All customers";
   const totalRows = grand.count;
 
-  const exportRows = filteredSections.flatMap((s) =>
-    s.rows.map((r) => {
-      const row: Record<string, unknown> = {
-        Sector: s.sector,
-        "Acc ID": r.party_code,
-        "Customer name": r.name_en,
-        "Last received": lastReceivedLabel(r.last_received_amount),
-      };
-      if (!hideSaleCols) {
-        row["Prev. balance"] = r.prev_balance;
-        row["Last sale ID"] = r.last_sale_id || "-";
-        row["Last sale"] = r.last_sale_date
-          ? formatSheetDate(r.last_sale_date)
-          : "-";
-        row["Last sale value"] = r.last_sale_value ?? "-";
-      }
-      row["Final bal."] = r.final_balance;
-      row.Received = "";
-      row.Remarks = "";
-      return row;
-    }),
-  );
+  const exportRows = useMemo(() => {
+    const rows = filteredSections.flatMap((s) =>
+      s.rows.map((r) => {
+        const row: Record<string, unknown> = {
+          Sector: s.sector,
+          "Acc ID": r.party_code,
+          "Customer name": r.name_en,
+          "Last received":
+            r.last_received_amount != null && r.last_received_amount > 0.005
+              ? Number(r.last_received_amount)
+              : "",
+        };
+        if (!hideSaleCols) {
+          row["Prev. balance"] = r.prev_balance;
+          row["Last sale ID"] = r.last_sale_id || "-";
+          row["Last sale"] = r.last_sale_date
+            ? formatSheetDate(r.last_sale_date)
+            : "-";
+          row["Last sale value"] = r.last_sale_value ?? "-";
+        }
+        row["Final bal."] = r.final_balance;
+        row.Received = "";
+        row.Remarks = "";
+        return row;
+      }),
+    );
+    if (!rows.length) return rows;
+    const totalRow: Record<string, unknown> = {
+      Sector: "TOTAL",
+      "Acc ID": "",
+      "Customer name": `${viewTotals.count} shops`,
+      "Last received":
+        viewTotals.lastReceivedTotal > 0.005
+          ? Number(viewTotals.lastReceivedTotal.toFixed(2))
+          : "",
+    };
+    if (!hideSaleCols) {
+      totalRow["Prev. balance"] = Number(viewTotals.prevTotal.toFixed(2));
+      totalRow["Last sale ID"] = "";
+      totalRow["Last sale"] = "";
+      totalRow["Last sale value"] = Number(viewTotals.lastSaleTotal.toFixed(2));
+    }
+    totalRow["Final bal."] = Number(viewTotals.finalTotal.toFixed(2));
+    totalRow.Received = "";
+    totalRow.Remarks = "";
+    return [...rows, totalRow];
+  }, [filteredSections, hideSaleCols, viewTotals]);
 
   const printed = printedAt ? formatPrintedAt(printedAt) : null;
 
@@ -310,6 +389,7 @@ export function RecoverySheet({
               <col className="recovery-balance-table__col-final" />
               <col className="recovery-balance-table__col-rec" />
               <col className="recovery-balance-table__col-remarks" />
+              <col className="recovery-balance-table__col-actions" />
             </colgroup>
             <thead>
               <tr>
@@ -328,64 +408,118 @@ export function RecoverySheet({
                 <th>Final bal.</th>
                 <th>Received</th>
                 <th>Remarks</th>
+                <th className="text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {slice.length ? (
-                slice.map((r) => (
-                  <tr key={r.party_id}>
-                    <td className="recovery-balance-table__sector" title={r.sector}>
-                      {r.sector}
-                    </td>
-                    <td className="recovery-balance-table__code">{r.party_code}</td>
-                    <td className="recovery-balance-table__name" title={r.name_en}>
-                      {r.name_en}
-                    </td>
-                    <td
-                      className="recovery-balance-table__received"
-                      title={lastReceivedLabel(r.last_received_amount)}
-                    >
-                      {lastReceivedLabel(r.last_received_amount)}
-                    </td>
-                    {hideSaleCols ? null : (
-                      <>
-                        <td className="recovery-balance-table__num">
-                          {sheetAmount(r.prev_balance)}
-                        </td>
-                        <td className="recovery-balance-table__sale-id">
-                          {r.last_sale_id
-                            ? formatReportInvNo(r.last_sale_id)
-                            : "-"}
-                        </td>
-                        <td className="recovery-balance-table__sale-date">
-                          {r.last_sale_date
-                            ? formatSheetDate(r.last_sale_date)
-                            : "-"}
-                        </td>
-                        <td className="recovery-balance-table__num">
-                          {saleDash(r.last_sale_value)}
-                        </td>
-                      </>
-                    )}
-                    <td
-                      className={
-                        r.final_balance > 0.005
-                          ? "recovery-balance-table__num font-semibold text-rose-700"
-                          : r.final_balance < -0.005
-                            ? "recovery-balance-table__num font-semibold text-emerald-700"
-                            : "recovery-balance-table__num text-[var(--muted)]"
-                      }
-                    >
-                      {balanceLabel(r.final_balance)}
-                    </td>
-                    <td className="recovery-balance-table__rec" />
-                    <td className="recovery-balance-table__remarks" />
-                  </tr>
-                ))
+                slice.map((r) => {
+                  const hasRecovery = Boolean(r.last_received_id);
+                  const partyLabel = `${r.party_code} — ${r.name_en}`;
+                  return (
+                    <tr key={r.party_id}>
+                      <td
+                        className="recovery-balance-table__sector"
+                        title={r.sector}
+                      >
+                        {r.sector}
+                      </td>
+                      <td className="recovery-balance-table__code">
+                        {r.party_code}
+                      </td>
+                      <td
+                        className="recovery-balance-table__name"
+                        title={r.name_en}
+                      >
+                        {r.name_en}
+                      </td>
+                      <td
+                        className="recovery-balance-table__received"
+                        title={lastReceivedLabel(r.last_received_amount)}
+                      >
+                        {lastReceivedLabel(r.last_received_amount)}
+                      </td>
+                      {hideSaleCols ? null : (
+                        <>
+                          <td className="recovery-balance-table__num">
+                            {sheetAmount(r.prev_balance)}
+                          </td>
+                          <td className="recovery-balance-table__sale-id">
+                            {r.last_sale_id
+                              ? formatReportInvNo(r.last_sale_id)
+                              : "-"}
+                          </td>
+                          <td className="recovery-balance-table__sale-date">
+                            {r.last_sale_date
+                              ? formatSheetDate(r.last_sale_date)
+                              : "-"}
+                          </td>
+                          <td className="recovery-balance-table__num">
+                            {saleDash(r.last_sale_value)}
+                          </td>
+                        </>
+                      )}
+                      <td
+                        className={
+                          r.final_balance > 0.005
+                            ? "recovery-balance-table__num font-semibold text-rose-700"
+                            : r.final_balance < -0.005
+                              ? "recovery-balance-table__num font-semibold text-emerald-700"
+                              : "recovery-balance-table__num text-[var(--muted)]"
+                        }
+                      >
+                        {balanceLabel(r.final_balance)}
+                      </td>
+                      <td className="recovery-balance-table__rec" />
+                      <td className="recovery-balance-table__remarks" />
+                      <td className="recovery-balance-table__actions">
+                        <RowActions
+                          viewTitle={
+                            hasRecovery
+                              ? `Last recovery — ${partyLabel}`
+                              : `Shop — ${partyLabel}`
+                          }
+                          viewFields={rowFields(r)}
+                          editTitle={`Edit recovery — ${partyLabel}`}
+                          editClassName="sm:max-w-3xl"
+                          allowEdit={canEdit && hasRecovery}
+                          editContent={
+                            canEdit && r.last_received_id
+                              ? (close) => (
+                                  <PostedDocumentEditor
+                                    table="recoveries"
+                                    id={r.last_received_id!}
+                                    onDone={() => {
+                                      close();
+                                      router.refresh();
+                                    }}
+                                  />
+                                )
+                              : undefined
+                          }
+                          allowCancel={false}
+                          allowDelete={canEdit && hasRecovery}
+                          deleteTitle="Delete this recovery?"
+                          deleteDescription={
+                            hasRecovery
+                              ? `Reverse ${formatPkr(Number(r.last_received_amount || 0))} for ${partyLabel}. The customer receivable goes back up by that amount.`
+                              : undefined
+                          }
+                          deleteConfirmLabel="Delete entry"
+                          onDelete={
+                            r.last_received_id
+                              ? () => cancelRecovery(r.last_received_id!)
+                              : undefined
+                          }
+                        />
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
                   <td
-                    colSpan={hideSaleCols ? 7 : 11}
+                    colSpan={hideSaleCols ? 8 : 12}
                     className="py-8 text-center text-[var(--muted)]"
                   >
                     No shops match this filter.
@@ -428,6 +562,7 @@ export function RecoverySheet({
                   >
                     {balanceLabel(viewTotals.finalTotal)}
                   </td>
+                  <td />
                   <td />
                   <td />
                 </tr>
@@ -598,9 +733,22 @@ export function RecoverySheet({
                   </tbody>
                   <tfoot>
                     <tr>
-                      <td colSpan={hideSaleCols ? 3 : 7} className="num">
+                      <td colSpan={2} className="num">
                         {section.sector} — {t.count} shops
                       </td>
+                      <td className="num">
+                        {lastReceivedLabel(t.lastReceivedTotal)}
+                      </td>
+                      {hideSaleCols ? null : (
+                        <>
+                          <td className="num">{sheetAmount(t.prevTotal)}</td>
+                          <td />
+                          <td />
+                          <td className="num">
+                            {saleDash(t.lastSaleTotal)}
+                          </td>
+                        </>
+                      )}
                       <td className="num">{formatNumber(t.finalTotal, 2)}</td>
                       <td />
                       <td />
@@ -618,7 +766,8 @@ export function RecoverySheet({
 
         <div className="recovery-sheet-foot">
           <span>
-            {viewTotals.count} shops · Final bal. total{" "}
+            {viewTotals.count} shops · Last received total{" "}
+            {formatNumber(viewTotals.lastReceivedTotal, 2)} · Final bal. total{" "}
             {formatNumber(viewTotals.finalTotal, 2)}
           </span>
           <span>Salesman: __________________</span>

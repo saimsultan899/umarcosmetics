@@ -1,7 +1,6 @@
 import { ChartCard } from "@/components/analytics/chart-card";
 import { RankBars, TrendAreaChart } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
-import { RecentRecoveriesList } from "@/components/recoveries/recent-recoveries-list";
 import { RecoverySheet } from "@/components/reports/recovery-sheet";
 import { FilterMultiSelect, ReportFilterActions } from "@/components/reports/report-filters";
 import { UrlFilterForm } from "@/components/reports/url-filter-form";
@@ -12,11 +11,9 @@ import { RecoveryForm } from "@/components/vouchers/recovery-form";
 import { lastNDates, sumByDay } from "@/lib/analytics/aggregate";
 import { requireCompanyContext } from "@/lib/auth";
 import { parseReportList } from "@/lib/reports/filter-params";
-import { one } from "@/lib/reports/helpers";
 import { buildRecoverySheet, parseScopeToken } from "@/lib/reports/recovery-data";
 import { fetchCompanySalesmen } from "@/lib/queries/salesmen";
 import type { Party } from "@/lib/types/database";
-import { formatPkr } from "@/lib/utils";
 import { localDateIso, monthStartLocal } from "@/lib/dates";
 import { Layers, Store, Wallet } from "lucide-react";
 
@@ -90,7 +87,7 @@ export default async function RecoverySheetPage({
         : `${sectors.length} sectors`;
 
   const from7 = lastNDates(7)[0];
-  const [sheet, { data: parties }, { data: sectorRows }, { data: recent }, { data: weekRec }, salesmen] =
+  const [sheet, { data: parties }, { data: sectorRows }, { data: weekRec }, salesmen] =
     await Promise.all([
       buildRecoverySheet(supabase, {
         companyId: company.id,
@@ -117,12 +114,6 @@ export default async function RecoverySheetPage({
         .eq("is_active", true)
         .not("route", "is", null)
         .limit(20000),
-      supabase
-        .from("recoveries")
-        .select("*, parties(party_code, name_en)")
-        .eq("company_id", company.id)
-        .order("recovery_date", { ascending: false })
-        .limit(20),
       supabase
         .from("recoveries")
         .select("recovery_date, amount, parties(name_en)")
@@ -178,7 +169,9 @@ export default async function RecoverySheetPage({
             Customer receivables
           </h1>
           <p className="mt-1 text-sm text-[var(--muted)]">
-            Shop balances (Dr/Cr) for field collection — {company.name}
+            Shop balances (Dr/Cr) for field collection — {company.name}. Use
+            View / Edit / Delete on each row for the last recovery (same as sale
+            invoices).
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -314,34 +307,8 @@ export default async function RecoverySheetPage({
         townLabel={townLabel}
         sections={sheet.sections}
         grand={sheet.grand}
+        canEdit
       />
-
-      <div className="panel p-5 no-print">
-        <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
-          Recent recoveries
-        </h2>
-        <p className="mt-1 text-sm text-[var(--muted)]">
-          Edit with the pencil (customer, amount, date, salesman) or delete to reverse the receivable.
-        </p>
-        <RecentRecoveriesList
-          canEdit={!offline}
-          rows={(recent || []).map((r) => {
-            const party = one(r.parties);
-            return {
-              id: String(r.id),
-              recovery_date: String(r.recovery_date || ""),
-              amount: Number(r.amount || 0),
-              remarks: r.remarks ? String(r.remarks) : null,
-              parties: party
-                ? {
-                    party_code: String(party.party_code || ""),
-                    name_en: String(party.name_en || ""),
-                  }
-                : null,
-            };
-          })}
-        />
-      </div>
     </div>
   );
 }

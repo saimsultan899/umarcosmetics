@@ -38,6 +38,9 @@ export type RecoverySheetRow = {
   head: string | null;
   /** Latest posted recovery on or before `to`. */
   last_received_amount: number | null;
+  /** Id of that recovery — used for view/edit/delete on the sheet. */
+  last_received_id: string | null;
+  last_received_date: string | null;
 };
 
 export type RecoverySheetSection = {
@@ -217,6 +220,8 @@ export async function buildRecoverySheet(
       last_sale_value: lastSaleValue,
       final_balance: balance,
       last_received_amount: lastReceived?.amount ?? null,
+      last_received_id: lastReceived?.id ?? null,
+      last_received_date: lastReceived?.recovery_date ?? null,
     };
   });
 
@@ -467,6 +472,7 @@ function netLastSaleValue(
 }
 
 type LastRecovery = {
+  id: string;
   amount: number;
   recovery_date: string;
   created_at: string;
@@ -513,7 +519,7 @@ async function fetchLastRecoveriesByParty(
 ) {
   const { data, error } = await supabase
     .from("recoveries")
-    .select("party_id, amount, recovery_date, created_at")
+    .select("id, party_id, amount, recovery_date, created_at")
     .eq("company_id", companyId)
     .lte("recovery_date", to)
     .gt("amount", 0)
@@ -529,6 +535,7 @@ async function fetchLastRecoveriesByParty(
     const partyId = row.party_id as string;
     if (!partyId || map.has(partyId)) continue;
     map.set(partyId, {
+      id: String(row.id || ""),
       amount: Number(row.amount || 0),
       recovery_date: String(row.recovery_date || ""),
       created_at: String(row.created_at || ""),

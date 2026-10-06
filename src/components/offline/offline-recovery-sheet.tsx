@@ -275,7 +275,10 @@ export function OfflineRecoverySheetPage({
       }
     }
 
-    const lastRecoveryByParty = new Map<string, { date: string; amount: number }>();
+    const lastRecoveryByParty = new Map<
+      string,
+      { id: string | null; date: string; amount: number }
+    >();
     for (const v of vouchers) {
       const type = String(v.voucher_type || v.type || v.entity_type || "");
       const isRec =
@@ -288,6 +291,7 @@ export function OfflineRecoverySheetPage({
       const cur = lastRecoveryByParty.get(pid);
       if (!cur || d > cur.date) {
         lastRecoveryByParty.set(pid, {
+          id: v.id ? String(v.id) : null,
           date: d,
           amount: Number(v.amount ?? v.total_amount ?? v.grand_total ?? 0),
         });
@@ -331,6 +335,8 @@ export function OfflineRecoverySheetPage({
         final_balance: balance,
         head: p.head ? String(p.head) : null,
         last_received_amount: lastRec ? lastRec.amount : null,
+        last_received_id: lastRec?.id ?? null,
+        last_received_date: lastRec?.date ?? null,
       };
     });
 
@@ -620,6 +626,7 @@ export function OfflineRecoverySheetPage({
         townLabel={townLabel}
         sections={sheet.sections}
         grand={sheet.grand}
+        canEdit={false}
       />
     </div>
   );

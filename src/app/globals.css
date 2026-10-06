@@ -831,7 +831,7 @@ button[aria-haspopup="listbox"]:focus-visible {
 }
 
 .recovery-balance-table--compact {
-  min-width: 900px;
+  min-width: 1020px;
 }
 
 .recovery-balance-table__col-sector {
@@ -875,7 +875,18 @@ button[aria-haspopup="listbox"]:focus-visible {
 }
 
 .recovery-balance-table__col-remarks {
-  width: 9%;
+  width: 7%;
+}
+
+.recovery-balance-table__col-actions {
+  width: 7%;
+}
+
+.recovery-balance-table__actions {
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+  text-align: right;
 }
 
 .recovery-balance-table th,
