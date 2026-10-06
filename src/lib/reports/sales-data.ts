@@ -39,6 +39,8 @@ type Filters = {
   type: SaleReportType;
   warehouseIds?: string[];
   partyIds?: string[];
+  /** Product ids (sale_invoice_items.product_id) — single or multiple. */
+  productIds?: string[];
   /** Sector (sale_invoices.route). */
   routes?: string[];
   /** Head / City (sale_invoices.city). */
@@ -73,6 +75,15 @@ function matchesCompanyFilter(
   if (!warehouseIds?.length) return true;
   const id = lineCompanyId(product, warehouseId);
   return warehouseIds.includes(id);
+}
+
+function matchesProductFilter(
+  productId: string | null | undefined,
+  productIds?: string[],
+) {
+  if (!productIds?.length) return true;
+  if (!productId) return false;
+  return productIds.includes(productId);
 }
 
 export async function buildSaleReport(
@@ -127,6 +138,24 @@ export async function buildSaleReport(
       if (filters.billTo && no > filters.billTo) return false;
       return true;
     });
+  }
+
+  // Header-level reports: keep invoices that contain any selected product.
+  if (
+    filters.productIds?.length &&
+    list.length &&
+    !LINE_COMPANY_TYPES.includes(filters.type)
+  ) {
+    const { data: matchItems } = await supabase
+      .from("sale_invoice_items")
+      .select("sale_invoice_id")
+      .in(
+        "sale_invoice_id",
+        list.map((i) => i.id),
+      )
+      .in("product_id", filters.productIds);
+    const matchIds = new Set((matchItems || []).map((r) => r.sale_invoice_id));
+    list = list.filter((inv) => matchIds.has(inv.id));
   }
 
   if (
@@ -198,6 +227,7 @@ export async function buildSaleReport(
       for (const it of items || []) {
         const inv = invMap.get(it.sale_invoice_id);
         if (!inv) continue;
+        if (!matchesProductFilter(it.product_id, filters.productIds)) continue;
         const product = one(it.products);
         const headerWh = one(inv.warehouses);
         const warehouseId =
@@ -306,6 +336,9 @@ export async function buildSaleReport(
       const detail = (items || [])
         .map((it) => {
           const inv = invMap.get(it.sale_invoice_id);
+          if (!matchesProductFilter(it.product_id, filters.productIds)) {
+            return null;
+          }
           if (
             !matchesCompanyFilter(
               one(it.products),
@@ -356,6 +389,9 @@ export async function buildSaleReport(
       return (items || [])
         .filter((it) => {
           const inv = invMap.get(it.sale_invoice_id);
+          if (!matchesProductFilter(it.product_id, filters.productIds)) {
+            return false;
+          }
           return matchesCompanyFilter(
             one(it.products),
             inv?.warehouse_id,
@@ -401,6 +437,7 @@ export async function buildSaleReport(
 
       const grouped = new Map<string, { qty: number; amount: number }>();
       for (const it of items || []) {
+        if (!matchesProductFilter(it.product_id, filters.productIds)) continue;
         const product = one(it.products);
         const inv = invMap.get(it.sale_invoice_id);
         if (
@@ -433,6 +470,9 @@ export async function buildSaleReport(
       return (items || [])
         .filter((it) => {
           const inv = invMap.get(it.sale_invoice_id);
+          if (!matchesProductFilter(it.product_id, filters.productIds)) {
+            return false;
+          }
           return matchesCompanyFilter(
             one(it.products),
             inv?.warehouse_id,
@@ -568,7 +608,7 @@ async function buildExpiryCreditReport(
   const { data: items, error: itemError } = await supabase
     .from("expiry_receipt_items")
     .select(
-      "receipt_id, product_code, product_name, qty, rate, amount, products(default_warehouse_id)",
+      "receipt_id, product_id, product_code, product_name, qty, rate, amount, products(default_warehouse_id)",
     )
     .in(
       "receipt_id",
@@ -597,6 +637,9 @@ async function buildExpiryCreditReport(
   return (items || [])
     .map((it) => {
       const doc = receiptMap.get(it.receipt_id);
+      if (!matchesProductFilter(it.product_id, filters.productIds)) {
+        return null;
+      }
       const product = one(it.products);
       const warehouseId = product?.default_warehouse_id as string | null;
       if (warehouseFilter.size && (!warehouseId || !warehouseFilter.has(warehouseId))) {

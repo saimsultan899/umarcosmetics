@@ -68,6 +68,7 @@ export function OfflineSaleReportsPage({
     to?: string;
     warehouse?: string;
     party?: string;
+    product?: string;
     sector?: string;
     city?: string;
     billFrom?: string;
@@ -85,6 +86,7 @@ export function OfflineSaleReportsPage({
       to: urlSp.get("to") ?? initialSp?.to ?? undefined,
       warehouse: urlSp.get("warehouse") ?? initialSp?.warehouse ?? undefined,
       party: urlSp.get("party") ?? initialSp?.party ?? undefined,
+      product: urlSp.get("product") ?? initialSp?.product ?? undefined,
       sector: urlSp.get("sector") ?? initialSp?.sector ?? undefined,
       city: urlSp.get("city") ?? initialSp?.city ?? undefined,
       billFrom: urlSp.get("billFrom") ?? initialSp?.billFrom ?? undefined,
@@ -235,9 +237,61 @@ export function OfflineSaleReportsPage({
 
   const warehouseIds = parseReportList(sp.warehouse);
   const partyIds = parseReportList(sp.party);
+  const productIds = parseReportList(sp.product);
   const sectors = parseReportList(sp.sector);
   const cities = parseReportList(sp.city);
   const walkInOnly = sp.walkin === "1" || sp.walkin === "true";
+
+  const productOptions = useMemo(() => {
+    return products
+      .filter((p) => p.id && p.is_active !== false)
+      .map((p) => ({
+        value: String(p.id),
+        label: `${p.code || ""} — ${p.name_en || ""}`.replace(/^ — /, ""),
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [products]);
+
+  function invoiceHasSelectedProduct(inv: Record<string, unknown>) {
+    if (!productIds.length) return true;
+    const lines = (() => {
+      if (Array.isArray(inv.lines) && inv.lines.length) {
+        return inv.lines as Record<string, unknown>[];
+      }
+      if (Array.isArray(inv.items) && inv.items.length) {
+        return inv.items as Record<string, unknown>[];
+      }
+      if (Array.isArray(inv.sale_invoice_items) && inv.sale_invoice_items.length) {
+        return inv.sale_invoice_items as Record<string, unknown>[];
+      }
+      const p = inv.payload as Record<string, unknown> | undefined;
+      if (p) {
+        if (Array.isArray(p.lines) && p.lines.length) {
+          return p.lines as Record<string, unknown>[];
+        }
+        if (Array.isArray(p.items) && p.items.length) {
+          return p.items as Record<string, unknown>[];
+        }
+        if (
+          Array.isArray(p.sale_invoice_items) &&
+          p.sale_invoice_items.length
+        ) {
+          return p.sale_invoice_items as Record<string, unknown>[];
+        }
+      }
+      return [] as Record<string, unknown>[];
+    })();
+    return lines.some((it) => {
+      const pid = it.product_id ? String(it.product_id) : "";
+      return pid && productIds.includes(pid);
+    });
+  }
+
+  function matchesProductLine(it: Record<string, unknown>) {
+    if (!productIds.length) return true;
+    const pid = it.product_id ? String(it.product_id) : "";
+    return Boolean(pid && productIds.includes(pid));
+  }
 
   const brandName = warehouseIds.length
     ? warehouses
@@ -336,6 +390,11 @@ export function OfflineSaleReportsPage({
         list = list.filter((inv) => warehouseIds.includes(String(inv.warehouse_id)));
       }
 
+      // Product filter for header-level reports
+      if (productIds.length && !LINE_COMPANY_TYPES.includes(type)) {
+        list = list.filter((inv) => invoiceHasSelectedProduct(inv));
+      }
+
       if (type === "cash_sales") {
         list = list.filter((inv) => String(inv.payment_type).toLowerCase() === "cash");
       }
@@ -376,6 +435,7 @@ export function OfflineSaleReportsPage({
             .join(" ");
 
           if (!lines.length) {
+            if (productIds.length) continue;
             const wid = String(inv.warehouse_id || "");
             if (warehouseIds.length && !warehouseIds.includes(wid)) continue;
 
@@ -397,6 +457,7 @@ export function OfflineSaleReportsPage({
           }
 
           for (const it of lines) {
+            if (!matchesProductLine(it)) continue;
             const prod = it.product_id ? prodMap.get(String(it.product_id)) : null;
             const wid = String(prod?.default_warehouse_id || inv.warehouse_id || "");
             if (warehouseIds.length && !warehouseIds.includes(wid)) continue;
@@ -462,6 +523,7 @@ export function OfflineSaleReportsPage({
           const paid = Number(inv.amount_paid || 0);
 
           if (!lines.length) {
+            if (productIds.length) continue;
             const wid = String(inv.warehouse_id || "unknown");
             if (warehouseIds.length && !warehouseIds.includes(wid)) continue;
 
@@ -513,6 +575,7 @@ export function OfflineSaleReportsPage({
           }
 
           for (const it of lines) {
+            if (!matchesProductLine(it)) continue;
             const prod = it.product_id ? prodMap.get(String(it.product_id)) : null;
             const wid = String(prod?.default_warehouse_id || inv.warehouse_id || "unknown");
             if (warehouseIds.length && !warehouseIds.includes(wid)) continue;
@@ -607,6 +670,7 @@ export function OfflineSaleReportsPage({
           const lines = getInvoiceLines(inv);
           const party = inv.party_id ? partyMap.get(String(inv.party_id)) : null;
           for (const it of lines) {
+            if (!matchesProductLine(it)) continue;
             const prod = it.product_id ? prodMap.get(String(it.product_id)) : null;
             const wid = String(prod?.default_warehouse_id || inv.warehouse_id || "");
             if (warehouseIds.length && !warehouseIds.includes(wid)) continue;
@@ -634,6 +698,7 @@ export function OfflineSaleReportsPage({
         for (const inv of list) {
           const lines = getInvoiceLines(inv);
           for (const it of lines) {
+            if (!matchesProductLine(it)) continue;
             const prod = it.product_id ? prodMap.get(String(it.product_id)) : null;
             const wid = String(prod?.default_warehouse_id || inv.warehouse_id || "");
             if (warehouseIds.length && !warehouseIds.includes(wid)) continue;
@@ -660,6 +725,7 @@ export function OfflineSaleReportsPage({
         for (const inv of list) {
           const lines = getInvoiceLines(inv);
           for (const it of lines) {
+            if (!matchesProductLine(it)) continue;
             const prod = it.product_id ? prodMap.get(String(it.product_id)) : null;
             const wid = String(prod?.default_warehouse_id || inv.warehouse_id || "");
             if (warehouseIds.length && !warehouseIds.includes(wid)) continue;
@@ -778,6 +844,7 @@ export function OfflineSaleReportsPage({
     to,
     warehouseIds,
     partyIds,
+    productIds,
     sectors,
     cities,
     sp.billFrom,
@@ -936,6 +1003,13 @@ export function OfflineSaleReportsPage({
               label="Head / City"
               value={sp.city}
               options={cityOptions.map((c) => ({ value: c, label: c }))}
+            />
+            <FilterMultiSelect
+              name="product"
+              label="Product"
+              value={sp.product}
+              options={productOptions}
+              searchPlaceholder="Search code or name..."
             />
             {types.includes("bill_range") ? (
               <>

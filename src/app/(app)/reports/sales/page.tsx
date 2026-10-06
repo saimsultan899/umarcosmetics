@@ -48,6 +48,7 @@ export default async function SaleReportsPage({
     to?: string;
     warehouse?: string;
     party?: string;
+    product?: string;
     sector?: string;
     city?: string;
     billFrom?: string;
@@ -78,7 +79,7 @@ export default async function SaleReportsPage({
     : ["date_wise"];
   const primaryType = types[0];
 
-  const [{ data: warehouses }, { data: parties }, { data: walkInParty }] =
+  const [{ data: warehouses }, { data: parties }, { data: products }, { data: walkInParty }] =
     await Promise.all([
     supabase
       .from("warehouses")
@@ -94,6 +95,13 @@ export default async function SaleReportsPage({
       .order("name_en")
       .limit(500),
     supabase
+      .from("products")
+      .select("id, code, name_en")
+      .eq("company_id", company.id)
+      .eq("is_active", true)
+      .order("code")
+      .limit(2000),
+    supabase
       .from("parties")
       .select("id")
       .eq("company_id", company.id)
@@ -103,6 +111,7 @@ export default async function SaleReportsPage({
 
   const warehouseIds = parseReportList(sp.warehouse);
   const partyIds = parseReportList(sp.party);
+  const productIds = parseReportList(sp.product);
   const sectors = parseReportList(sp.sector);
   const cities = parseReportList(sp.city);
   const walkInOnly = sp.walkin === "1" || sp.walkin === "true";
@@ -134,6 +143,7 @@ export default async function SaleReportsPage({
         type,
         warehouseIds,
         partyIds,
+        productIds,
         routes: sectors,
         cities,
         billFrom: sp.billFrom || undefined,
@@ -282,6 +292,16 @@ export default async function SaleReportsPage({
               label="Head / City"
               value={sp.city}
               options={cityOptions.map((c) => ({ value: c, label: c }))}
+            />
+            <FilterMultiSelect
+              name="product"
+              label="Product"
+              value={sp.product}
+              options={(products || []).map((p) => ({
+                value: p.id,
+                label: `${p.code} — ${p.name_en}`,
+              }))}
+              searchPlaceholder="Search code or name..."
             />
             {types.includes("bill_range") ? (
               <>
