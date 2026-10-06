@@ -137,7 +137,19 @@ function mapDocumentRow(
 function applyDocumentSearch(query: any, q: string, docNoField: string) {
   const term = escapeIlike(q);
   if (!term) return query;
-  return query.ilike(docNoField, `%${term}%`);
+  return query.or(
+    `${docNoField}.ilike.%${term}%,parties.party_code.ilike.%${term}%,parties.name_en.ilike.%${term}%`,
+  );
+}
+
+/** Inner-join the party only while searching, so code/name filters drop non-matches. */
+function selectForSearch(select: string, searching: boolean) {
+  if (!searching) return select;
+  if (select.includes("parties!inner(")) return select;
+  if (select.includes("parties(")) {
+    return select.replace("parties(", "parties!inner(");
+  }
+  return `${select}, parties!inner(party_code, name_en)`;
 }
 
 export async function fetchDocumentList(
@@ -157,6 +169,7 @@ export async function fetchDocumentList(
   const payment = spString(searchParams, "payment") || "all";
   const warehouseId = spString(searchParams, "warehouse") || "";
 
+  const searching = Boolean(escapeIlike(q));
   const selectParts = [
     config.columns,
     config.partySelect,
@@ -165,7 +178,7 @@ export async function fetchDocumentList(
 
   let listQuery = supabase
     .from(config.table)
-    .select(selectParts.join(", "), { count: "exact" })
+    .select(selectForSearch(selectParts.join(", "), searching), { count: "exact" })
     .eq("company_id", companyId);
   if (
     config.table === "sale_invoices" ||
@@ -197,7 +210,7 @@ export async function fetchDocumentList(
 
   let summaryQuery = supabase
     .from(config.table)
-    .select(recentSelect)
+    .select(selectForSearch(recentSelect, searching))
     .eq("company_id", companyId);
   if (isTradingDoc) {
     summaryQuery = summaryQuery.neq("status", "cancelled");

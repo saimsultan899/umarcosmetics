@@ -2340,6 +2340,48 @@ button[aria-haspopup="listbox"]:focus-visible {
   min-height: 14px;
 }
 
+/* A5 sale invoice only — a step smaller than the A4 slip */
+.si-half {
+  font-size: 15px;
+}
+.si-half .si-doc-label {
+  font-size: 13px;
+}
+.si-half .si-title {
+  font-size: 26px;
+}
+.si-half .si-salesman,
+.si-half .si-company-line,
+.si-half .si-meta {
+  font-size: 14.5px;
+}
+.si-half .si-company {
+  font-size: 17px;
+}
+.si-half .si-distributor-addr,
+.si-half .si-co {
+  font-size: 13.5px;
+}
+.si-half .si-table {
+  font-size: 14.5px;
+}
+.si-half .si-bonus {
+  font-size: 12.5px;
+}
+.si-half .si-foot {
+  font-size: 14.5px;
+}
+.si-half .si-paid-kind {
+  font-size: 12.5px;
+}
+.si-half .si-note,
+.si-half .si-prepared {
+  font-size: 13.5px;
+}
+.si-half .si-checked {
+  font-size: 14.5px;
+}
+
 /* Classic document (purchase invoice, returns, transfer, load sheet, voucher)
    — same visual language as the sale invoice, full A4 by default. Reuses the
    .si-* title / meta / table / row styles for consistency. */
@@ -2917,6 +2959,46 @@ button[aria-haspopup="listbox"]:focus-visible {
     transform: none !important;
     font-size: 17px !important;
     line-height: 1.3 !important;
+  }
+  .print-sheet.si-half {
+    font-size: 15px !important;
+  }
+  .print-sheet.si-half .si-doc-label {
+    font-size: 13px !important;
+  }
+  .print-sheet.si-half .si-title {
+    font-size: 26px !important;
+  }
+  .print-sheet.si-half .si-salesman,
+  .print-sheet.si-half .si-company-line,
+  .print-sheet.si-half .si-meta {
+    font-size: 14.5px !important;
+  }
+  .print-sheet.si-half .si-company {
+    font-size: 17px !important;
+  }
+  .print-sheet.si-half .si-distributor-addr,
+  .print-sheet.si-half .si-co {
+    font-size: 13.5px !important;
+  }
+  .print-sheet.si-half .si-table {
+    font-size: 14.5px !important;
+  }
+  .print-sheet.si-half .si-bonus {
+    font-size: 12.5px !important;
+  }
+  .print-sheet.si-half .si-foot {
+    font-size: 14.5px !important;
+  }
+  .print-sheet.si-half .si-note,
+  .print-sheet.si-half .si-prepared {
+    font-size: 13.5px !important;
+  }
+  .print-sheet.si-half .si-checked {
+    font-size: 14.5px !important;
+  }
+  .print-sheet.si-half .si-paid-kind {
+    font-size: 12.5px !important;
   }
 
   /* Continuous roll: height follows content. Measured height is injected for

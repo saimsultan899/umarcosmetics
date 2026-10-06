@@ -210,7 +210,7 @@ export function DocumentListTable({
           onQueryChange={search.onQueryChange}
           onFocus={search.onFocus}
           onBlur={search.onBlur}
-          placeholder="Search doc #..."
+          placeholder={`Search doc #, ${partyColumnLabel.toLowerCase()} code or name...`}
           resultCount={pagination.total}
           totalCount={pagination.total}
           filters={
