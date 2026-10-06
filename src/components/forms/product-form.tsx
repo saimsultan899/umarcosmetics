@@ -12,6 +12,11 @@ import {
   purchaseDiscountPercentText,
 } from "@/lib/pricing/discounts";
 import { offlineAwareSubmit, allocateNextProductCode } from "@/lib/offline/offline-submit";
+import { getCachedRows } from "@/lib/offline/local-db";
+import {
+  validateProductIdentity,
+  type ProductIdentityRow,
+} from "@/lib/products/validate-identity";
 import { createClient } from "@/lib/supabase/client";
 import type { Product, Warehouse } from "@/lib/types/database";
 import { AMOUNT_PLACEHOLDER, AMOUNT_STEP } from "@/lib/utils";
@@ -65,7 +70,80 @@ export function ProductForm({
   // Hardware scanner (keyboard wedge) or manual typing both land in Barcode.
   useBarcodeWedge((code) => {
     set("barcode", code);
+    setError(null);
   });
+
+  async function loadCatalog(): Promise<ProductIdentityRow[]> {
+    const rows: ProductIdentityRow[] = [];
+    const seen = new Set<string>();
+
+    function push(row: ProductIdentityRow) {
+      const id = String(row.id || "");
+      const key = id || `code:${String(row.code || "").toLowerCase()}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      rows.push(row);
+    }
+
+    try {
+      if (typeof navigator === "undefined" || navigator.onLine) {
+        const supabase = createClient();
+        const { data } = await supabase
+          .from("products")
+          .select("id, code, name_en, barcode")
+          .eq("company_id", companyId)
+          .limit(5000);
+        for (const row of data || []) push(row);
+      }
+    } catch {
+      /* fall through to local cache */
+    }
+
+    try {
+      const { hasLocalSqlite, localListMaster } = await import(
+        "@/lib/offline/sqlite-client"
+      );
+      if (hasLocalSqlite()) {
+        const res = await localListMaster("products", companyId, 5000);
+        for (const row of res.rows || []) {
+          push({
+            id: row.id ? String(row.id) : null,
+            code: row.code ? String(row.code) : null,
+            name_en: row.name_en ? String(row.name_en) : null,
+            barcode: row.barcode ? String(row.barcode) : null,
+          });
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+
+    try {
+      const cached = await getCachedRows("products", companyId);
+      for (const row of cached) {
+        push({
+          id: row.id ? String(row.id) : null,
+          code: row.code ? String(row.code) : null,
+          name_en: row.name_en ? String(row.name_en) : null,
+          barcode: row.barcode ? String(row.barcode) : null,
+        });
+      }
+    } catch {
+      /* ignore */
+    }
+
+    return rows;
+  }
+
+  async function checkIdentity(code: string, barcode: string) {
+    const catalog = await loadCatalog();
+    return validateProductIdentity({
+      code,
+      barcode,
+      productId: initial?.id,
+      catalog,
+    });
+  }
 
   useEffect(() => {
     if (initial) return;
@@ -139,6 +217,13 @@ export function ProductForm({
 
     if (!code) {
       code = await allocateNextProductCode(companyId);
+    }
+
+    const identityError = await checkIdentity(code, form.barcode);
+    if (identityError) {
+      setLoading(false);
+      setError(identityError);
+      return;
     }
 
     const openingQty = Number(form.opening_qty || 0);
@@ -219,6 +304,12 @@ export function ProductForm({
           onChange={(e) => {
             setAutoCode(false);
             set("code", e.target.value);
+            if (error) setError(null);
+          }}
+          onBlur={async () => {
+            if (initial || !form.code.trim()) return;
+            const msg = await checkIdentity(form.code, form.barcode);
+            if (msg) setError(msg);
           }}
           required
           readOnly={!!initial}
@@ -268,13 +359,23 @@ export function ProductForm({
         <Label>Barcode</Label>
         <Input
           value={form.barcode}
-          onChange={(e) => set("barcode", e.target.value)}
+          onChange={(e) => {
+            set("barcode", e.target.value);
+            if (error) setError(null);
+          }}
+          onBlur={async () => {
+            if (!form.barcode.trim()) return;
+            const code = form.code.trim() || initial?.code || "";
+            if (!code) return;
+            const msg = await checkIdentity(code, form.barcode);
+            if (msg) setError(msg);
+          }}
           placeholder="Scan or type"
           autoComplete="off"
           inputMode="text"
         />
         <p className="mt-1 text-[11px] text-[var(--muted)]">
-          Optional. Scan the item or type the barcode. Saved with the product.
+          Optional. Must be unique. Do not enter product code or phone number.
         </p>
       </div>
       <div>
