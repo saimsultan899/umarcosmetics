@@ -106,6 +106,7 @@ export function OfflineSaleReportsPage({
   const [products, setProducts] = useState<Record<string, unknown>[]>([]);
   const [salesmen, setSalesmen] = useState<Record<string, unknown>[]>([]);
   const [expiryReceipts, setExpiryReceipts] = useState<Record<string, unknown>[]>([]);
+  const [saleReturns, setSaleReturns] = useState<Record<string, unknown>[]>([]);
 
   // Load offline data from SQLite / IndexedDB
   useEffect(() => {
@@ -126,6 +127,7 @@ export function OfflineSaleReportsPage({
         let prodRows: Record<string, unknown>[] = [];
         let smRows: Record<string, unknown>[] = [];
         let expRows: Record<string, unknown>[] = [];
+        let returnRows: Record<string, unknown>[] = [];
 
         if (hasLocalSqlite()) {
           try {
@@ -139,13 +141,15 @@ export function OfflineSaleReportsPage({
         } catch {}
 
         if (hasLocalSqlite()) {
-          const [invRes, partyRes, whRes, prodRes, smRes, expRes] = await Promise.all([
+          const [invRes, partyRes, whRes, prodRes, smRes, expRes, returnRes] =
+            await Promise.all([
             localListDocuments("sale_invoices", companyId, 2000),
             localListMaster("parties", companyId),
             localListMaster("warehouses", companyId),
             localListMaster("products", companyId),
             localListMaster("salesmen", companyId),
             localListByEntity(companyId, "expiry_receipt", 500),
+            localListByEntity(companyId, "sale_return", 2000),
           ]);
           invRows = invRes.rows || [];
           partyRows = partyRes.rows || [];
@@ -153,6 +157,7 @@ export function OfflineSaleReportsPage({
           prodRows = prodRes.rows || [];
           smRows = smRes.rows || [];
           expRows = expRes.rows || [];
+          returnRows = returnRes.rows || [];
         }
 
         // Complement from IndexedDB so offline includes 100% of cached server & local records
@@ -172,6 +177,19 @@ export function OfflineSaleReportsPage({
         if (!prodRows.length) prodRows = await getCachedRows("products", companyId);
         if (!smRows.length) smRows = await getCachedRows("salesmen", companyId);
         if (!expRows.length) expRows = await getCachedRows("expiry_receipts", companyId);
+        const idbReturns = await getCachedRows("sale_returns", companyId);
+        if (idbReturns.length) {
+          const seen = new Set(
+            returnRows.map((r) => String(r.id || r._localId || r.return_no)),
+          );
+          for (const row of idbReturns) {
+            const k = String(row.id || row._localId || row.return_no);
+            if (!seen.has(k)) {
+              returnRows.push(row);
+              seen.add(k);
+            }
+          }
+        }
 
         if (cancelled) return;
         setInvoices(invRows);
@@ -180,6 +198,7 @@ export function OfflineSaleReportsPage({
         setProducts(prodRows);
         setSalesmen(smRows);
         setExpiryReceipts(expRows);
+        setSaleReturns(returnRows);
       } catch (err) {
         console.error("Failed to load local sales report data:", err);
       } finally {
@@ -706,7 +725,33 @@ export function OfflineSaleReportsPage({
       }
 
       if (type === "manufacturer_wise") {
-        const grouped = new Map<string, { qty: number; amount: number }>();
+        type CompanyBucket = {
+          bills: Set<string>;
+          customers: Set<string>;
+          qty: number;
+          discount: number;
+          amount: number;
+          cost: number;
+          returnQty: number;
+          returnAmount: number;
+          returnCost: number;
+        };
+        const grouped = new Map<string, CompanyBucket>();
+        const ensure = (key: string) => {
+          const cur = grouped.get(key) || {
+            bills: new Set<string>(),
+            customers: new Set<string>(),
+            qty: 0,
+            discount: 0,
+            amount: 0,
+            cost: 0,
+            returnQty: 0,
+            returnAmount: 0,
+            returnCost: 0,
+          };
+          grouped.set(key, cur);
+          return cur;
+        };
         for (const inv of list) {
           const lines = getInvoiceLines(inv);
           for (const it of lines) {
@@ -717,17 +762,73 @@ export function OfflineSaleReportsPage({
 
             const wh = whMap.get(wid);
             const key = String(wh?.name || "Unassigned");
-            const cur = grouped.get(key) || { qty: 0, amount: 0 };
-            cur.qty += Number(it.qty || 0);
+            const cur = ensure(key);
+            const qty = Number(it.qty || 0);
+            cur.qty += qty;
+            cur.discount += Number(it.discount || 0);
             cur.amount += Number(it.amount || 0);
-            grouped.set(key, cur);
+            cur.cost += qty * Number(prod?.purchase_rate || prod?.purchase_price || 0);
+            if (inv.id) cur.bills.add(String(inv.id));
+            if (inv.party_id) cur.customers.add(String(inv.party_id));
           }
         }
-        const rows = [...grouped.entries()].map(([Company, v]) => ({
-          Company,
-          Qty: v.qty,
-          Amount: v.amount,
-        }));
+        for (const ret of saleReturns) {
+          const retDate = String(ret.return_date || ret.doc_date || "").slice(0, 10);
+          if (retDate < from || retDate > to) continue;
+          if (ret.status === "voided" || ret.status === "cancelled") continue;
+          if (walkInOnly) {
+            if (!walkInParty || String(ret.party_id) !== String(walkInParty.id)) continue;
+          } else if (partyIds.length && !partyIds.includes(String(ret.party_id))) {
+            continue;
+          }
+          const party = ret.party_id ? partyMap.get(String(ret.party_id)) : null;
+          const route = String(ret.route || party?.route || "");
+          const city = String(ret.city || party?.city || party?.head || "");
+          if (sectors.length && !sectors.includes(route)) continue;
+          if (cities.length && !cities.includes(city)) continue;
+
+          const lines = Array.isArray(ret.sale_return_items)
+            ? (ret.sale_return_items as Record<string, unknown>[])
+            : Array.isArray(ret.items)
+              ? (ret.items as Record<string, unknown>[])
+              : Array.isArray((ret.payload as Record<string, unknown> | undefined)?.items)
+                ? ((ret.payload as Record<string, unknown>).items as Record<string, unknown>[])
+                : Array.isArray((ret.payload as Record<string, unknown> | undefined)?.sale_return_items)
+                  ? ((ret.payload as Record<string, unknown>).sale_return_items as Record<string, unknown>[])
+                  : [];
+          for (const it of lines) {
+            if (!matchesProductLine(it)) continue;
+            const prod = it.product_id ? prodMap.get(String(it.product_id)) : null;
+            const wid = String(prod?.default_warehouse_id || ret.warehouse_id || "");
+            if (warehouseIds.length && !warehouseIds.includes(wid)) continue;
+            const wh = whMap.get(wid);
+            const key = String(wh?.name || "Unassigned");
+            const cur = ensure(key);
+            const qty = Number(it.qty || 0);
+            cur.returnQty += qty;
+            cur.returnAmount += Number(it.amount || 0);
+            cur.returnCost += qty * Number(prod?.purchase_rate || prod?.purchase_price || 0);
+          }
+        }
+        const rows = [...grouped.entries()]
+          .map(([Company, v]) => {
+            const netQty = v.qty - v.returnQty;
+            const netAmount = v.amount - v.returnAmount;
+            const netCost = v.cost - v.returnCost;
+            return {
+              Company,
+              Bills: v.bills.size,
+              Qty: v.qty,
+              Amount: v.amount,
+              "Return qty": v.returnQty,
+              "Return amount": v.returnAmount,
+              "Net qty": netQty,
+              "Net amount": netAmount,
+              Cost: netCost,
+              Profit: netAmount - netCost,
+            };
+          })
+          .sort((a, b) => b["Net amount"] - a["Net amount"]);
         sections.push({ type, label, rows });
         continue;
       }
@@ -846,6 +947,7 @@ export function OfflineSaleReportsPage({
     products,
     salesmen,
     expiryReceipts,
+    saleReturns,
     partyMap,
     whMap,
     prodMap,

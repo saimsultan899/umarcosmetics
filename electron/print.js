@@ -11,12 +11,12 @@ const fs = require("fs");
 const path = require("path");
 const { app } = require("electron");
 
-/** @returns {'thermal' | 'a5' | 'a4'} */
+/** @returns {'thermal' | 'a5' | 'a4' | 'a4-landscape'} */
 async function detectPrintPaper(wc) {
   try {
     return await wc.executeJavaScript(`(() => {
       const forced = document.documentElement.getAttribute('data-print-paper');
-      if (forced === 'thermal' || forced === 'a5' || forced === 'a4') return forced;
+      if (forced === 'thermal' || forced === 'a5' || forced === 'a4' || forced === 'a4-landscape') return forced;
       if (document.documentElement.classList.contains('thermal-print-mode')) {
         return 'thermal';
       }
@@ -24,6 +24,7 @@ async function detectPrintPaper(wc) {
         (el) => !el.classList.contains('print-skip'),
       );
       for (const el of sheets) {
+        if (el.classList.contains('report-print--wide')) return 'a4-landscape';
         const paper = el.getAttribute('data-paper');
         if (paper === 'thermal' || paper === 'a5' || paper === 'a4') return paper;
         if (el.classList.contains('thermal-80')) return 'thermal';
@@ -73,13 +74,14 @@ async function thermalPageSize(wc) {
 async function printOptions(wc, paper) {
   const thermal = paper === "thermal";
   const a5 = paper === "a5";
+  const wide = paper === "a4-landscape";
   const options = {
     silent: false,
     printBackground: thermal,
     color: !thermal,
     deviceName: "",
     scaleFactor: 100,
-    landscape: false,
+    landscape: wide,
     margins: { marginType: thermal || a5 ? "none" : "default" },
   };
   if (thermal) {
@@ -96,13 +98,14 @@ async function printOptions(wc, paper) {
 async function pdfOptions(wc, paper, preferCss) {
   const thermal = paper === "thermal";
   const a5 = paper === "a5";
+  const wide = paper === "a4-landscape";
   const options = {
     printBackground: true,
     // Isolated A4/A5 documents have one @page rule, same as Chrome.
     // The live window still has an A4 rule first, so only trust CSS there
     // when this is not an A5 slip.
     preferCSSPageSize: preferCss ? true : !a5,
-    landscape: false,
+    landscape: wide,
     margins: { marginType: thermal || a5 ? "none" : "default" },
   };
   if (thermal) {

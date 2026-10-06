@@ -25,10 +25,12 @@ export function ReportFilterActions({
   submitLabel = "Run report",
   keepKeys = KEEP_FILTER_KEYS,
   className,
+  nowrap = false,
 }: {
   submitLabel?: string;
   keepKeys?: string[];
   className?: string;
+  nowrap?: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -99,7 +101,9 @@ export function ReportFilterActions({
         className,
       )}
     >
-      <FilterSubmitButton className="h-10 min-w-0 flex-1">
+      <FilterSubmitButton
+        className={nowrap ? "h-10 shrink-0 whitespace-nowrap px-4" : "h-10 min-w-0 flex-1"}
+      >
         {submitLabel}
       </FilterSubmitButton>
       <Button
@@ -108,7 +112,7 @@ export function ReportFilterActions({
         onClick={onClear}
         loading={isPending}
         disabled={formPending}
-        className="h-10 min-w-0 flex-1"
+        className={nowrap ? "h-10 shrink-0 whitespace-nowrap px-4" : "h-10 min-w-0 flex-1"}
       >
         Clear filter
       </Button>

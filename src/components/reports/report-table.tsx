@@ -42,6 +42,9 @@ function formatCell(key: string, value: unknown) {
   ) {
     return formatPkr(value);
   }
+  if (typeof value === "number" && /\bbills\b|\bcustomers\b/i.test(key)) {
+    return formatNumber(value, 0);
+  }
   if (typeof value === "number" && /qty/i.test(key)) {
     return formatNumber(value, 3);
   }
@@ -68,9 +71,9 @@ function isAdditiveColumn(key: string) {
   if (isClosingColumn(key)) return false;
   if (/limit|avg|average|percent|margin|reorder|packing/i.test(key)) return false;
   return (
-    /amount|total|paid|value|balance|qty|cash|credit|debit|profit|subtotal|discount|sales|collected|recovered|salary|expense/i.test(
+    /amount|total|paid|value|balance|qty|cash|credit|debit|profit|subtotal|discount|sales|collected|recovered|salary|expense|cost|\bbills\b|\bcustomers\b/i.test(
       key,
-    ) && !/rate|price|opening|running|\bper\b|\bnet\b|result/i.test(key)
+    ) && !/rate|price|opening|running|\bper\b|result/i.test(key)
   );
 }
 
@@ -87,6 +90,7 @@ export function ReportTable({
   rows,
   filename,
   filters,
+  showFooter = true,
 }: {
   title: string;
   subtitle?: string;
@@ -95,6 +99,8 @@ export function ReportTable({
   rows: Record<string, unknown>[];
   filename: string;
   filters?: React.ReactNode;
+  /** Opening and closing rows must not be added into a total. */
+  showFooter?: boolean;
 }) {
   const { page, pageSize, isPending, setPage, setPageSize } =
     useUrlTableState();
@@ -158,7 +164,8 @@ export function ReportTable({
   }, [columns, filtered]);
 
   const showTotals =
-    Boolean(totals) || Object.keys(closingByColumn).length > 0;
+    showFooter &&
+    (Boolean(totals) || Object.keys(closingByColumn).length > 0);
 
   function totalsCell(c: string, colIndex: number) {
     if (c in closingByColumn) return formatCell(c, closingByColumn[c]);
@@ -202,7 +209,9 @@ export function ReportTable({
             <thead>
               <tr>
                 {columns.map((c) => (
-                  <th key={c}>{c}</th>
+                  <th key={c} className={numericCols.has(c) ? "num" : undefined}>
+                    {c}
+                  </th>
                 ))}
                 {columns.length ? (
                   <th className="no-print text-right">Actions</th>
@@ -236,7 +245,10 @@ export function ReportTable({
                           href &&
                           /^(inv no\.?|invoice)$/i.test(c);
                         return (
-                          <td key={c}>
+                          <td
+                            key={c}
+                            className={numericCols.has(c) ? "num" : undefined}
+                          >
                             {isInv ? (
                               <Link
                                 href={href}
@@ -311,7 +323,10 @@ export function ReportTable({
               <tfoot>
                 <tr>
                   {columns.map((c, i) => (
-                    <td key={c} className="font-semibold">
+                    <td
+                      key={c}
+                      className={numericCols.has(c) ? "num font-semibold" : "font-semibold"}
+                    >
                       {totalsCell(c, i)}
                     </td>
                   ))}
@@ -339,7 +354,9 @@ export function ReportTable({
       {/* Full report, all filtered rows — print only */}
       <div
         data-print-id={filename}
-        className="print-only print-sheet report-print"
+        className={`print-only print-sheet report-print${
+          columns.length > 7 ? " report-print--wide" : ""
+        }`}
       >
         <div className="report-print-head">
           <div>

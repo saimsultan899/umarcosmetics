@@ -96,6 +96,7 @@ export const mainNav: NavItem[] = [
       { label: "Sales", href: "/reports/sales" },
       { label: "Purchases", href: "/reports/purchases" },
       { label: "Stock", href: "/reports/stock" },
+      { label: "Company statement", href: "/reports/company" },
       { label: "Expiry warehouse", href: "/reports/expiry" },
       { label: "Profit summary", href: "/reports/profit" },
       { label: "Expense report", href: "/reports/expenses" },

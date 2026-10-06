@@ -435,7 +435,40 @@ export async function buildSaleReport(
         }
       }
 
-      const grouped = new Map<string, { qty: number; amount: number }>();
+      const grouped = new Map<
+        string,
+        {
+          bills: Set<string>;
+          customers: Set<string>;
+          qty: number;
+          discount: number;
+          amount: number;
+          cost: number;
+          returnQty: number;
+          returnAmount: number;
+          returnCost: number;
+        }
+      >();
+      const ensure = (key: string) => {
+        const cur = grouped.get(key) || {
+          bills: new Set<string>(),
+          customers: new Set<string>(),
+          qty: 0,
+          discount: 0,
+          amount: 0,
+          cost: 0,
+          returnQty: 0,
+          returnAmount: 0,
+          returnCost: 0,
+        };
+        grouped.set(key, cur);
+        return cur;
+      };
+      const companyName = (
+        warehouseId: string,
+        fallback?: string | null,
+      ) => whNameById.get(warehouseId) || fallback || "Unassigned";
+
       for (const it of items || []) {
         if (!matchesProductFilter(it.product_id, filters.productIds)) continue;
         const product = one(it.products);
@@ -452,18 +485,111 @@ export async function buildSaleReport(
         const headerWh = one(inv?.warehouses);
         const warehouseId =
           product?.default_warehouse_id || inv?.warehouse_id || "";
-        const key =
-          whNameById.get(warehouseId) || headerWh?.name || "Unassigned";
-        const cur = grouped.get(key) || { qty: 0, amount: 0 };
-        cur.qty += Number(it.qty);
+        const key = companyName(warehouseId, headerWh?.name);
+        const cur = ensure(key);
+        const qty = Number(it.qty);
+        cur.qty += qty;
+        cur.discount += Number(it.discount || 0);
         cur.amount += Number(it.amount);
-        grouped.set(key, cur);
+        cur.cost += qty * Number(product?.purchase_rate || 0);
+        if (inv?.id) cur.bills.add(inv.id);
+        if (inv?.party_id) cur.customers.add(inv.party_id);
       }
-      return [...grouped.entries()].map(([key, v]) => ({
-        Company: key,
-        Qty: v.qty,
-        Amount: v.amount,
-      }));
+
+      let returnQuery = supabase
+        .from("sale_returns")
+        .select("id, party_id, warehouse_id, parties(city, route)")
+        .eq("company_id", filters.companyId)
+        .eq("status", "posted")
+        .gte("return_date", filters.from)
+        .lte("return_date", filters.to)
+        .limit(2000);
+      if (filters.walkInOnly && filters.walkInPartyId) {
+        returnQuery = returnQuery.eq("party_id", filters.walkInPartyId);
+      } else if (filters.partyIds?.length) {
+        returnQuery = returnQuery.in("party_id", filters.partyIds);
+      }
+      const { data: returnHeaders, error: returnError } = await returnQuery;
+      if (returnError) throw new Error(returnError.message);
+      const returnDocs = (returnHeaders || []).filter((doc) => {
+        const party = one(doc.parties);
+        if (filters.routes?.length && !filters.routes.includes(party?.route || "")) {
+          return false;
+        }
+        if (filters.cities?.length && !filters.cities.includes(party?.city || "")) {
+          return false;
+        }
+        return true;
+      });
+      if (returnDocs.length) {
+        const { data: returnItems, error: returnItemError } = await supabase
+          .from("sale_return_items")
+          .select(
+            "sale_return_id, product_id, qty, amount, products(purchase_rate, default_warehouse_id)",
+          )
+          .in(
+            "sale_return_id",
+            returnDocs.map((doc) => doc.id),
+          );
+        if (returnItemError) throw new Error(returnItemError.message);
+        const returnMap = new Map(returnDocs.map((doc) => [doc.id, doc]));
+        const missingWh = [
+          ...new Set(
+            (returnItems || [])
+              .map((it) => one(it.products)?.default_warehouse_id)
+              .filter((id): id is string => Boolean(id) && !whNameById.has(id)),
+          ),
+        ];
+        if (missingWh.length) {
+          const { data: extraWh } = await supabase
+            .from("warehouses")
+            .select("id, name")
+            .in("id", missingWh);
+          for (const w of extraWh || []) whNameById.set(w.id, w.name);
+        }
+        for (const it of returnItems || []) {
+          if (!matchesProductFilter(it.product_id, filters.productIds)) continue;
+          const product = one(it.products);
+          const doc = returnMap.get(it.sale_return_id);
+          if (
+            !matchesCompanyFilter(
+              product,
+              doc?.warehouse_id,
+              filters.warehouseIds,
+            )
+          ) {
+            continue;
+          }
+          const warehouseId =
+            product?.default_warehouse_id || doc?.warehouse_id || "";
+          const key = companyName(warehouseId);
+          const cur = ensure(key);
+          const qty = Number(it.qty || 0);
+          cur.returnQty += qty;
+          cur.returnAmount += Number(it.amount || 0);
+          cur.returnCost += qty * Number(product?.purchase_rate || 0);
+        }
+      }
+
+      return [...grouped.entries()]
+        .map(([key, v]) => {
+          const netQty = v.qty - v.returnQty;
+          const netAmount = v.amount - v.returnAmount;
+          const netCost = v.cost - v.returnCost;
+          return {
+            Company: key,
+            Bills: v.bills.size,
+            Qty: v.qty,
+            Amount: v.amount,
+            "Return qty": v.returnQty,
+            "Return amount": v.returnAmount,
+            "Net qty": netQty,
+            "Net amount": netAmount,
+            Cost: netCost,
+            Profit: netAmount - netCost,
+          };
+        })
+        .sort((a, b) => b["Net amount"] - a["Net amount"]);
     }
 
     if (filters.type === "sale_profit") {

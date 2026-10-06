@@ -763,6 +763,14 @@ button[aria-haspopup="listbox"]:focus-visible {
   white-space: nowrap;
 }
 
+.table-shell th.num,
+.table-shell td.num,
+.table-shell th.text-right,
+.table-shell td.text-right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .table-shell td {
   padding: 11px 14px;
   border-bottom: 1px solid var(--border);
@@ -2524,6 +2532,11 @@ button[aria-haspopup="listbox"]:focus-visible {
     margin: 10mm 12mm;
   }
 
+  @page report-wide {
+    size: A4 landscape;
+    margin: 8mm;
+  }
+
   /* Invoice slips — equal ~7px left/right. */
   @page invoice-page {
     size: A4 portrait;
@@ -2585,6 +2598,16 @@ button[aria-haspopup="listbox"]:focus-visible {
     max-height: none !important;
     overflow: visible !important;
     margin: 0 !important;
+  }
+
+  .print-sheet.report-print.report-print--wide {
+    page: report-wide;
+  }
+
+  .report-print--wide th,
+  .report-print--wide td {
+    font-size: 9px;
+    padding: 2px 4px;
   }
 
   /* Batch sale invoices: one full A4 per selected invoice. */

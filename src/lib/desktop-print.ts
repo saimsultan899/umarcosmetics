@@ -14,7 +14,7 @@ import {
 
 type DesktopPrintPayload = {
   html: string;
-  paper: "thermal" | "a5" | "a4";
+  paper: "thermal" | "a5" | "a4" | "a4-landscape";
 };
 
 type DesktopPrintBridge = {

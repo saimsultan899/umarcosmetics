@@ -8,7 +8,7 @@
  * - everything else → A4 portrait
  */
 
-export type PrintPaperSize = "thermal" | "a5" | "a4";
+export type PrintPaperSize = "thermal" | "a5" | "a4" | "a4-landscape";
 
 const STYLE_ID = "umar-print-paper-size";
 const ATTR = "data-print-paper";
@@ -16,7 +16,12 @@ const ATTR = "data-print-paper";
 export function detectPrintPaper(root: ParentNode = document): PrintPaperSize {
   if (typeof document !== "undefined") {
     const forced = document.documentElement.getAttribute(ATTR);
-    if (forced === "thermal" || forced === "a5" || forced === "a4") {
+    if (
+      forced === "thermal" ||
+      forced === "a5" ||
+      forced === "a4" ||
+      forced === "a4-landscape"
+    ) {
       return forced;
     }
     if (document.documentElement.classList.contains("thermal-print-mode")) {
@@ -29,6 +34,7 @@ export function detectPrintPaper(root: ParentNode = document): PrintPaperSize {
   );
 
   for (const el of sheets) {
+    if (el.classList.contains("report-print--wide")) return "a4-landscape";
     const paper = el.getAttribute("data-paper");
     if (paper === "thermal" || paper === "a5" || paper === "a4") return paper;
     if (el.classList.contains("thermal-80")) return "thermal";
@@ -52,6 +58,7 @@ function paperCss(paper: PrintPaperSize) {
 @page paper-thermal { size: 80mm auto; margin: 0; }
 @page paper-a5 { size: A5 portrait; margin: 8mm; }
 @page paper-a4 { size: A4 portrait; margin: 8mm 10mm; }
+@page paper-a4-landscape { size: A4 landscape; margin: 8mm; }
 @page thermal-80 { size: 80mm auto; margin: 0; }
 @page si-half-page { ${paper === "a5" ? active : "size: A5 portrait; margin: 8mm;"} }
 @page invoice-page { ${paper === "a4" ? active : paper === "a5" ? active : "size: A4 portrait; margin: 8mm 10mm;"} }
@@ -178,12 +185,14 @@ export function warmPrintCss() {
 function pageRule(paper: PrintPaperSize) {
   if (paper === "thermal") return "size: 80mm auto; margin: 0;";
   if (paper === "a5") return "size: A5 portrait; margin: 8mm;";
+  if (paper === "a4-landscape") return "size: A4 landscape; margin: 8mm;";
   return "size: A4 portrait; margin: 8mm 10mm;";
 }
 
 function frameBox(paper: PrintPaperSize) {
   if (paper === "thermal") return { w: 320, h: 1600 };
   if (paper === "a5") return { w: 560, h: 794 };
+  if (paper === "a4-landscape") return { w: 1123, h: 794 };
   return { w: 794, h: 1123 };
 }
 
