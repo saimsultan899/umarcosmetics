@@ -18,6 +18,7 @@ export function FilterMultiSelect({
   placeholder,
   searchable = true,
   searchPlaceholder,
+  onChange,
 }: {
   name: string;
   label: string;
@@ -29,6 +30,8 @@ export function FilterMultiSelect({
   /** Show type-to-filter search inside the dropdown (default true). */
   searchable?: boolean;
   searchPlaceholder?: string;
+  /** Fires whenever the selection changes (including clear). */
+  onChange?: (selected: string[]) => void;
 }) {
   const listId = useId();
   const triggerId = `${listId}-trigger`;
@@ -47,7 +50,11 @@ export function FilterMultiSelect({
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
-    setSelected(parseReportList(value));
+    const next = parseReportList(value);
+    setSelected(next);
+    onChange?.(next);
+    // Intentionally depend on value only — parent onChange is for selection sync.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
   useEffect(() => {
@@ -56,12 +63,13 @@ export function FilterMultiSelect({
     if (!form) return;
     function onClear() {
       setSelected([]);
+      onChange?.([]);
       setOpen(false);
       setQuery("");
     }
     form.addEventListener("report-filters-clear", onClear);
     return () => form.removeEventListener("report-filters-clear", onClear);
-  }, []);
+  }, [onChange]);
 
   useEffect(() => {
     if (!open) {
@@ -136,11 +144,13 @@ export function FilterMultiSelect({
   })();
 
   function toggle(optionValue: string) {
-    setSelected((current) =>
-      current.includes(optionValue)
+    setSelected((current) => {
+      const next = current.includes(optionValue)
         ? current.filter((v) => v !== optionValue)
-        : [...current, optionValue],
-    );
+        : [...current, optionValue];
+      onChange?.(next);
+      return next;
+    });
   }
 
   return (

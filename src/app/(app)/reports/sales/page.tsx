@@ -5,6 +5,7 @@ import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { CashFlowSalesPrint } from "@/components/reports/cash-flow-sales-print";
 import { PartyWiseSalesPrint } from "@/components/reports/party-wise-sales-print";
 import { FilterMultiSelect, ReportFilters } from "@/components/reports/report-filters";
+import { SaleCompanyProductFilters } from "@/components/reports/sale-company-product-filters";
 import { FilterFlagPill } from "@/components/reports/report-type-pills";
 import { ReportTable } from "@/components/reports/report-table";
 import { requireCompanyContext } from "@/lib/auth";
@@ -96,7 +97,7 @@ export default async function SaleReportsPage({
       .limit(500),
     supabase
       .from("products")
-      .select("id, code, name_en")
+      .select("id, code, name_en, default_warehouse_id")
       .eq("company_id", company.id)
       .eq("is_active", true)
       .order("code")
@@ -264,15 +265,6 @@ export default async function SaleReportsPage({
         extras={
           <>
             <FilterMultiSelect
-              name="warehouse"
-              label="Company"
-              value={sp.warehouse}
-              options={(warehouses || []).map((w) => ({
-                value: w.id,
-                label: w.name,
-              }))}
-            />
-            <FilterMultiSelect
               name="party"
               label="Customer"
               value={sp.party}
@@ -293,15 +285,18 @@ export default async function SaleReportsPage({
               value={sp.city}
               options={cityOptions.map((c) => ({ value: c, label: c }))}
             />
-            <FilterMultiSelect
-              name="product"
-              label="Product"
-              value={sp.product}
-              options={(products || []).map((p) => ({
+            <SaleCompanyProductFilters
+              warehouseValue={sp.warehouse}
+              productValue={sp.product}
+              warehouses={(warehouses || []).map((w) => ({
+                value: w.id,
+                label: w.name,
+              }))}
+              products={(products || []).map((p) => ({
                 value: p.id,
                 label: `${p.code} — ${p.name_en}`,
+                warehouseId: p.default_warehouse_id,
               }))}
-              searchPlaceholder="Search code or name..."
             />
             {types.includes("bill_range") ? (
               <>

@@ -6,6 +6,7 @@ import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { CashFlowSalesPrint } from "@/components/reports/cash-flow-sales-print";
 import { PartyWiseSalesPrint } from "@/components/reports/party-wise-sales-print";
 import { FilterMultiSelect, ReportFilters } from "@/components/reports/report-filters";
+import { SaleCompanyProductFilters } from "@/components/reports/sale-company-product-filters";
 import { FilterFlagPill } from "@/components/reports/report-type-pills";
 import { ReportTable } from "@/components/reports/report-table";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
@@ -242,15 +243,26 @@ export function OfflineSaleReportsPage({
   const cities = parseReportList(sp.city);
   const walkInOnly = sp.walkin === "1" || sp.walkin === "true";
 
-  const productOptions = useMemo(() => {
-    return products
-      .filter((p) => p.id && p.is_active !== false)
-      .map((p) => ({
-        value: String(p.id),
-        label: `${p.code || ""} — ${p.name_en || ""}`.replace(/^ — /, ""),
-      }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [products]);
+  const companyProductOptions = useMemo(() => {
+    return {
+      warehouses: warehouses
+        .filter((w) => w.id)
+        .map((w) => ({
+          value: String(w.id),
+          label: String(w.name || ""),
+        })),
+      products: products
+        .filter((p) => p.id && p.is_active !== false)
+        .map((p) => ({
+          value: String(p.id),
+          label: `${p.code || ""} — ${p.name_en || ""}`.replace(/^ — /, ""),
+          warehouseId: p.default_warehouse_id
+            ? String(p.default_warehouse_id)
+            : null,
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    };
+  }, [warehouses, products]);
 
   function invoiceHasSelectedProduct(inv: Record<string, unknown>) {
     if (!productIds.length) return true;
@@ -975,15 +987,6 @@ export function OfflineSaleReportsPage({
         extras={
           <>
             <FilterMultiSelect
-              name="warehouse"
-              label="Company"
-              value={sp.warehouse}
-              options={warehouses.map((w) => ({
-                value: String(w.id),
-                label: String(w.name || ""),
-              }))}
-            />
-            <FilterMultiSelect
               name="party"
               label="Customer"
               value={sp.party}
@@ -1004,12 +1007,11 @@ export function OfflineSaleReportsPage({
               value={sp.city}
               options={cityOptions.map((c) => ({ value: c, label: c }))}
             />
-            <FilterMultiSelect
-              name="product"
-              label="Product"
-              value={sp.product}
-              options={productOptions}
-              searchPlaceholder="Search code or name..."
+            <SaleCompanyProductFilters
+              warehouseValue={sp.warehouse}
+              productValue={sp.product}
+              warehouses={companyProductOptions.warehouses}
+              products={companyProductOptions.products}
             />
             {types.includes("bill_range") ? (
               <>
