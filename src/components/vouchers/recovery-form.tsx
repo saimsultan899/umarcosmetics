@@ -32,6 +32,7 @@ import {
 
 type RecoveryLine = {
   key: string;
+  requestId?: string;
   partyId: string;
   partyCode: string;
   partyName: string;
@@ -99,6 +100,7 @@ export function RecoveryForm({
   const [balance, setBalance] = useState<number | null>(null);
   const [lines, setLines] = useState<RecoveryLine[]>([]);
   const [loading, setLoading] = useState(false);
+  const savingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [todayRecoveries, setTodayRecoveries] = useState<SameDayRecovery[]>([]);
   const [sheetRows, setSheetRows] = useState<SheetShop[]>([]);
@@ -386,6 +388,19 @@ export function RecoveryForm({
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setLoading(true);
+    setError(null);
+    try {
+    await saveRecoveries();
+    } finally {
+      savingRef.current = false;
+      setLoading(false);
+    }
+  }
+
+  async function saveRecoveries() {
     setError(null);
 
     const fromSheet: RecoveryLine[] = sheetRows.flatMap((row) => {
@@ -425,6 +440,9 @@ export function RecoveryForm({
     if (fromSheet.length) {
       setSheetDrafts({});
     }
+    pending = pending.map((line) =>
+      line.requestId ? line : { ...line, requestId: crypto.randomUUID() },
+    );
     setLines(pending);
 
     if (pending.length === 0) {
@@ -432,6 +450,7 @@ export function RecoveryForm({
       return;
     }
 
+    const confirmedKeys = new Set<string>();
     for (let i = 0; i < pending.length; i += 1) {
       const line = pending[i];
       let owed = line.owed;
@@ -459,10 +478,12 @@ export function RecoveryForm({
         prior,
         pending.filter((row) => row.partyId === line.partyId).length > 1,
       );
-      if (warning && !window.confirm(warning)) return;
+      if (warning) {
+        if (!window.confirm(warning)) return;
+        confirmedKeys.add(line.key);
+      }
     }
 
-    setLoading(true);
     const failedKeys = new Set<string>();
     const failedMsgs: string[] = [];
 
@@ -483,6 +504,8 @@ export function RecoveryForm({
             salesman_id: salesmanId || null,
             route: lineParty?.route || null,
             city: lineParty?.city || null,
+            client_request_id: line.requestId,
+            confirm_duplicate: confirmedKeys.has(line.key),
           },
         });
       } catch (err: any) {
@@ -492,8 +515,6 @@ export function RecoveryForm({
         );
       }
     }
-
-    setLoading(false);
 
     if (failedKeys.size) {
       setError(

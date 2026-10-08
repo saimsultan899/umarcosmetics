@@ -12,6 +12,7 @@ import {
   buildCompanyStatement,
   type CompanyStatement,
 } from "@/lib/reports/company-statement";
+import { buildOfflineCompanyStatement } from "@/lib/reports/company-statement-offline";
 import { createClient } from "@/lib/supabase/client";
 import { Boxes, Package, ShoppingCart, Truck } from "lucide-react";
 import { useSearchParams } from "next/navigation";
@@ -53,6 +54,7 @@ export function CompanyStatementClient({
   const [warehouses, setWarehouses] = useState<WarehouseOption[]>(initialWarehouses);
   const [warehousesReady, setWarehousesReady] = useState(initialWarehouses.length > 0);
   const [statement, setStatement] = useState<CompanyStatement | null>(null);
+  const [usingLocal, setUsingLocal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -107,15 +109,42 @@ export function CompanyStatementClient({
   }, [companyId, online]);
 
   useEffect(() => {
-    if (!online || !warehouseId) {
+    if (!warehouseId) {
       setStatement(null);
       setLoading(false);
       setError("");
+      setUsingLocal(false);
       return;
     }
     let cancelled = false;
     setLoading(true);
     setError("");
+    const local = () =>
+      buildOfflineCompanyStatement({
+        companyId,
+        warehouseId,
+        from,
+        to,
+      });
+    const finish = (next: CompanyStatement, fromLocal: boolean) => {
+      if (cancelled) return;
+      setStatement(next);
+      setUsingLocal(fromLocal);
+      setLoading(false);
+    };
+    const fail = (err: unknown) => {
+      if (cancelled) return;
+      setStatement(null);
+      setUsingLocal(false);
+      setError(err instanceof Error ? err.message : "Could not load the statement.");
+      setLoading(false);
+    };
+    if (!online) {
+      local().then((next) => finish(next, true)).catch(fail);
+      return () => {
+        cancelled = true;
+      };
+    }
     const supabase = createClient();
     buildCompanyStatement(supabase, {
       companyId,
@@ -123,36 +152,14 @@ export function CompanyStatementClient({
       from,
       to,
     })
-      .then((next) => {
-        if (!cancelled) setStatement(next);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setStatement(null);
-          setError(err instanceof Error ? err.message : "Could not load the statement.");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+      .then((next) => finish(next, false))
+      .catch(() => {
+        local().then((next) => finish(next, true)).catch(fail);
       });
     return () => {
       cancelled = true;
     };
   }, [online, companyId, warehouseId, from, to]);
-
-  if (!online) {
-    return (
-      <div className="animate-rise space-y-3">
-        <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold">
-          Company statement
-        </h1>
-        <p className="text-sm text-[var(--muted)]">
-          Open this report online. Stock, purchases, and sales for one company
-          are read from the live books.
-        </p>
-      </div>
-    );
-  }
 
   return (
     <div className="animate-rise space-y-6">
@@ -256,7 +263,9 @@ export function CompanyStatementClient({
           <ReportTable
             title={`${statement.warehouseName} — summary`}
             companyName={companyName}
-            subtitle={`${from} to ${to}. Purchase amount is the purchase invoice total for this company's products. Vendor payments stay on the vendor ledger.`}
+            subtitle={`${from} to ${to}. Purchase amount is the purchase invoice total for this company's products. Vendor payments stay on the vendor ledger.${
+              usingLocal ? " Figures are from the books saved on this computer." : ""
+            }`}
             rows={statement.summary}
             filename={`company-statement-${statement.warehouseName}`}
             showFooter={false}

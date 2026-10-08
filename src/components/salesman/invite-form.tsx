@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import { useSingleSubmit } from "@/lib/forms/single-submit";
 import { FormEvent, useState } from "react";
 
 export function SalesmanInviteForm({
@@ -20,11 +21,13 @@ export function SalesmanInviteForm({
   const [routes, setRoutes] = useState("");
   const [cities, setCities] = useState("");
   const [loading, setLoading] = useState(false);
+  const singleSubmit = useSingleSubmit();
   const [error, setError] = useState<string | null>(null);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    await singleSubmit(async () => {
     setLoading(true);
     setError(null);
     setInviteUrl(null);
@@ -58,6 +61,7 @@ export function SalesmanInviteForm({
     setRoutes("");
     setCities("");
     router.refresh();
+    });
   }
 
   return (

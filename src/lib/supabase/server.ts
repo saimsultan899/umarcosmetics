@@ -24,6 +24,11 @@ export const createClient = cache(async function createClient() {
           }
         },
       },
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+        detectSessionInUrl: false,
+      },
     },
   );
 });

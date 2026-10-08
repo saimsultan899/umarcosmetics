@@ -5,6 +5,7 @@ import {
   fetchPublishedVersion,
   getDesktopUpdater,
   getRunningAppVersion,
+  getRunningBuildTime,
   isPublishedNewer,
   isUpdateRequired,
   type DesktopUpdaterEvent,
@@ -86,7 +87,12 @@ export function useAppUpdate() {
     const remote = await fetchPublishedVersion();
     if (!remote) return;
 
-    const newer = isPublishedNewer(remote);
+    let localVersion = getRunningAppVersion();
+    if (desktop?.appVersion) {
+      const installed = await desktop.appVersion();
+      if (installed) localVersion = installed;
+    }
+    const newer = isPublishedNewer(remote, localVersion, desktop ? null : getRunningBuildTime());
     const required = isUpdateRequired(remote);
     if (!newer) {
       setState((prev) =>
@@ -218,6 +224,13 @@ export function useAppUpdate() {
             : { ...prev, status: "idle", source: "desktop", message: null };
         }
         if (event.status === "error") {
+          if (prev.availableVersion || prev.status === "available" || prev.status === "downloading") {
+            return {
+              ...prev,
+              status: prev.status === "downloading" ? "available" : prev.status,
+              message: event.message || "Update check failed",
+            };
+          }
           return { ...prev, status: "error", message: event.message || "Update check failed" };
         }
         return prev;

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
+import { useSingleSubmit } from "@/lib/forms/single-submit";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { createClient } from "@/lib/supabase/client";
 import type { Party, Warehouse } from "@/lib/types/database";
@@ -49,6 +50,7 @@ export function ExpiryClaimForm({
   const [narration, setNarration] = useState("");
   const [qtyByProduct, setQtyByProduct] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const singleSubmit = useSingleSubmit();
   const [error, setError] = useState<string | null>(null);
 
   const sendLines = stock
@@ -66,6 +68,7 @@ export function ExpiryClaimForm({
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    await singleSubmit(async () => {
     setError(null);
     if (!partyId || sendLines.length === 0) {
       setError("Select a vendor and enter qty to send from expiry stock.");
@@ -121,6 +124,7 @@ export function ExpiryClaimForm({
       setLoading(false);
       setError(err?.message || String(err));
     }
+    });
   }
 
   return (

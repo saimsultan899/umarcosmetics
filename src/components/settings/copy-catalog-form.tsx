@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
 import type { Company } from "@/lib/types/database";
+import { useSingleSubmit } from "@/lib/forms/single-submit";
 import { FormEvent, useMemo, useState } from "react";
 
 type CopyResult = {
@@ -32,6 +33,7 @@ export function CopyCatalogForm({
   const [toId, setToId] = useState(others[0]?.id || "");
   const [copyWarehouses, setCopyWarehouses] = useState(true);
   const [loading, setLoading] = useState(false);
+  const singleSubmit = useSingleSubmit();
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,6 +42,7 @@ export function CopyCatalogForm({
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    await singleSubmit(async () => {
     setError(null);
     setMessage(null);
 
@@ -85,6 +88,7 @@ export function CopyCatalogForm({
           ? `Companies created: ${result.warehouses_created}.`
           : "Companies not copied."),
     );
+    });
   }
 
   return (

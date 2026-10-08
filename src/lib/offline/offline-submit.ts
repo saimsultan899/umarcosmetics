@@ -77,7 +77,9 @@ export function isBusinessRuleError(message: string) {
     m.includes("not on that sale") ||
     m.includes("belongs to a customer recovery") ||
     m.includes("more than the amount due") ||
-    m.includes("does not match")
+    m.includes("does not match") ||
+    m.includes("was just saved") ||
+    m.includes("was not saved again")
   );
 }
 
@@ -138,7 +140,39 @@ export type OfflineSubmitParams = {
  * - If offline (or online call fails): queues mutation in IndexedDB, returns local ID
  * - Desktop: also persists sale/purchase into SQLite ledger + outbox
  */
-export async function offlineAwareSubmit(
+const submitInFlight = new Map<string, Promise<OfflineSubmitResult>>();
+
+function submitFingerprint(params: OfflineSubmitParams) {
+  return JSON.stringify({
+    mutationType: params.mutationType,
+    companyId: params.companyId,
+    payload: params.payload,
+    stockChanges: params.stockChanges ?? null,
+    forceOffline: Boolean(params.forceOffline),
+    localDocNo: params.localDocNo ?? null,
+  });
+}
+
+/** Identical saves already running share one result, so a double-click cannot post twice. */
+export function offlineAwareSubmit(
+  params: OfflineSubmitParams,
+): Promise<OfflineSubmitResult> {
+  let key = "";
+  try {
+    key = submitFingerprint(params);
+  } catch {
+    return runOfflineAwareSubmit(params);
+  }
+  const existing = submitInFlight.get(key);
+  if (existing) return existing;
+  const promise = runOfflineAwareSubmit(params).finally(() => {
+    if (submitInFlight.get(key) === promise) submitInFlight.delete(key);
+  });
+  submitInFlight.set(key, promise);
+  return promise;
+}
+
+async function runOfflineAwareSubmit(
   params: OfflineSubmitParams,
 ): Promise<OfflineSubmitResult> {
   const {

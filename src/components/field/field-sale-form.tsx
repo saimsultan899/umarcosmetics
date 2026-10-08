@@ -16,6 +16,7 @@ import {
   type SaleStockPolicy,
 } from "@/lib/trading/sale-stock-policy";
 import { AMOUNT_PLACEHOLDER, AMOUNT_STEP, formatPkr } from "@/lib/utils";
+import { useSingleSubmit } from "@/lib/forms/single-submit";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 type Shop = {
@@ -54,6 +55,7 @@ export function FieldSaleForm({
   const [rate, setRate] = useState("0");
   const [rateHint, setRateHint] = useState("");
   const [loading, setLoading] = useState(false);
+  const singleSubmit = useSingleSubmit();
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -133,6 +135,7 @@ export function FieldSaleForm({
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    await singleSubmit(async () => {
     setError(null);
     setMessage(null);
     if (!partyId || !warehouseId || !product || Number(qty) <= 0) {
@@ -245,6 +248,7 @@ export function FieldSaleForm({
     } finally {
       setLoading(false);
     }
+    });
   }
 
   const productOptions = useMemo(

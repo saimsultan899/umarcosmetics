@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
+import { useSingleSubmit } from "@/lib/forms/single-submit";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import type { Product, Warehouse } from "@/lib/types/database";
 import { useRouter } from "next/navigation";
@@ -44,10 +45,12 @@ export function LoadSheetForm({
   const [narration, setNarration] = useState("");
   const [lines, setLines] = useState<ProductQtyLine[]>([]);
   const [loading, setLoading] = useState(false);
+  const singleSubmit = useSingleSubmit();
   const [error, setError] = useState<string | null>(null);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    await singleSubmit(async () => {
     setError(null);
     const flushed = linesEditorRef.current?.flush() || lines;
     const valid = flushed.filter((l) => l.product_id && Number(l.qty) > 0);
@@ -93,6 +96,7 @@ export function LoadSheetForm({
       setLoading(false);
       setError(err instanceof Error ? err.message : String(err));
     }
+    });
   }
 
   return (

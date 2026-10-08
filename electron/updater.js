@@ -96,17 +96,14 @@ function initAutoUpdater(opts) {
   updater.autoInstallOnAppQuit = true;
   updater.allowDowngrade = false;
 
-  // Optional runtime override of the feed URL (baked default lives in
-  // electron-builder.json -> publish). Lets ops repoint the feed without a
-  // rebuild, e.g. UMAR_UPDATE_FEED_URL=https://umarcosmetics.vercel.app/
-  const feedUrl = process.env.UMAR_UPDATE_FEED_URL;
-  if (feedUrl) {
-    try {
-      updater.setFeedURL({ provider: "generic", url: feedUrl, channel: "latest" });
-      log(`feed override: ${feedUrl}`);
-    } catch (err) {
-      log(`setFeedURL failed: ${err instanceof Error ? err.message : String(err)}`);
-    }
+  // Installed copies ask the live site, which points at the GitHub release.
+  // UMAR_UPDATE_FEED_URL can repoint this without another rebuild.
+  const feedUrl = process.env.UMAR_UPDATE_FEED_URL || "https://umarcosmetics.vercel.app/";
+  try {
+    updater.setFeedURL({ provider: "generic", url: feedUrl, channel: "latest" });
+    log(`feed: ${feedUrl}`);
+  } catch (err) {
+    log(`setFeedURL failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   updater.on("checking-for-update", () => {
@@ -239,13 +236,15 @@ async function checkForUpdates(reason = "manual", force = false) {
     return { ok: true, alreadyDownloaded: true };
   }
   const now = Date.now();
-  if (!force && now - lastCheckAt < CHECK_THROTTLE_MS) {
+  const always =
+    force || reason === "online" || reason === "resume" || reason === "startup";
+  if (!always && now - lastCheckAt < CHECK_THROTTLE_MS) {
     return { ok: true, throttled: true };
   }
-  lastCheckAt = now;
   log(`checking for updates (${reason})`);
   try {
     const result = await autoUpdater.checkForUpdates();
+    lastCheckAt = Date.now();
     return { ok: true, updateInfo: result?.updateInfo };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

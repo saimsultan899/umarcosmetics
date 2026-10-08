@@ -17,6 +17,7 @@ import { isAppOnline } from "@/lib/offline/local-auth";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { createClient } from "@/lib/supabase/client";
 import type { Party, Product, Warehouse } from "@/lib/types/database";
+import { useSingleSubmit } from "@/lib/forms/single-submit";
 import { type LineItemDraft, calcLineAmount, calcLineDiscount } from "@/lib/types/trading";
 import { formatPkr } from "@/lib/utils";
 import { useRouter } from "next/navigation";
@@ -246,6 +247,7 @@ export function ReturnForm({
   const [extraDiscount, setExtraDiscount] = useState(editing?.extraDiscount || "");
   const [lines, setLines] = useState<LineItemDraft[]>(editing?.lines || []);
   const [loading, setLoading] = useState(false);
+  const singleSubmit = useSingleSubmit();
   const [error, setError] = useState<string | null>(null);
   const [invoices, setInvoices] = useState<ReturnInvoice[]>([]);
   const [invoiceId, setInvoiceId] = useState(editing?.invoiceId || "");
@@ -394,6 +396,7 @@ export function ReturnForm({
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    await singleSubmit(async () => {
     setError(null);
     const flushed = linesEditorRef.current?.flush() || lines;
     const valid = flushed.filter(
@@ -551,6 +554,7 @@ export function ReturnForm({
       setLoading(false);
       setError(err instanceof Error ? err.message : String(err));
     }
+    });
   }
 
   return (

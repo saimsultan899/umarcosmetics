@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
-import { getVerifiedAuthUser } from "@/lib/supabase/session";
+import { readAuthCookieUser } from "@/lib/supabase/session";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 export type SuperAdminApiContext = {
@@ -14,8 +15,8 @@ export async function requireSuperAdminApi(): Promise<
   const supabase = await createClient();
   let userId: string | null = null;
   try {
-    const user = await getVerifiedAuthUser(supabase);
-    userId = user?.id ?? null;
+    const jar = await cookies();
+    userId = readAuthCookieUser(jar.getAll())?.id ?? null;
   } catch {
     userId = null;
   }

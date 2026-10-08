@@ -12,6 +12,7 @@ import {
   type ExpenseCategory,
 } from "@/lib/expenses/categories";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
+import { useSingleSubmit } from "@/lib/forms/single-submit";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import type { SalesmanOption } from "@/lib/queries/salesmen";
 import { createClient } from "@/lib/supabase/client";
@@ -63,6 +64,7 @@ export function ExpenseForm({
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [lines, setLines] = useState<Line[]>([emptyLine()]);
   const [loading, setLoading] = useState(false);
+  const singleSubmit = useSingleSubmit();
   const [error, setError] = useState<string | null>(null);
 
   const vendorOptions = useMemo(
@@ -100,6 +102,7 @@ export function ExpenseForm({
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    await singleSubmit(async () => {
     if (loading) return;
     setError(null);
 
@@ -151,6 +154,7 @@ export function ExpenseForm({
       setLoading(false);
       setError(err?.message || String(err));
     }
+    });
   }
 
   return (

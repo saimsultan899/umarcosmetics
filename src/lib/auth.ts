@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import {
-  getVerifiedAuthUser,
+  readAuthCookieUser,
   type VerifiedAuthUser,
 } from "@/lib/supabase/session";
 import type { Company, CompanyMember, Profile } from "@/lib/types/database";
@@ -73,46 +73,15 @@ export const requireUser = cache(async function requireUser() {
   }
 
   const supabase = await createClient();
-  let user: VerifiedAuthUser | null = null;
-  let timedOut = false;
-  try {
-    const result = await Promise.race([
-      getVerifiedAuthUser(supabase).then((u) => ({ user: u, timedOut: false })),
-      new Promise<{ user: null; timedOut: true }>((resolve) =>
-        setTimeout(() => resolve({ user: null, timedOut: true }), 5000),
-      ),
-    ]);
-    user = result.user;
-    timedOut = result.timedOut;
-  } catch {
-    user = null;
-  }
+  const jar = await cookies();
+  // Read the access token already on the request. Do not refresh here —
+  // the gate already did, and a second refresh signs the user out.
+  const user = readAuthCookieUser(jar.getAll());
 
   if (!user) {
     const fallback = await readShellCookieOnly();
     if (fallback) {
       return { supabase, user: userFromShell(fallback), offline: true as const };
-    }
-    // Slow Auth on a still-valid cookie must not bounce to /login.
-    if (timedOut) {
-      try {
-        const { data } = await supabase.auth.getSession();
-        if (data.session?.user?.id) {
-          return {
-            supabase,
-            user: {
-              id: data.session.user.id,
-              email: data.session.user.email ?? null,
-              role: data.session.user.role ?? null,
-              aal: null,
-              sessionId: null,
-            },
-            offline: false as const,
-          };
-        }
-      } catch {
-        /* fall through */
-      }
     }
     redirect("/login");
   }

@@ -13,7 +13,7 @@ import {
   formatRecoveryWhen,
   type SameDayRecovery,
 } from "@/lib/vouchers/same-day-recovery";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
 type Shop = {
   party_id: string;
@@ -39,6 +39,8 @@ export function FieldRecoveryForm({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [todayRecoveries, setTodayRecoveries] = useState<SameDayRecovery[]>([]);
+  const savingRef = useRef(false);
+  const requestRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,8 +59,12 @@ export function FieldRecoveryForm({
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setLoading(true);
     setError(null);
     setMessage(null);
+    try {
     if (!partyId || Number(amount) <= 0) {
       setError("Select shop and enter amount.");
       return;
@@ -79,6 +85,7 @@ export function FieldRecoveryForm({
       );
       return;
     }
+    let confirmed = false;
     if (prior.length > 0) {
       const listed = prior
         .map((row) => {
@@ -90,18 +97,21 @@ export function FieldRecoveryForm({
         `${shopName} already has a recovery today${listed ? `: ${listed}` : ""}.\n\nRecord this recovery anyway?`,
       );
       if (!proceed) return;
+      confirmed = true;
     }
 
+    if (!requestRef.current) requestRef.current = crypto.randomUUID();
     const payload = {
       organization_id: organizationId,
       company_id: companyId,
       party_id: partyId,
-      recovery_date: new Date().toISOString().slice(0, 10),
+      recovery_date: date,
       amount: Number(amount),
       remarks,
+      client_request_id: requestRef.current,
+      confirm_duplicate: confirmed,
     };
 
-    setLoading(true);
     try {
       const res = await offlineAwareSubmit({
         mutationType: "recovery",
@@ -119,9 +129,12 @@ export function FieldRecoveryForm({
       }
       setAmount("");
       setRemarks("");
+      requestRef.current = null;
     } catch (err: any) {
       setError(err?.message || String(err));
+    }
     } finally {
+      savingRef.current = false;
       setLoading(false);
     }
   }

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
+import { useSingleSubmit } from "@/lib/forms/single-submit";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { createClient } from "@/lib/supabase/client";
 import { formatNumber, formatPkr } from "@/lib/utils";
@@ -41,6 +42,7 @@ export function ExpirySettleForm({
     Object.fromEntries(lines.map((l) => [l.id, String(l.qty)])),
   );
   const [loading, setLoading] = useState(false);
+  const singleSubmit = useSingleSubmit();
   const [error, setError] = useState<string | null>(null);
 
   const resolved = useMemo(() => {
@@ -66,6 +68,7 @@ export function ExpirySettleForm({
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    await singleSubmit(async () => {
     setError(null);
     setLoading(true);
     try {
@@ -95,6 +98,7 @@ export function ExpirySettleForm({
       setLoading(false);
       setError(err?.message || String(err));
     }
+    });
   }
 
   return (

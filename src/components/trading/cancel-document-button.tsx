@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import { useSingleSubmit } from "@/lib/forms/single-submit";
 import { useState } from "react";
 
 type CancelRpc =
@@ -59,10 +60,12 @@ export function CancelDocumentButton({
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const singleSubmit = useSingleSubmit();
   const [error, setError] = useState<string | null>(null);
   const copy = CANCEL_COPY[rpc];
 
   async function deleteDocument() {
+    await singleSubmit(async () => {
     const proceed = window.confirm(`Delete ${documentNo}?\n\n${copy.body}`);
     if (!proceed) return;
     setLoading(true);
@@ -78,6 +81,7 @@ export function CancelDocumentButton({
     }
     router.push(copy.redirect);
     router.refresh();
+    });
   }
 
   return (

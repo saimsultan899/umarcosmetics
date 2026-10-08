@@ -1,4 +1,4 @@
-import { type NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
 /**
@@ -6,6 +6,12 @@ import { updateSession } from "@/lib/supabase/middleware";
  * Runs before every matched page request; keep logic in lib for testability.
  */
 export async function proxy(request: NextRequest) {
+  // Desktop apps request this exact address. A missing page must not answer it.
+  if (request.nextUrl.pathname === "/latest.yml") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/api/desktop-update/latest";
+    return NextResponse.rewrite(url);
+  }
   return updateSession(request);
 }
 

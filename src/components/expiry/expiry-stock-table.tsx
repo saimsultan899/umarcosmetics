@@ -10,6 +10,7 @@ import type { ExpiryStockRow } from "@/lib/queries/expiry";
 import { createClient } from "@/lib/supabase/client";
 import { formatNumber, formatPkr } from "@/lib/utils";
 import { useRouter } from "next/navigation";
+import { useSingleSubmit } from "@/lib/forms/single-submit";
 import { FormEvent, useEffect, useState } from "react";
 
 async function setExpiryQty(
@@ -41,10 +42,12 @@ function ExpiryQtyForm({
   const [qty, setQty] = useState(String(row.qty));
   const [narration, setNarration] = useState("");
   const [loading, setLoading] = useState(false);
+  const singleSubmit = useSingleSubmit();
   const [error, setError] = useState<string | null>(null);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    await singleSubmit(async () => {
     const next = Number(qty);
     if (!Number.isFinite(next) || next < 0) {
       setError("Enter a quantity of 0 or more.");
@@ -61,6 +64,7 @@ function ExpiryQtyForm({
     } finally {
       setLoading(false);
     }
+    });
   }
 
   return (

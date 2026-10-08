@@ -24,7 +24,7 @@ export type OfflineReportFilters = {
   to?: string | null;
 };
 
-async function loadRows(store: CacheStoreName, companyId: string) {
+export async function loadRows(store: CacheStoreName, companyId: string) {
   let sqliteRows: Record<string, unknown>[] = [];
   try {
     const {

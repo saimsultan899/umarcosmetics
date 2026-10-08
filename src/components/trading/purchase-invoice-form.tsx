@@ -14,6 +14,7 @@ import { Select } from "@/components/ui/select";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import type { Party, Product, Warehouse } from "@/lib/types/database";
+import { useSingleSubmit } from "@/lib/forms/single-submit";
 import { type LineItemDraft, calcLineDiscount } from "@/lib/types/trading";
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useRef, useState } from "react";
@@ -73,10 +74,12 @@ export function PurchaseInvoiceForm({
   const [extraDiscount, setExtraDiscount] = useState(editing?.extraDiscount || "");
   const [lines, setLines] = useState<LineItemDraft[]>(editing?.lines || []);
   const [loading, setLoading] = useState(false);
+  const singleSubmit = useSingleSubmit();
   const [error, setError] = useState<string | null>(null);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    await singleSubmit(async () => {
     setError(null);
     const flushed = linesEditorRef.current?.flush() || lines;
     const valid = flushed.filter((l) => l.product_id && Number(l.qty) > 0);
@@ -177,6 +180,7 @@ export function PurchaseInvoiceForm({
       setLoading(false);
       setError(err?.message || String(err));
     }
+    });
   }
 
   return (

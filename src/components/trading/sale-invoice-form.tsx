@@ -24,6 +24,7 @@ import {
   reviewSaleStock,
   type SaleStockPolicy,
 } from "@/lib/trading/sale-stock-policy";
+import { useSingleSubmit } from "@/lib/forms/single-submit";
 import { formatNumber } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
@@ -150,6 +151,7 @@ export function SaleInvoiceForm({
   const [extraDiscount, setExtraDiscount] = useState(editing?.extraDiscount || "");
   const [lines, setLines] = useState<LineItemDraft[]>(editing?.lines || []);
   const [loading, setLoading] = useState(false);
+  const singleSubmit = useSingleSubmit();
   const [error, setError] = useState<string | null>(null);
   const [creditWarning, setCreditWarning] = useState<string | null>(null);
 
@@ -183,6 +185,7 @@ export function SaleInvoiceForm({
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    await singleSubmit(async () => {
     if (loading) return;
     setError(null);
 
@@ -428,6 +431,7 @@ export function SaleInvoiceForm({
       setLoading(false);
       setError(friendlyStockError(err?.message || String(err), products, warehouses));
     }
+    });
   }
 
   return (

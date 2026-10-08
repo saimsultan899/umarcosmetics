@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getVerifiedAuthUser } from "@/lib/supabase/session";
+import { readAuthCookieUser } from "@/lib/supabase/session";
 import { cookies } from "next/headers";
 import {
   decodeOfflineShell,
@@ -28,11 +28,9 @@ export default async function HomePage() {
 
   let user = null;
   try {
+    const jar = await cookies();
+    user = readAuthCookieUser(jar.getAll());
     const supabase = await createClient();
-    user = await Promise.race([
-      getVerifiedAuthUser(supabase),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
-    ]);
 
     if (user) {
       const profileResult = await Promise.race([

@@ -12,6 +12,7 @@
  *    in-place upgrade never touches unsynced writes.
  */
 
+import { DESKTOP_UPDATE_SITE } from "@/lib/desktop/update-feed";
 import { listAllPendingMutations } from "@/lib/offline/local-db";
 import { isElectronRuntime } from "@/lib/offline/service-worker";
 
@@ -85,7 +86,13 @@ function parseSemver(value: string): [number, number, number] {
 }
 
 function versionCheckUrl() {
-  return process.env.NEXT_PUBLIC_UPDATE_CHECK_URL || "/api/app-version";
+  if (process.env.NEXT_PUBLIC_UPDATE_CHECK_URL) {
+    return process.env.NEXT_PUBLIC_UPDATE_CHECK_URL;
+  }
+  // The desktop app serves itself from this PC. Ask the live site instead,
+  // or it would always compare the installed copy with itself.
+  if (isElectronRuntime()) return `${DESKTOP_UPDATE_SITE}/api/app-version`;
+  return "/api/app-version";
 }
 
 /**

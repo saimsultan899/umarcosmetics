@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { JournalVoucherForm } from "@/components/vouchers/journal-form";
 import { CashVoucherForm } from "@/components/vouchers/voucher-lines-form";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
+import { useSingleSubmit } from "@/lib/forms/single-submit";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { createClient } from "@/lib/supabase/client";
 import { useTradingCatalog } from "@/lib/trading/catalog-client";
@@ -321,6 +322,7 @@ function RecoveryEditForm({
   const [todayRecoveries, setTodayRecoveries] = useState<SameDayRecovery[]>([]);
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const singleSubmit = useSingleSubmit();
   const [error, setError] = useState<string | null>(null);
 
   const party = useMemo(
@@ -391,6 +393,7 @@ function RecoveryEditForm({
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    await singleSubmit(async () => {
     setError(null);
     const value = Number(amount);
     if (!partyId || !(value > 0)) {
@@ -447,6 +450,7 @@ function RecoveryEditForm({
       setLoading(false);
       setError(err instanceof Error ? err.message : "Update failed");
     }
+    });
   }
 
   return (

@@ -5,8 +5,9 @@ import {
 } from "@/lib/access/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { getVerifiedAuthUser } from "@/lib/supabase/session";
+import { readAuthCookieUser } from "@/lib/supabase/session";
 import type { AppRole } from "@/lib/types/database";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 const ASSIGNABLE = new Set<AppRole>([
@@ -23,7 +24,8 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   let userId: string | null = null;
   try {
-    userId = (await getVerifiedAuthUser(supabase))?.id ?? null;
+    const jar = await cookies();
+    userId = readAuthCookieUser(jar.getAll())?.id ?? null;
   } catch {
     userId = null;
   }

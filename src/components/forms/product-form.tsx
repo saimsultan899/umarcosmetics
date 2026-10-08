@@ -11,6 +11,7 @@ import {
   normalizePurchaseDiscountInput,
   purchaseDiscountPercentText,
 } from "@/lib/pricing/discounts";
+import { useSingleSubmit } from "@/lib/forms/single-submit";
 import { offlineAwareSubmit, allocateNextProductCode } from "@/lib/offline/offline-submit";
 import { getCachedRows } from "@/lib/offline/local-db";
 import {
@@ -42,6 +43,7 @@ export function ProductForm({
   const router = useRouter();
   const closeDialog = useCreateDialogClose();
   const [loading, setLoading] = useState(false);
+  const singleSubmit = useSingleSubmit();
   const [error, setError] = useState<string | null>(null);
   const [autoCode, setAutoCode] = useState(!initial);
   const [form, setForm] = useState({
@@ -194,6 +196,7 @@ export function ProductForm({
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    await singleSubmit(async () => {
     setLoading(true);
     setError(null);
     const supabase = createClient();
@@ -288,6 +291,7 @@ export function ProductForm({
       setLoading(false);
       setError(err?.message || String(err));
     }
+    });
   }
 
   return (

@@ -6,6 +6,7 @@ import { useCreateDialogClose } from "@/components/ui/create-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
+import { useSingleSubmit } from "@/lib/forms/single-submit";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { createClient } from "@/lib/supabase/client";
 import type { Party } from "@/lib/types/database";
@@ -60,12 +61,14 @@ export function CashVoucherForm({
       : [emptyLine()],
   );
   const [loading, setLoading] = useState(false);
+  const singleSubmit = useSingleSubmit();
   const [error, setError] = useState<string | null>(null);
 
   const total = lines.reduce((s, l) => s + Number(l.amount || 0), 0);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    await singleSubmit(async () => {
     setError(null);
     const valid = lines.filter((l) => l.party_id && Number(l.amount) > 0);
     if (valid.length === 0) {
@@ -115,6 +118,7 @@ export function CashVoucherForm({
       setLoading(false);
       setError(err?.message || String(err));
     }
+    });
   }
 
   return (

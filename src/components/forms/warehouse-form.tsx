@@ -5,6 +5,7 @@ import { useCreateDialogClose } from "@/components/ui/create-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
+import { useSingleSubmit } from "@/lib/forms/single-submit";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { createClient } from "@/lib/supabase/client";
 import type { Warehouse } from "@/lib/types/database";
@@ -25,6 +26,7 @@ export function WarehouseForm({
   const router = useRouter();
   const closeDialog = useCreateDialogClose();
   const [loading, setLoading] = useState(false);
+  const singleSubmit = useSingleSubmit();
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState(initial?.name || "");
   const [code, setCode] = useState(initial?.code || "");
@@ -32,6 +34,7 @@ export function WarehouseForm({
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    await singleSubmit(async () => {
     setLoading(true);
     setError(null);
     const payload: Record<string, unknown> = initial
@@ -73,6 +76,7 @@ export function WarehouseForm({
       setLoading(false);
       setError(err?.message || String(err));
     }
+    });
   }
 
   return (

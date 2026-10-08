@@ -13,6 +13,9 @@ const useStandalone =
 const nextConfig: NextConfig = {
   ...(useStandalone ? { output: "standalone" as const } : {}),
   serverExternalPackages: ["better-sqlite3", "electron"],
+  async rewrites() {
+    return [{ source: "/latest.yml", destination: "/api/desktop-update/latest" }];
+  },
   // Expose the app version (single source of truth = package.json) so the
   // version endpoint and PWA update-check can compare against the server.
   env: {

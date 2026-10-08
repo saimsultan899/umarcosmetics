@@ -13,6 +13,7 @@ import {
   headFromCity,
   mergeLocationOptions,
 } from "@/lib/locations";
+import { useSingleSubmit } from "@/lib/forms/single-submit";
 import { offlineAwareSubmit, allocateNextPartyCode } from "@/lib/offline/offline-submit";
 import { createClient } from "@/lib/supabase/client";
 import type { Party, PartySubtype, PartyType, SaleChannel } from "@/lib/types/database";
@@ -63,6 +64,7 @@ export function PartyForm({
   const router = useRouter();
   const closeDialog = useCreateDialogClose();
   const [loading, setLoading] = useState(false);
+  const singleSubmit = useSingleSubmit();
   const [error, setError] = useState<string | null>(null);
   const [autoCode, setAutoCode] = useState(!initial);
 
@@ -171,6 +173,7 @@ export function PartyForm({
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    await singleSubmit(async () => {
     setLoading(true);
     setError(null);
     const supabase = createClient();
@@ -261,6 +264,7 @@ export function PartyForm({
       setLoading(false);
       setError(err?.message || String(err));
     }
+    });
   }
 
   const accountKind =

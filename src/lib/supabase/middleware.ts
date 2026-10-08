@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { getVerifiedAuthUser } from "@/lib/supabase/session";
+import { refreshAuthOnce, readAuthCookieUser } from "@/lib/supabase/session";
 import {
   OFFLINE_OK_COOKIE,
   OFFLINE_SHELL_COOKIE,
@@ -52,7 +52,10 @@ export async function updateSession(request: NextRequest) {
     // Version probe must work on the login screen and before a session exists
     // so an offline shop can detect a newer build the moment it reconnects.
     path === "/api/app-version" ||
-    path.startsWith("/api/app-version/");
+    path.startsWith("/api/app-version/") ||
+    path === "/latest.yml" ||
+    path === "/api/desktop-update/latest" ||
+    path.startsWith("/api/desktop-update/");
 
   const cookiesPresent = hasAuthCookie(request);
   const offlineOk = hasOfflineBypass(request);
@@ -89,6 +92,15 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
+          // A raced refresh deletes the auth cookies. Keep the session that
+          // is already on this request.
+          const clearsSession =
+            cookiesPresent &&
+            cookiesToSet.some(
+              (cookie) =>
+                cookie.name.includes("auth-token") && !cookie.value,
+            );
+          if (clearsSession) return;
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value),
           );
@@ -104,13 +116,13 @@ export async function updateSession(request: NextRequest) {
   // Distinguish a real "no user" from a slow Auth check. Timing out used to
   // look like signed-out and bounced people to /login mid-navigation.
   type AuthProbe =
-    | { status: "ok"; user: Awaited<ReturnType<typeof getVerifiedAuthUser>> }
+    | { status: "ok"; user: Awaited<ReturnType<typeof refreshAuthOnce>> }
     | { status: "timeout" };
 
   let probe: AuthProbe;
   try {
     probe = await Promise.race([
-      getVerifiedAuthUser(supabase).then(
+      refreshAuthOnce(supabase).then(
         (user): AuthProbe => ({ status: "ok", user }),
       ),
       new Promise<AuthProbe>((resolve) =>
@@ -128,7 +140,7 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
-  const user = probe.user;
+  const user = probe.user || readAuthCookieUser(request.cookies.getAll());
 
   if (!user && !isPublic) {
     if (offlineOk && (cookiesPresent || shellPresent)) {
