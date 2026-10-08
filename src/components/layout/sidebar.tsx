@@ -4,7 +4,6 @@ import { mainNav, platformNav, type NavItem } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import {
   ChevronDown,
-  Layers3,
   PanelLeftClose,
   PanelLeftOpen,
   X,
@@ -398,8 +397,8 @@ export function Sidebar({
           iconMode ? "justify-center px-2" : "gap-2.5 px-3",
         )}
       >
-        <div className="sidebar-brand__mark">
-          <Layers3 className="h-4 w-4" />
+        <div className="sidebar-brand__mark sidebar-brand__mark--logo">
+          <img src="/icons/icon-192.png" alt="" />
         </div>
         {!iconMode ? (
           <div className="min-w-0 flex-1">
