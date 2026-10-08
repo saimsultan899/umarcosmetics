@@ -31,7 +31,9 @@ export default async function PurchaseInvoiceDetailPage({
 
   const { data: invoice } = await supabase
     .from("purchase_invoices")
-    .select("*, parties(name_en, party_code, address, city, phone, mobile), warehouses(name)")
+    .select(
+      "*, parties(name_en, party_code, address, city, phone, mobile), warehouses(name), gate_passes(pass_no)",
+    )
     .eq("id", id)
     .eq("company_id", company.id)
     .maybeSingle();
@@ -48,6 +50,9 @@ export default async function PurchaseInvoiceDetailPage({
   const warehouse = Array.isArray(invoice.warehouses)
     ? invoice.warehouses[0]
     : invoice.warehouses;
+  const gatePass = Array.isArray(invoice.gate_passes)
+    ? invoice.gate_passes[0]
+    : invoice.gate_passes;
 
   const extraDiscount = Number(invoice.extra_discount || 0);
   const distributorAddress = [company.address, company.city]
@@ -79,11 +84,22 @@ export default async function PurchaseInvoiceDetailPage({
         partyPhone={party?.phone}
         partyMobile={party?.mobile}
         warehouseName={warehouse?.name}
-        extraMeta={
-          invoice.supplier_bill_no
-            ? [{ label: "Vendor bill", value: invoice.supplier_bill_no }]
-            : []
-        }
+        extraMeta={[
+          ...(gatePass?.pass_no
+            ? [{ label: "Gate pass", value: String(gatePass.pass_no) }]
+            : []),
+          ...(invoice.supplier_bill_no
+            ? [{ label: "Company invoice #", value: String(invoice.supplier_bill_no) }]
+            : []),
+          ...(invoice.company_invoice_date
+            ? [
+                {
+                  label: "Company invoice date",
+                  value: String(invoice.company_invoice_date).slice(0, 10),
+                },
+              ]
+            : []),
+        ]}
         lines={(items || []).map((i) => {
           const product = Array.isArray(i.products) ? i.products[0] : i.products;
           const packing = Number(product?.packing || 1);

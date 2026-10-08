@@ -182,6 +182,10 @@ export function PostedDocumentEditor({
           warehouseId: String(doc.warehouse_id || ""),
           invoiceDate: asDate(doc.invoice_date),
           supplierBillNo: String(doc.supplier_bill_no || ""),
+          companyInvoiceDate: doc.company_invoice_date
+            ? asDate(doc.company_invoice_date)
+            : "",
+          gatePassId: String(doc.gate_pass_id || ""),
           narration: String(doc.narration || ""),
           extraDiscount: String(Number(doc.extra_discount || 0) || ""),
           lines: toLines(items, false),

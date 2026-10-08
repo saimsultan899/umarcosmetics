@@ -16,6 +16,8 @@ export type Organization = {
   id: string;
   name: string;
   status: "active" | "suspended";
+  /** When set, other companies under this org mirror products/shops here. */
+  main_company_id?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -83,6 +85,8 @@ export type Party = {
   credit_limit: number;
   sale_channel: SaleChannel | null;
   is_active: boolean;
+  /** Linked party on the organization main company, when hub sync is on. */
+  hub_party_id?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -112,6 +116,8 @@ export type Product = {
   barcode: string | null;
   /** Full barcode list, including the first. Optional label is the flavour or variety. */
   extra_barcodes?: { barcode: string; label?: string | null }[] | null;
+  /** Linked product on the organization main company, when hub sync is on. */
+  hub_product_id?: string | null;
   default_warehouse_id: string | null;
   retail_rate: number;
   purchase_rate: number;

@@ -12,12 +12,24 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
+import { getCachedRows } from "@/lib/offline/local-db";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import type { Party, Product, Warehouse } from "@/lib/types/database";
 import { useSingleSubmit } from "@/lib/forms/single-submit";
 import { type LineItemDraft, calcLineDiscount } from "@/lib/types/trading";
+import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { FormEvent, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+
+type BuyFrom = "vendor" | "company";
+
+type GatePassOption = {
+  id: string;
+  pass_no: string;
+  pass_date: string;
+  warehouse_id: string | null;
+  party_id: string | null;
+};
 
 export type PurchaseInvoiceEdit = {
   id: string;
@@ -26,6 +38,9 @@ export type PurchaseInvoiceEdit = {
   warehouseId: string;
   invoiceDate: string;
   supplierBillNo: string;
+  companyInvoiceDate?: string;
+  gatePassId?: string;
+  buyFrom?: BuyFrom;
   narration: string;
   extraDiscount: string;
   lines: LineItemDraft[];
@@ -62,6 +77,7 @@ export function PurchaseInvoiceForm({
     [parties],
   );
 
+  const [buyFrom, setBuyFrom] = useState<BuyFrom>(editing?.buyFrom || "vendor");
   const [partyId, setPartyId] = useState(editing?.partyId || "");
   const [warehouseId, setWarehouseId] = useState(
     editing?.warehouseId || warehouses[0]?.id || "",
@@ -70,12 +86,78 @@ export function PurchaseInvoiceForm({
     editing?.invoiceDate || new Date().toISOString().slice(0, 10),
   );
   const [supplierBillNo, setSupplierBillNo] = useState(editing?.supplierBillNo || "");
+  const [companyInvoiceDate, setCompanyInvoiceDate] = useState(
+    editing?.companyInvoiceDate || "",
+  );
+  const [gatePassId, setGatePassId] = useState(editing?.gatePassId || "");
+  const [gatePasses, setGatePasses] = useState<GatePassOption[]>([]);
   const [narration, setNarration] = useState(editing?.narration || "");
   const [extraDiscount, setExtraDiscount] = useState(editing?.extraDiscount || "");
   const [lines, setLines] = useState<LineItemDraft[]>(editing?.lines || []);
   const [loading, setLoading] = useState(false);
   const singleSubmit = useSingleSubmit();
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadGatePasses() {
+      const rows: GatePassOption[] = [];
+      const seen = new Set<string>();
+
+      function push(row: Record<string, unknown>) {
+        const id = String(row.id || "");
+        if (!id || seen.has(id)) return;
+        seen.add(id);
+        rows.push({
+          id,
+          pass_no: String(row.pass_no || ""),
+          pass_date: String(row.pass_date || "").slice(0, 10),
+          warehouse_id: row.warehouse_id ? String(row.warehouse_id) : null,
+          party_id: row.party_id ? String(row.party_id) : null,
+        });
+      }
+
+      try {
+        if (typeof navigator === "undefined" || navigator.onLine) {
+          const supabase = createClient();
+          const { data } = await supabase
+            .from("gate_passes")
+            .select("id, pass_no, pass_date, warehouse_id, party_id, status")
+            .eq("company_id", companyId)
+            .order("pass_date", { ascending: false })
+            .limit(200);
+          for (const row of data || []) push(row as Record<string, unknown>);
+        }
+      } catch {
+        /* fall through */
+      }
+
+      try {
+        const cached = await getCachedRows("gate_passes", companyId);
+        for (const row of cached) push(row as Record<string, unknown>);
+      } catch {
+        /* ignore */
+      }
+
+      if (!cancelled) {
+        rows.sort((a, b) => String(b.pass_date).localeCompare(String(a.pass_date)));
+        setGatePasses(rows);
+      }
+    }
+
+    void loadGatePasses();
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId]);
+
+  function applyGatePass(id: string) {
+    setGatePassId(id);
+    const pass = gatePasses.find((g) => g.id === id);
+    if (!pass) return;
+    if (pass.warehouse_id) setWarehouseId(pass.warehouse_id);
+    if (pass.party_id) setPartyId(pass.party_id);
+  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -85,7 +167,9 @@ export function PurchaseInvoiceForm({
     const valid = flushed.filter((l) => l.product_id && Number(l.qty) > 0);
     if (!partyId || !warehouseId || valid.length === 0) {
       setError(
-        "Select vendor, company, and at least one product line (press Enter / Add on the draft row).",
+        buyFrom === "company"
+          ? "Select company, vendor (payable), and at least one product line."
+          : "Select vendor, company, and at least one product line (press Enter / Add on the draft row).",
       );
       return;
     }
@@ -137,6 +221,8 @@ export function PurchaseInvoiceForm({
           company_id: companyId,
           invoice_date: invoiceDate,
           supplier_bill_no: supplierBillNo,
+          company_invoice_date: companyInvoiceDate || null,
+          gate_pass_id: gatePassId || null,
           party_id: partyId,
           party_name: vendor?.name_en || null,
           party_code: vendor?.party_code || null,
@@ -183,6 +269,37 @@ export function PurchaseInvoiceForm({
     });
   }
 
+  const vendorPicker = (
+    <PartyCodePicker
+      companyId={companyId}
+      parties={suppliers}
+      value={partyId}
+      required
+      label={buyFrom === "company" ? "Vendor (payable)" : "Vendor"}
+      emptyLabel="Select vendor"
+      filterSubtype={["supplier", "both"]}
+      onChange={(id) => setPartyId(id)}
+    />
+  );
+
+  const companyPicker = (
+    <div>
+      <Label>{buyFrom === "company" ? "Company" : "Stock company"}</Label>
+      <Select
+        value={warehouseId}
+        onChange={(e) => setWarehouseId(e.target.value)}
+        required
+      >
+        <option value="">Select company</option>
+        {warehouses.map((w) => (
+          <option key={w.id} value={w.id}>
+            {w.name}
+          </option>
+        ))}
+      </Select>
+    </div>
+  );
+
   return (
     <form
       onSubmit={onSubmit}
@@ -193,35 +310,70 @@ export function PurchaseInvoiceForm({
       <div className="grid items-end gap-2 sm:grid-cols-12">
         <div className="sm:col-span-2">
           <Label>Date</Label>
-          <Input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} required />
-        </div>
-        <div className="sm:col-span-5">
-          <PartyCodePicker
-            companyId={companyId}
-            parties={suppliers}
-            value={partyId}
+          <Input
+            type="date"
+            value={invoiceDate}
+            onChange={(e) => setInvoiceDate(e.target.value)}
             required
-            label="Vendor code"
-            emptyLabel="Select vendor"
-            filterSubtype={["supplier", "both"]}
-            onChange={(id) => setPartyId(id)}
           />
         </div>
+        <div className="sm:col-span-2">
+          <Label>Buy from</Label>
+          <Select
+            value={buyFrom}
+            onChange={(e) => setBuyFrom((e.target.value as BuyFrom) || "vendor")}
+          >
+            <option value="vendor">Vendor</option>
+            <option value="company">Company</option>
+          </Select>
+        </div>
+        {buyFrom === "vendor" ? (
+          <>
+            <div className="sm:col-span-5">{vendorPicker}</div>
+            <div className="sm:col-span-3">{companyPicker}</div>
+          </>
+        ) : (
+          <>
+            <div className="sm:col-span-4">{companyPicker}</div>
+            <div className="sm:col-span-4">{vendorPicker}</div>
+          </>
+        )}
+
         <div className="sm:col-span-3">
-          <Label>Company</Label>
-          <Select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} required>
-            {warehouses.map((w) => (
-              <option key={w.id} value={w.id}>{w.name}</option>
+          <Label>Gate pass #</Label>
+          <Select value={gatePassId} onChange={(e) => applyGatePass(e.target.value)}>
+            <option value="">Optional</option>
+            {gatePasses.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.pass_no}
+                {g.pass_date ? ` · ${g.pass_date}` : ""}
+              </option>
             ))}
           </Select>
         </div>
         <div className="sm:col-span-2">
-          <Label>Vendor bill #</Label>
-          <Input value={supplierBillNo} onChange={(e) => setSupplierBillNo(e.target.value)} />
+          <Label>Company invoice #</Label>
+          <Input
+            value={supplierBillNo}
+            onChange={(e) => setSupplierBillNo(e.target.value)}
+            placeholder="Bill no."
+          />
         </div>
-        <div className="sm:col-span-12">
+        <div className="sm:col-span-2">
+          <Label>Company invoice date</Label>
+          <Input
+            type="date"
+            value={companyInvoiceDate}
+            onChange={(e) => setCompanyInvoiceDate(e.target.value)}
+          />
+        </div>
+        <div className="sm:col-span-5">
           <Label>Narration</Label>
-          <Input value={narration} onChange={(e) => setNarration(e.target.value)} />
+          <Input
+            value={narration}
+            onChange={(e) => setNarration(e.target.value)}
+            placeholder="Short note"
+          />
         </div>
       </div>
 

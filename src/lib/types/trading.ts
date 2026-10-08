@@ -42,6 +42,8 @@ export type PurchaseInvoice = {
   company_id: string;
   invoice_no: string;
   supplier_bill_no: string | null;
+  company_invoice_date?: string | null;
+  gate_pass_id?: string | null;
   invoice_date: string;
   party_id: string;
   warehouse_id: string;
@@ -52,6 +54,7 @@ export type PurchaseInvoice = {
   status: DocStatus;
   parties?: { name_en: string; party_code: string } | null;
   warehouses?: { name: string } | null;
+  gate_passes?: { pass_no: string } | null;
 };
 
 export type StockTransfer = {

@@ -3,6 +3,7 @@
 import { ChangePasswordCard } from "@/components/settings/change-password-card";
 import { CopyCatalogForm } from "@/components/settings/copy-catalog-form";
 import { DesktopDownloadCard } from "@/components/settings/desktop-download-card";
+import { MainCompanyHubForm } from "@/components/settings/main-company-hub-form";
 import { SaleStockPolicySetting } from "@/components/settings/sale-stock-policy-setting";
 import { WalkInSlipSetting } from "@/components/settings/walk-in-slip-setting";
 import { useCompanyProfile } from "@/hooks/use-company-profile";
@@ -22,10 +23,12 @@ function ProfileFact({ label, value }: { label: string; value: string }) {
 export function CompanyProfileView({
   initialCompany,
   initialOrgCompanies = [],
+  initialMainCompanyId = null,
   initialOffline = false,
 }: {
   initialCompany: Company;
   initialOrgCompanies?: Company[];
+  initialMainCompanyId?: string | null;
   initialOffline?: boolean;
 }) {
   const { company, orgCompanies, isOnline } = useCompanyProfile({
@@ -90,14 +93,38 @@ export function CompanyProfileView({
 
       <WalkInSlipSetting companyId={activeCompany.id} />
 
+      {(orgCompanies || []).length >= 2 ? (
+        <div id="main-company-hub" className="panel p-5">
+          <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
+            Main company (shared products & shops)
+          </h2>
+          <p className="mt-1 mb-4 text-sm text-[var(--muted)]">
+            Pick one company as main for this organization. Products, rates, and
+            shops from the others sync there. Purchase stock on a sister company
+            also restocks main. Sale invoices and balances stay separate.
+          </p>
+          {!isOnline ? (
+            <p className="text-sm text-[var(--muted)]">
+              Main company sync needs an online connection.
+            </p>
+          ) : (
+            <MainCompanyHubForm
+              organizationId={activeCompany.organization_id}
+              companies={(orgCompanies || []) as Company[]}
+              initialMainCompanyId={initialMainCompanyId}
+            />
+          )}
+        </div>
+      ) : null}
+
       <div id="catalog-copy" className="panel p-5">
         <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
           Cross-company catalog copy
         </h2>
         <p className="mt-1 mb-4 text-sm text-[var(--muted)]">
-          Copy product catalog (+ companies) from one distributor account to
-          another under the same organization. Example: Umar Cosmetic → Ishaq
-          Limited. Each company keeps its own stock, parties, and invoices.
+          One-time copy of products (+ brand companies) from one distributor
+          account to another under the same organization. For ongoing shared
+          stock and shops, use Main company above instead.
         </p>
         {!isOnline ? (
           <p className="text-sm text-[var(--muted)]">
