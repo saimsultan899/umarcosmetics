@@ -358,6 +358,60 @@ export function ProductForm({
         <Label>Name (English)</Label>
         <Input value={form.name_en} onChange={(e) => set("name_en", e.target.value)} required />
       </div>
+      <div className="sm:col-span-2 lg:col-span-3 space-y-2">
+        <Label>Barcodes</Label>
+        <p className="text-[11px] text-[var(--muted)]">
+          Scan one barcode, then add another for a different flavour or variety.
+          They stay on this same product and the same stock.
+        </p>
+        {barcodes.map((row, index) => (
+          <div key={index} className="flex flex-wrap items-center gap-2">
+            <Input
+              className="min-w-[12rem] flex-1"
+              value={row.barcode}
+              onChange={(e) => {
+                const value = e.target.value;
+                setBarcodes((rows) =>
+                  rows.map((item, i) => (i === index ? { ...item, barcode: value } : item)),
+                );
+                if (error) setError(null);
+              }}
+              onBlur={async () => {
+                if (!row.barcode.trim()) return;
+                const code = form.code.trim() || initial?.code || "";
+                if (!code) return;
+                const msg = await checkIdentity(code, barcodes);
+                if (msg) setError(msg);
+              }}
+              placeholder={index === 0 ? "Scan or type barcode" : "Scan another barcode"}
+              autoComplete="off"
+              inputMode="text"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setBarcodes((rows) => {
+                  if (rows.length === 1) return [{ barcode: "", label: "" }];
+                  return rows.filter((_, i) => i !== index);
+                });
+                if (error) setError(null);
+              }}
+            >
+              Remove
+            </Button>
+          </div>
+        ))}
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={() => setBarcodes((rows) => [...rows, { barcode: "", label: "" }])}
+        >
+          Add another barcode
+        </Button>
+      </div>
       <div>
         <Label>Urdu name</Label>
         <Input value={form.name_ur} onChange={(e) => set("name_ur", e.target.value)} dir="rtl" />
@@ -385,70 +439,6 @@ export function ProductForm({
             <option key={w.id} value={w.id}>{w.name}</option>
           ))}
         </Select>
-      </div>
-      <div className="sm:col-span-2 lg:col-span-3 space-y-2">
-        <Label>Barcodes</Label>
-        <p className="text-[11px] text-[var(--muted)]">
-          Scan one barcode, then add another for a different flavour or variety.
-          They stay on this same product and the same stock.
-        </p>
-        {barcodes.map((row, index) => (
-          <div key={index} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
-            <Input
-              value={row.barcode}
-              onChange={(e) => {
-                const value = e.target.value;
-                setBarcodes((rows) =>
-                  rows.map((item, i) => (i === index ? { ...item, barcode: value } : item)),
-                );
-                if (error) setError(null);
-              }}
-              onBlur={async () => {
-                if (!row.barcode.trim()) return;
-                const code = form.code.trim() || initial?.code || "";
-                if (!code) return;
-                const msg = await checkIdentity(code, barcodes);
-                if (msg) setError(msg);
-              }}
-              placeholder={index === 0 ? "Scan or type barcode" : "Scan another barcode"}
-              autoComplete="off"
-              inputMode="text"
-            />
-            <Input
-              value={row.label}
-              onChange={(e) => {
-                const value = e.target.value;
-                setBarcodes((rows) =>
-                  rows.map((item, i) => (i === index ? { ...item, label: value } : item)),
-                );
-              }}
-              placeholder="Flavour / variety (optional)"
-              autoComplete="off"
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setBarcodes((rows) => {
-                  if (rows.length === 1) return [{ barcode: "", label: "" }];
-                  return rows.filter((_, i) => i !== index);
-                });
-                if (error) setError(null);
-              }}
-            >
-              Remove
-            </Button>
-          </div>
-        ))}
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          onClick={() => setBarcodes((rows) => [...rows, { barcode: "", label: "" }])}
-        >
-          Add another barcode
-        </Button>
       </div>
       <div>
         <Label>Trade price</Label>
