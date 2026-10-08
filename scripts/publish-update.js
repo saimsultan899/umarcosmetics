@@ -18,10 +18,31 @@ const repo = "saimsultan899/umarcosmetics";
 
 function releaseFiles() {
   if (!fs.existsSync(outDir)) return [];
+  const version = String(pkg.version);
   return fs
     .readdirSync(outDir)
-    .filter((name) => /^(latest\.yml|.*\.(exe|blockmap))$/i.test(name))
+    .filter((name) => {
+      if (name === "latest.yml") return true;
+      if (!name.includes(version)) return false;
+      if (/uninstaller/i.test(name)) return false;
+      return /\.(exe|blockmap)$/i.test(name);
+    })
     .map((name) => path.join(outDir, name));
+}
+
+function ghCommand() {
+  if (process.platform !== "win32") return "gh";
+  const candidates = [
+    "gh",
+    path.join(process.env.ProgramFiles || "C:\\Program Files", "GitHub CLI", "gh.exe"),
+    path.join(process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)", "GitHub CLI", "gh.exe"),
+    path.join(process.env.LOCALAPPDATA || "", "Programs", "GitHub CLI", "gh.exe"),
+  ];
+  for (const candidate of candidates) {
+    if (candidate === "gh") continue;
+    if (candidate && fs.existsSync(candidate)) return candidate;
+  }
+  return "gh";
 }
 
 const files = releaseFiles();
@@ -40,15 +61,24 @@ if (!files.some((file) => path.basename(file) === "latest.yml") || !files.some((
 for (const file of files) console.log(`  ${file}`);
 console.log("");
 
+const ghBin = ghCommand();
+
 function gh(args) {
-  execFileSync("gh", args, { stdio: "inherit" });
+  execFileSync(ghBin, args, { stdio: "inherit" });
 }
 
 let exists = false;
 try {
-  execFileSync("gh", ["release", "view", tag, "--repo", repo], { stdio: "ignore" });
+  execFileSync(ghBin, ["release", "view", tag, "--repo", repo], { stdio: "ignore" });
   exists = true;
-} catch {
+} catch (err) {
+  if (err && err.code === "ENOENT") {
+    console.log("GitHub CLI was not found. Install it, then run this again:");
+    console.log("  winget install --id GitHub.cli");
+    console.log("  gh auth login");
+    console.log("");
+    process.exit(1);
+  }
   exists = false;
 }
 

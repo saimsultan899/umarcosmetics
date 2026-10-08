@@ -60,9 +60,12 @@ export async function fetchLatestDesktopInstaller(): Promise<DesktopInstallerInf
 /** Turn electron-builder's relative file names into GitHub release downloads. */
 export function absolutizeUpdateYaml(yml: string, tag: string) {
   const base = `https://github.com/${DESKTOP_RELEASE_REPO}/releases/download/${encodeURIComponent(tag)}/`;
-  return yml.replace(/^([ \t]*(?:-\s*)?(?:url|path):[ \t]*)(\S+)[ \t]*$/gm, (_match, prefix, file) => {
-    const name = String(file).replace(/^['"]|['"]$/g, "");
-    if (/^https?:\/\//i.test(name)) return `${prefix}${name}`;
-    return `${prefix}${base}${encodeURIComponent(name)}`;
-  });
+  return yml.replace(/\r\n/g, "\n").replace(
+    /^([ \t]*(?:-\s*)?(?:url|path):[ \t]*)(.+?)[ \t]*$/gm,
+    (_match, prefix: string, file: string) => {
+      const name = file.trim().replace(/^['"]|['"]$/g, "");
+      if (/^https?:\/\//i.test(name)) return `${prefix}${name}`;
+      return `${prefix}${base}${encodeURIComponent(name)}`;
+    },
+  );
 }
