@@ -312,12 +312,7 @@ export async function clearCredentialVault() {
 }
 
 export function shouldOfferPinVault() {
-  // Localhost is a normal browser sign-in. The PIN is only for the installed app.
-  if (typeof window !== "undefined") {
-    const host = window.location.hostname;
-    if (host === "localhost" || host === "127.0.0.1" || host === "[::1]") {
-      return false;
-    }
-  }
+  // The installed app loads from 127.0.0.1, so host alone cannot decide this.
+  // A normal browser, including localhost, keeps email and password sign-in.
   return isElectronRuntime() || hasDesktopVaultApi();
 }

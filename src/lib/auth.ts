@@ -273,6 +273,10 @@ export const getMemberships = cache(async function getMemberships() {
 
 /** Platform SaaS console — requires online + profiles.is_super_admin. */
 export async function requireSuperAdmin() {
+  if (process.env.UMAR_DESKTOP === "1") {
+    redirect("/dashboard");
+  }
+
   const { supabase, user, offline } = await requireUser();
   if (offline) {
     return {

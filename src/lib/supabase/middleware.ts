@@ -55,6 +55,8 @@ export async function updateSession(request: NextRequest) {
     path.startsWith("/api/app-version/") ||
     path === "/latest.yml" ||
     path === "/api/desktop-update/latest" ||
+    path === "/api/desktop-update/info" ||
+    path === "/api/desktop-update/download" ||
     path.startsWith("/api/desktop-update/");
 
   const cookiesPresent = hasAuthCookie(request);

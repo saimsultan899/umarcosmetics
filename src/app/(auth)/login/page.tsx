@@ -34,25 +34,30 @@ import { filterUsableMemberships } from "@/lib/super-admin/access";
 import { getCachedSessionData, cacheSessionData } from "@/lib/offline/cache-manager";
 import { createClient } from "@/lib/supabase/client";
 import { withTimeout } from "@/lib/offline/fetch-timeout";
-import { ArrowLeft, Layers3 } from "lucide-react";
+import { DesktopDownloadCard } from "@/components/settings/desktop-download-card";
+import { DESKTOP_UPDATE_SITE } from "@/lib/desktop/update-feed";
+import { isElectronRuntime } from "@/lib/offline/service-worker";
+import { ArrowLeft } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useEffect, useState } from "react";
 
-type Step = "unlock" | "credentials" | "pin-setup" | "company";
+type Step = "unlock" | "credentials" | "forgot" | "pin-setup" | "company";
+
+function desktopPinHint() {
+  if (typeof window === "undefined" || !window.umarDesktop?.isDesktop) return null;
+  try {
+    return localStorage.getItem("umar_vault_hint");
+  } catch {
+    return null;
+  }
+}
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [step, setStep] = useState<Step>(() => {
-    if (
-      typeof window !== "undefined" &&
-      shouldOfferPinVault() &&
-      window.umarDesktop?.isDesktop
-    ) {
-      return "unlock";
-    }
-    return "credentials";
-  });
+  const [step, setStep] = useState<Step>(() =>
+    desktopPinHint() ? "unlock" : "credentials",
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pendingPassword, setPendingPassword] = useState("");
@@ -60,16 +65,10 @@ function LoginForm() {
   const [picking, setPicking] = useState<string | null>(null);
   const [rows, setRows] = useState<CompanyMembership[]>([]);
   const [preferredId, setPreferredId] = useState<string | null>(null);
-  const [emailHint, setEmailHint] = useState<string | null>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        return localStorage.getItem("umar_vault_hint");
-      } catch (_) {
-        return null;
-      }
-    }
-    return null;
-  });
+  const [emailHint, setEmailHint] = useState<string | null>(() => desktopPinHint());
+  const [canUsePin, setCanUsePin] = useState(() => !!desktopPinHint());
+  const [accountUserId, setAccountUserId] = useState<string | null>(null);
+  const [resetSent, setResetSent] = useState(false);
   const [error, setError] = useState<string | null>(
     searchParams.get("error") ? "Authentication failed. Try again." : null,
   );
@@ -90,11 +89,14 @@ function LoginForm() {
         } catch (_) {}
       }
       if (hasVault) {
+        setCanUsePin(true);
         setStep("unlock");
         // Security gate: When local PIN vault exists, require PIN unlock first.
         // Never auto-login or bypass PIN until user successfully unlocks.
         return;
       }
+
+      setCanUsePin(false);
 
       // If no local PIN vault exists (e.g. fresh installation or web sign-in):
       setStep("credentials");
@@ -294,6 +296,7 @@ function LoginForm() {
     await persistSessionTokens();
     setOfflineSessionCookie(false);
     setPendingPassword(pwd);
+    setAccountUserId(userId);
     setEmail(userEmail);
     setRows(memberships);
 
@@ -433,13 +436,25 @@ function LoginForm() {
     setError(null);
     try {
       const preferred = getPreferredCompanyId();
-      await saveCredentialVault({
+      const saved = await saveCredentialVault({
         pin,
         email,
         password: pendingPassword || password,
         companyId: preferred,
-        userId: null,
+        userId: accountUserId,
       });
+      if (!saved.ok) {
+        setLoading(false);
+        setError(saved.error || "Could not save PIN");
+        return;
+      }
+      try {
+        localStorage.setItem("umar_vault_hint", email);
+      } catch {
+        /* ignore */
+      }
+      setEmailHint(email);
+      setCanUsePin(true);
       setLoading(false);
       setPendingPassword("");
 
@@ -516,6 +531,27 @@ function LoginForm() {
             12000,
             "pin-signIn",
           );
+          if (signError) {
+            const rejected = /invalid login|invalid credentials|email not confirmed/i.test(
+              signError.message || "",
+            );
+            if (rejected) {
+              await clearCredentialVault();
+              try {
+                localStorage.removeItem("umar_vault_hint");
+              } catch {
+                /* ignore */
+              }
+              setCanUsePin(false);
+              setEmailHint(null);
+              setEmail(unlocked.email);
+              setError(
+                "The saved PIN no longer matches this account. Sign in with email and password, then save a new PIN.",
+              );
+              setStep("credentials");
+              return;
+            }
+          }
           if (!signError && authData.user) {
             await persistSessionTokens();
             setOfflineSessionCookie(false);
@@ -722,14 +758,48 @@ function LoginForm() {
     setError(null);
   }
 
+  async function sendReset(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setResetSent(false);
+    if (!email.trim()) {
+      setError("Enter the email you use to sign in.");
+      return;
+    }
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      setError("Connect to the internet to reset the password.");
+      return;
+    }
+    setLoading(true);
+    const host = window.location.hostname;
+    const origin =
+      host === "localhost" || host === "127.0.0.1"
+        ? window.location.origin
+        : isElectronRuntime()
+          ? DESKTOP_UPDATE_SITE
+          : window.location.origin;
+    const supabase = createClient();
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${origin}/login/reset`,
+    });
+    setLoading(false);
+    if (resetError) {
+      setError(resetError.message);
+      return;
+    }
+    setResetSent(true);
+  }
+
   const subtitle =
     step === "unlock"
       ? "Unlock with your local PIN"
       : step === "pin-setup"
         ? "Set a PIN for offline access"
-        : step === "credentials"
-          ? "Sign in to your workspace"
-          : "Select a company to continue";
+        : step === "forgot"
+          ? "Reset your password"
+          : step === "credentials"
+            ? "Sign in to your workspace"
+            : "Select a company to continue";
 
   return (
     <div className="login-shell">
@@ -741,8 +811,8 @@ function LoginForm() {
         }`}
       >
         <div className="login-brand">
-          <div className="login-brand__mark">
-            <Layers3 className="h-5 w-5" />
+          <div className="login-brand__mark login-brand__mark--logo">
+            <img src="/icons/icon-192.png" alt="" />
           </div>
           <div>
             <h1 className="login-brand__title">Umar Distribution</h1>
@@ -758,6 +828,7 @@ function LoginForm() {
             onUnlock={(pin) => void handlePinUnlock(pin)}
             onUsePassword={() => {
               setError(null);
+              if (emailHint && emailHint.includes("@")) setEmail(emailHint);
               setStep("credentials");
             }}
           />
@@ -815,8 +886,76 @@ function LoginForm() {
             <Button type="submit" className="login-submit" loading={loading}>
               {loading ? "Signing in..." : "Sign in"}
             </Button>
+            <button
+              type="button"
+              className="text-sm font-medium text-[var(--brand)]"
+              onClick={() => {
+                setError(null);
+                setResetSent(false);
+                setStep("forgot");
+              }}
+            >
+              Forgot password?
+            </button>
+            {canUsePin ? (
+              <button
+                type="button"
+                className="text-sm font-medium text-[var(--brand)]"
+                onClick={() => {
+                  setError(null);
+                  setStep("unlock");
+                }}
+              >
+                Unlock with PIN
+              </button>
+            ) : null}
           </form>
         ) : null}
+
+        {step === "forgot" ? (
+          <form onSubmit={sendReset} className="login-form">
+            <p className="text-sm text-[var(--muted)]">
+              Enter the account email. A reset link will be sent there. After you choose a new password, sign in again. If this computer was formatted, download the Windows app below.
+            </p>
+            <div className="login-field">
+              <label htmlFor="reset-email">Email</label>
+              <Input
+                id="reset-email"
+                type="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@company.com"
+              />
+            </div>
+            {error ? (
+              <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>
+            ) : null}
+            {resetSent ? (
+              <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                If this email has an account, a reset link is on its way. Open it on a computer that is online, then sign in with the new password.
+              </p>
+            ) : null}
+            <Button type="submit" className="login-submit" loading={loading}>
+              {loading ? "Sending…" : "Send reset link"}
+            </Button>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 text-sm font-medium text-[var(--brand)]"
+              onClick={() => {
+                setError(null);
+                setResetSent(false);
+                setStep("credentials");
+              }}
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Back to sign in
+            </button>
+          </form>
+        ) : null}
+
+        {step === "credentials" || step === "forgot" ? <DesktopDownloadCard compact /> : null}
 
         {step === "company" ? (
           <div>

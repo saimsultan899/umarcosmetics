@@ -1,10 +1,23 @@
 "use client";
 
+import { ChangePasswordCard } from "@/components/settings/change-password-card";
 import { CopyCatalogForm } from "@/components/settings/copy-catalog-form";
+import { DesktopDownloadCard } from "@/components/settings/desktop-download-card";
 import { SaleStockPolicySetting } from "@/components/settings/sale-stock-policy-setting";
 import { WalkInSlipSetting } from "@/components/settings/walk-in-slip-setting";
 import { useCompanyProfile } from "@/hooks/use-company-profile";
 import type { Company } from "@/lib/types/database";
+
+function ProfileFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-[var(--surface)] px-4 py-3">
+      <dt className="text-[11px] font-medium tracking-wide text-[var(--muted)] uppercase">
+        {label}
+      </dt>
+      <dd className="mt-1 text-sm font-medium text-[var(--ink)]">{value}</dd>
+    </div>
+  );
+}
 
 export function CompanyProfileView({
   initialCompany,
@@ -23,6 +36,14 @@ export function CompanyProfileView({
 
   const activeCompany = company || initialCompany;
 
+  const facts = [
+    ["Code", activeCompany.code || "—"],
+    ["City", activeCompany.city || "—"],
+    ["Phone", activeCompany.phone || "—"],
+    ["NTN", activeCompany.ntn || "—"],
+    ["Address", activeCompany.address || "—"],
+  ] as const;
+
   return (
     <div className="animate-rise space-y-6">
       <div>
@@ -30,40 +51,36 @@ export function CompanyProfileView({
           Company profile
         </h1>
         <p className="mt-1 text-sm text-[var(--muted)]">
-          Active workspace and optional catalog sync between your companies
+          This workspace, your sign-in, and the Windows app
         </p>
       </div>
 
-      <div className="panel p-5">
-        <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
-          Current company
-        </h2>
-        <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-          <p>
-            <span className="text-[var(--muted)]">Name:</span>{" "}
-            <strong>{activeCompany.name}</strong>
-          </p>
-          <p>
-            <span className="text-[var(--muted)]">Code:</span>{" "}
-            {activeCompany.code || "—"}
-          </p>
-          <p>
-            <span className="text-[var(--muted)]">City:</span>{" "}
-            {activeCompany.city || "—"}
-          </p>
-          <p>
-            <span className="text-[var(--muted)]">Address:</span>{" "}
-            {activeCompany.address || "—"}
-          </p>
-          <p>
-            <span className="text-[var(--muted)]">Phone:</span>{" "}
-            {activeCompany.phone || "—"}
-          </p>
-          <p>
-            <span className="text-[var(--muted)]">NTN:</span>{" "}
-            {activeCompany.ntn || "—"}
-          </p>
+      <section className="panel overflow-hidden">
+        <div className="flex items-center gap-4 border-b border-[var(--border)] px-5 py-4">
+          <img
+            src="/icons/icon-192.png"
+            alt=""
+            className="h-14 w-14 rounded-2xl object-cover"
+          />
+          <div className="min-w-0">
+            <h2 className="truncate font-[family-name:var(--font-display)] text-xl font-semibold">
+              {activeCompany.name}
+            </h2>
+            <p className="truncate text-sm text-[var(--muted)]">
+              {[activeCompany.code, activeCompany.city].filter(Boolean).join(" · ") || "Active company"}
+            </p>
+          </div>
         </div>
+        <dl className="grid gap-px bg-[var(--border)] sm:grid-cols-2 lg:grid-cols-3">
+          {facts.map(([label, value]) => (
+            <ProfileFact key={label} label={label} value={value} />
+          ))}
+        </dl>
+      </section>
+
+      <div className="grid items-start gap-6 lg:grid-cols-2">
+        <ChangePasswordCard />
+        <DesktopDownloadCard />
       </div>
 
       <SaleStockPolicySetting

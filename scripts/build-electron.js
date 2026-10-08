@@ -13,6 +13,12 @@ execSync("node scripts/prepare-standalone.js", {
   stdio: "inherit",
   env: process.env,
 });
+// better-sqlite3 must match Electron's ABI. Packaging skips npmRebuild, so
+// refresh the native module here (same step postinstall uses).
+execSync("electron-builder install-app-deps", {
+  stdio: "inherit",
+  env: process.env,
+});
 execSync(`electron-builder ${builderArgs}`, {
   stdio: "inherit",
   env: process.env,

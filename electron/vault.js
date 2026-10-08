@@ -79,16 +79,48 @@ function readMeta() {
   }
 }
 
+function writeMeta(patch) {
+  const prev = readMeta() || {};
+  fs.writeFileSync(
+    metaPath(),
+    JSON.stringify({ ...prev, ...patch, v: VAULT_VERSION }, null, 2),
+    "utf8",
+  );
+}
+
+const PIN_PATTERN = /^\d{4,6}$/;
+const MAX_PIN_ATTEMPTS = 5;
+
+function pinError() {
+  return "PIN must be 4–6 digits";
+}
+
+function lockRemainingMs(meta) {
+  const until = meta && meta.lockedUntil ? Date.parse(meta.lockedUntil) : 0;
+  if (!until || Number.isNaN(until)) return 0;
+  return Math.max(0, until - Date.now());
+}
+
 /**
  * @param {{ pin: string, email: string, password: string, companyId?: string|null, userId?: string|null }} payload
  */
 function saveVault(payload) {
+  const pin = String(payload.pin || "");
+  const email = String(payload.email || "").trim();
+  const password = String(payload.password || "");
+  if (!PIN_PATTERN.test(pin)) {
+    return { ok: false, error: pinError() };
+  }
+  if (!email || !password) {
+    return { ok: false, error: "Sign in before saving a PIN" };
+  }
+
   const salt = crypto.randomBytes(SALT_LEN);
-  const key = deriveKey(payload.pin, salt);
+  const key = deriveKey(pin, salt);
   const json = JSON.stringify({
     v: VAULT_VERSION,
-    email: payload.email,
-    password: payload.password,
+    email,
+    password,
     companyId: payload.companyId || null,
     userId: payload.userId || null,
     savedAt: new Date().toISOString(),
@@ -101,9 +133,11 @@ function saveVault(payload) {
     JSON.stringify(
       {
         v: VAULT_VERSION,
-        emailHint: String(payload.email || "").replace(/(^.).*(@.*$)/, "$1***$2"),
-        accountEmail: String(payload.email || "").trim().toLowerCase(),
+        emailHint: email.replace(/(^.).*(@.*$)/, "$1***$2"),
+        accountEmail: email.toLowerCase(),
         companyId: payload.companyId || null,
+        failedAttempts: 0,
+        lockedUntil: null,
         updatedAt: new Date().toISOString(),
       },
       null,
@@ -121,6 +155,15 @@ function unlockVault(pin) {
   if (!vaultExists()) {
     return { ok: false, error: "No saved credentials" };
   }
+  const meta = readMeta() || {};
+  const wait = lockRemainingMs(meta);
+  if (wait > 0) {
+    const secs = Math.ceil(wait / 1000);
+    return { ok: false, error: `Too many attempts. Try again in ${secs}s.` };
+  }
+  if (!PIN_PATTERN.test(String(pin || ""))) {
+    return { ok: false, error: pinError() };
+  }
   try {
     const raw = unwrapFromDisk(fs.readFileSync(vaultPath()));
     const salt = raw.subarray(0, SALT_LEN);
@@ -128,6 +171,7 @@ function unlockVault(pin) {
     const key = deriveKey(pin, salt);
     const json = decryptAesGcm(key, sealed);
     const data = JSON.parse(json);
+    writeMeta({ failedAttempts: 0, lockedUntil: null });
     return {
       ok: true,
       email: data.email,
@@ -136,6 +180,16 @@ function unlockVault(pin) {
       userId: data.userId || null,
     };
   } catch {
+    const fails = (Number(meta.failedAttempts) || 0) + 1;
+    const patch = { failedAttempts: fails, lockedUntil: null };
+    if (fails >= MAX_PIN_ATTEMPTS) {
+      const lockMs = Math.min(15 * 60 * 1000, 60_000 * 2 ** (fails - MAX_PIN_ATTEMPTS));
+      patch.lockedUntil = new Date(Date.now() + lockMs).toISOString();
+    }
+    writeMeta(patch);
+    if (patch.lockedUntil) {
+      return { ok: false, error: "Too many attempts. Try again in 60s, or sign in with email." };
+    }
     return { ok: false, error: "Incorrect PIN" };
   }
 }

@@ -12,6 +12,10 @@ export type SuperAdminApiContext = {
 export async function requireSuperAdminApi(): Promise<
   SuperAdminApiContext | NextResponse
 > {
+  if (process.env.UMAR_DESKTOP === "1") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   const supabase = await createClient();
   let userId: string | null = null;
   try {

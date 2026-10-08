@@ -191,7 +191,12 @@ function startNextServer() {
     const nextBin = path.join(projectRoot, "node_modules", ".bin", "next");
     nextProcess = spawn(nextBin, ["dev", "-p", String(PORT), "-H", HOST], {
       cwd: projectRoot,
-      env: { ...process.env, PORT: String(PORT), HOSTNAME: HOST },
+      env: {
+        ...process.env,
+        PORT: String(PORT),
+        HOSTNAME: HOST,
+        UMAR_DESKTOP: "1",
+      },
       shell: true,
       stdio: "pipe",
     });
@@ -242,6 +247,9 @@ function startNextServer() {
       PORT: String(PORT),
       HOSTNAME: HOST,
       NODE_ENV: "production",
+      // Super-admin pages and APIs stay on the hosted site. The packaged
+      // server refuses them even if someone unpacks the app and calls localhost.
+      UMAR_DESKTOP: "1",
     };
 
     try {

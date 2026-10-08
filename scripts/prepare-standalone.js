@@ -55,17 +55,23 @@ const publicDest = path.join(standaloneDir, "public");
 copyDir(publicSrc, publicDest);
 console.log("  Copied public -> .next/standalone/public");
 
-// 3. Copy .env.local to standalone/.env.local (Supabase keys for the local server)
+// 3. Copy only public env values. The installer is unpackable, so a service
+// role key or any other secret must never be written into the package.
 const envSrc = path.join(root, ".env.local");
 const envDest = path.join(standaloneDir, ".env.local");
+function isPublicEnvLine(line) {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.startsWith("#")) return true;
+  return trimmed.split("=")[0].startsWith("NEXT_PUBLIC_");
+}
 if (fs.existsSync(envSrc)) {
   const safe = fs
     .readFileSync(envSrc, "utf8")
     .split(/\r?\n/)
-    .filter((line) => !line.startsWith("SUPABASE_SERVICE_ROLE_KEY="))
+    .filter(isPublicEnvLine)
     .join("\n");
   fs.writeFileSync(envDest, safe.endsWith("\n") ? safe : `${safe}\n`);
-  console.log("  Copied .env.local without the service role key");
+  console.log("  Copied .env.local with NEXT_PUBLIC_ values only");
 } else {
   console.warn(
     "  WARNING: .env.local not found — packaged app may fail auth/API calls.",

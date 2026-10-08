@@ -23,8 +23,8 @@ export function PinSetupForm({
   async function submit(e: FormEvent) {
     e.preventDefault();
     setLocalError(null);
-    if (pin.length < 4 || pin.length > 12) {
-      setLocalError("PIN must be 4–12 characters");
+    if (pin.length < 4 || pin.length > 6 || !/^\d+$/.test(pin)) {
+      setLocalError("PIN must be 4–6 digits");
       return;
     }
     if (pin !== confirm) {
@@ -37,18 +37,21 @@ export function PinSetupForm({
   return (
     <form onSubmit={(e) => void submit(e)} className="login-form">
       <p className="text-sm text-[var(--muted)]">
-        Create a local PIN to open this app offline. Your email and password are
-        stored encrypted on this computer only.
+        Choose a PIN for this computer. Next time the app opens on the PIN
+        screen. Email and password stay available, and the PIN is stored
+        encrypted on this PC only.
       </p>
       <div className="login-field">
         <label htmlFor="pin-new">PIN</label>
         <PasswordInput
           id="pin-new"
           autoComplete="new-password"
+          inputMode="numeric"
+          maxLength={6}
           required
           value={pin}
-          onChange={(e) => setPin(e.target.value)}
-          placeholder="4–12 characters"
+          onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+          placeholder="4–6 digits"
         />
       </div>
       <div className="login-field">
@@ -56,9 +59,11 @@ export function PinSetupForm({
         <PasswordInput
           id="pin-confirm"
           autoComplete="new-password"
+          inputMode="numeric"
+          maxLength={6}
           required
           value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
+          onChange={(e) => setConfirm(e.target.value.replace(/\D/g, "").slice(0, 6))}
           placeholder="Repeat PIN"
         />
       </div>
@@ -133,8 +138,9 @@ export function PinUnlockForm({
           autoComplete="current-password"
           required
           value={pin}
-          onChange={(e) => setPin(e.target.value)}
-          placeholder="Enter PIN"
+          onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+          placeholder="4–6 digits"
+          maxLength={6}
           autoFocus
         />
       </div>
@@ -153,7 +159,7 @@ export function PinUnlockForm({
           onClick={onUsePassword}
           disabled={busy}
         >
-          Sign in with email instead
+          Sign in with email and password
         </button>
       ) : null}
     </form>

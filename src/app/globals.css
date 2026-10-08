@@ -3355,6 +3355,25 @@ button[aria-haspopup="listbox"]:focus-visible {
   box-shadow: 0 10px 24px rgba(192, 74, 52, 0.28);
 }
 
+.login-brand__mark--logo {
+  overflow: hidden;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.login-brand__mark--logo img {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+}
+
+.login-download {
+  margin-top: 1.25rem;
+  border-top: 1px solid var(--border);
+  padding-top: 1.25rem;
+}
+
 .login-brand__title {
   margin: 0;
   font-size: 1.375rem;
