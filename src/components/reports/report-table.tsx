@@ -2,7 +2,10 @@
 
 import { PartyRecoveriesManager } from "@/components/recoveries/party-recoveries-manager";
 import { PrintOrgCompany } from "@/components/print/print-org-company";
+import { PartyBalanceActions } from "@/components/reports/party-balance-actions";
+import { ProductReportActions } from "@/components/reports/product-report-actions";
 import { ExportButtons } from "@/components/reports/export-buttons";
+import { DocumentRowActions } from "@/components/tables/document-row-actions";
 import { TableScroll } from "@/components/tables/table-scroll";
 import { TablePagination } from "@/components/tables/table-pagination";
 import { TableToolbar } from "@/components/tables/table-toolbar";
@@ -49,6 +52,38 @@ function formatCell(key: string, value: unknown) {
     return formatNumber(value, 3);
   }
   return String(value);
+}
+
+const DOCUMENT_HREFS: Array<[RegExp, string]> = [
+  [/^\/sales\/invoices\/([^/?#]+)$/i, "sale_invoices"],
+  [/^\/purchases\/invoices\/([^/?#]+)$/i, "purchase_invoices"],
+  [/^\/sales\/returns\/([^/?#]+)$/i, "sale_returns"],
+  [/^\/purchases\/returns\/([^/?#]+)$/i, "purchase_returns"],
+  [
+    /^\/vouchers\/(?:cash-receipt|cash-payment|journal|expenses)\/([^/?#]+)$/i,
+    "vouchers",
+  ],
+];
+
+function documentFromRow(row: Record<string, unknown>, href?: string) {
+  const table = typeof row._doc_table === "string" ? row._doc_table : "";
+  const id = typeof row._doc_id === "string" ? row._doc_id : "";
+  if (table && id) {
+    return {
+      table,
+      id,
+      title: typeof row._doc_title === "string" ? row._doc_title : "Document",
+    };
+  }
+  if (!href) return null;
+  for (const [pattern, docTable] of DOCUMENT_HREFS) {
+    const match = href.match(pattern);
+    if (!match) continue;
+    const title =
+      row.Invoice || row.Document || row.Narration || row["Inv no."] || "Document";
+    return { table: docTable, id: match[1], title: String(title) };
+  }
+  return null;
 }
 
 function rowFields(
@@ -225,19 +260,31 @@ export function ReportTable({
                     typeof row._href === "string" && row._href
                       ? row._href
                       : undefined;
+                  const document = documentFromRow(row, href);
                   const recoveryId =
                     typeof row._recovery_id === "string" ? row._recovery_id : "";
                   const companyId =
                     typeof row._company_id === "string" ? row._company_id : "";
+                  const organizationId =
+                    typeof row._organization_id === "string"
+                      ? row._organization_id
+                      : "";
                   const partyId =
                     typeof row._party_id === "string" ? row._party_id : "";
                   const partyLabel =
                     typeof row._party_label === "string"
                       ? row._party_label
                       : "Customer";
+                  const manageParty = row._party_manage === "1";
+                  const manageProduct = row._product_manage === "1";
+                  const productId =
+                    typeof row._product_id === "string" ? row._product_id : "";
                   const canManageRecovery = Boolean(
                     recoveryId && companyId && partyId,
                   );
+                  const expenseId =
+                    typeof row._expense_id === "string" ? row._expense_id : "";
+                  const fields = rowFields(row, columns);
                   return (
                     <tr key={`${from}-${idx}`}>
                       {columns.map((c) => {
@@ -263,9 +310,69 @@ export function ReportTable({
                         );
                       })}
                       <td className="no-print">
+                        {document ? (
+                          <DocumentRowActions
+                            title={document.title}
+                            fields={fields}
+                            href={href || ""}
+                            table={document.table}
+                            id={document.id}
+                            showPrint={
+                              document.table === "sale_invoices" ||
+                              document.table === "purchase_invoices"
+                            }
+                          />
+                        ) : manageProduct && productId && companyId && organizationId ? (
+                          <ProductReportActions
+                            productId={productId}
+                            companyId={companyId}
+                            organizationId={organizationId}
+                            productLabel={
+                              typeof row.Product === "string" && row.Product
+                                ? `${row.Code ? `${row.Code} — ` : ""}${row.Product}`
+                                : "Product"
+                            }
+                            fields={fields}
+                            canEdit={row._can_edit_product !== "0"}
+                            canInactivate={row._can_inactivate_product === "1"}
+                            canDelete={row._can_delete_product === "1"}
+                          />
+                        ) : manageParty && partyId && companyId && organizationId ? (
+                          <PartyBalanceActions
+                            partyId={partyId}
+                            companyId={companyId}
+                            organizationId={organizationId}
+                            partyLabel={
+                              typeof row.Name === "string" && row.Name
+                                ? `${row.Code ? `${row.Code} — ` : ""}${row.Name}`
+                                : partyLabel
+                            }
+                            fields={fields}
+                            canEdit={row._can_edit_party !== "0"}
+                            canInactivate={row._can_inactivate === "1"}
+                          />
+                        ) : expenseId ? (
+                          <RowActions
+                            viewTitle={String(row["EXP #"] || "Expense")}
+                            viewFields={fields}
+                            href={href}
+                            allowEdit={false}
+                            allowDelete
+                            deleteTitle={`Delete ${String(row["EXP #"] || "this expense")}?`}
+                            deleteDescription="This removes the expense and reverses its ledger entry."
+                            deleteConfirmLabel="Delete entry"
+                            onDelete={async () => {
+                              const supabase = createClient();
+                              const { error } = await supabase.rpc("delete_expense", {
+                                p_id: expenseId,
+                              });
+                              if (error) throw new Error(error.message);
+                            }}
+                          />
+                        ) : (
                         <RowActions
                           viewTitle="Row details"
-                          viewFields={rowFields(row, columns)}
+                          viewFields={fields}
                           href={href}
                           printHref={href}
                           editTitle={`Recoveries — ${partyLabel}`}
@@ -303,6 +410,7 @@ export function ReportTable({
                               : undefined
                           }
                         />
+                        )}
                       </td>
                     </tr>
                   );

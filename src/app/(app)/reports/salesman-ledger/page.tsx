@@ -168,6 +168,17 @@ export default async function SalesmanLedgerPage({
               "Cash collected": l.collected,
               "Expense paid": l.expense,
               "Running cash": l.running,
+              ...(l.docTable && l.docId
+                ? {
+                    _doc_table: l.docTable,
+                    _doc_id: l.docId,
+                    _doc_title: l.docTitle || l.particulars,
+                    _href:
+                      l.docTable === "sale_invoices"
+                        ? `/sales/invoices/${l.docId}`
+                        : "",
+                  }
+                : {}),
             }))}
             filename={`salesman-ledger-${salesmanId}-${from}-${to}`}
           />

@@ -6,6 +6,7 @@ import { ReportFilterActions } from "@/components/reports/report-filters";
 import { UrlFilterForm } from "@/components/reports/url-filter-form";
 import { Select } from "@/components/ui/select";
 import { requireCompanyContext } from "@/lib/auth";
+import { effectivePermissions } from "@/lib/access/permissions";
 import { localDateIso } from "@/lib/dates";
 import { formatCompactPkr, formatPkr} from "@/lib/utils";
 import { ArrowDownLeft, ArrowUpRight, Scale } from "lucide-react";
@@ -27,13 +28,40 @@ function signedText(balance: number) {
   return `${formatPkr(Math.abs(balance))} Cr`;
 }
 
+const LEDGER_DOC_TABLES = new Set([
+  "sale_invoices",
+  "purchase_invoices",
+  "sale_returns",
+  "purchase_returns",
+  "vouchers",
+]);
+
+function editableLedgerDoc(table: string | null, id: string | null) {
+  return Boolean(table && id && LEDGER_DOC_TABLES.has(table));
+}
+
+function ledgerDocHref(table: string, id: string) {
+  if (table === "sale_invoices") return `/sales/invoices/${id}`;
+  if (table === "purchase_invoices") return `/purchases/invoices/${id}`;
+  if (table === "sale_returns") return `/sales/returns/${id}`;
+  if (table === "purchase_returns") return `/purchases/returns/${id}`;
+  return "";
+}
+
 export default async function AccountsReportPage({
   searchParams,
 }: {
   searchParams: Promise<{ view?: string; party?: string }>;
 }) {
   const sp = await searchParams;
-  const { supabase, company, offline } = await requireCompanyContext();
+  const { supabase, company, offline, membership, profile } =
+    await requireCompanyContext();
+  const permissions = effectivePermissions(
+    membership,
+    Boolean(profile?.is_super_admin),
+  );
+  const canEditParty = permissions.includes("edit_customers");
+  const canInactivate = permissions.includes("inactivate_records");
   const view = sp.view || "receivable";
 
   if (offline) {
@@ -44,6 +72,9 @@ export default async function AccountsReportPage({
       <OfflineAccountsReportsPage
         companyId={company.id}
         companyName={company.name}
+        organizationId={company.organization_id}
+        canEditParty={canEditParty}
+        canInactivate={canInactivate}
         searchParams={sp}
       />
     );
@@ -136,12 +167,21 @@ export default async function AccountsReportPage({
           Balance: signedText(running),
           ...(recoveryId
             ? {
-                _recovery_id: recoveryId,
-                _company_id: company.id,
+                _doc_table: "recoveries",
+                _doc_id: recoveryId,
+                _doc_title: e.narration || "Recovery",
                 _party_id: sp.party,
                 _party_label: partyLabel,
+                _company_id: company.id,
               }
-            : {}),
+            : editableLedgerDoc(e.ref_table, e.ref_id)
+              ? {
+                  _doc_table: e.ref_table,
+                  _doc_id: String(e.ref_id),
+                  _doc_title: e.narration || String(e.voucher_type || "Document"),
+                  _href: ledgerDocHref(String(e.ref_table), String(e.ref_id)),
+                }
+              : {}),
         };
       }),
     ];
@@ -179,6 +219,17 @@ export default async function AccountsReportPage({
       Number(r.credit_limit) > 0 && Number(r.balance) > Number(r.credit_limit)
         ? "Over limit"
         : "",
+    ...(canEditParty || canInactivate
+      ? {
+          _party_manage: "1",
+          _party_id: r.party_id,
+          _party_label: `${r.party_code} — ${r.name_en}`,
+          _company_id: company.id,
+          _organization_id: company.organization_id,
+          _can_edit_party: canEditParty ? "1" : "0",
+          _can_inactivate: canInactivate ? "1" : "0",
+        }
+      : {}),
   }));
 
   return (

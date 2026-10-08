@@ -259,7 +259,7 @@ export function OfflineDashboard({
     return () => {
       cancelled = true;
     };
-  }, [companyId]);
+  }, [companyId, lastSync]);
 
   const firstName = userName?.trim().split(/\s+/)[0] || "there";
   const hour = new Date().getHours();

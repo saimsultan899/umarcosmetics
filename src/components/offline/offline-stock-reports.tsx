@@ -18,10 +18,18 @@ import { useEffect, useMemo, useState } from "react";
 export function OfflineStockReportsPage({
   companyId,
   companyName,
+  organizationId,
+  canEditProduct = false,
+  canInactivate = false,
+  canDeleteProduct = false,
   searchParams: initialSp,
 }: {
   companyId: string;
   companyName: string;
+  organizationId?: string;
+  canEditProduct?: boolean;
+  canInactivate?: boolean;
+  canDeleteProduct?: boolean;
   searchParams?: { view?: string };
 }) {
   const urlSp = useSearchParams();
@@ -33,6 +41,57 @@ export function OfflineStockReportsPage({
   }, [urlSp, initialSp]);
 
   const view = sp.view || "balances";
+
+  function productActions(productId: string) {
+    if (
+      !productId ||
+      !organizationId ||
+      (!canEditProduct && !canInactivate && !canDeleteProduct)
+    ) {
+      return {};
+    }
+    return {
+      _product_manage: "1",
+      _product_id: productId,
+      _company_id: companyId,
+      _organization_id: organizationId,
+      _can_edit_product: canEditProduct ? "1" : "0",
+      _can_inactivate_product: canInactivate ? "1" : "0",
+      _can_delete_product: canDeleteProduct ? "1" : "0",
+    };
+  }
+
+  function movementActions(move: Record<string, unknown>, productId: string) {
+    const table = String(move.ref_table || "");
+    const id = String(move.ref_id || "");
+    const editable = new Set([
+      "sale_invoices",
+      "purchase_invoices",
+      "sale_returns",
+      "purchase_returns",
+      "vouchers",
+      "recoveries",
+    ]);
+    if (table && id && editable.has(table)) {
+      const href =
+        table === "sale_invoices"
+          ? `/sales/invoices/${id}`
+          : table === "purchase_invoices"
+            ? `/purchases/invoices/${id}`
+            : table === "sale_returns"
+              ? `/sales/returns/${id}`
+              : table === "purchase_returns"
+                ? `/purchases/returns/${id}`
+                : "";
+      return {
+        _doc_table: table,
+        _doc_id: id,
+        _doc_title: String(move.move_type || "Stock movement").replaceAll("_", " "),
+        ...(href ? { _href: href } : {}),
+      };
+    }
+    return productActions(productId);
+  }
 
   const [loading, setLoading] = useState(true);
   const [stock, setStock] = useState<Record<string, unknown>[]>([]);
@@ -124,9 +183,10 @@ export function OfflineStockReportsPage({
         "Value (purchase)": Math.round(qty * purchaseRate),
         "Value (retail)": Math.round(qty * retailRate),
         Status: reorder > 0 && qty <= reorder ? "Low" : "OK",
+        ...productActions(pid),
       };
     });
-  }, [stock, prodMap, whMap]);
+  }, [stock, prodMap, whMap, organizationId, canEditProduct, canInactivate, canDeleteProduct]);
 
   const companyFilter = urlSp.get("company") || "";
   const statusFilter = urlSp.get("status") || "";
@@ -158,11 +218,12 @@ export function OfflineStockReportsPage({
           "On hand": onHand,
           "Reorder level": reorder,
           Deficit: reorder > 0 && onHand < reorder ? reorder - onHand : 0,
+          ...productActions(pid),
         };
       })
       .filter((r) => r.Deficit > 0)
       .sort((a, b) => b.Deficit - a.Deficit);
-  }, [products, stock, whMap]);
+  }, [products, stock, whMap, organizationId, canEditProduct, canInactivate, canDeleteProduct]);
 
   const movementRows = useMemo(() => {
     return movements.map((m) => {
@@ -177,9 +238,10 @@ export function OfflineStockReportsPage({
         Product: prod?.name_en || "—",
         Type: String(m.move_type || m.type || "movement").toUpperCase(),
         Qty: Number(m.qty || 0),
+        ...movementActions(m, pid),
       };
     });
-  }, [movements, prodMap, whMap]);
+  }, [movements, prodMap, whMap, organizationId, canEditProduct, canInactivate, canDeleteProduct]);
 
   const totalProducts = useMemo(() => {
     return filteredBalances.filter((r) => Number(r.Qty) > 0).length;

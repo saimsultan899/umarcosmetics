@@ -382,6 +382,14 @@ export async function offlineAccountsBalances(companyId: string) {
     .sort((a, b) => Math.abs(b.balance) - Math.abs(a.balance));
 }
 
+function ledgerHref(table: string, id: string) {
+  if (table === "sale_invoices") return `/sales/invoices/${id}`;
+  if (table === "purchase_invoices") return `/purchases/invoices/${id}`;
+  if (table === "sale_returns") return `/sales/returns/${id}`;
+  if (table === "purchase_returns") return `/purchases/returns/${id}`;
+  return "";
+}
+
 /** Reconstruct a simple party ledger from local documents. */
 export async function offlinePartyLedger(
   companyId: string,
@@ -401,6 +409,9 @@ export async function offlinePartyLedger(
     narration: string;
     debit: number;
     credit: number;
+    docTable?: string;
+    docId?: string;
+    docTitle?: string;
   };
   const drafts: Draft[] = [
     {
@@ -412,41 +423,76 @@ export async function offlinePartyLedger(
     },
   ];
 
-  const push = (date: unknown, type: string, narration: string, debit: number, credit: number) => {
+  const push = (
+    date: unknown,
+    type: string,
+    narration: string,
+    debit: number,
+    credit: number,
+    doc?: { table: string; id: string; title: string },
+  ) => {
     drafts.push({
       date: String(date || "").slice(0, 10),
       type,
       narration,
       debit,
       credit,
+      docTable: doc?.table,
+      docId: doc?.id,
+      docTitle: doc?.title,
     });
   };
 
   for (const r of sales) {
     if (String(r.party_id) !== partyId) continue;
+    if (String(r.status || "posted") === "cancelled") continue;
     const total = num(r.grand_total);
     const paid = num(r.amount_paid);
     const no = formatReportInvNo(String(r.invoice_no || r.doc_no || r.id)) || String(r.invoice_no || r.id);
-    if (total) push(r.invoice_date, "SI", `Sale ${no}`, total, 0);
-    if (paid) push(r.invoice_date, "SI-CASH", `Cash on ${no}`, 0, paid);
+    const doc = { table: "sale_invoices", id: String(r.id), title: `Sale ${no}` };
+    if (total) push(r.invoice_date, "SI", `Sale ${no}`, total, 0, doc);
+    if (paid) push(r.invoice_date, "SI-CASH", `Cash on ${no}`, 0, paid, doc);
   }
   for (const r of saleReturns) {
     if (String(r.party_id) !== partyId) continue;
+    if (String(r.status || "posted") === "cancelled") continue;
     const no = formatReportInvNo(String(r.doc_no || r.return_no || r.id)) || String(r.doc_no || r.id);
-    push(r.return_date || r.doc_date, "SR", `Sale return ${no}`, 0, num(r.grand_total));
+    push(r.return_date || r.doc_date, "SR", `Sale return ${no}`, 0, num(r.grand_total), {
+      table: "sale_returns",
+      id: String(r.id),
+      title: `Sale return ${no}`,
+    });
   }
   for (const r of purchases) {
     if (String(r.party_id) !== partyId) continue;
+    if (String(r.status || "posted") === "cancelled") continue;
     const no = formatReportInvNo(String(r.invoice_no || r.doc_no || r.id)) || String(r.invoice_no || r.id);
-    push(r.invoice_date, "PI", `Purchase ${no}`, 0, num(r.grand_total));
+    push(r.invoice_date, "PI", `Purchase ${no}`, 0, num(r.grand_total), {
+      table: "purchase_invoices",
+      id: String(r.id),
+      title: `Purchase ${no}`,
+    });
   }
   for (const r of purchaseReturns) {
     if (String(r.party_id) !== partyId) continue;
+    if (String(r.status || "posted") === "cancelled") continue;
     const no = formatReportInvNo(String(r.doc_no || r.return_no || r.id)) || String(r.doc_no || r.id);
-    push(r.return_date || r.doc_date, "PR", `Purchase return ${no}`, num(r.grand_total), 0);
+    push(r.return_date || r.doc_date, "PR", `Purchase return ${no}`, num(r.grand_total), 0, {
+      table: "purchase_returns",
+      id: String(r.id),
+      title: `Purchase return ${no}`,
+    });
   }
   for (const r of vouchers) {
+    if (String(r.status || "posted") === "cancelled") continue;
     const type = String(r.voucher_type || r.type || r.entity_type || "");
+    const voucherDoc = r.id
+      ? {
+          table: "vouchers",
+          id: String(r.id),
+          title: String(r.voucher_no || r.doc_no || "Voucher"),
+        }
+      : undefined;
     const payload = (r.payload as Record<string, unknown> | undefined) || r;
     const lines = Array.isArray(payload.lines)
       ? (payload.lines as Record<string, unknown>[])
@@ -458,27 +504,27 @@ export async function offlinePartyLedger(
           (type === "cash_receipt" || type === "recovery" || type === "CR") &&
           String(line.party_id || r.party_id) === partyId
         ) {
-          push(r.voucher_date || r.doc_date, "CR", String(line.narration || r.narration || "Receipt"), 0, amt);
+          push(r.voucher_date || r.doc_date, "CR", String(line.narration || r.narration || "Receipt"), 0, amt, voucherDoc);
         } else if (
           (type === "cash_payment" || type === "CP") &&
           String(line.party_id || r.party_id) === partyId
         ) {
-          push(r.voucher_date || r.doc_date, "CP", String(line.narration || r.narration || "Payment"), amt, 0);
+          push(r.voucher_date || r.doc_date, "CP", String(line.narration || r.narration || "Payment"), amt, 0, voucherDoc);
         } else if (type === "journal_voucher" || type === "JV") {
           if (String(line.debit_party_id) === partyId) {
-            push(r.voucher_date || r.doc_date, "JV", String(line.narration || "Journal"), amt, 0);
+            push(r.voucher_date || r.doc_date, "JV", String(line.narration || "Journal"), amt, 0, voucherDoc);
           }
           if (String(line.credit_party_id) === partyId) {
-            push(r.voucher_date || r.doc_date, "JV", String(line.narration || "Journal"), 0, amt);
+            push(r.voucher_date || r.doc_date, "JV", String(line.narration || "Journal"), 0, amt, voucherDoc);
           }
         }
       }
     } else if (String(r.party_id) === partyId) {
       const amt = num(r.amount ?? r.total_amount ?? r.grand_total);
       if (type === "cash_receipt" || type === "recovery" || type === "CR") {
-        push(r.voucher_date || r.doc_date, "CR", String(r.narration || "Receipt"), 0, amt);
+        push(r.voucher_date || r.doc_date, "CR", String(r.narration || "Receipt"), 0, amt, voucherDoc);
       } else if (type === "cash_payment" || type === "CP") {
-        push(r.voucher_date || r.doc_date, "CP", String(r.narration || "Payment"), amt, 0);
+        push(r.voucher_date || r.doc_date, "CP", String(r.narration || "Payment"), amt, 0, voucherDoc);
       }
     }
   }
@@ -509,6 +555,14 @@ export async function offlinePartyLedger(
         Debit: e.debit,
         Credit: e.credit,
         Balance: signed(running),
+        ...(e.docTable && e.docId
+          ? {
+              _doc_table: e.docTable,
+              _doc_id: e.docId,
+              _doc_title: e.docTitle || e.narration,
+              _href: ledgerHref(e.docTable, e.docId),
+            }
+          : {}),
       };
     }),
   };

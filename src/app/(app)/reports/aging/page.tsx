@@ -7,6 +7,7 @@ import {
   UrlFilterForm,
 } from "@/components/reports/url-filter-form";
 import { requireCompanyContext } from "@/lib/auth";
+import { effectivePermissions } from "@/lib/access/permissions";
 import { localDateIso } from "@/lib/dates";
 import { formatCompactPkr, formatPkr} from "@/lib/utils";
 import { AlertTriangle, Clock3, Wallet } from "lucide-react";
@@ -33,7 +34,14 @@ export default async function AgingReportPage({
   searchParams: Promise<{ date?: string }>;
 }) {
   const sp = await searchParams;
-  const { supabase, company, offline } = await requireCompanyContext();
+  const { supabase, company, offline, membership, profile } =
+    await requireCompanyContext();
+  const permissions = effectivePermissions(
+    membership,
+    Boolean(profile?.is_super_admin),
+  );
+  const canEditParty = permissions.includes("edit_customers");
+  const canInactivate = permissions.includes("inactivate_records");
   const asOf = sp.date || localDateIso();
 
   if (offline) {
@@ -45,6 +53,9 @@ export default async function AgingReportPage({
         kind="aging"
         companyId={company.id}
         companyName={company.name}
+        organizationId={company.organization_id}
+        canEditParty={canEditParty}
+        canInactivate={canInactivate}
         asOf={asOf}
       />
     );
@@ -81,6 +92,17 @@ export default async function AgingReportPage({
     days_90_plus: Number(r.bucket_90),
     other: Number(r.bucket_90_plus),
     credit_limit: Number(r.credit_limit),
+    ...(canEditParty || canInactivate
+      ? {
+          _party_manage: "1",
+          _party_id: r.party_id,
+          _party_label: `${r.party_code} — ${r.name_en}`,
+          _company_id: company.id,
+          _organization_id: company.organization_id,
+          _can_edit_party: canEditParty ? "1" : "0",
+          _can_inactivate: canInactivate ? "1" : "0",
+        }
+      : {}),
   }));
 
   return (

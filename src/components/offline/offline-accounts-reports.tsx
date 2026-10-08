@@ -25,10 +25,16 @@ function signedText(balance: number) {
 export function OfflineAccountsReportsPage({
   companyId,
   companyName,
+  organizationId,
+  canEditParty = false,
+  canInactivate = false,
   searchParams: initialSp,
 }: {
   companyId: string;
   companyName: string;
+  organizationId: string;
+  canEditParty?: boolean;
+  canInactivate?: boolean;
   searchParams?: { view?: string; party?: string };
 }) {
   const urlSp = useSearchParams();
@@ -152,8 +158,19 @@ export function OfflineAccountsReportsPage({
         Number(r.credit_limit) > 0 && Number(r.balance) > Number(r.credit_limit)
           ? "Over limit"
           : "",
+      ...(canEditParty || canInactivate
+        ? {
+            _party_manage: "1",
+            _party_id: r.party_id,
+            _party_label: `${r.party_code} — ${r.name_en}`,
+            _company_id: companyId,
+            _organization_id: organizationId,
+            _can_edit_party: canEditParty ? "1" : "0",
+            _can_inactivate: canInactivate ? "1" : "0",
+          }
+        : {}),
     }));
-  }, [filtered]);
+  }, [filtered, canEditParty, canInactivate, companyId, organizationId]);
 
   if (loading) {
     return (

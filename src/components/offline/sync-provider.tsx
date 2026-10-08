@@ -233,10 +233,16 @@ export function SyncProvider({
     }
   }, [companyId]);
 
-  // ── Auto-sync + full snapshot when coming online ───────────────
+  // ── Auto-sync + full snapshot when coming online or changing company ─
   useEffect(() => {
     if (online) {
-      setOfflineSessionCookie(false);
+      // A company switch writes the offline cookie so a later disconnect
+      // still knows which company was open. While the PC is online, that
+      // cookie must not hide the live dashboard.
+      if (hasOfflineSessionCookie()) {
+        setOfflineSessionCookie(false);
+        router.refresh();
+      }
       if (companyId) {
         void autoRefreshStaleCaches(companyId);
       }
@@ -252,7 +258,7 @@ export function SyncProvider({
       void activateOfflineMode();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [online]);
+  }, [online, companyId]);
 
   // ── Auto-refresh caches when online ────────────────────────────
   useEffect(() => {

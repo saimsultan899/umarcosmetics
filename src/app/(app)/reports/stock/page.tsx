@@ -4,6 +4,7 @@ import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { ReportTable } from "@/components/reports/report-table";
 import { StockReportFilters } from "@/components/reports/stock-report-filters";
 import { requireCompanyContext } from "@/lib/auth";
+import { effectivePermissions } from "@/lib/access/permissions";
 import { formatUomCompact } from "@/lib/pricing/uom";
 import { AlertTriangle, Boxes, Package } from "lucide-react";
 import Link from "next/link";
@@ -24,7 +25,65 @@ export default async function StockReportPage({
   const statusFilter = sp.status === "low" || sp.status === "ok" ? sp.status : "";
   const stockFilter = sp.stock === "in" || sp.stock === "zero" ? sp.stock : "";
   const ctx = await requireCompanyContext();
-  const { company, offline } = ctx;
+  const { company, offline, membership, profile } = ctx;
+  const permissions = effectivePermissions(
+    membership,
+    Boolean(profile?.is_super_admin),
+  );
+  const canEditProduct = permissions.includes("edit_products");
+  const canInactivate = permissions.includes("inactivate_records");
+  const canDeleteProduct =
+    membership?.role === "org_admin" || Boolean(profile?.is_super_admin);
+
+  function movementActions(
+    move: { ref_table?: string | null; ref_id?: string | null; move_type?: string | null },
+    productId: string,
+  ) {
+    const table = String(move.ref_table || "");
+    const id = String(move.ref_id || "");
+    const editable = new Set([
+      "sale_invoices",
+      "purchase_invoices",
+      "sale_returns",
+      "purchase_returns",
+      "vouchers",
+      "recoveries",
+    ]);
+    if (table && id && editable.has(table)) {
+      const href =
+        table === "sale_invoices"
+          ? `/sales/invoices/${id}`
+          : table === "purchase_invoices"
+            ? `/purchases/invoices/${id}`
+            : table === "sale_returns"
+              ? `/sales/returns/${id}`
+              : table === "purchase_returns"
+                ? `/purchases/returns/${id}`
+                : "";
+      return {
+        _doc_table: table,
+        _doc_id: id,
+        _doc_title: String(move.move_type || "Stock movement").replaceAll("_", " "),
+        ...(href ? { _href: href } : {}),
+      };
+    }
+    return productActions(productId);
+  }
+
+  function productActions(productId: string) {
+    if (!productId || (!canEditProduct && !canInactivate && !canDeleteProduct)) {
+      return {};
+    }
+    return {
+      _product_manage: "1",
+      _product_id: productId,
+      _company_id: company.id,
+      _organization_id: company.organization_id,
+      _can_edit_product: canEditProduct ? "1" : "0",
+      _can_inactivate_product: canInactivate ? "1" : "0",
+      _can_delete_product: canDeleteProduct ? "1" : "0",
+    };
+  }
 
   if (offline) {
     const { OfflineStockReportsPage } = await import(
@@ -34,6 +93,10 @@ export default async function StockReportPage({
       <OfflineStockReportsPage
         companyId={company.id}
         companyName={company.name}
+        organizationId={company.organization_id}
+        canEditProduct={canEditProduct}
+        canInactivate={canInactivate}
+        canDeleteProduct={canDeleteProduct}
         searchParams={sp}
       />
     );
@@ -45,19 +108,19 @@ export default async function StockReportPage({
     await Promise.all([
       supabase
         .from("stock_balances")
-        .select("qty, warehouse_id, products(code, name_en, reorder_level, purchase_rate, retail_rate, packing, unit_type, base_unit), warehouses(id, name)")
+        .select("qty, warehouse_id, product_id, products(id, code, name_en, reorder_level, purchase_rate, retail_rate, packing, unit_type, base_unit), warehouses(id, name)")
         .eq("company_id", company.id)
         .order("qty", { ascending: false })
         .limit(1000),
       supabase
         .from("stock_movements")
-        .select("created_at, move_type, qty, warehouse_id, products(code, name_en, packing, unit_type, base_unit), warehouses(id, name)")
+        .select("created_at, move_type, qty, warehouse_id, product_id, ref_table, ref_id, products(id, code, name_en, packing, unit_type, base_unit), warehouses(id, name)")
         .eq("company_id", company.id)
         .order("created_at", { ascending: false })
         .limit(200),
       supabase
         .from("products")
-        .select("code, name_en, default_warehouse_id, reorder_level, opening_qty, purchase_rate, retail_rate, packing, unit_type, base_unit")
+        .select("id, code, name_en, default_warehouse_id, reorder_level, opening_qty, purchase_rate, retail_rate, packing, unit_type, base_unit")
         .eq("company_id", company.id)
         .eq("is_active", true)
         .order("code")
@@ -96,6 +159,7 @@ export default async function StockReportPage({
       "Value (purchase)": qty * purchaseRate,
       "Value (retail)": qty * retailRate,
       Status: reorder > 0 && qty <= reorder ? "Low" : "OK",
+      ...productActions(String(product?.id || r.product_id || "")),
     };
   });
 
@@ -113,6 +177,7 @@ export default async function StockReportPage({
     Reorder: Number(p.reorder_level || 0),
     "Purchase rate": Number(p.purchase_rate || 0),
     "Retail rate": Number(p.retail_rate || 0),
+    ...productActions(String(p.id || "")),
   }));
 
   const movementRows = (movements || []).map((m) => {
@@ -131,6 +196,7 @@ export default async function StockReportPage({
         unitType: product?.unit_type,
         baseUnit: product?.base_unit,
       }),
+      ...movementActions(m, String(product?.id || m.product_id || "")),
     };
   });
 

@@ -207,6 +207,8 @@ export default async function ExpenseReportPage({
           Salesman: l.salesmanName || "—",
           "Amount paid": l.amount,
           Remarks: l.remarks || "—",
+          _expense_id: l.id,
+          _href: `/vouchers/expenses/${l.id}`,
         }))}
         filename={`expenses-${from}-${to}`}
       />

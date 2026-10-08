@@ -10,6 +10,9 @@ export type SalesmanLedgerLine = {
   collected: number;
   expense: number;
   running: number;
+  docTable?: string;
+  docId?: string;
+  docTitle?: string;
 };
 
 export type SalesmanLedgerResult = {
@@ -61,7 +64,7 @@ export async function buildSalesmanLedger(
     supabase
       .from("sale_invoices")
       .select(
-        "invoice_no, invoice_date, grand_total, amount_paid, parties(party_code, name_en)",
+        "id, invoice_no, invoice_date, grand_total, amount_paid, parties(party_code, name_en)",
       )
       .eq("company_id", input.companyId)
       .eq("salesman_id", input.salesmanId)
@@ -72,7 +75,7 @@ export async function buildSalesmanLedger(
       .limit(5000),
     supabase
       .from("recoveries")
-      .select("recovery_date, amount, remarks, parties(party_code, name_en)")
+      .select("id, recovery_date, amount, remarks, parties(party_code, name_en)")
       .eq("company_id", input.companyId)
       .eq("salesman_id", input.salesmanId)
       .gte("recovery_date", input.from)
@@ -119,6 +122,9 @@ export async function buildSalesmanLedger(
       sales,
       collected: paid,
       expense: 0,
+      docTable: "sale_invoices",
+      docId: String(inv.id),
+      docTitle: String(inv.invoice_no || "Sale"),
     });
   }
 
@@ -140,6 +146,9 @@ export async function buildSalesmanLedger(
       sales: 0,
       collected: amt,
       expense: 0,
+      docTable: "recoveries",
+      docId: String(rec.id),
+      docTitle: "Recovery",
     });
   }
 

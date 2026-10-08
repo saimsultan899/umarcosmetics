@@ -346,6 +346,7 @@ export default function SelectCompanyPage() {
 
       applyOfflinePick(companyId, rows);
       setPreferredCompanyId(companyId);
+      setOfflineSessionCookie(false);
       setPicking(null);
       const membership = rows.find((r) => r.companies?.id === companyId);
       router.push(membership?.role === "salesman" ? "/field" : "/dashboard");

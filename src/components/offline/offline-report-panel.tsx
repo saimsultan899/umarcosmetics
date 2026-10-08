@@ -97,6 +97,9 @@ export function OfflineReportPanel({
   partyId,
   salesmanId,
   asOf,
+  organizationId,
+  canEditParty = false,
+  canInactivate = false,
 }: {
   kind: ReportKind;
   companyId: string;
@@ -107,6 +110,9 @@ export function OfflineReportPanel({
   partyId?: string | null;
   salesmanId?: string | null;
   asOf?: string | null;
+  organizationId?: string;
+  canEditParty?: boolean;
+  canInactivate?: boolean;
 }) {
   const meta = TITLES[kind];
   const [loading, setLoading] = useState(true);
@@ -293,6 +299,17 @@ export function OfflineReportPanel({
               days_90_plus: r.bucket_90,
               other: r.bucket_90_plus,
               credit_limit: r.credit_limit,
+              ...(canEditParty || canInactivate
+                ? {
+                    _party_manage: "1",
+                    _party_id: r.party_id,
+                    _party_label: `${r.party_code} — ${r.name_en}`,
+                    _company_id: companyId,
+                    _organization_id: organizationId || "",
+                    _can_edit_party: canEditParty ? "1" : "0",
+                    _can_inactivate: canInactivate ? "1" : "0",
+                  }
+                : {}),
             })),
           );
         } else if (kind === "profit") {
@@ -366,7 +383,7 @@ export function OfflineReportPanel({
     return () => {
       cancelled = true;
     };
-  }, [kind, companyId, from, to, view, partyId, salesmanId, asOf]);
+  }, [kind, companyId, from, to, view, partyId, salesmanId, asOf, organizationId, canEditParty, canInactivate]);
 
   if (loading) {
     return (

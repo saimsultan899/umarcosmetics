@@ -95,7 +95,7 @@ export default async function DashboardPage() {
         .eq("company_id", company.id)
         .gte("expense_date", from14),
     ]),
-    new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000)),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), 20000)),
   ]);
 
   // Network down mid-session: don't leave the page on an infinite skeleton.
