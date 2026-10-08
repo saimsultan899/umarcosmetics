@@ -126,7 +126,7 @@ function LoginForm() {
         const { data } = await withTimeout(
           supabase
             .from("company_members")
-            .select("*, companies(*, organizations(status))")
+            .select("*, companies(*, organizations!companies_organization_id_fkey(status))")
             .eq("user_id", user.id)
             .eq("is_active", true),
           8000,
@@ -405,7 +405,7 @@ function LoginForm() {
       const { data, error: memError } = await withTimeout(
         supabase
           .from("company_members")
-          .select("*, companies(*, organizations(status))")
+          .select("*, companies(*, organizations!companies_organization_id_fkey(status))")
           .eq("user_id", authData.user.id)
           .eq("is_active", true),
         10000,
@@ -588,7 +588,7 @@ function LoginForm() {
             const { data } = await withTimeout(
               supabase
                 .from("company_members")
-                .select("*, companies(*, organizations(status))")
+                .select("*, companies(*, organizations!companies_organization_id_fkey(status))")
                 .eq("user_id", authData.user.id)
                 .eq("is_active", true),
               10000,

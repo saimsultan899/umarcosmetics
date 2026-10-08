@@ -268,7 +268,7 @@ export default function SelectCompanyPage() {
 
         const { data, error: qError } = await supabase
           .from("company_members")
-          .select("*, companies(*, organizations(status))")
+          .select("*, companies(*, organizations!companies_organization_id_fkey(status))")
           .eq("user_id", user.id)
           .eq("is_active", true);
 
