@@ -17,6 +17,7 @@ import { useSearchInput, useUrlTableState } from "@/hooks/use-url-table-state";
 import type { PaginationMeta } from "@/lib/pagination";
 import type { ProductListStats } from "@/lib/queries/products";
 import type { Product, Warehouse } from "@/lib/types/database";
+import { formatProductBarcodes } from "@/lib/barcode/product-barcodes";
 import { formatProductPurchaseDiscount } from "@/lib/pricing/discounts";
 import { formatUomCompact } from "@/lib/pricing/uom";
 import { formatNumber, formatPkr } from "@/lib/utils";
@@ -34,7 +35,7 @@ function productFields(p: Product, companyName: string): DetailField[] {
     { label: "Urdu name", value: p.name_ur || "—" },
     { label: "Type", value: p.product_type || "—" },
     { label: "Company", value: companyName },
-    { label: "Barcode", value: p.barcode || "—" },
+    { label: "Barcode", value: formatProductBarcodes(p) || "—" },
     { label: "Retail", value: formatPkr(p.retail_rate) },
     { label: "Purchase", value: formatPkr(p.purchase_rate) },
     { label: "Wholesale", value: formatPkr(p.wholesale_rate) },

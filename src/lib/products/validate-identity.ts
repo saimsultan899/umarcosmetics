@@ -1,8 +1,11 @@
+import { productBarcodeValues } from "@/lib/barcode/product-barcodes";
+
 export type ProductIdentityRow = {
   id?: string | null;
   code?: string | null;
   name_en?: string | null;
   barcode?: string | null;
+  extra_barcodes?: unknown;
 };
 
 function norm(value: string | null | undefined) {
@@ -21,12 +24,15 @@ function looksLikePhone(barcode: string) {
  */
 export function validateProductIdentity(input: {
   code: string;
-  barcode: string;
+  barcode?: string;
+  barcodes?: string[];
   productId?: string | null;
   catalog: ProductIdentityRow[];
 }): string | null {
   const code = norm(input.code);
-  const barcode = norm(input.barcode);
+  const barcodes = (input.barcodes?.length ? input.barcodes : [input.barcode || ""])
+    .map((value) => norm(value))
+    .filter(Boolean);
   const selfId = input.productId ? String(input.productId) : null;
 
   if (!code) {
@@ -42,32 +48,39 @@ export function validateProductIdentity(input: {
     return `Product code ${code} already exists (${codeClash.name_en || "another product"}). Use a different code.`;
   }
 
-  if (!barcode) return null;
+  const seen = new Set<string>();
+  for (const barcode of barcodes) {
+    const key = barcode.toLowerCase();
+    if (seen.has(key)) {
+      return `Barcode ${barcode} is listed more than once on this product.`;
+    }
+    seen.add(key);
 
-  if (barcode.toLowerCase() === code.toLowerCase()) {
-    return `Barcode cannot be the same as the product code (${code}). Scan the real barcode or leave barcode empty.`;
-  }
+    if (key === code.toLowerCase()) {
+      return `Barcode cannot be the same as the product code (${code}). Scan the real barcode or leave barcode empty.`;
+    }
 
-  if (looksLikePhone(barcode)) {
-    return `Barcode looks like a phone number (${barcode}). Enter a product barcode instead.`;
-  }
+    if (looksLikePhone(barcode)) {
+      return `Barcode looks like a phone number (${barcode}). Enter a product barcode instead.`;
+    }
 
-  const barcodeClash = input.catalog.find((row) => {
-    if (!row) return false;
-    if (selfId && String(row.id || "") === selfId) return false;
-    return norm(row.barcode).toLowerCase() === barcode.toLowerCase();
-  });
-  if (barcodeClash) {
-    return `Barcode ${barcode} is already used by product ${barcodeClash.code || "?"} — ${barcodeClash.name_en || "another product"}. Use a different barcode.`;
-  }
+    const barcodeClash = input.catalog.find((row) => {
+      if (!row) return false;
+      if (selfId && String(row.id || "") === selfId) return false;
+      return productBarcodeValues(row).some((value) => value.toLowerCase() === key);
+    });
+    if (barcodeClash) {
+      return `Barcode ${barcode} is already used by product ${barcodeClash.code || "?"} — ${barcodeClash.name_en || "another product"}. Use a different barcode.`;
+    }
 
-  const codeAsBarcode = input.catalog.find((row) => {
-    if (!row) return false;
-    if (selfId && String(row.id || "") === selfId) return false;
-    return norm(row.code).toLowerCase() === barcode.toLowerCase();
-  });
-  if (codeAsBarcode) {
-    return `Barcode ${barcode} matches another product code (${codeAsBarcode.code} — ${codeAsBarcode.name_en || "product"}). Do not put an item code in the barcode field.`;
+    const codeAsBarcode = input.catalog.find((row) => {
+      if (!row) return false;
+      if (selfId && String(row.id || "") === selfId) return false;
+      return norm(row.code).toLowerCase() === key;
+    });
+    if (codeAsBarcode) {
+      return `Barcode ${barcode} matches another product code (${codeAsBarcode.code} — ${codeAsBarcode.name_en || "product"}). Do not put an item code in the barcode field.`;
+    }
   }
 
   return null;

@@ -1,5 +1,6 @@
 "use client";
 
+import { formatProductBarcodes } from "@/lib/barcode/product-barcodes";
 import { PartiesTable } from "@/components/tables/parties-table";
 import { ProductsTable } from "@/components/tables/products-table";
 import {
@@ -719,7 +720,7 @@ export function OfflineModulePage({
       if (viewParam === "reorder" && Number(p.reorder_level || 0) <= 0) return false;
       if (warehouseParam && p.default_warehouse_id !== warehouseParam) return false;
       if (q) {
-        const text = `${p.code || ""} ${p.name_en || ""} ${p.name_ur || ""} ${p.barcode || ""} ${p.product_type || ""}`.toLowerCase();
+        const text = `${p.code || ""} ${p.name_en || ""} ${p.name_ur || ""} ${formatProductBarcodes(p)} ${p.product_type || ""}`.toLowerCase();
         if (!text.includes(q)) return false;
       }
       return true;

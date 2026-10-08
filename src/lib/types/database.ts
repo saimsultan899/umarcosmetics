@@ -110,6 +110,8 @@ export type Product = {
   manufacturer: string | null;
   category_group: string | null;
   barcode: string | null;
+  /** Full barcode list, including the first. Optional label is the flavour or variety. */
+  extra_barcodes?: { barcode: string; label?: string | null }[] | null;
   default_warehouse_id: string | null;
   retail_rate: number;
   purchase_rate: number;

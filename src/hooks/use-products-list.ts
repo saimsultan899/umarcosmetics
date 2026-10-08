@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncStatus } from "@/components/offline/sync-provider";
+import { formatProductBarcodes } from "@/lib/barcode/product-barcodes";
 import { getCachedRows } from "@/lib/offline/local-db";
 import {
   buildPaginationMeta,
@@ -111,7 +112,7 @@ export function useProductsList({
           if (view === "reorder" && Number(p.reorder_level || 0) <= 0) return false;
           if (warehouseId && p.default_warehouse_id !== warehouseId) return false;
           if (q) {
-            const text = `${p.code || ""} ${p.name_en || ""} ${p.name_ur || ""} ${p.barcode || ""} ${p.product_type || ""} ${p.manufacturer || ""} ${p.category_group || ""}`.toLowerCase();
+            const text = `${p.code || ""} ${p.name_en || ""} ${p.name_ur || ""} ${formatProductBarcodes(p)} ${p.product_type || ""} ${p.manufacturer || ""} ${p.category_group || ""}`.toLowerCase();
             if (!text.includes(q)) return false;
           }
           return true;

@@ -334,17 +334,28 @@ export async function getDataWithFallback<T = Record<string, unknown>>(
   // Prefer the cached barcode so offline scans match the online catalog.
   if (storeName === "products" && cached?.length && rows.length) {
     const barcodeById = new Map<string, string>();
+    const extraById = new Map<string, unknown>();
     for (const row of cached) {
       const anyR = row as Record<string, unknown>;
       const id = String(anyR.id || "");
       const barcode = String(anyR.barcode || "").trim();
       if (id && barcode) barcodeById.set(id, barcode);
+      if (id && anyR.extra_barcodes) extraById.set(id, anyR.extra_barcodes);
     }
     rows = rows.map((row) => {
       const anyR = row as Record<string, unknown>;
       const id = String(anyR.id || "");
-      if (String(anyR.barcode || "").trim() || !barcodeById.has(id)) return row;
-      return { ...anyR, barcode: barcodeById.get(id) } as T;
+      const next = { ...anyR };
+      let changed = false;
+      if (!String(anyR.barcode || "").trim() && barcodeById.has(id)) {
+        next.barcode = barcodeById.get(id);
+        changed = true;
+      }
+      if (!anyR.extra_barcodes && extraById.has(id)) {
+        next.extra_barcodes = extraById.get(id);
+        changed = true;
+      }
+      return (changed ? next : row) as T;
     });
   }
 

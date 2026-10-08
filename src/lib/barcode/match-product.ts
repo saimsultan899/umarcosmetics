@@ -1,3 +1,4 @@
+import { productBarcodeValues } from "@/lib/barcode/product-barcodes";
 import type { Product } from "@/lib/types/database";
 
 function text(value: unknown) {
@@ -38,8 +39,8 @@ export function findProductByCodeOrBarcode(
     (p) => text((p as Product).code).toLowerCase() === key,
   );
   if (byCode) return byCode as Product;
-  const byBarcode = products.find(
-    (p) => productBarcode(p).toLowerCase() === key,
+  const byBarcode = products.find((p) =>
+    productBarcodeValues(p).some((barcode) => barcode.toLowerCase() === key),
   );
   return (byBarcode as Product | undefined) ?? null;
 }

@@ -504,22 +504,13 @@ export const LineItemsEditor = forwardRef<
 
     try {
       const supabase = createClient();
+      // Matches product code or any barcode / flavour barcode on the product.
       const { data } = await supabase.rpc("get_product_by_code", {
         p_company_id: companyId,
         p_code: trimmed,
       });
       const product = Array.isArray(data) ? data[0] : data;
-      if (product) return product as Product;
-
-      const { data: barcodeRows } = await supabase
-        .from("products")
-        .select("*")
-        .eq("company_id", companyId)
-        .eq("is_active", true)
-        .eq("barcode", trimmed)
-        .limit(1);
-      const byBarcode = barcodeRows?.[0];
-      return (byBarcode as Product | undefined) ?? null;
+      return (product as Product | undefined) ?? null;
     } catch {
       return lookupCachedProduct(trimmed);
     }

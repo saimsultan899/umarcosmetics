@@ -6,6 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { useBarcodeWedge } from "@/lib/barcode/use-barcode-wedge";
+import {
+  barcodesForSave,
+  readProductBarcodes,
+  type ProductBarcodeEntry,
+} from "@/lib/barcode/product-barcodes";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
 import {
   normalizePurchaseDiscountInput,
@@ -53,7 +58,6 @@ export function ProductForm({
     product_type: initial?.product_type || "",
     manufacturer: initial?.manufacturer || "",
     category_group: initial?.category_group || "",
-    barcode: initial?.barcode || "",
     default_warehouse_id: initial?.default_warehouse_id || "",
     retail_rate: String(initial?.retail_rate ?? 0),
     purchase_rate: String(initial?.purchase_rate ?? 0),
@@ -65,13 +69,32 @@ export function ProductForm({
       : "",
   });
 
+  const [barcodes, setBarcodes] = useState<ProductBarcodeEntry[]>(() => {
+    const rows = readProductBarcodes(initial);
+    return rows.length ? rows : [{ barcode: "", label: "" }];
+  });
+
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  // Hardware scanner (keyboard wedge) or manual typing both land in Barcode.
+  // A scan fills the open barcode row, or adds the next flavour / variety.
   useBarcodeWedge((code) => {
-    set("barcode", code);
+    const scanned = code.trim();
+    if (!scanned) return;
+    setBarcodes((rows) => {
+      const exists = rows.some(
+        (row) => row.barcode.trim().toLowerCase() === scanned.toLowerCase(),
+      );
+      if (exists) return rows;
+      const next = rows.map((row) => ({ ...row }));
+      const empty = next.findIndex((row) => !row.barcode.trim());
+      if (empty >= 0) {
+        next[empty] = { ...next[empty], barcode: scanned };
+        return next;
+      }
+      return [...next, { barcode: scanned, label: "" }];
+    });
     setError(null);
   });
 
@@ -92,7 +115,7 @@ export function ProductForm({
         const supabase = createClient();
         const { data } = await supabase
           .from("products")
-          .select("id, code, name_en, barcode")
+          .select("id, code, name_en, barcode, extra_barcodes")
           .eq("company_id", companyId)
           .limit(5000);
         for (const row of data || []) push(row);
@@ -113,6 +136,7 @@ export function ProductForm({
             code: row.code ? String(row.code) : null,
             name_en: row.name_en ? String(row.name_en) : null,
             barcode: row.barcode ? String(row.barcode) : null,
+            extra_barcodes: row.extra_barcodes,
           });
         }
       }
@@ -128,6 +152,7 @@ export function ProductForm({
           code: row.code ? String(row.code) : null,
           name_en: row.name_en ? String(row.name_en) : null,
           barcode: row.barcode ? String(row.barcode) : null,
+          extra_barcodes: (row as { extra_barcodes?: unknown }).extra_barcodes,
         });
       }
     } catch {
@@ -137,11 +162,11 @@ export function ProductForm({
     return rows;
   }
 
-  async function checkIdentity(code: string, barcode: string) {
+  async function checkIdentity(code: string, rows = barcodes) {
     const catalog = await loadCatalog();
     return validateProductIdentity({
       code,
-      barcode,
+      barcodes: rows.map((row) => row.barcode),
       productId: initial?.id,
       catalog,
     });
@@ -222,7 +247,7 @@ export function ProductForm({
       code = await allocateNextProductCode(companyId);
     }
 
-    const identityError = await checkIdentity(code, form.barcode);
+    const identityError = await checkIdentity(code, barcodes);
     if (identityError) {
       setLoading(false);
       setError(identityError);
@@ -245,6 +270,7 @@ export function ProductForm({
       return;
     }
 
+    const savedBarcodes = barcodesForSave(barcodes);
     const payload: Record<string, unknown> = {
       organization_id: organizationId,
       company_id: companyId,
@@ -254,7 +280,8 @@ export function ProductForm({
       product_type: form.product_type.trim() || null,
       manufacturer: form.manufacturer.trim() || null,
       category_group: form.category_group.trim() || null,
-      barcode: form.barcode.trim() || null,
+      barcode: savedBarcodes.barcode,
+      extra_barcodes: savedBarcodes.extra_barcodes,
       default_warehouse_id: form.default_warehouse_id || null,
       retail_rate: tradePrice,
       purchase_rate: Number(form.purchase_rate || 0),
@@ -312,7 +339,7 @@ export function ProductForm({
           }}
           onBlur={async () => {
             if (initial || !form.code.trim()) return;
-            const msg = await checkIdentity(form.code, form.barcode);
+            const msg = await checkIdentity(form.code, barcodes);
             if (msg) setError(msg);
           }}
           required
@@ -359,28 +386,69 @@ export function ProductForm({
           ))}
         </Select>
       </div>
-      <div>
-        <Label>Barcode</Label>
-        <Input
-          value={form.barcode}
-          onChange={(e) => {
-            set("barcode", e.target.value);
-            if (error) setError(null);
-          }}
-          onBlur={async () => {
-            if (!form.barcode.trim()) return;
-            const code = form.code.trim() || initial?.code || "";
-            if (!code) return;
-            const msg = await checkIdentity(code, form.barcode);
-            if (msg) setError(msg);
-          }}
-          placeholder="Scan or type"
-          autoComplete="off"
-          inputMode="text"
-        />
-        <p className="mt-1 text-[11px] text-[var(--muted)]">
-          Optional. Must be unique. Do not enter product code or phone number.
+      <div className="sm:col-span-2 lg:col-span-3 space-y-2">
+        <Label>Barcodes</Label>
+        <p className="text-[11px] text-[var(--muted)]">
+          Scan one barcode, then add another for a different flavour or variety.
+          They stay on this same product and the same stock.
         </p>
+        {barcodes.map((row, index) => (
+          <div key={index} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+            <Input
+              value={row.barcode}
+              onChange={(e) => {
+                const value = e.target.value;
+                setBarcodes((rows) =>
+                  rows.map((item, i) => (i === index ? { ...item, barcode: value } : item)),
+                );
+                if (error) setError(null);
+              }}
+              onBlur={async () => {
+                if (!row.barcode.trim()) return;
+                const code = form.code.trim() || initial?.code || "";
+                if (!code) return;
+                const msg = await checkIdentity(code, barcodes);
+                if (msg) setError(msg);
+              }}
+              placeholder={index === 0 ? "Scan or type barcode" : "Scan another barcode"}
+              autoComplete="off"
+              inputMode="text"
+            />
+            <Input
+              value={row.label}
+              onChange={(e) => {
+                const value = e.target.value;
+                setBarcodes((rows) =>
+                  rows.map((item, i) => (i === index ? { ...item, label: value } : item)),
+                );
+              }}
+              placeholder="Flavour / variety (optional)"
+              autoComplete="off"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setBarcodes((rows) => {
+                  if (rows.length === 1) return [{ barcode: "", label: "" }];
+                  return rows.filter((_, i) => i !== index);
+                });
+                if (error) setError(null);
+              }}
+            >
+              Remove
+            </Button>
+          </div>
+        ))}
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={() => setBarcodes((rows) => [...rows, { barcode: "", label: "" }])}
+        >
+          Add another barcode
+        </Button>
       </div>
       <div>
         <Label>Trade price</Label>
