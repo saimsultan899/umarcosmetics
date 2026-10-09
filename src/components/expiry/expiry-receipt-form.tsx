@@ -382,7 +382,7 @@ export function ExpiryReceiptForm({
                       type="number"
                       min="0"
                       step="1"
-                      placeholder="0"
+                      placeholder=""
                       value={l.qty}
                       onChange={(e) => onReturnQtyChange(l, e.target.value)}
                     />

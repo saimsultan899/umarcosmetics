@@ -465,7 +465,7 @@ export function ProductForm({
         <Input
           type="number"
           step="1"
-          placeholder="0"
+          placeholder=""
           value={form.opening_qty}
           onChange={(e) => set("opening_qty", e.target.value)}
         />

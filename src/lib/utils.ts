@@ -12,11 +12,26 @@ export const fieldControlClass =
 /** Roboto for money, qty, and numeric values. */
 export const amountClass = "font-amount tabular-nums";
 
-/** Money / rate input placeholder — always two decimals, e.g. 0.00 */
-export const AMOUNT_PLACEHOLDER = "0.00";
+/** Money / rate input placeholder — leave blank (empty means zero). */
+export const AMOUNT_PLACEHOLDER = "";
 
 /** Money / rate input step for two-decimal amounts. */
 export const AMOUNT_STEP = "0.01";
+
+/** True when a controlled number/amount field is exactly zero (not mid-typing like "0."). */
+export function isExactZeroAmount(value: unknown): boolean {
+  if (value === null || value === undefined) return true;
+  if (typeof value === "number") return value === 0;
+  const s = String(value).trim();
+  if (s === "") return true;
+  return s === "0" || s === "0.0" || s === "0.00" || s === "0.000";
+}
+
+/** Display value for amount inputs: blank instead of 0 so clerks type over an empty field. */
+export function amountFieldDisplay(value: unknown): string {
+  if (isExactZeroAmount(value)) return "";
+  return value == null ? "" : String(value);
+}
 
 /** Format money as Rs 156.60 (always two decimals). */
 export function formatPkr(value: number | string | null | undefined) {
