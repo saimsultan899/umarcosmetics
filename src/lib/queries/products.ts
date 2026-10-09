@@ -6,7 +6,7 @@ import {
   toRange,
   type PaginationMeta,
 } from "@/lib/pagination";
-import type { Product } from "@/lib/types/database";
+import type { Product, Warehouse } from "@/lib/types/database";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type ProductViewFilter = "all" | "reorder";
@@ -78,44 +78,73 @@ export async function fetchProductList(
 
   let valueQuery = supabase
     .from("products")
-    .select("id, code, name_en, retail_rate, purchase_rate, reorder_level, is_active")
+    .select("id, code, name_en, retail_rate, purchase_rate, reorder_level, is_active, hub_product_id, default_warehouse_id")
     .eq("company_id", companyId)
     .limit(10000);
   valueQuery = applyProductView(valueQuery, view);
   valueQuery = applyProductWarehouse(valueQuery, warehouseId);
   valueQuery = applyProductSearch(valueQuery, q);
 
-  const [{ data, count, error }, { data: balances }, { data: valued }] =
+  const [{ data, count, error }, { data: balances }, { data: valued }, { data: warehouses }] =
     await Promise.all([
       listQuery.order("code", { ascending: true }).range(from, to),
       supabase
         .from("stock_balances")
-        .select("product_id, qty, products(code, reorder_level)")
+        .select("product_id, warehouse_id, qty, products(code, reorder_level)")
         .eq("company_id", companyId)
         .limit(8000),
       valueQuery,
+      supabase
+        .from("warehouses")
+        .select("id, name")
+        .eq("company_id", companyId)
+        .eq("is_active", true),
     ]);
 
   if (error) throw new Error(error.message);
 
+  const productsForOverlay = (valued || []) as Product[];
+  const { withHubStockOverlay } = await import("@/lib/trading/hub-stock");
+  const overlaid = await withHubStockOverlay(
+    supabase,
+    companyId,
+    productsForOverlay,
+    (warehouses || []) as Warehouse[],
+    (balances || []).map((row) => ({
+      product_id: String(row.product_id || ""),
+      warehouse_id: String(row.warehouse_id || ""),
+      qty: Number(row.qty || 0),
+    })),
+  );
+
   const stockValueByCode: Record<string, number> = {};
   const lowStockCodes: string[] = [];
   const qtyByProduct = new Map<string, number>();
+  const reorderByProduct = new Map<string, { code: string; reorder: number }>();
 
   for (const row of balances || []) {
     const product = Array.isArray(row.products) ? row.products[0] : row.products;
-    const qty = Number(row.qty || 0);
     const productId = String(row.product_id || "");
+    if (productId && product?.code) {
+      reorderByProduct.set(productId, {
+        code: product.code,
+        reorder: Number(product.reorder_level || 0),
+      });
+    }
+  }
+
+  for (const row of overlaid) {
+    const productId = String(row.product_id || "");
+    const qty = Number(row.qty || 0);
     if (productId) {
       qtyByProduct.set(productId, (qtyByProduct.get(productId) || 0) + qty);
     }
-    if (
-      product?.code &&
-      Number(product.reorder_level) > 0 &&
-      qty <= Number(product.reorder_level) &&
-      !lowStockCodes.includes(product.code)
-    ) {
-      lowStockCodes.push(product.code);
+  }
+
+  for (const [productId, meta] of reorderByProduct) {
+    const qty = qtyByProduct.get(productId) || 0;
+    if (meta.reorder > 0 && qty <= meta.reorder && !lowStockCodes.includes(meta.code)) {
+      lowStockCodes.push(meta.code);
     }
   }
 

@@ -549,6 +549,26 @@ async function applyStockChangesToSqlite(
   companyId: string,
   changes: NonNullable<OfflineSubmitParams["stockChanges"]>,
 ) {
+  const { applyOfflineSharedStockDelta } = await import(
+    "@/lib/offline/offline-hub"
+  );
+
+  // Hub-linked spoke SKUs update main-company stock; local-only SKUs stay here.
+  const localChanges: typeof changes = [];
+  for (const change of changes) {
+    const res = await applyOfflineSharedStockDelta({
+      companyId,
+      productId: change.productId,
+      warehouseId: change.warehouseId,
+      delta: change.delta,
+    });
+    if (!res.redirected) {
+      localChanges.push(change);
+    }
+  }
+
+  if (!localChanges.length) return;
+
   const listed = await localListMaster("stock_balances", companyId, 20000);
   const rows = listed.rows || [];
   const byKey = new Map<string, Record<string, unknown>>(
@@ -556,7 +576,7 @@ async function applyStockChangesToSqlite(
   );
 
   const upserts: Record<string, unknown>[] = [];
-  for (const change of changes) {
+  for (const change of localChanges) {
     const key = `${change.productId}:${change.warehouseId}`;
     const existing = byKey.get(key);
     const nextQty = Number(existing?.qty || 0) + change.delta;

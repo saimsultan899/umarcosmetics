@@ -219,7 +219,7 @@ export async function offlineStockSnapshot(companyId: string) {
     const key = `${d.productId}:${d.warehouseId}`;
     deltaMap.set(key, (deltaMap.get(key) || 0) + d.delta);
   }
-  return balances.map((b) => {
+  let rows = balances.map((b) => {
     const row = b as Record<string, unknown>;
     const pid = String(row.product_id || "");
     const wid = String(row.warehouse_id || "");
@@ -233,6 +233,66 @@ export async function offlineStockSnapshot(companyId: string) {
       _offlineAdjusted: adj !== 0,
     };
   });
+
+  // Overlay main-company stock onto spoke product ids when hub is configured.
+  try {
+    const { getCachedHubContext, isMainHubCacheReady } = await import(
+      "@/lib/offline/cache-manager"
+    );
+    const { mapHubStockOntoSpoke } = await import("@/lib/trading/hub-stock");
+    const { hasLocalSqlite, localListMaster } = await import(
+      "@/lib/offline/sqlite-client"
+    );
+    const ctx = await getCachedHubContext();
+    const mainId = ctx?.mainCompanyId || null;
+    if (mainId && mainId !== companyId && (await isMainHubCacheReady(mainId))) {
+      const load = async (table: "products" | "warehouses" | "stock_balances", cid: string) => {
+        if (hasLocalSqlite()) {
+          const listed = await localListMaster(table, cid, 20000);
+          if (listed.ok && listed.rows?.length) return listed.rows;
+        }
+        return loadRows(table, cid);
+      };
+      const [spokeProducts, spokeWhs, hubStock, hubWhs] = await Promise.all([
+        load("products", companyId),
+        load("warehouses", companyId),
+        load("stock_balances", mainId),
+        load("warehouses", mainId),
+      ]);
+      const overlaid = mapHubStockOntoSpoke({
+        products: spokeProducts as never[],
+        warehouses: spokeWhs as never[],
+        localStock: rows.map((r) => ({
+          product_id: r.product_id,
+          warehouse_id: r.warehouse_id,
+          qty: num(r.qty),
+        })),
+        hubProducts: spokeProducts as never[],
+        hubWarehouses: hubWhs as Array<{ id: string; name: string }>,
+        hubStock: hubStock.map((r) => ({
+          product_id: String(r.product_id || ""),
+          warehouse_id: String(r.warehouse_id || ""),
+          qty: num(r.qty),
+        })),
+      });
+      const byKey = new Map(rows.map((r) => [`${r.product_id}:${r.warehouse_id}`, r]));
+      rows = overlaid.map((o) => {
+        const prev = byKey.get(`${o.product_id}:${o.warehouse_id}`);
+        return {
+          ...(prev || { products: undefined }),
+          product_id: o.product_id,
+          warehouse_id: o.warehouse_id,
+          products: prev?.products,
+          qty: o.qty,
+          _offlineAdjusted: Boolean(prev?._offlineAdjusted),
+        };
+      });
+    }
+  } catch {
+    /* hub overlay best-effort */
+  }
+
+  return rows;
 }
 
 export async function offlineExpensesSummary(filters: OfflineReportFilters) {

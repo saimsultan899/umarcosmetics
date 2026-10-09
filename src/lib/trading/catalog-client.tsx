@@ -2,14 +2,12 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { fetchCompanySalesmen, type SalesmanOption } from "@/lib/queries/salesmen";
+import {
+  withHubStockOverlay,
+  type StockBalanceLite,
+} from "@/lib/trading/hub-stock";
 import type { Party, Product, Warehouse } from "@/lib/types/database";
 import { useEffect, useState } from "react";
-
-type StockBalanceLite = {
-  product_id: string;
-  warehouse_id: string;
-  qty: number;
-};
 
 export type TradingCatalog = {
   parties: Party[];
@@ -112,19 +110,33 @@ async function fetchCatalog(
   const failed = partiesError || productsError || warehousesError;
   if (failed) throw new Error(failed.message);
 
+  const products = needBase
+    ? ((productsRes?.data || []) as Product[])
+    : previous!.products;
+  const warehouses = needBase
+    ? ((warehousesRes?.data || []) as Warehouse[])
+    : previous!.warehouses;
+  let stockBalances = needStock
+    ? ((stockRes?.data || []) as StockBalanceLite[])
+    : previous?.stockBalances || [];
+
+  if (needStock) {
+    stockBalances = await withHubStockOverlay(
+      supabase,
+      companyId,
+      products,
+      warehouses,
+      stockBalances,
+    );
+  }
+
   const next: StoredCatalog = {
     parties: needBase
       ? ((partiesRes?.data || []) as Party[])
       : previous!.parties,
-    products: needBase
-      ? ((productsRes?.data || []) as Product[])
-      : previous!.products,
-    warehouses: needBase
-      ? ((warehousesRes?.data || []) as Warehouse[])
-      : previous!.warehouses,
-    stockBalances: needStock
-      ? ((stockRes?.data || []) as StockBalanceLite[])
-      : previous?.stockBalances || [],
+    products,
+    warehouses,
+    stockBalances,
     salesmen: needSalesmen ? salesmen || [] : previous?.salesmen || [],
     stockLoaded: Boolean(previous?.stockLoaded || needStock),
     salesmenLoaded: Boolean(previous?.salesmenLoaded || needSalesmen),

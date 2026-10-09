@@ -147,10 +147,10 @@ export function MainCompanyHubForm({
         </div>
 
         <p className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-3 text-xs text-[var(--muted)]">
-          Main holds the shared product list, rates, stock position from purchases,
-          and shops. Other companies keep their own invoices and ledgers. A
-          purchase on a non-main company also restocks the matching product on
-          main. Groups with only one company should leave this on None.
+          Main holds the shared product list, rates, and stock. Other companies
+          keep their own invoices and ledgers, but sales and purchases on them
+          use the main company stock so opening qty added on Imran shows on Ishaq
+          and Umar. Groups with only one company should leave this on None.
         </p>
 
         {error ? (

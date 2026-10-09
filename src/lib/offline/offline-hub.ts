@@ -608,6 +608,70 @@ async function mirrorMainPartyToSpokes(
   return { ok: true, hubPartyId: mainPartyId };
 }
 
+/**
+ * Resolve where offline stock should live for a spoke product.
+ * Hub-linked products write to the main company cache.
+ */
+export async function resolveOfflineSharedStockTarget(opts: {
+  companyId: string;
+  productId: string;
+  warehouseId: string;
+}): Promise<{
+  companyId: string;
+  productId: string;
+  warehouseId: string;
+  redirected: boolean;
+}> {
+  const ctx = await resolveOfflineHubContext(opts.companyId);
+  const mainId = ctx?.mainCompanyId || null;
+  if (!mainId || mainId === opts.companyId) {
+    return {
+      companyId: opts.companyId,
+      productId: opts.productId,
+      warehouseId: opts.warehouseId,
+      redirected: false,
+    };
+  }
+
+  const products = await loadMaster("products", opts.companyId);
+  const src = products.find((p) => String(p.id) === String(opts.productId));
+  if (!src) {
+    return {
+      companyId: opts.companyId,
+      productId: opts.productId,
+      warehouseId: opts.warehouseId,
+      redirected: false,
+    };
+  }
+
+  let hubProductId = src.hub_product_id ? String(src.hub_product_id) : null;
+  if (!hubProductId) {
+    const ensured = await ensureHubProduct(opts.companyId, opts.productId);
+    hubProductId = ensured.hubProductId || null;
+  }
+  if (!hubProductId) {
+    return {
+      companyId: opts.companyId,
+      productId: opts.productId,
+      warehouseId: opts.warehouseId,
+      redirected: false,
+    };
+  }
+
+  const hubWh = await ensureHubWarehouseForSpoke(
+    opts.companyId,
+    opts.warehouseId,
+    mainId,
+    ctx?.organizationId,
+  );
+  return {
+    companyId: mainId,
+    productId: hubProductId,
+    warehouseId: hubWh || opts.warehouseId,
+    redirected: true,
+  };
+}
+
 export async function applyHubPurchaseStock(opts: {
   spokeCompanyId: string;
   warehouseId: string;
@@ -617,36 +681,62 @@ export async function applyHubPurchaseStock(opts: {
   const qty = Number(opts.qty || 0);
   if (!qty) return { ok: true, skipped: true };
 
-  const gate = await requireHubReady(opts.spokeCompanyId);
-  if (!gate.ok) return gate.result;
-
-  const ensured = await ensureHubProduct(opts.spokeCompanyId, opts.productId);
-  if (!ensured.ok || !ensured.hubProductId) return ensured;
-
-  const hubWh = await ensureHubWarehouseForSpoke(
-    opts.spokeCompanyId,
-    opts.warehouseId,
-    gate.mainId,
-    gate.ctx.organizationId,
-  );
-  if (!hubWh) {
-    return {
-      ok: false,
-      skipped: true,
-      reason: "Could not map warehouse to main company offline.",
-    };
+  const target = await resolveOfflineSharedStockTarget({
+    companyId: opts.spokeCompanyId,
+    productId: opts.productId,
+    warehouseId: opts.warehouseId,
+  });
+  if (!target.redirected) {
+    return { ok: true, skipped: true, reason: "Already on main or no hub." };
   }
 
   await applyStockDeltaLocal(
-    gate.mainId,
-    ensured.hubProductId,
-    hubWh,
+    target.companyId,
+    target.productId,
+    target.warehouseId,
     Math.abs(qty),
   );
   return {
     ok: true,
-    hubProductId: ensured.hubProductId,
-    hubWarehouseId: hubWh,
+    hubProductId: target.productId,
+    hubWarehouseId: target.warehouseId,
+  };
+}
+
+/**
+ * When this SKU is hub-linked, apply the delta on main and return redirected.
+ * Callers keep applying local stock only when redirected is false.
+ */
+export async function applyOfflineSharedStockDelta(opts: {
+  companyId: string;
+  productId: string;
+  warehouseId: string;
+  delta: number;
+}): Promise<OfflineHubResult & { redirected?: boolean }> {
+  const delta = Number(opts.delta || 0);
+  if (!delta) return { ok: true, skipped: true, redirected: false };
+
+  const target = await resolveOfflineSharedStockTarget({
+    companyId: opts.companyId,
+    productId: opts.productId,
+    warehouseId: opts.warehouseId,
+  });
+
+  if (!target.redirected) {
+    return { ok: true, skipped: true, redirected: false };
+  }
+
+  await applyStockDeltaLocal(
+    target.companyId,
+    target.productId,
+    target.warehouseId,
+    delta,
+  );
+  return {
+    ok: true,
+    redirected: true,
+    hubProductId: target.productId,
+    hubWarehouseId: target.warehouseId,
   };
 }
 
@@ -683,31 +773,15 @@ export async function applyOfflineHubSideEffects(opts: {
       if (!res.ok && res.reason) return { note: res.reason };
       return {};
     }
-    if (type === "purchase_invoice") {
-      const changes =
-        opts.stockChanges?.filter((c) => c.delta > 0) ||
-        (Array.isArray(opts.payload.items)
-          ? (opts.payload.items as Record<string, unknown>[]).map((item) => ({
-              productId: String(item.product_id || ""),
-              warehouseId: String(
-                opts.payload.warehouse_id || item.warehouse_id || "",
-              ),
-              delta: Math.abs(Number(item.qty || 0) + Number(item.bonus_qty || 0)),
-            }))
-          : []);
-      let lastSkip: string | undefined;
-      for (const change of changes) {
-        if (!change.productId || !change.warehouseId || !change.delta) continue;
-        const res = await applyHubPurchaseStock({
-          spokeCompanyId: opts.companyId,
-          warehouseId: change.warehouseId,
-          productId: change.productId,
-          qty: change.delta,
-        });
-        if (res.skipped && res.reason) lastSkip = res.reason;
-        if (!res.ok && res.reason) lastSkip = res.reason;
-      }
-      if (lastSkip) return { note: lastSkip };
+    // Stock deltas are redirected to hub inside applyStockChangesToSqlite /
+    // applyOfflineSharedStockDelta. No extra purchase mirror here.
+    if (
+      type === "purchase_invoice" ||
+      type === "sale_invoice" ||
+      type === "sale_invoice_update" ||
+      type === "sale_return" ||
+      type === "purchase_return"
+    ) {
       return {};
     }
   } catch (err) {
