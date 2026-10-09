@@ -54,6 +54,29 @@ export function MainCompanyHubForm({
         return;
       }
       const result = data as { main_company_name?: string | null };
+      try {
+        const {
+          cacheHubContext,
+          prefetchMainCompanyHubCaches,
+          getCachedSessionData,
+        } = await import("@/lib/offline/cache-manager");
+        const session = await getCachedSessionData();
+        const activeCompanyId =
+          (session?.company?.id as string | undefined) ||
+          companies.find((c) => c.id === mainId)?.id ||
+          companies[0]?.id ||
+          "";
+        await cacheHubContext({
+          organizationId,
+          mainCompanyId: mainId || null,
+          spokeCompanyId: activeCompanyId,
+        });
+        if (mainId && activeCompanyId) {
+          await prefetchMainCompanyHubCaches(activeCompanyId);
+        }
+      } catch {
+        /* offline cache best-effort */
+      }
       setMessage(
         mainId
           ? `${result.main_company_name || mainName} is now the main company. Run sync to pull products and shops from the others.`
@@ -91,6 +114,17 @@ export function MainCompanyHubForm({
         return;
       }
       const result = data as SyncResult;
+      try {
+        const { prefetchMainCompanyHubCaches } = await import(
+          "@/lib/offline/cache-manager"
+        );
+        const active =
+          companies.find((c) => c.id !== mainId)?.id || companies[0]?.id;
+        if (active) await prefetchMainCompanyHubCaches(active);
+        else if (mainId) await prefetchMainCompanyHubCaches(mainId);
+      } catch {
+        /* ignore */
+      }
       setMessage(
         `Synced into ${result.main_company_name}: ${result.products_synced} products, ${result.parties_synced} shops/vendors, ${result.warehouses_touched} brand companies checked.`,
       );

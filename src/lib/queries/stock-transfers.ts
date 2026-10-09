@@ -38,7 +38,8 @@ export async function fetchStockTransferList(
       "id, transfer_no, transfer_date, from_warehouse:warehouses!stock_transfers_from_warehouse_id_fkey(name), to_warehouse:warehouses!stock_transfers_to_warehouse_id_fkey(name)",
       { count: "exact" },
     )
-    .eq("company_id", companyId);
+    .eq("company_id", companyId)
+    .eq("status", "posted");
 
   if (fromWarehouseId) query = query.eq("from_warehouse_id", fromWarehouseId);
   if (toWarehouseId) query = query.eq("to_warehouse_id", toWarehouseId);

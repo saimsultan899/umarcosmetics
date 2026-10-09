@@ -105,7 +105,10 @@ export function CompanyProfileView({
           </p>
           {!isOnline ? (
             <p className="text-sm text-[var(--muted)]">
-              Main company sync needs an online connection.
+              Choosing the main company and running catalog sync need an online
+              connection. After the main catalog has been cached once, product,
+              shop, and purchase updates on other companies also update main
+              stock offline on this PC.
             </p>
           ) : (
             <MainCompanyHubForm

@@ -55,7 +55,43 @@ const CANCEL_RPC: Record<
     description:
       "Party balances go back to before this voucher.",
   },
+  gate_passes: {
+    rpc: "cancel_gate_pass",
+    param: "p_gate_pass_id",
+    title: "Delete this gate pass?",
+    description:
+      "The gate pass is cancelled and removed from the list. Purchase invoices stay unchanged.",
+  },
+  stock_transfers: {
+    rpc: "cancel_stock_transfer",
+    param: "p_transfer_id",
+    title: "Delete this stock transfer?",
+    description:
+      "Stock moves back to the source company. The transfer is removed from the list.",
+  },
+  expiry_receipts: {
+    rpc: "cancel_expiry_receipt",
+    param: "p_receipt_id",
+    title: "Delete this expiry return?",
+    description:
+      "Customer credit is reversed and expiry on-hand goes back down.",
+  },
+  expiry_claims: {
+    rpc: "cancel_expiry_claim",
+    param: "p_claim_id",
+    title: "Delete this expiry claim?",
+    description:
+      "Vendor debit is reversed and claimed qty returns to expiry on-hand. Settled claims cannot be deleted.",
+  },
 };
+
+/** Cancel/delete is supported, but posted editor UI is not. */
+const CANCEL_WITHOUT_EDIT = new Set([
+  "gate_passes",
+  "stock_transfers",
+  "expiry_receipts",
+  "expiry_claims",
+]);
 
 const NEVER_HARD_DELETE = new Set([
   "sale_invoices",
@@ -93,6 +129,7 @@ export function DocumentRowActions({
   const router = useRouter();
   const cancel = CANCEL_RPC[table];
   const canReverse = allowDelete && Boolean(cancel);
+  const canEditPosted = canReverse && !CANCEL_WITHOUT_EDIT.has(table);
   const canHardDelete = allowDelete && !NEVER_HARD_DELETE.has(table) && !cancel;
 
   async function cancelEntry() {
@@ -139,9 +176,9 @@ export function DocumentRowActions({
           ? "max-w-[96vw] sm:max-w-6xl lg:max-w-7xl xl:max-w-[1360px]"
           : undefined
       }
-      allowEdit={canReverse}
+      allowEdit={canEditPosted}
       editContent={
-        canReverse
+        canEditPosted
           ? (close) => (
               <PostedDocumentEditor
                 table={table}

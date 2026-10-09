@@ -422,6 +422,31 @@ function getStatus() {
   }
 }
 
+/** Remove provisional offline hub rows before reloading main from the server. */
+function clearHubMirrorMasters(companyId) {
+  if (!companyId) throw new Error("companyId required");
+  const database = openDb();
+  const tables = [
+    "parties",
+    "products",
+    "warehouses",
+    "stock_balances",
+  ];
+  let count = 0;
+  const tx = database.transaction(() => {
+    for (const table of tables) {
+      const info = database
+        .prepare(
+          `DELETE FROM ${table} WHERE company_id = ? AND sync_status = 'hub_mirror'`,
+        )
+        .run(companyId);
+      count += info.changes || 0;
+    }
+  });
+  tx();
+  return { count };
+}
+
 function upsertMaster(table, row) {
   const allowed = {
     parties: true,
@@ -1504,6 +1529,14 @@ function registerDbIpc(ipcMain, log) {
   ipcMain.handle("db:bootstrapCompany", (_e, companyId, snapshot) => {
     try {
       return ok(bootstrapCompany(companyId, snapshot || {}));
+    } catch (err) {
+      return fail(err);
+    }
+  });
+
+  ipcMain.handle("db:clearHubMirrorMasters", (_e, companyId) => {
+    try {
+      return ok(clearHubMirrorMasters(companyId));
     } catch (err) {
       return fail(err);
     }

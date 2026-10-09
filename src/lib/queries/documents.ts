@@ -184,7 +184,9 @@ export async function fetchDocumentList(
     config.table === "sale_invoices" ||
     config.table === "purchase_invoices" ||
     config.table === "sale_returns" ||
-    config.table === "purchase_returns"
+    config.table === "purchase_returns" ||
+    config.table === "expiry_receipts" ||
+    config.table === "expiry_claims"
   ) {
     listQuery = listQuery.neq("status", "cancelled");
   }

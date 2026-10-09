@@ -89,7 +89,165 @@ export async function refreshAllCaches(companyId: string) {
     console.warn("[cache-manager] SQLite bootstrap failed:", err);
   }
 
+  // Prefetch main-company hub masters so spoke PCs can mirror offline.
+  try {
+    await prefetchMainCompanyHubCaches(companyId);
+  } catch (err) {
+    console.warn("[cache-manager] Hub prefetch failed:", err);
+  }
+
   return results;
+}
+
+/** Session key for org main-company hub context (offline). */
+export const HUB_CONTEXT_SESSION_KEY = "hub:context";
+
+export type HubContext = {
+  organizationId: string;
+  mainCompanyId: string | null;
+  spokeCompanyId: string;
+  cachedAt: string;
+};
+
+const HUB_MASTER_STORES: CacheStoreName[] = [
+  "parties",
+  "products",
+  "warehouses",
+  "stock_balances",
+];
+
+/** Persist / read which company is the org hub (for offline mirror). */
+export async function cacheHubContext(ctx: Omit<HubContext, "cachedAt">) {
+  const full: HubContext = {
+    ...ctx,
+    cachedAt: new Date().toISOString(),
+  };
+  await cacheSession(HUB_CONTEXT_SESSION_KEY, full);
+  return full;
+}
+
+export async function getCachedHubContext(): Promise<HubContext | null> {
+  const row = await getCachedSession(HUB_CONTEXT_SESSION_KEY);
+  if (!row || typeof row !== "object") return null;
+  const ctx = row as HubContext;
+  if (!ctx.organizationId) return null;
+  return ctx;
+}
+
+/**
+ * Resolve organizations.main_company_id from Supabase and cache it.
+ * No-op when offline / fetch fails (keeps prior cache).
+ */
+export async function resolveAndCacheHubContext(
+  companyId: string,
+  organizationId?: string | null,
+): Promise<HubContext | null> {
+  try {
+    const supabase = createClient();
+    let orgId = organizationId || null;
+    if (!orgId) {
+      const { data: company } = await supabase
+        .from("companies")
+        .select("organization_id")
+        .eq("id", companyId)
+        .maybeSingle();
+      orgId = (company?.organization_id as string | null) || null;
+    }
+    if (!orgId) return getCachedHubContext();
+
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("main_company_id")
+      .eq("id", orgId)
+      .maybeSingle();
+
+    return cacheHubContext({
+      organizationId: orgId,
+      mainCompanyId: (org?.main_company_id as string | null) || null,
+      spokeCompanyId: companyId,
+    });
+  } catch {
+    return getCachedHubContext();
+  }
+}
+
+/** True when main hub masters have been warmed for offline use. */
+export async function isMainHubCacheReady(
+  mainCompanyId: string,
+): Promise<boolean> {
+  if (!mainCompanyId) return false;
+  if (await isSnapshotReady(mainCompanyId)) return true;
+  const age = await getCacheAge("products", mainCompanyId);
+  return age !== null;
+}
+
+/**
+ * While online on a spoke company, also cache the main company's masters
+ * so offline hub mirror has products/warehouses/stock to write into.
+ */
+export async function prefetchMainCompanyHubCaches(
+  activeCompanyId: string,
+): Promise<{ mainCompanyId: string | null; prefetched: boolean }> {
+  const ctx =
+    (await resolveAndCacheHubContext(activeCompanyId)) ||
+    (await getCachedHubContext());
+  const mainId = ctx?.mainCompanyId || null;
+  if (!mainId || mainId === activeCompanyId) {
+    return { mainCompanyId: mainId, prefetched: false };
+  }
+
+  const results: Array<{ store: CacheStoreName; error?: string }> = [];
+  for (const store of HUB_MASTER_STORES) {
+    try {
+      await refreshStoreCache(store, mainId);
+      results.push({ store });
+    } catch (err) {
+      results.push({
+        store,
+        error: err instanceof Error ? err.message : "Unknown error",
+      });
+    }
+  }
+
+  const ok = results.some((r) => !r.error);
+  if (ok) {
+    try {
+      await cacheSession(`snapshot-ready:${mainId}`, {
+        at: new Date().toISOString(),
+        stores: results.filter((r) => !r.error).map((r) => r.store),
+        hubPrefetch: true,
+      });
+    } catch {
+      /* ignore */
+    }
+    try {
+      // Drop provisional offline hub rows, then load server masters.
+      const { hasLocalSqlite, localClearHubMirrorMasters } = await import(
+        "@/lib/offline/sqlite-client"
+      );
+      if (hasLocalSqlite()) {
+        await localClearHubMirrorMasters(mainId);
+      }
+      await bootstrapSqliteFromCaches(mainId);
+    } catch (err) {
+      console.warn("[cache-manager] Hub SQLite bootstrap failed:", err);
+    }
+  }
+
+  return { mainCompanyId: mainId, prefetched: ok };
+}
+
+/**
+ * After spoke mutations sync, refresh main hub caches so server UUIDs
+ * replace provisional local hub_mirror rows.
+ */
+export async function reconcileMainCompanyHubCaches(
+  activeCompanyId: string,
+): Promise<void> {
+  const ctx = await getCachedHubContext();
+  const mainId = ctx?.mainCompanyId || null;
+  if (!mainId || mainId === activeCompanyId) return;
+  await prefetchMainCompanyHubCaches(activeCompanyId);
 }
 
 /**
@@ -547,6 +705,7 @@ const STORE_FETCH_CONFIG: Record<string, FetchConfig> = {
       s.from("stock_transfers")
         .select("*, stock_transfer_items(*), from_warehouse:warehouses!stock_transfers_from_warehouse_id_fkey(name), to_warehouse:warehouses!stock_transfers_to_warehouse_id_fkey(name)")
         .eq("company_id", cid)
+        .eq("status", "posted")
         .order("transfer_date", { ascending: false })
         .limit(1000),
   },
@@ -555,6 +714,7 @@ const STORE_FETCH_CONFIG: Record<string, FetchConfig> = {
       s.from("gate_passes")
         .select("*, gate_pass_items(*), parties(name_en, party_code, phone, mobile, contact_person), warehouses(name)")
         .eq("company_id", cid)
+        .eq("status", "posted")
         .order("pass_date", { ascending: false })
         .limit(1000),
   },
@@ -571,6 +731,7 @@ const STORE_FETCH_CONFIG: Record<string, FetchConfig> = {
       s.from("expiry_receipts")
         .select("*, parties(name_en, party_code, route, head, city, address, phone, mobile, contact_person), expiry_receipt_items(*)")
         .eq("company_id", cid)
+        .eq("status", "posted")
         .order("receipt_date", { ascending: false })
         .limit(1000),
   },
@@ -579,6 +740,7 @@ const STORE_FETCH_CONFIG: Record<string, FetchConfig> = {
       s.from("expiry_claims")
         .select("*, parties(name_en, party_code, route, head, city, address, phone, mobile, contact_person), warehouses(name), expiry_claim_items(*)")
         .eq("company_id", cid)
+        .eq("status", "posted")
         .order("claim_date", { ascending: false })
         .limit(1000),
   },

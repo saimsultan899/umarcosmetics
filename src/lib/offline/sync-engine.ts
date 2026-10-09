@@ -504,8 +504,13 @@ async function executeSyncPendingMutations(params: {
   if (success > 0) {
     await clearSyncedMeta(params.companyId);
     try {
-      const { refreshAllCaches } = await import("@/lib/offline/cache-manager");
-      void refreshAllCaches(params.companyId);
+      const {
+        refreshAllCaches,
+        reconcileMainCompanyHubCaches,
+      } = await import("@/lib/offline/cache-manager");
+      void refreshAllCaches(params.companyId).then(() =>
+        reconcileMainCompanyHubCaches(params.companyId),
+      );
     } catch {
       /* ignore */
     }

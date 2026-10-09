@@ -78,6 +78,9 @@ type LocalDesktopDb = {
     companyId: string,
     snapshot: Record<string, unknown>,
   ) => Promise<LocalDbResult>;
+  dbClearHubMirrorMasters?: (
+    companyId: string,
+  ) => Promise<LocalDbResult<{ count?: number }>>;
 
   // ── Batched / performance IPC ──────────────────────────────────
   dbListLocalDocumentsByTypes?: (
@@ -247,6 +250,15 @@ export async function localBootstrapCompany(
     return { ok: false, error: "Local DB not available" };
   }
   return api.dbBootstrapCompany(companyId, snapshot);
+}
+
+/** Delete provisional offline hub rows (sync_status = hub_mirror) for a company. */
+export async function localClearHubMirrorMasters(companyId: string) {
+  const api = desktop();
+  if (!api?.dbClearHubMirrorMasters) {
+    return { ok: false, error: "Local DB not available", count: 0 };
+  }
+  return api.dbClearHubMirrorMasters(companyId);
 }
 
 /** Map IndexedDB / app cache store → SQLite entity_type for generic docs. */

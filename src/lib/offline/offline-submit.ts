@@ -107,6 +107,8 @@ export type OfflineSubmitResult = {
   source: "server" | "offline";
   /** User-facing message */
   message: string;
+  /** Optional note when main-hub mirror was skipped offline */
+  hubNote?: string;
 };
 
 export type OfflineSubmitParams = {
@@ -200,6 +202,7 @@ async function runOfflineAwareSubmit(
       ]);
 
       // Mirror successful cloud writes into local SQLite for offline continuity.
+      let hubNote: string | undefined;
       if (hasLocalSqlite()) {
         await persistMutationToSqlite({
           mutationType,
@@ -212,12 +215,20 @@ async function runOfflineAwareSubmit(
         }).catch((err) =>
           console.warn("[offlineAwareSubmit] SQLite mirror failed:", err),
         );
+        hubNote = await runOfflineHubSideEffects({
+          mutationType,
+          companyId,
+          documentId: result.id,
+          payload,
+          stockChanges,
+        });
       }
 
       return {
         id: result.id,
         source: "server",
-        message: getSuccessMessage(mutationType),
+        message: formatSubmitMessage(mutationType, hubNote),
+        hubNote,
       };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -306,11 +317,54 @@ async function runOfflineAwareSubmit(
     );
   }
 
+  const hubNote = await runOfflineHubSideEffects({
+    mutationType,
+    companyId,
+    documentId,
+    payload: { ...payload, id: documentId, invoice_no: localId, doc_no: localId },
+    stockChanges,
+  });
+
   return {
     id: documentId || mutation.id,
     source: "offline",
-    message: getSuccessMessage(mutationType),
+    message: formatSubmitMessage(mutationType, hubNote),
+    hubNote,
   };
+}
+
+function formatSubmitMessage(mutationType: OfflineMutationType, hubNote?: string) {
+  const base = getSuccessMessage(mutationType);
+  if (!hubNote) return base;
+  return `${base} ${hubNote}`;
+}
+
+async function runOfflineHubSideEffects(opts: {
+  mutationType: OfflineMutationType;
+  companyId: string;
+  documentId: string;
+  payload: Record<string, unknown>;
+  stockChanges?: OfflineSubmitParams["stockChanges"];
+}): Promise<string | undefined> {
+  const hubTypes = new Set([
+    "product_create",
+    "product_update",
+    "party_create",
+    "party_update",
+    "purchase_invoice",
+  ]);
+  if (!hubTypes.has(opts.mutationType)) return undefined;
+  if (!hasLocalSqlite()) return undefined;
+  try {
+    const { applyOfflineHubSideEffects } = await import(
+      "@/lib/offline/offline-hub"
+    );
+    const { note } = await applyOfflineHubSideEffects(opts);
+    return note;
+  } catch (err) {
+    console.warn("[offlineAwareSubmit] hub side effects failed:", err);
+    return "Main hub will update when you reconnect.";
+  }
 }
 
 function resolveCacheStore(

@@ -40,7 +40,8 @@ export async function fetchGatePassList(
       "id, pass_no, pass_date, manufacturer, vehicle_no, parties(name_en, party_code), warehouses(name), gate_pass_items(qty)",
       { count: "exact" },
     )
-    .eq("company_id", companyId);
+    .eq("company_id", companyId)
+    .eq("status", "posted");
 
   if (warehouseId) query = query.eq("warehouse_id", warehouseId);
 

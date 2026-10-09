@@ -107,6 +107,8 @@ export function PurchaseInvoiceForm({
       function push(row: Record<string, unknown>) {
         const id = String(row.id || "");
         if (!id || seen.has(id)) return;
+        const status = String(row.status || "posted").toLowerCase();
+        if (status && status !== "posted") return;
         seen.add(id);
         rows.push({
           id,
@@ -124,6 +126,7 @@ export function PurchaseInvoiceForm({
             .from("gate_passes")
             .select("id, pass_no, pass_date, warehouse_id, party_id, status")
             .eq("company_id", companyId)
+            .eq("status", "posted")
             .order("pass_date", { ascending: false })
             .limit(200);
           for (const row of data || []) push(row as Record<string, unknown>);

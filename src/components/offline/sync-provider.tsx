@@ -13,6 +13,8 @@ import {
   autoRefreshStaleCaches,
   cacheSessionData,
   getCachedSessionData,
+  resolveAndCacheHubContext,
+  prefetchMainCompanyHubCaches,
 } from "@/lib/offline/cache-manager";
 import {
   hasOfflineSessionCookie,
@@ -264,8 +266,11 @@ export function SyncProvider({
   useEffect(() => {
     if (online && companyId) {
       void autoRefreshStaleCaches(companyId);
+      void resolveAndCacheHubContext(companyId, organizationId).then(() =>
+        prefetchMainCompanyHubCaches(companyId),
+      );
     }
-  }, [online, companyId]);
+  }, [online, companyId, organizationId]);
 
   // ── Cache session data + keep shell cookie warm for disconnect ─
   useEffect(() => {
@@ -276,13 +281,18 @@ export function SyncProvider({
         company: companyData as Record<string, unknown> | null,
         memberships: membershipsData || [],
       });
+      if (online) {
+        void resolveAndCacheHubContext(companyId, organizationId);
+      }
       persistShellCookie();
     }
   }, [
     profileData,
     companyData,
     companyId,
+    organizationId,
     membershipsData,
+    online,
     persistShellCookie,
   ]);
 

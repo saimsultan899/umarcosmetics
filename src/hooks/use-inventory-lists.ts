@@ -129,7 +129,12 @@ export function useGatePassList({
         const q = (searchParams.get("q") || "").toLowerCase().trim();
         const warehouseId = searchParams.get("warehouse") || "";
 
-        const allRows: GatePassListRow[] = gateRows.map((r) => {
+        const allRows: GatePassListRow[] = gateRows
+          .filter((r) => {
+            const status = String(r.status || "posted").toLowerCase();
+            return !status || status === "posted";
+          })
+          .map((r) => {
           const party = pts.find((p) => p.id === String(r.party_id));
           const wh = whs.find((w) => w.id === String(r.warehouse_id));
           return {

@@ -38,6 +38,8 @@ contextBridge.exposeInMainWorld("umarDesktop", {
     ipcRenderer.invoke("db:markEntitySynced", entityType, entityId, syncStatus),
   dbBootstrapCompany: (companyId, snapshot) =>
     ipcRenderer.invoke("db:bootstrapCompany", companyId, snapshot),
+  dbClearHubMirrorMasters: (companyId) =>
+    ipcRenderer.invoke("db:clearHubMirrorMasters", companyId),
 
   // ── Batched / performance IPC ──────────────────────────────────
   dbListLocalDocumentsByTypes: (companyId, entityTypes, limit) =>
