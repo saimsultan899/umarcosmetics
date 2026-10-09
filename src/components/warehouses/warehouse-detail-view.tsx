@@ -11,7 +11,7 @@ import {
   useWarehouseDetail,
   type WarehouseProductRow,
 } from "@/hooks/use-warehouse-detail";
-import { formatUomCompact } from "@/lib/pricing/uom";
+import { formatUomCompact, hasCartonPacking } from "@/lib/pricing/uom";
 import type { Warehouse } from "@/lib/types/database";
 import { formatNumber, formatPkr } from "@/lib/utils";
 import { ArrowLeft, Package } from "lucide-react";
@@ -183,8 +183,14 @@ export function WarehouseDetailView({
                     </td>
                     <td className="text-[var(--muted)]">{warehouse.name}</td>
                     <td>
-                      {formatNumber(p.packing, 0)}/
-                      {(p.unit_type || "ctn").toLowerCase()}
+                      {hasCartonPacking(p.packing) ? (
+                        <>
+                          {formatNumber(p.packing, 0)}/
+                          {(p.unit_type || "ctn").toLowerCase()}
+                        </>
+                      ) : (
+                        <span className="text-[var(--muted)]">—</span>
+                      )}
                     </td>
                     <td>{formatPkr(p.retail_rate)}</td>
                     <td
