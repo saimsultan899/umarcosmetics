@@ -62,8 +62,9 @@ export function ProductForm({
     retail_rate: String(initial?.retail_rate ?? 0),
     purchase_rate: String(initial?.purchase_rate ?? 0),
     opening_qty: String(initial?.opening_qty ?? 0),
+    // Only show a value when a real carton pack is set (>1). 1 means unset.
     packing:
-      initial?.packing != null && Number(initial.packing) > 0
+      initial?.packing != null && Number(initial.packing) > 1
         ? String(initial.packing)
         : "",
     /** Supplier/company trade discount in percent (stored as products.scheme, e.g. 5%). */
@@ -265,12 +266,14 @@ export function ProductForm({
     }
 
     const tradePrice = Number(form.retail_rate || 0);
-    const packing = Number(form.packing);
-    if (!form.packing.trim() || !Number.isFinite(packing) || packing < 1) {
+    // Empty packing = unset. Store 1 so stock math stays 1:1 (no carton conversion).
+    const packingRaw = form.packing.trim() ? Number(form.packing) : 1;
+    if (form.packing.trim() && (!Number.isFinite(packingRaw) || packingRaw < 1)) {
       setLoading(false);
-      setError("Enter units per carton (how many units in one carton).");
+      setError("Units per carton must be a whole number of 1 or more.");
       return;
     }
+    const packing = Math.max(1, Math.floor(packingRaw));
 
     const normalizedDiscount = normalizePurchaseDiscountInput(form.purchase_discount);
     if (form.purchase_discount.trim() && !normalizedDiscount) {
@@ -299,8 +302,8 @@ export function ProductForm({
       opening_qty: openingQty,
       opening_rate: Number(initial?.opening_rate ?? 0),
       reorder_level: Number(initial?.reorder_level ?? 0),
-      packing: Math.max(1, Math.floor(packing)),
-      unit_type: OUTER_UNIT,
+      packing,
+      unit_type: packing > 1 ? OUTER_UNIT : BASE_UNIT,
       base_unit: BASE_UNIT,
       scheme: normalizedDiscount,
     };
@@ -478,9 +481,6 @@ export function ProductForm({
           value={form.opening_qty}
           onChange={(e) => set("opening_qty", e.target.value)}
         />
-        <p className="mt-1 text-[11px] text-[var(--muted)]">
-          Always stored in {BASE_UNIT.toLowerCase()}s. Use packing below to convert cartons.
-        </p>
       </div>
       <div>
         <Label>Outer unit type</Label>
@@ -500,10 +500,6 @@ export function ProductForm({
           value={form.packing}
           onChange={(e) => set("packing", e.target.value)}
         />
-        <p className="mt-1 text-[11px] text-[var(--muted)]">
-          Leave blank until you set it — e.g. 12 = one carton has 12 units.
-          Stock stays in base units.
-        </p>
       </div>
       <div>
         <Label>Purchase discount %</Label>
@@ -516,9 +512,6 @@ export function ProductForm({
           onChange={(e) => set("purchase_discount", e.target.value)}
           placeholder={AMOUNT_PLACEHOLDER}
         />
-        <p className="mt-1 text-[11px] text-[var(--muted)]">
-          Vendor/company trade discount in percent — auto-fills on purchase invoices.
-        </p>
       </div>
 
       {error ? (

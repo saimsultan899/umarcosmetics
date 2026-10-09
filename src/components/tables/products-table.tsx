@@ -19,7 +19,7 @@ import type { ProductListStats } from "@/lib/queries/products";
 import type { Product, Warehouse } from "@/lib/types/database";
 import { formatProductBarcodes } from "@/lib/barcode/product-barcodes";
 import { formatProductPurchaseDiscount } from "@/lib/pricing/discounts";
-import { formatUomCompact } from "@/lib/pricing/uom";
+import { formatUomCompact, hasCartonPacking } from "@/lib/pricing/uom";
 import { formatNumber, formatPkr } from "@/lib/utils";
 import { deleteCachedRow, putCachedRow } from "@/lib/offline/local-db";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
@@ -47,7 +47,9 @@ function productFields(p: Product, companyName: string): DetailField[] {
     { label: "Base unit", value: p.base_unit || "Piece" },
     {
       label: "Units / pack",
-      value: `${formatNumber(p.packing, 0)} ${p.base_unit || "pcs"} / ${p.unit_type || "pack"}`,
+      value: hasCartonPacking(p.packing)
+        ? `${formatNumber(p.packing, 0)} ${p.base_unit || "pcs"} / ${p.unit_type || "pack"}`
+        : "—",
     },
     {
       label: "Opening (ctn/pcs)",
@@ -320,10 +322,19 @@ export function ProductsTable({
                       <td>{formatPkr(p.purchase_rate)}</td>
                       <td>{formatNumber(p.reorder_level, 0)}</td>
                       <td>
-                        <div>{formatNumber(p.packing, 0)}/{(p.unit_type || "ctn").toLowerCase()}</div>
-                        <div className="text-[10px] text-[var(--muted)]">
-                          {p.base_unit || "Piece"}
-                        </div>
+                        {hasCartonPacking(p.packing) ? (
+                          <>
+                            <div>
+                              {formatNumber(p.packing, 0)}/
+                              {(p.unit_type || "ctn").toLowerCase()}
+                            </div>
+                            <div className="text-[10px] text-[var(--muted)]">
+                              {p.base_unit || "Piece"}
+                            </div>
+                          </>
+                        ) : (
+                          <span className="text-[var(--muted)]">—</span>
+                        )}
                       </td>
                       <td>
                         <RowActions
