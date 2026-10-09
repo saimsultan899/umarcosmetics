@@ -62,7 +62,10 @@ export function ProductForm({
     retail_rate: String(initial?.retail_rate ?? 0),
     purchase_rate: String(initial?.purchase_rate ?? 0),
     opening_qty: String(initial?.opening_qty ?? 0),
-    packing: String(initial?.packing ?? 1),
+    packing:
+      initial?.packing != null && Number(initial.packing) > 0
+        ? String(initial.packing)
+        : "",
     /** Supplier/company trade discount in percent (stored as products.scheme, e.g. 5%). */
     purchase_discount: initial?.scheme
       ? purchaseDiscountPercentText(initial.scheme)
@@ -262,6 +265,12 @@ export function ProductForm({
     }
 
     const tradePrice = Number(form.retail_rate || 0);
+    const packing = Number(form.packing);
+    if (!form.packing.trim() || !Number.isFinite(packing) || packing < 1) {
+      setLoading(false);
+      setError("Enter units per carton (how many units in one carton).");
+      return;
+    }
 
     const normalizedDiscount = normalizePurchaseDiscountInput(form.purchase_discount);
     if (form.purchase_discount.trim() && !normalizedDiscount) {
@@ -290,7 +299,7 @@ export function ProductForm({
       opening_qty: openingQty,
       opening_rate: Number(initial?.opening_rate ?? 0),
       reorder_level: Number(initial?.reorder_level ?? 0),
-      packing: Math.max(1, Number(form.packing || 1)),
+      packing: Math.max(1, Math.floor(packing)),
       unit_type: OUTER_UNIT,
       base_unit: BASE_UNIT,
       scheme: normalizedDiscount,
@@ -487,11 +496,13 @@ export function ProductForm({
           type="number"
           min="1"
           step="1"
+          placeholder=""
           value={form.packing}
           onChange={(e) => set("packing", e.target.value)}
         />
         <p className="mt-1 text-[11px] text-[var(--muted)]">
-          e.g. 12 = one carton has 12 units. Stock stays in base units.
+          Leave blank until you set it — e.g. 12 = one carton has 12 units.
+          Stock stays in base units.
         </p>
       </div>
       <div>
