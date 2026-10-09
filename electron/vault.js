@@ -204,12 +204,28 @@ function clearVault() {
   return { ok: true };
 }
 
+/** Fill accountEmail on legacy vaults that only stored emailHint. */
+function adoptAccountEmail(email) {
+  const normalized = String(email || "")
+    .trim()
+    .toLowerCase();
+  if (!normalized || !vaultExists()) {
+    return { ok: false };
+  }
+  writeMeta({
+    accountEmail: normalized,
+    emailHint: normalized.replace(/(^.).*(@.*$)/, "$1***$2"),
+  });
+  return { ok: true };
+}
+
 function registerVaultIpc(ipcMain) {
   ipcMain.handle("vault:exists", () => vaultExists());
   ipcMain.handle("vault:meta", () => readMeta());
   ipcMain.handle("vault:save", (_e, payload) => saveVault(payload));
   ipcMain.handle("vault:unlock", (_e, pin) => unlockVault(pin));
   ipcMain.handle("vault:clear", () => clearVault());
+  ipcMain.handle("vault:adoptAccountEmail", (_e, email) => adoptAccountEmail(email));
   ipcMain.handle("desktop:isOnline", () => {
     try {
       const { net } = require("electron");
@@ -226,5 +242,6 @@ module.exports = {
   saveVault,
   unlockVault,
   clearVault,
+  adoptAccountEmail,
   registerVaultIpc,
 };

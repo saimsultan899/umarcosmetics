@@ -14,6 +14,7 @@ import {
 } from "@/lib/company-preference";
 import {
   cacheAuthTokens,
+  adoptVaultAccountEmail,
   clearCredentialVault,
   getCachedAuthTokens,
   getVaultMeta,
@@ -330,6 +331,7 @@ function LoginForm() {
     if (shouldOfferPinVault()) {
       const hasVault = await vaultExists();
       if (!hasVault) {
+        // First password login on this PC — ask to create a PIN once.
         setStep("pin-setup");
         return;
       }
@@ -337,7 +339,9 @@ function LoginForm() {
       const vaultMeta = await getVaultMeta();
       const vaultEmail = (vaultMeta?.accountEmail || "").trim().toLowerCase();
       const signedInEmail = userEmail.trim().toLowerCase();
-      if (!vaultEmail || vaultEmail !== signedInEmail) {
+
+      // Different account than the saved PIN — replace the vault.
+      if (vaultEmail && signedInEmail && vaultEmail !== signedInEmail) {
         await clearCredentialVault();
         try {
           localStorage.removeItem("umar_vault_hint");
@@ -348,6 +352,23 @@ function LoginForm() {
         setStep("pin-setup");
         return;
       }
+
+      // Same account (or legacy vault without accountEmail): keep existing PIN.
+      // Do not show set-PIN again after logout + email/password sign-in.
+      if (!vaultEmail && signedInEmail) {
+        try {
+          await adoptVaultAccountEmail(signedInEmail);
+        } catch {
+          /* best-effort meta migrate */
+        }
+      }
+      try {
+        localStorage.setItem("umar_vault_hint", userEmail);
+      } catch {
+        /* ignore */
+      }
+      setEmailHint(userEmail);
+      setCanUsePin(true);
     }
 
     if (isSuperAdmin) {

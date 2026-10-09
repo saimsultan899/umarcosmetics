@@ -39,6 +39,9 @@ type DesktopApi = {
     pin: string,
   ) => Promise<{ ok: boolean; error?: string } & Partial<UnlockedCredentials>>;
   vaultClear: () => Promise<{ ok: boolean }>;
+  vaultAdoptAccountEmail?: (
+    email: string,
+  ) => Promise<{ ok: boolean; error?: string }>;
   isOnline: () => Promise<boolean>;
   printPreview?: () => Promise<{ ok?: boolean; error?: string | null }>;
   print?: () => Promise<{ ok?: boolean; error?: string | null }>;
@@ -309,6 +312,31 @@ export async function clearCredentialVault() {
   }
   localStorage.removeItem(BROWSER_VAULT_KEY);
   return { ok: true };
+}
+
+/** Attach accountEmail to an existing vault without clearing the PIN. */
+export async function adoptVaultAccountEmail(email: string) {
+  const normalized = String(email || "")
+    .trim()
+    .toLowerCase();
+  if (!normalized) return { ok: false as const };
+
+  if (hasDesktopVaultApi() && window.umarDesktop?.vaultAdoptAccountEmail) {
+    return window.umarDesktop.vaultAdoptAccountEmail(normalized);
+  }
+
+  const raw = localStorage.getItem(BROWSER_VAULT_KEY);
+  if (!raw) return { ok: false as const };
+  try {
+    const packed = JSON.parse(raw) as Record<string, unknown>;
+    packed.accountEmail = normalized;
+    packed.emailHint = normalized.replace(/(^.).*(@.*$)/, "$1***$2");
+    packed.updatedAt = new Date().toISOString();
+    localStorage.setItem(BROWSER_VAULT_KEY, JSON.stringify(packed));
+    return { ok: true as const };
+  } catch {
+    return { ok: false as const };
+  }
 }
 
 export function shouldOfferPinVault() {

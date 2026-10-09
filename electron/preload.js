@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld("umarDesktop", {
   vaultSave: (payload) => ipcRenderer.invoke("vault:save", payload),
   vaultUnlock: (pin) => ipcRenderer.invoke("vault:unlock", pin),
   vaultClear: () => ipcRenderer.invoke("vault:clear"),
+  vaultAdoptAccountEmail: (email) =>
+    ipcRenderer.invoke("vault:adoptAccountEmail", email),
   isOnline: () => ipcRenderer.invoke("desktop:isOnline"),
   /** Opens PDF print preview (avoids Windows “no print preview” dialog). */
   printPreview: (payload) => ipcRenderer.invoke("desktop:printPreview", payload),
