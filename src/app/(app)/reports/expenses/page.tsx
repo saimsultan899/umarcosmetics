@@ -4,7 +4,7 @@ import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { FilterMultiSelect, ReportFilters } from "@/components/reports/report-filters";
 import { ReportTable } from "@/components/reports/report-table";
 import { requireCompanyContext } from "@/lib/auth";
-import { EXPENSE_CATEGORIES } from "@/lib/expenses/categories";
+import { fetchExpenseCategories } from "@/lib/queries/expense-categories";
 import { fetchCompanySalesmen } from "@/lib/queries/salesmen";
 import { parseReportList } from "@/lib/reports/filter-params";
 import { buildExpenseReport } from "@/lib/reports/expenses-data";
@@ -54,7 +54,7 @@ export default async function ExpenseReportPage({
   const categories = parseReportList(sp.category);
   const salesmanIds = parseReportList(sp.salesman);
 
-  const [report, salesmen] = await Promise.all([
+  const [report, salesmen, expenseCategories] = await Promise.all([
     buildExpenseReport(supabase, {
       companyId: company.id,
       from,
@@ -63,6 +63,7 @@ export default async function ExpenseReportPage({
       salesmanIds,
     }),
     fetchCompanySalesmen(supabase, company.id),
+    fetchExpenseCategories(supabase, company.id),
   ]);
 
   const { totals } = report;
@@ -155,7 +156,7 @@ export default async function ExpenseReportPage({
               label="Type"
               value={sp.category}
               allLabel="All types"
-              options={EXPENSE_CATEGORIES.map((c) => ({
+              options={expenseCategories.map((c) => ({
                 value: c.value,
                 label: c.label,
               }))}

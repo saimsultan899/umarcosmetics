@@ -6,7 +6,10 @@ import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { FilterMultiSelect, ReportFilters } from "@/components/reports/report-filters";
 import { ReportTable } from "@/components/reports/report-table";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
-import { EXPENSE_CATEGORIES, expenseCategoryLabel } from "@/lib/expenses/categories";
+import {
+  SYSTEM_EXPENSE_CATEGORIES,
+  expenseCategoryLabel,
+} from "@/lib/expenses/categories";
 import { parseReportList } from "@/lib/reports/filter-params";
 import { localDateIso, monthStartLocal } from "@/lib/dates";
 import { getCachedRows } from "@/lib/offline/local-db";
@@ -312,10 +315,22 @@ export function OfflineExpenseReportsPage({
               label="Type"
               value={sp.category}
               allLabel="All types"
-              options={EXPENSE_CATEGORIES.map((c) => ({
-                value: c.value,
-                label: c.label,
-              }))}
+              options={(() => {
+                const seen = new Map<string, string>();
+                for (const c of SYSTEM_EXPENSE_CATEGORIES) {
+                  seen.set(c.value, c.label);
+                }
+                for (const r of expenses) {
+                  const code = String(r.category || "").trim();
+                  if (code && !seen.has(code)) {
+                    seen.set(code, expenseCategoryLabel(code));
+                  }
+                }
+                return [...seen.entries()].map(([value, label]) => ({
+                  value,
+                  label,
+                }));
+              })()}
             />
             <FilterMultiSelect
               name="salesman"

@@ -69,7 +69,11 @@ export function ExpensesView({
         }
       />
 
-      <ExpensesTable expenses={expenses} pagination={pagination} />
+      <ExpensesTable
+        companyId={company.id}
+        expenses={expenses}
+        pagination={pagination}
+      />
     </div>
   );
 }

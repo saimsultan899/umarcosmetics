@@ -1,4 +1,4 @@
-export const EXPENSE_CATEGORIES = [
+export const SYSTEM_EXPENSE_CATEGORIES = [
   { value: "salary", label: "Salesman salary" },
   { value: "builty", label: "Builty expense" },
   { value: "fuel", label: "Fuel / petrol" },
@@ -11,12 +11,37 @@ export const EXPENSE_CATEGORIES = [
   { value: "other", label: "Other" },
 ] as const;
 
-export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number]["value"];
+/** @deprecated Use SYSTEM_EXPENSE_CATEGORIES — kept for older imports */
+export const EXPENSE_CATEGORIES = SYSTEM_EXPENSE_CATEGORIES;
 
-export function expenseCategoryLabel(value: string | null | undefined) {
-  return (
-    EXPENSE_CATEGORIES.find((c) => c.value === value)?.label || value || "—"
-  );
+export type ExpenseCategoryOption = {
+  value: string;
+  label: string;
+};
+
+/** Category codes are free text (system + company custom). */
+export type ExpenseCategory = string;
+
+export function expenseCategoryLabel(
+  value: string | null | undefined,
+  extras?: Iterable<ExpenseCategoryOption> | null,
+) {
+  const code = (value || "").trim();
+  if (!code) return "—";
+
+  if (extras) {
+    for (const c of extras) {
+      if (c.value === code) return c.label;
+    }
+  }
+
+  const system = SYSTEM_EXPENSE_CATEGORIES.find((c) => c.value === code);
+  if (system) return system.label;
+
+  // Custom codes: show a readable fallback until labels are loaded.
+  return code
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (ch) => ch.toUpperCase());
 }
 
 export function isSalaryCategory(value: string | null | undefined) {

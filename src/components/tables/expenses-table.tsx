@@ -6,21 +6,52 @@ import { TableToolbar } from "@/components/tables/table-toolbar";
 import { RowActions } from "@/components/ui/row-actions";
 import { expenseCategoryLabel } from "@/lib/expenses/categories";
 import { useSearchInput, useUrlTableState } from "@/hooks/use-url-table-state";
+import {
+  fetchExpenseCategories,
+  type ExpenseCategoryRow,
+} from "@/lib/queries/expense-categories";
 import type { ExpenseRow } from "@/lib/queries/expenses";
 import type { PaginationMeta } from "@/lib/pagination";
 import { createClient } from "@/lib/supabase/client";
 import { deleteCachedRow } from "@/lib/offline/local-db";
 import { formatPkr } from "@/lib/utils";
+import { useEffect, useState } from "react";
 
 export function ExpensesTable({
+  companyId,
   expenses,
   pagination,
 }: {
+  companyId?: string;
   expenses: ExpenseRow[];
   pagination: PaginationMeta;
 }) {
   const { q, isPending, setPage, setPageSize, setQuery } = useUrlTableState();
   const search = useSearchInput(q, setQuery);
+  const [categoryOptions, setCategoryOptions] = useState<ExpenseCategoryRow[]>(
+    [],
+  );
+
+  useEffect(() => {
+    if (!companyId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const supabase = createClient();
+        const rows = await fetchExpenseCategories(supabase, companyId);
+        if (!cancelled) setCategoryOptions(rows);
+      } catch {
+        // Labels fall back to system / humanized codes.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId]);
+
+  function typeLabel(code: string | null | undefined) {
+    return expenseCategoryLabel(code, categoryOptions);
+  }
 
   async function remove(id: string) {
     try {
@@ -72,7 +103,7 @@ export function ExpensesTable({
                   <tr key={e.id}>
                     <td className="font-medium">{e.expense_no}</td>
                     <td>{e.expense_date}</td>
-                    <td>{expenseCategoryLabel(e.category)}</td>
+                    <td>{typeLabel(e.category)}</td>
                     <td className="text-[var(--muted)]">
                       {e.salesman_name || e.warehouse_name || "—"}
                     </td>
@@ -83,13 +114,13 @@ export function ExpensesTable({
                     <td className="text-[var(--muted)]">{e.remarks || "—"}</td>
                     <td>
                       <RowActions
-                        viewTitle={`${e.expense_no} — ${expenseCategoryLabel(e.category)}`}
+                        viewTitle={`${e.expense_no} — ${typeLabel(e.category)}`}
                         viewFields={[
                           { label: "No.", value: e.expense_no },
                           { label: "Date", value: e.expense_date },
                           {
                             label: "Type",
-                            value: expenseCategoryLabel(e.category),
+                            value: typeLabel(e.category),
                           },
                           { label: "Salesman", value: e.salesman_name || "—" },
                           { label: "Company", value: e.warehouse_name || "—" },

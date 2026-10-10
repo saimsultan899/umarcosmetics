@@ -1,4 +1,5 @@
 import { expenseCategoryLabel } from "@/lib/expenses/categories";
+import { fetchExpenseCategories } from "@/lib/queries/expense-categories";
 import { one } from "@/lib/reports/helpers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -72,10 +73,13 @@ export async function buildExpenseReport(
     query = query.in("salesman_id", realSalesmanIds);
   }
 
-  const { data, error } = await query
-    .order("expense_date", { ascending: true })
-    .order("created_at", { ascending: true })
-    .limit(LIMIT);
+  const [{ data, error }, categoryOptions] = await Promise.all([
+    query
+      .order("expense_date", { ascending: true })
+      .order("created_at", { ascending: true })
+      .limit(LIMIT),
+    fetchExpenseCategories(supabase, input.companyId).catch(() => []),
+  ]);
 
   const rows = (data || []) as Array<{
     id: string;
@@ -98,7 +102,7 @@ export async function buildExpenseReport(
       expense_no: r.expense_no,
       expense_date: r.expense_date,
       category: r.category,
-      categoryLabel: expenseCategoryLabel(r.category),
+      categoryLabel: expenseCategoryLabel(r.category, categoryOptions),
       amount: Number(r.amount || 0),
       remarks: r.remarks,
       salesmanId: r.salesman_id,

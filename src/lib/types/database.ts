@@ -139,16 +139,8 @@ export type Product = {
   updated_at: string;
 };
 
-export type ExpenseCategory =
-  | "salary"
-  | "fuel"
-  | "food"
-  | "rent"
-  | "utilities"
-  | "conveyance"
-  | "loading"
-  | "stationery"
-  | "other";
+/** System or company-custom expense type code. */
+export type ExpenseCategory = string;
 
 export type Expense = {
   id: string;

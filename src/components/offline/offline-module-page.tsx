@@ -859,6 +859,7 @@ export function OfflineModulePage({
 
     body = (
       <ExpensesTable
+        companyId={companyId}
         expenses={paged}
         pagination={pagMeta}
       />
