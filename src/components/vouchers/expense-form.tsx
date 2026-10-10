@@ -26,8 +26,6 @@ import { Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
-const ADD_CUSTOM_VALUE = "__add_custom__";
-
 type Line = {
   key: string;
   category: string;
@@ -111,7 +109,6 @@ export function ExpenseForm({
         value: c.value,
         label: c.label,
       })),
-      { value: ADD_CUSTOM_VALUE, label: "+ Add custom type…" },
     ],
     [categories],
   );
@@ -124,13 +121,13 @@ export function ExpenseForm({
     );
   }
 
+  function beginAddCustom(key: string) {
+    setAddingCustomFor(key);
+    setCustomLabel("");
+    setError(null);
+  }
+
   function setCategory(key: string, category: string) {
-    if (category === ADD_CUSTOM_VALUE) {
-      setAddingCustomFor(key);
-      setCustomLabel("");
-      setError(null);
-      return;
-    }
     setAddingCustomFor((prev) => (prev === key ? null : prev));
     setLines((prev) =>
       prev.map((l) =>
@@ -298,24 +295,25 @@ export function ExpenseForm({
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div>
-                  <Label>Type</Label>
-                  <Select
-                    value={showCustom ? "" : line.category}
-                    onChange={(e) => setCategory(line.key, e.target.value)}
-                    required={!showCustom}
-                    options={categoryOptions}
-                  />
-                </div>
-
-                {showCustom ? (
-                  <div className="sm:col-span-2 lg:col-span-3">
-                    <Label>New category name</Label>
+                <div className={cn(showCustom && "sm:col-span-2 lg:col-span-4")}>
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <Label className="mb-0">Type</Label>
+                    {!showCustom ? (
+                      <button
+                        type="button"
+                        className="text-xs font-medium text-[var(--brand)] hover:underline"
+                        onClick={() => beginAddCustom(line.key)}
+                      >
+                        + Add custom type
+                      </button>
+                    ) : null}
+                  </div>
+                  {showCustom ? (
                     <div className="flex flex-wrap items-end gap-2">
                       <Input
                         value={customLabel}
                         onChange={(e) => setCustomLabel(e.target.value)}
-                        placeholder="e.g. Shop rent, Tea, Generator diesel"
+                        placeholder="New type name — e.g. Tea, Generator diesel"
                         autoFocus
                         className="min-w-[12rem] flex-1"
                         onKeyDown={(e) => {
@@ -346,8 +344,16 @@ export function ExpenseForm({
                         Cancel
                       </Button>
                     </div>
-                  </div>
-                ) : null}
+                  ) : (
+                    <Select
+                      value={line.category}
+                      onChange={(e) => setCategory(line.key, e.target.value)}
+                      required
+                      maxVisible={12}
+                      options={categoryOptions}
+                    />
+                  )}
+                </div>
 
                 {salaryLine ? (
                   <div>
