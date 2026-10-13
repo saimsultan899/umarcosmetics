@@ -4,7 +4,6 @@ import { ChartCard } from "@/components/analytics/chart-card";
 import { DonutChart, RankBars } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { ProductForm } from "@/components/forms/product-form";
-import { FilterChip } from "@/components/tables/filter-chip";
 import {
   TableFilterSelect,
   warehouseOptions,
@@ -40,9 +39,13 @@ function productFields(p: Product, companyName: string): DetailField[] {
     { label: "Purchase", value: formatPkr(p.purchase_rate) },
     { label: "Wholesale", value: formatPkr(p.wholesale_rate) },
     { label: "Sale", value: formatPkr(p.sale_rate) },
-    { label: "Opening qty", value: formatNumber(p.opening_qty, 3) },
+    {
+      label: "Stock QTY",
+      value: `${formatNumber(p.opening_qty, 0)} · ${formatPkr(
+        Number(p.opening_qty || 0) * Number(p.purchase_rate || 0),
+      )}`,
+    },
     { label: "Opening rate", value: formatPkr(p.opening_rate) },
-    { label: "Reorder", value: formatNumber(p.reorder_level, 0) },
     { label: "Outer unit", value: p.unit_type || "Carton" },
     { label: "Base unit", value: p.base_unit || "Piece" },
     {
@@ -66,8 +69,6 @@ function productFields(p: Product, companyName: string): DetailField[] {
   ];
 }
 
-type ViewFilter = "all" | "reorder";
-
 export function ProductsTable({
   products,
   pagination,
@@ -75,9 +76,7 @@ export function ProductsTable({
   warehouses,
   companyId,
   organizationId,
-  stockValueByCode,
   lowStockCodes,
-  initialView,
   canEdit = true,
   canInactivate = false,
   canDelete = false,
@@ -98,7 +97,7 @@ export function ProductsTable({
   onChanged?: () => void;
 }) {
   const { q, isPending, setPage, setPageSize, setQuery, setFilter, filters } =
-    useUrlTableState(["view", "warehouse"]);
+    useUrlTableState(["warehouse"]);
   const search = useSearchInput(q, setQuery);
   const lowSet = useMemo(() => new Set(lowStockCodes || []), [lowStockCodes]);
   const warehouseName = useMemo(() => {
@@ -118,9 +117,6 @@ export function ProductsTable({
       .sort((a, b) => b.value - a.value)
       .slice(0, 6);
   }, [products, warehouseName]);
-
-  const view = (filters.view ||
-    (initialView === "reorder" ? "reorder" : "all")) as ViewFilter;
 
   async function setActive(id: string, isActive: boolean) {
     const product = products.find((p) => p.id === id);
@@ -194,24 +190,11 @@ export function ProductsTable({
           icon={Tags}
           hint="Filtered stock × purchase rate"
         />
-        <button
-          type="button"
-          className="text-left"
-          onClick={() => setFilter("view", "reorder")}
-        >
-          <StatCard
-            label="With reorder level"
-            value={stats.withReorder}
-            format="number"
-            icon={AlertTriangle}
-            tone={view === "reorder" ? "brand" : "warn"}
-            hint="Click to filter table"
-          />
-        </button>
         <StatCard
           label="Low stock SKUs"
           value={stats.lowStock}
           format="number"
+          icon={AlertTriangle}
           tone={stats.lowStock > 0 ? "danger" : "ok"}
           hint="Company-wide flagged SKUs"
         />
@@ -243,33 +226,15 @@ export function ProductsTable({
           resultCount={pagination.total}
           totalCount={pagination.total}
           filters={
-            <div className="flex flex-wrap items-center gap-2">
-              {(
-                [
-                  ["all", "All"],
-                  ["reorder", "Reorder set"],
-                ] as const
-              ).map(([key, label]) => (
-                <FilterChip
-                  key={key}
-                  active={view === key}
-                  onClick={() =>
-                    setFilter("view", key === "all" ? null : key)
-                  }
-                >
-                  {label}
-                </FilterChip>
-              ))}
-              {warehouses.length ? (
-                <TableFilterSelect
-                  label="Company"
-                  value={filters.warehouse || ""}
-                  options={warehouseOptions(warehouses)}
-                  loading={isPending}
-                  onChange={(value) => setFilter("warehouse", value)}
-                />
-              ) : null}
-            </div>
+            warehouses.length ? (
+              <TableFilterSelect
+                label="Company"
+                value={filters.warehouse || ""}
+                options={warehouseOptions(warehouses)}
+                loading={isPending}
+                onChange={(value) => setFilter("warehouse", value)}
+              />
+            ) : undefined
           }
         />
 
@@ -283,7 +248,7 @@ export function ProductsTable({
                   <th>Company</th>
                   <th>Retail</th>
                   <th>Purchase</th>
-                  <th>Reorder</th>
+                  <th>Stock QTY</th>
                   <th>Pack</th>
                   <th className="text-right">Actions</th>
                 </tr>
@@ -320,7 +285,15 @@ export function ProductsTable({
                       </td>
                       <td>{formatPkr(p.retail_rate)}</td>
                       <td>{formatPkr(p.purchase_rate)}</td>
-                      <td>{formatNumber(p.reorder_level, 0)}</td>
+                      <td>
+                        <div>{formatNumber(p.opening_qty, 0)}</div>
+                        <div className="text-[10px] text-[var(--muted)]">
+                          {formatPkr(
+                            Number(p.opening_qty || 0) *
+                              Number(p.purchase_rate || 0),
+                          )}
+                        </div>
+                      </td>
                       <td>
                         {hasCartonPacking(p.packing) ? (
                           <>
