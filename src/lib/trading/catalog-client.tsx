@@ -33,6 +33,25 @@ const memory = new Map<string, StoredCatalog>();
 const inflight = new Map<string, Promise<StoredCatalog>>();
 const baseInflight = new Map<string, Promise<StoredCatalog>>();
 
+/** PostgREST returns at most 1,000 rows unless the query is paged. */
+async function fetchAllPages<T>(
+  make: (
+    from: number,
+    to: number,
+  ) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+): Promise<T[]> {
+  const pageSize = 1000;
+  const rows: T[] = [];
+  for (let from = 0; from < 50000; from += pageSize) {
+    const { data, error } = await make(from, from + pageSize - 1);
+    if (error) throw new Error(error.message);
+    const batch = data || [];
+    rows.push(...batch);
+    if (batch.length < pageSize) break;
+  }
+  return rows;
+}
+
 const EMPTY: TradingCatalog = {
   parties: [],
   products: [],
@@ -68,58 +87,54 @@ async function fetchCatalog(
   const needStock = opts.stock && !previous?.stockLoaded;
   const needSalesmen = opts.salesmen && !previous?.salesmenLoaded;
 
-  const [partiesRes, productsRes, warehousesRes, stockRes, salesmen] =
-    await Promise.all([
-      needBase
-        ? supabase
+  const [parties, products, warehouses, stockPage, salesmen] = await Promise.all([
+    needBase
+      ? fetchAllPages<Party>((from, to) =>
+          supabase
             .from("parties")
             .select("*")
             .eq("company_id", companyId)
             .eq("is_active", true)
             .order("sort_order", { ascending: true })
             .order("name_en")
-        : Promise.resolve(null),
-      needBase
-        ? supabase
+            .range(from, to),
+        )
+      : Promise.resolve(previous!.parties),
+    needBase
+      ? fetchAllPages<Product>((from, to) =>
+          supabase
             .from("products")
             .select("*")
             .eq("company_id", companyId)
             .eq("is_active", true)
             .order("code")
-        : Promise.resolve(null),
-      needBase
-        ? supabase
+            .range(from, to),
+        )
+      : Promise.resolve(previous!.products),
+    needBase
+      ? fetchAllPages<Warehouse>((from, to) =>
+          supabase
             .from("warehouses")
             .select("*")
             .eq("company_id", companyId)
             .eq("is_active", true)
             .order("name")
-        : Promise.resolve(null),
-      needStock
-        ? supabase
+            .range(from, to),
+        )
+      : Promise.resolve(previous!.warehouses),
+    needStock
+      ? fetchAllPages<StockBalanceLite>((from, to) =>
+          supabase
             .from("stock_balances")
             .select("product_id, warehouse_id, qty")
             .eq("company_id", companyId)
-        : Promise.resolve(null),
-      needSalesmen ? fetchCompanySalesmen(supabase, companyId) : Promise.resolve(null),
-    ]);
+            .range(from, to),
+        )
+      : Promise.resolve(previous?.stockBalances || []),
+    needSalesmen ? fetchCompanySalesmen(supabase, companyId) : Promise.resolve(null),
+  ]);
 
-  const partiesError = partiesRes && "error" in partiesRes ? partiesRes.error : null;
-  const productsError = productsRes && "error" in productsRes ? productsRes.error : null;
-  const warehousesError =
-    warehousesRes && "error" in warehousesRes ? warehousesRes.error : null;
-  const failed = partiesError || productsError || warehousesError;
-  if (failed) throw new Error(failed.message);
-
-  const products = needBase
-    ? ((productsRes?.data || []) as Product[])
-    : previous!.products;
-  const warehouses = needBase
-    ? ((warehousesRes?.data || []) as Warehouse[])
-    : previous!.warehouses;
-  let stockBalances = needStock
-    ? ((stockRes?.data || []) as StockBalanceLite[])
-    : previous?.stockBalances || [];
+  let stockBalances = stockPage;
 
   if (needStock) {
     stockBalances = await withHubStockOverlay(
@@ -132,9 +147,7 @@ async function fetchCatalog(
   }
 
   const next: StoredCatalog = {
-    parties: needBase
-      ? ((partiesRes?.data || []) as Party[])
-      : previous!.parties,
+    parties,
     products,
     warehouses,
     stockBalances,

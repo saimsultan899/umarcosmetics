@@ -162,7 +162,14 @@ export function ProductForm({
     try {
       const cached = await getCachedRows("products", companyId);
       for (const row of cached) {
-        if (row.is_active === false) continue;
+        if (
+          row.is_active === false ||
+          row.is_active === 0 ||
+          row.is_active === "0" ||
+          row.is_active === "false"
+        ) {
+          continue;
+        }
         push({
           id: row.id ? String(row.id) : null,
           code: row.code ? String(row.code) : null,

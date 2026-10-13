@@ -10,7 +10,12 @@ export type ProductIdentityRow = {
 };
 
 function isLiveProduct(row: ProductIdentityRow) {
-  return row.is_active !== false;
+  // SQLite stores booleans as 0/1; treat those as inactive/active too.
+  const active = row.is_active as unknown;
+  if (active === false || active === 0 || active === "0" || active === "false") {
+    return false;
+  }
+  return true;
 }
 
 function norm(value: string | null | undefined) {

@@ -9,7 +9,10 @@ import {
   type OfflineMutation,
   type OfflineMutationType,
 } from "@/lib/offline/local-db";
-import { isBusinessRuleError } from "@/lib/offline/offline-submit";
+import {
+  applyWarehouseSupplierLink,
+  isBusinessRuleError,
+} from "@/lib/offline/offline-submit";
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -201,7 +204,10 @@ async function pushOne(mutation: OfflineMutation): Promise<string | null> {
         .eq("company_id", mutation.companyId)
         .eq("name", name)
         .maybeSingle();
-      if (existing?.id) return existing.id;
+      if (existing?.id) {
+        await applyWarehouseSupplierLink(supabase, mutation.payload, existing.id);
+        return existing.id;
+      }
     }
     const { data, error } = await supabase
       .from("warehouses")
@@ -216,10 +222,14 @@ async function pushOne(mutation: OfflineMutation): Promise<string | null> {
           .eq("company_id", mutation.companyId)
           .eq("name", name)
           .maybeSingle();
-        if (dup?.id) return dup.id;
+        if (dup?.id) {
+          await applyWarehouseSupplierLink(supabase, mutation.payload, dup.id);
+          return dup.id;
+        }
       }
       throw new Error(error.message);
     }
+    await applyWarehouseSupplierLink(supabase, mutation.payload, data.id);
     return data.id;
   }
 
@@ -229,6 +239,7 @@ async function pushOne(mutation: OfflineMutation): Promise<string | null> {
     delete rest.id;
     const { error } = await supabase.from("warehouses").update(rest).eq("id", id);
     if (error) throw new Error(error.message);
+    await applyWarehouseSupplierLink(supabase, mutation.payload, id);
     return id;
   }
 

@@ -127,6 +127,8 @@ export const Select = forwardRef<
     onOpenChange?: (open: boolean) => void;
     /** Called after a value is committed (keyboard or click). */
     onCommit?: (value: string) => void;
+    /** Fired as the dropdown search text changes. */
+    onSearch?: (query: string) => void;
   }
 >(function Select(
   {
@@ -145,6 +147,7 @@ export const Select = forwardRef<
     open: openProp,
     onOpenChange,
     onCommit,
+    onSearch,
   },
   ref,
 ) {
@@ -491,7 +494,10 @@ export const Select = forwardRef<
                   <input
                     ref={inputRef}
                     value={query}
-                    onChange={(e) => setQuery(e.target.value)}
+                    onChange={(e) => {
+                      setQuery(e.target.value);
+                      onSearch?.(e.target.value);
+                    }}
                     onKeyDown={handleMenuKeyDown}
                     placeholder="Search code or name..."
                     className={cn(fieldControlClass, "h-9 bg-[var(--surface-2)] py-2 pl-8 pr-3")}

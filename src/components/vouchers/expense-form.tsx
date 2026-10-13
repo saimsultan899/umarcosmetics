@@ -12,6 +12,7 @@ import {
 } from "@/lib/expenses/categories";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
 import { useSingleSubmit } from "@/lib/forms/single-submit";
+import { getCachedRows } from "@/lib/offline/local-db";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import {
   createExpenseCategory,
@@ -24,7 +25,7 @@ import type { Party, Warehouse } from "@/lib/types/database";
 import { AMOUNT_PLACEHOLDER, AMOUNT_STEP, cn, formatPkr } from "@/lib/utils";
 import { Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 type Line = {
   key: string;
@@ -93,14 +94,72 @@ export function ExpenseForm({
     };
   }, [companyId]);
 
-  const vendorOptions = useMemo(
-    () =>
-      vendors.map((v) => ({
-        value: v.id,
-        label: `${v.party_code} — ${v.name_en}`,
-      })),
-    [vendors],
-  );
+  const [foundVendors, setFoundVendors] = useState<Party[]>([]);
+  const vendorSearchGen = useRef(0);
+  const vendorSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const vendorOptions = useMemo(() => {
+    const byId = new Map<string, Party>();
+    for (const vendor of [...vendors, ...foundVendors]) {
+      if (vendor?.id) byId.set(vendor.id, vendor);
+    }
+    return [...byId.values()].map((v) => ({
+      value: v.id,
+      label: `${v.party_code} — ${v.name_en}`,
+    }));
+  }, [vendors, foundVendors]);
+
+  function onVendorSearch(raw: string) {
+    if (vendorSearchTimer.current) clearTimeout(vendorSearchTimer.current);
+    const q = raw.trim();
+    if (q.length < 2) {
+      vendorSearchGen.current += 1;
+      setFoundVendors([]);
+      return;
+    }
+    vendorSearchTimer.current = setTimeout(() => {
+      void searchVendors(q);
+    }, 200);
+  }
+
+  async function searchVendors(raw: string) {
+    const gen = ++vendorSearchGen.current;
+    const term = raw.trim().toLowerCase().replace(/[%_,]/g, " ");
+    if (!term) return;
+    const rows: Party[] = [];
+    try {
+      if (typeof navigator === "undefined" || navigator.onLine) {
+        const pattern = `%${term}%`;
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from("parties")
+          .select("*")
+          .eq("company_id", companyId)
+          .eq("is_active", true)
+          .or(`party_code.ilike."${pattern}",name_en.ilike."${pattern}"`)
+          .order("name_en")
+          .limit(40);
+        if (!error && data) rows.push(...(data as Party[]));
+      }
+    } catch {
+      // Also check the saved list.
+    }
+    try {
+      const cached = await getCachedRows("parties", companyId);
+      for (const row of cached) {
+        const party = row as unknown as Party;
+        if (!party?.id || rows.some((existing) => existing.id === party.id)) continue;
+        const code = String(party.party_code || "").toLowerCase();
+        const name = String(party.name_en || "").toLowerCase();
+        if (!code.includes(term) && !name.includes(term)) continue;
+        rows.push(party);
+        if (rows.length >= 40) break;
+      }
+    } catch {
+      // IndexedDB is optional.
+    }
+    if (gen !== vendorSearchGen.current) return;
+    setFoundVendors(rows);
+  }
 
   const categoryOptions = useMemo(
     () => [
@@ -401,6 +460,7 @@ export function ExpenseForm({
                       <Select
                         value={line.vendor_id}
                         required
+                        onSearch={onVendorSearch}
                         onChange={(e) =>
                           updateLine(line.key, { vendor_id: e.target.value })
                         }

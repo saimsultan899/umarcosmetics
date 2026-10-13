@@ -7,9 +7,39 @@ import {
   focusField,
   getFocusableFields,
 } from "@/lib/keyboard/enter-nav";
+import { escapeIlike } from "@/lib/pagination";
+import { getCachedRows } from "@/lib/offline/local-db";
 import { createClient } from "@/lib/supabase/client";
 import type { Party } from "@/lib/types/database";
 import { useEffect, useMemo, useRef, useState } from "react";
+
+async function findLocalPartyByCode(companyId: string, code: string) {
+  const want = code.trim().toLowerCase();
+  if (!want) return null;
+  const local: Array<Record<string, unknown>> = [];
+  try {
+    const { hasLocalSqlite, localListMaster } = await import(
+      "@/lib/offline/sqlite-client"
+    );
+    if (hasLocalSqlite()) {
+      const res = await localListMaster("parties", companyId, 10000);
+      if (res.rows?.length) local.push(...res.rows);
+    }
+  } catch {
+    // Desktop list is optional.
+  }
+  try {
+    const cached = await getCachedRows("parties", companyId);
+    if (cached.length) local.push(...cached);
+  } catch {
+    // IndexedDB is optional.
+  }
+  const row = local.find(
+    (item) =>
+      String(item.party_code || item.code || "").trim().toLowerCase() === want,
+  );
+  return (row as Party | undefined) || null;
+}
 
 function focusAfterParty(codeEl: HTMLElement) {
   const root =
@@ -53,13 +83,88 @@ export function PartyCodePicker({
   /** Show the full list instead of the default short window. */
   maxVisible?: number;
 }) {
+  const [found, setFound] = useState<Party[]>([]);
+  const searchGen = useRef(0);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const options = useMemo(() => {
-    let list = parties.filter((p) => p.is_active !== false);
+    const byId = new Map<string, Party>();
+    for (const party of [...parties, ...found]) {
+      if (party?.id) byId.set(party.id, party);
+    }
+    let list = [...byId.values()].filter((p) => p.is_active !== false);
     if (filterSubtype?.length) {
       list = list.filter((p) => filterSubtype.includes(p.party_subtype));
     }
     return list;
-  }, [parties, filterSubtype]);
+  }, [parties, found, filterSubtype]);
+
+  function onSearch(raw: string) {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    const q = raw.trim();
+    if (q.length < 2) {
+      searchGen.current += 1;
+      setFound([]);
+      return;
+    }
+    searchTimer.current = setTimeout(() => {
+      void searchParties(q);
+    }, 200);
+  }
+
+  async function searchParties(raw: string) {
+    const gen = ++searchGen.current;
+    const term = escapeIlike(raw).toLowerCase();
+    if (!term) return;
+    const rows: Party[] = [];
+    try {
+      if (typeof navigator === "undefined" || navigator.onLine) {
+        const pattern = `%${term}%`;
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from("parties")
+          .select("*")
+          .eq("company_id", companyId)
+          .eq("is_active", true)
+          .or(`party_code.ilike."${pattern}",name_en.ilike."${pattern}"`)
+          .order("name_en")
+          .limit(50);
+        if (!error && data) rows.push(...(data as Party[]));
+      }
+    } catch {
+      // Keep going and also check the saved customer list.
+    }
+    {
+      const local: Array<Record<string, unknown>> = [];
+      try {
+        const { hasLocalSqlite, localListMaster } = await import(
+          "@/lib/offline/sqlite-client"
+        );
+        if (hasLocalSqlite()) {
+          const res = await localListMaster("parties", companyId, 10000);
+          if (res.rows?.length) local.push(...res.rows);
+        }
+      } catch {
+        // Desktop list is optional.
+      }
+      try {
+        const cached = await getCachedRows("parties", companyId);
+        if (cached.length) local.push(...cached);
+      } catch {
+        // IndexedDB is optional.
+      }
+      for (const row of local) {
+        const code = String(row.party_code || row.code || "").toLowerCase();
+        const name = String(row.name_en || "").toLowerCase();
+        if (!code.includes(term) && !name.includes(term)) continue;
+        if (rows.some((existing) => existing.id === row.id)) continue;
+        rows.push(row as Party);
+        if (rows.length >= 50) break;
+      }
+    }
+    if (gen !== searchGen.current) return;
+    setFound(rows);
+  }
 
   const selected = options.find((p) => p.id === value) || null;
   const [code, setCode] = useState(selected?.party_code || "");
@@ -112,6 +217,9 @@ export function PartyCodePicker({
       }
     } catch {
       // offline fallback
+    }
+    if (!party) {
+      party = await findLocalPartyByCode(companyId, trimmed);
     }
     setLooking(false);
 
@@ -170,6 +278,7 @@ export function PartyCodePicker({
           required={required}
           maxVisible={maxVisible}
           className="min-w-0"
+          onSearch={onSearch}
           onChange={(e) => {
             const party = options.find((p) => p.id === e.target.value) || null;
             onChange(e.target.value, party);

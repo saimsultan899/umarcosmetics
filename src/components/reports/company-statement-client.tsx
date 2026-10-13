@@ -46,6 +46,31 @@ function isInactive(value: unknown) {
   return value === false || value === 0 || value === "0" || value === "false";
 }
 
+async function currentWarehouseRecord(
+  companyId: string,
+  warehouseId: string,
+): Promise<Record<string, unknown>> {
+  const rows: Array<Record<string, unknown>> = [];
+  try {
+    const { hasLocalSqlite, localListMaster } = await import(
+      "@/lib/offline/sqlite-client"
+    );
+    if (hasLocalSqlite()) {
+      const res = await localListMaster("warehouses", companyId);
+      if (res.rows?.length) rows.push(...res.rows);
+    }
+  } catch {
+    // Desktop database is optional.
+  }
+  try {
+    const cached = await getCachedRows("warehouses", companyId);
+    if (cached.length) rows.push(...(cached as Array<Record<string, unknown>>));
+  } catch {
+    // IndexedDB is optional.
+  }
+  return rows.find((row) => String(row.id) === warehouseId) || { id: warehouseId };
+}
+
 function warehouseOptions(rows: Array<Record<string, unknown>>): WarehouseOption[] {
   const byId = new Map<string, WarehouseOption>();
   for (const row of rows) {
@@ -166,29 +191,69 @@ export function CompanyStatementClient({
   }, [companyId, online, initialWarehouses]);
 
   useEffect(() => {
-    if (!online) return;
     let cancelled = false;
-    (async () => {
+    function toOptions(rows: Array<Record<string, unknown>>) {
+      return rows
+        .filter((p) => {
+          if (!p.id || isInactive(p.is_active)) return false;
+          const subtype = String(p.party_subtype || "");
+          return subtype === "supplier" || subtype === "both";
+        })
+        .map((p) => ({
+          value: String(p.id),
+          label: `${p.party_code || ""} — ${p.name_en || "Vendor"}`.replace(/^ — /, ""),
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label));
+    }
+    async function loadLocalSuppliers() {
+      const rows: Array<Record<string, unknown>> = [];
       try {
-        const supabase = createClient();
-        const { data } = await supabase
-          .from("parties")
-          .select("id, party_code, name_en, party_subtype, is_active")
-          .eq("company_id", companyId)
-          .eq("is_active", true)
-          .in("party_subtype", ["supplier", "both"])
-          .order("name_en")
-          .limit(10000);
-        if (cancelled) return;
-        const opts = (data || [])
-          .map((p) => ({
-            value: String(p.id),
-            label: `${p.party_code} — ${p.name_en}`,
-          }));
-        setSuppliers(opts);
+        const { hasLocalSqlite, localListMaster } = await import(
+          "@/lib/offline/sqlite-client"
+        );
+        if (hasLocalSqlite()) {
+          const res = await localListMaster("parties", companyId, 10000);
+          if (res.rows?.length) rows.push(...res.rows);
+        }
       } catch {
-        // Supplier picker stays empty offline / on error.
+        // Desktop party list is optional.
       }
+      try {
+        const cached = await getCachedRows("parties", companyId);
+        if (cached.length) rows.push(...(cached as Array<Record<string, unknown>>));
+      } catch {
+        // IndexedDB is optional.
+      }
+      return toOptions(rows);
+    }
+    (async () => {
+      if (online) {
+        try {
+          const supabase = createClient();
+          const { data, error } = await supabase
+            .from("parties")
+            .select("id, party_code, name_en, party_subtype, is_active")
+            .eq("company_id", companyId)
+            .eq("is_active", true)
+            .in("party_subtype", ["supplier", "both"])
+            .order("name_en")
+            .limit(10000);
+          if (cancelled) return;
+          if (!error && data) {
+            setSuppliers(
+              data.map((p) => ({
+                value: String(p.id),
+                label: `${p.party_code} — ${p.name_en}`,
+              })),
+            );
+            return;
+          }
+        } catch {
+          // Fall through to the local vendor list.
+        }
+      }
+      const local = await loadLocalSuppliers();
+      if (!cancelled) setSuppliers(local);
     })();
     return () => {
       cancelled = true;
@@ -326,12 +391,38 @@ export function CompanyStatementClient({
     setVendorSaving(true);
     setVendorError(null);
     try {
-      const supabase = createClient();
-      const { error: rpcError } = await supabase.rpc("set_warehouse_supplier", {
-        p_warehouse_id: warehouseId,
-        p_supplier_id: vendorId || null,
+      const existing = await currentWarehouseRecord(companyId, warehouseId);
+      const active = existing.is_active;
+      const payload: Record<string, unknown> = {
+        id: warehouseId,
+        company_id: companyId,
+        organization_id: existing.organization_id || organizationId,
+        name:
+          String(existing.name || statement?.warehouseName || "").trim() ||
+          "Company",
+        code: existing.code ?? null,
+        address: existing.address ?? null,
+        is_active: !(
+          active === false ||
+          active === 0 ||
+          active === "0" ||
+          active === "false"
+        ),
+        default_supplier_id: vendorId || null,
+      };
+      await offlineAwareSubmit({
+        mutationType: "warehouse_update",
+        companyId,
+        organizationId,
+        cacheStore: "warehouses",
+        cacheRecord: payload,
+        payload,
       });
-      if (rpcError) throw new Error(rpcError.message);
+      setWarehouses((rows) =>
+        rows.map((row) =>
+          row.id === warehouseId ? { ...row, supplierId: vendorId || null } : row,
+        ),
+      );
       setVendorOpen(false);
       setReloadKey((k) => k + 1);
     } catch (err: any) {
@@ -591,7 +682,6 @@ export function CompanyStatementClient({
                 type="button"
                 variant="secondary"
                 size="sm"
-                disabled={!online}
                 onClick={() => {
                   setVendorError(null);
                   setVendorOpen(true);
@@ -604,15 +694,12 @@ export function CompanyStatementClient({
                 type="button"
                 size="sm"
                 disabled={
-                  !online ||
-                  (view === "vendor" && !statement.linkedCompanies?.length)
+                  view === "vendor" && !statement.linkedCompanies?.length
                 }
                 title={
                   view === "vendor" && !statement.linkedCompanies?.length
                     ? "Link this vendor on a company first"
-                    : !online
-                      ? "Go online to record a payment"
-                      : undefined
+                    : undefined
                 }
                 onClick={() => {
                   setPayError(null);

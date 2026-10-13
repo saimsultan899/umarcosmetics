@@ -6,6 +6,7 @@
  * never enqueue outbox mutations (sync_status: hub_mirror).
  */
 
+import { productBarcodeValues } from "@/lib/barcode/product-barcodes";
 import {
   getCachedHubContext,
   isMainHubCacheReady,
@@ -205,6 +206,14 @@ async function applyStockDeltaLocal(
   await putCachedRow("stock_balances", companyId, row, "pending");
 }
 
+function isLiveProduct(row: Record<string, unknown>) {
+  const active = row.is_active;
+  if (active === false || active === 0 || active === "0" || active === "false") {
+    return false;
+  }
+  return true;
+}
+
 function barcodeTaken(
   products: Record<string, unknown>[],
   barcode: string,
@@ -212,12 +221,11 @@ function barcodeTaken(
 ) {
   const b = norm(barcode);
   if (!b) return false;
-  return products.some(
-    (p) =>
-      p.is_active !== false &&
-      String(p.id) !== String(exceptId || "") &&
-      norm(p.barcode) === b,
-  );
+  return products.some((p) => {
+    if (!isLiveProduct(p)) return false;
+    if (String(p.id) === String(exceptId || "")) return false;
+    return productBarcodeValues(p).some((value) => norm(value) === b);
+  });
 }
 
 export async function ensureHubProduct(

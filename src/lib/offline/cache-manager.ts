@@ -622,14 +622,50 @@ type FetchConfig = {
   ) => PromiseLike<{ data: any; error: any }>;
 };
 
+/** One request returns at most 1,000 rows. Page so later shops and products are saved offline. */
+async function fetchAllRows(
+  make: (
+    from: number,
+    to: number,
+  ) => PromiseLike<{ data: any[] | null; error: { message: string } | null }>,
+) {
+  const pageSize = 1000;
+  const rows: any[] = [];
+  for (let from = 0; from < 50000; from += pageSize) {
+    const { data, error } = await make(from, from + pageSize - 1);
+    if (error) return { data: null, error };
+    const batch = data || [];
+    rows.push(...batch);
+    if (batch.length < pageSize) break;
+  }
+  return { data: rows, error: null };
+}
+
 const STORE_FETCH_CONFIG: Record<string, FetchConfig> = {
   parties: {
     fetch: (s, cid) =>
-      s.from("parties").select("*").eq("company_id", cid).eq("is_active", true).order("sort_order", { ascending: true }).order("name_en").limit(10000),
+      fetchAllRows((from, to) =>
+        s
+          .from("parties")
+          .select("*")
+          .eq("company_id", cid)
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true })
+          .order("name_en")
+          .range(from, to),
+      ),
   },
   products: {
     fetch: (s, cid) =>
-      s.from("products").select("*").eq("company_id", cid).eq("is_active", true).order("code").limit(10000),
+      fetchAllRows((from, to) =>
+        s
+          .from("products")
+          .select("*")
+          .eq("company_id", cid)
+          .eq("is_active", true)
+          .order("code")
+          .range(from, to),
+      ),
   },
   warehouses: {
     fetch: (s, cid) =>

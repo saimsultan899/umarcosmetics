@@ -515,25 +515,26 @@ export const LineItemsEditor = forwardRef<
     const anyLocal = findProductByCodeOrBarcode(products, trimmed);
     if (anyLocal && !acceptsProduct(anyLocal)) return anyLocal;
 
-    const cached = await lookupCachedProduct(trimmed);
-    if (cached) return cached;
     if (!companyId) return null;
 
     const online = await isAppOnline();
-    if (!online) return null;
-
-    try {
-      const supabase = createClient();
-      // Matches product code or any barcode / flavour barcode on the product.
-      const { data } = await supabase.rpc("get_product_by_code", {
-        p_company_id: companyId,
-        p_code: trimmed,
-      });
-      const product = Array.isArray(data) ? data[0] : data;
-      return (product as Product | undefined) ?? null;
-    } catch {
-      return lookupCachedProduct(trimmed);
+    // Prefer live catalog over a stale offline cache (deleted/inactive SKUs).
+    if (online) {
+      try {
+        const supabase = createClient();
+        // Matches product code or any barcode / flavour barcode on the product.
+        const { data } = await supabase.rpc("get_product_by_code", {
+          p_company_id: companyId,
+          p_code: trimmed,
+        });
+        const product = Array.isArray(data) ? data[0] : data;
+        if (product) return product as Product;
+      } catch {
+        /* fall through to local cache */
+      }
     }
+
+    return lookupCachedProduct(trimmed);
   }
 
   async function resolveProductCode(raw: string): Promise<Product | null> {
@@ -908,18 +909,104 @@ export const LineItemsEditor = forwardRef<
   const billTotal = Math.max(0, grand - extra);
   const draftAmount = calcLineAmount(draft.qty, draft.rate, draft.discount);
 
+  const [foundProducts, setFoundProducts] = useState<Product[]>([]);
+  const productSearchGen = useRef(0);
+  const productSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const productById = useMemo(() => {
     const map = new Map<string, Product>();
-    for (const p of products) map.set(p.id, p);
+    for (const p of [...products, ...foundProducts]) {
+      if (p?.id) map.set(p.id, p);
+    }
     return map;
-  }, [products]);
+  }, [products, foundProducts]);
 
   const selectableProducts = useMemo(() => {
-    if (!filterByWarehouse || !effectiveWarehouseId) return products;
-    return products.filter(
-      (p) => p.default_warehouse_id === effectiveWarehouseId,
-    );
-  }, [products, filterByWarehouse, effectiveWarehouseId]);
+    const byId = new Map<string, Product>();
+    for (const product of [...products, ...foundProducts]) {
+      if (!product?.id) continue;
+      if (
+        filterByWarehouse &&
+        effectiveWarehouseId &&
+        product.default_warehouse_id !== effectiveWarehouseId
+      ) {
+        continue;
+      }
+      byId.set(product.id, product);
+    }
+    return [...byId.values()];
+  }, [products, foundProducts, filterByWarehouse, effectiveWarehouseId]);
+
+  function onProductSearch(raw: string) {
+    if (productSearchTimer.current) clearTimeout(productSearchTimer.current);
+    const q = raw.trim();
+    if (q.length < 2 || !companyId) {
+      productSearchGen.current += 1;
+      setFoundProducts([]);
+      return;
+    }
+    productSearchTimer.current = setTimeout(() => {
+      void searchProducts(q);
+    }, 200);
+  }
+
+  async function searchProducts(raw: string) {
+    const gen = ++productSearchGen.current;
+    const term = raw.trim().toLowerCase().replace(/[%_,]/g, " ");
+    if (!term || !companyId) return;
+    const rows: Product[] = [];
+    const online = await isAppOnline().catch(() => false);
+    if (online) {
+      try {
+        const pattern = `%${term}%`;
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from("products")
+          .select("*")
+          .eq("company_id", companyId)
+          .eq("is_active", true)
+          .or(
+            `code.ilike."${pattern}",name_en.ilike."${pattern}",barcode.ilike."${pattern}"`,
+          )
+          .order("code")
+          .limit(40);
+        if (!error && data) rows.push(...(data as Product[]));
+      } catch {
+        // Also check the saved product list.
+      }
+    }
+    const local: Array<Product | Record<string, unknown>> = [];
+    try {
+      local.push(...(await getCachedRows("products", companyId)));
+    } catch {
+      /* cache missing */
+    }
+    try {
+      const { hasLocalSqlite, localListMaster } = await import(
+        "@/lib/offline/sqlite-client"
+      );
+      if (hasLocalSqlite()) {
+        const res = await localListMaster("products", companyId, 20000);
+        if (Array.isArray(res.rows)) local.push(...res.rows);
+      }
+    } catch {
+      /* sqlite missing */
+    }
+    for (const row of local) {
+      const product = row as Product;
+      if (!product?.id || rows.some((existing) => existing.id === product.id)) continue;
+      const code = String(product.code || "").toLowerCase();
+      const name = String(product.name_en || "").toLowerCase();
+      const barcode = String(product.barcode || "").toLowerCase();
+      if (!code.includes(term) && !name.includes(term) && !barcode.includes(term)) {
+        continue;
+      }
+      rows.push(product);
+      if (rows.length >= 40) break;
+    }
+    if (gen !== productSearchGen.current) return;
+    setFoundProducts(rows);
+  }
 
   const productOptions = useMemo(
     () => [
@@ -1024,6 +1111,7 @@ export const LineItemsEditor = forwardRef<
                   maxVisible={12}
                   open={productOpen}
                   onOpenChange={setProductOpen}
+                  onSearch={onProductSearch}
                   onChange={(e) => void onProductPicked(e.target.value)}
                 />
                 {(() => {

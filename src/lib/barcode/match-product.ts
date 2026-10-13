@@ -27,6 +27,14 @@ export function productBarcode(product: Product | Record<string, unknown>) {
   return "";
 }
 
+function isLiveProduct(product: Product | Record<string, unknown>) {
+  const active = (product as Record<string, unknown>).is_active;
+  if (active === false || active === 0 || active === "0" || active === "false") {
+    return false;
+  }
+  return true;
+}
+
 /** Match a typed code or a scanned barcode (exact, case-insensitive). */
 export function findProductByCodeOrBarcode(
   products: Array<Product | Record<string, unknown>>,
@@ -35,11 +43,12 @@ export function findProductByCodeOrBarcode(
   const trimmed = raw.trim();
   if (!trimmed) return null;
   const key = trimmed.toLowerCase();
-  const byCode = products.find(
+  const live = products.filter(isLiveProduct);
+  const byCode = live.find(
     (p) => text((p as Product).code).toLowerCase() === key,
   );
   if (byCode) return byCode as Product;
-  const byBarcode = products.find((p) =>
+  const byBarcode = live.find((p) =>
     productBarcodeValues(p).some((barcode) => barcode.toLowerCase() === key),
   );
   return (byBarcode as Product | undefined) ?? null;

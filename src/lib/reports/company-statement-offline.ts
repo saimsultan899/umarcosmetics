@@ -63,8 +63,13 @@ function bankSide(bank: unknown, name: unknown, accountNo: unknown) {
 }
 
 function posted(row: Row) {
-  const status = String(row.status || "posted");
-  return status !== "cancelled" && status !== "voided" && status !== "draft";
+  const status = String(row.status || "posted").toLowerCase();
+  return (
+    status !== "cancelled" &&
+    status !== "voided" &&
+    status !== "void" &&
+    status !== "draft"
+  );
 }
 
 function pending(row: Row) {

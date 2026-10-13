@@ -371,6 +371,22 @@ async function runOfflineAwareSubmit(
   };
 }
 
+/** Vendor link is stored with the company and applied through the supplier RPC on sync. */
+export async function applyWarehouseSupplierLink(
+  supabase: ReturnType<typeof createClient>,
+  payload: Record<string, unknown>,
+  warehouseId: string,
+) {
+  if (!warehouseId || !("default_supplier_id" in payload)) return;
+  const raw = payload.default_supplier_id;
+  const supplierId = raw ? String(raw) : null;
+  const { error } = await supabase.rpc("set_warehouse_supplier", {
+    p_warehouse_id: warehouseId,
+    p_supplier_id: supplierId,
+  });
+  if (error) throw new Error(error.message);
+}
+
 function formatSubmitMessage(mutationType: OfflineMutationType, hubNote?: string) {
   const base = getSuccessMessage(mutationType);
   if (!hubNote) return base;
@@ -697,6 +713,7 @@ async function submitOnline(
       .select("id")
       .single();
     if (error) throw new Error(error.message);
+    await applyWarehouseSupplierLink(supabase, payload, data.id);
     return { id: data.id };
   }
 
@@ -706,6 +723,7 @@ async function submitOnline(
     delete rest.id;
     const { error } = await supabase.from("warehouses").update(rest).eq("id", id);
     if (error) throw new Error(error.message);
+    await applyWarehouseSupplierLink(supabase, payload, id);
     return { id };
   }
 

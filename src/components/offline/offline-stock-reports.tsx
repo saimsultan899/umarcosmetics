@@ -9,11 +9,79 @@ import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { formatUomCompact } from "@/lib/pricing/uom";
 import { formatCompactPkr, formatPkr} from "@/lib/utils";
 import { getCachedRows } from "@/lib/offline/local-db";
-import { offlineStockSnapshot } from "@/lib/offline/offline-reports";
+import { loadRows, offlineStockSnapshot } from "@/lib/offline/offline-reports";
 import { AlertTriangle, Boxes, Package } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+
+function isPostedDoc(row: Record<string, unknown>) {
+  const status = String(row.status || "posted").toLowerCase();
+  return (
+    status !== "cancelled" &&
+    status !== "voided" &&
+    status !== "void" &&
+    status !== "draft"
+  );
+}
+
+function isCancelledStatus(status: unknown) {
+  const s = String(status || "").toLowerCase();
+  return s === "cancelled" || s === "voided" || s === "void";
+}
+
+function docLines(row: Record<string, unknown>, keys: string[]) {
+  const sources = [row];
+  if (row.payload && typeof row.payload === "object") {
+    sources.push(row.payload as Record<string, unknown>);
+  }
+  for (const source of sources) {
+    for (const key of keys) {
+      const list = source[key];
+      if (Array.isArray(list) && list.length) {
+        return list as Record<string, unknown>[];
+      }
+    }
+  }
+  return [] as Record<string, unknown>[];
+}
+
+function pushDocMoves(
+  out: Record<string, unknown>[],
+  docs: Record<string, unknown>[],
+  spec: {
+    dateKey: string;
+    lineKeys: string[];
+    moveType: string;
+    sign: 1 | -1;
+    refTable: string;
+  },
+) {
+  for (const doc of docs) {
+    if (!isPostedDoc(doc)) continue;
+    const id = String(doc.id || "");
+    if (!id) continue;
+    const when =
+      String(doc[spec.dateKey] || doc.doc_date || doc.created_at || "") ||
+      "";
+    const warehouseId = String(doc.warehouse_id || "");
+    for (const line of docLines(doc, spec.lineKeys)) {
+      const productId = String(line.product_id || "");
+      const qty = Math.abs(Number(line.qty || 0));
+      if (!productId || !(qty > 0)) continue;
+      out.push({
+        created_at: when,
+        doc_date: when,
+        move_type: spec.moveType,
+        qty: spec.sign * qty,
+        warehouse_id: warehouseId,
+        product_id: productId,
+        ref_table: spec.refTable,
+        ref_id: id,
+      });
+    }
+  }
+}
 
 export function OfflineStockReportsPage({
   companyId,
@@ -40,7 +108,10 @@ export function OfflineStockReportsPage({
     };
   }, [urlSp, initialSp]);
 
-  const view = sp.view || "balances";
+  const view =
+    sp.view === "ledger" || sp.view === "movements"
+      ? "movements"
+      : sp.view || "balances";
 
   function productActions(productId: string) {
     if (
@@ -124,17 +195,81 @@ export function OfflineStockReportsPage({
           }
         }
 
-        let moves: Record<string, unknown>[] = [];
-        if (hasLocalSqlite()) {
-          const res = await localListByEntity(companyId, "stock_movement", 200);
-          moves = res.rows || [];
+        const [stk, prods, whs, sales, purchases, saleReturns, purchaseReturns] =
+          await Promise.all([
+            offlineStockSnapshot(companyId),
+            getCachedRows("products", companyId),
+            getCachedRows("warehouses", companyId),
+            loadRows("sale_invoices", companyId),
+            loadRows("purchase_invoices", companyId),
+            loadRows("sale_returns", companyId),
+            loadRows("purchase_returns", companyId),
+          ]);
+
+        // Prefer line-level moves from local trading docs so cancelled/voided
+        // invoices never appear (stock_movement entity is rarely populated offline).
+        const synthesized: Record<string, unknown>[] = [];
+        pushDocMoves(synthesized, sales, {
+          dateKey: "invoice_date",
+          lineKeys: ["lines", "items", "sale_invoice_items"],
+          moveType: "sale",
+          sign: -1,
+          refTable: "sale_invoices",
+        });
+        pushDocMoves(synthesized, purchases, {
+          dateKey: "invoice_date",
+          lineKeys: ["lines", "items", "purchase_invoice_items"],
+          moveType: "purchase",
+          sign: 1,
+          refTable: "purchase_invoices",
+        });
+        pushDocMoves(synthesized, saleReturns, {
+          dateKey: "return_date",
+          lineKeys: ["lines", "items", "sale_return_items"],
+          moveType: "sale_return",
+          sign: 1,
+          refTable: "sale_returns",
+        });
+        pushDocMoves(synthesized, purchaseReturns, {
+          dateKey: "return_date",
+          lineKeys: ["lines", "items", "purchase_return_items"],
+          moveType: "purchase_return",
+          sign: -1,
+          refTable: "purchase_returns",
+        });
+
+        const cancelledRefs = new Set<string>();
+        for (const [table, docs] of [
+          ["sale_invoices", sales],
+          ["purchase_invoices", purchases],
+          ["sale_returns", saleReturns],
+          ["purchase_returns", purchaseReturns],
+        ] as const) {
+          for (const doc of docs) {
+            if (!isCancelledStatus(doc.status)) continue;
+            const id = String(doc.id || "");
+            if (id) cancelledRefs.add(`${table}:${id}`);
+          }
         }
 
-        const [stk, prods, whs] = await Promise.all([
-          offlineStockSnapshot(companyId),
-          getCachedRows("products", companyId),
-          getCachedRows("warehouses", companyId),
-        ]);
+        let storedMoves: Record<string, unknown>[] = [];
+        if (hasLocalSqlite()) {
+          const res = await localListByEntity(companyId, "stock_movement", 200);
+          storedMoves = (res.rows || []).filter((move) => {
+            const key = `${move.ref_table || ""}:${move.ref_id || ""}`;
+            return !cancelledRefs.has(key);
+          });
+        }
+
+        const moves = (
+          synthesized.length ? synthesized : storedMoves
+        )
+          .sort((a, b) =>
+            String(b.created_at || b.doc_date || "").localeCompare(
+              String(a.created_at || a.doc_date || ""),
+            ),
+          )
+          .slice(0, 200);
 
         if (cancelled) return;
         setStock(stk);
@@ -333,8 +468,8 @@ export function OfflineStockReportsPage({
 
       <div className="no-print flex flex-wrap gap-2">
         {[
-          ["balances", "Current balances"],
-          ["ledger", "Recent movements"],
+          ["balances", "Stock list"],
+          ["movements", "Item movements"],
           ["low_stock", "Low stock alerts"],
           ["reorder", "Reorder checklist"],
         ].map(([key, label]) => (
@@ -404,11 +539,11 @@ export function OfflineStockReportsPage({
           filename="stock-balances"
           filters={stockFilters}
         />
-      ) : view === "ledger" ? (
+      ) : view === "movements" ? (
         <ReportTable
-          title="Stock movement ledger"
+          title="Item movements"
           companyName={companyName}
-          subtitle={`${movementRows.length} recent movement entries`}
+          subtitle={`${movementRows.length} recent movement entries (posted invoices only)`}
           rows={movementRows}
           filename="stock-movements"
           filters={stockFilters}
