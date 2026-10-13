@@ -70,11 +70,12 @@ function formatTimeLabel(isoDateTime?: string | null) {
   if (!isoDateTime) return "";
   const d = new Date(isoDateTime);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleTimeString("en-GB", {
+  const t = d.toLocaleTimeString("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,
   });
+  return t.replace(/\s([ap]m)$/i, "\u00a0$1");
 }
 
 /** Print scheme with a leading + when it's a free/bonus qty (e.g. 1 → +1). */
@@ -511,19 +512,23 @@ export function SaleInvoicePrint({
         </div>
       ) : null}
 
-      {showSheet && !showThermal
-        ? sheetPages.map((page, pageIdx) => (
+      {showSheet && !showThermal ? (
+        <div
+          className={cn(
+            "print-sheet mx-auto",
+            useFullA4 ? "si-a4" : "si-half",
+          )}
+          data-paper={useFullA4 ? "a4" : "a5"}
+        >
+          {sheetPages.map((page, pageIdx) => (
             <div
               key={pageIdx}
               className={cn(
-                "print-sheet mx-auto",
-                useFullA4 ? "si-a4" : "si-half",
-                !useFullA4 && sheetPages.length > 1 && "si-sale-a5-page",
+                !useFullA4 && "si-sale-a5-chunk",
                 !useFullA4 &&
                   pageIdx < sheetPages.length - 1 &&
                   "si-sale-a5-page-break",
               )}
-              data-paper={useFullA4 ? "a4" : "a5"}
             >
               {page.isFirst ? (
                 <>
@@ -581,80 +586,90 @@ export function SaleInvoicePrint({
                           <span className="si-v">{sector}</span>
                         </div>
                       ) : null}
-                      <div>
+                      <div className="si-meta-nowrap">
                         <span className="si-k">Date :</span>{" "}
                         <span className="si-v">{dateTimeLabel}</span>
                       </div>
                     </div>
                   </div>
                 </>
-              ) : (
-                <div className="si-cont">
-                  <span className="si-k">Bill No :</span>{" "}
-                  <span className="si-v">
-                    {formatReportInvNo(docNo) || docNo}
-                  </span>
-                  <span className="si-cont-page">
-                    · Page {pageIdx + 1} of {sheetPages.length}
-                  </span>
-                </div>
-              )}
-
-              <table className="si-table">
-                <colgroup>
-                  <col style={{ width: "4%" }} />
-                  <col style={{ width: "40%" }} />
-                  <col style={{ width: "7%" }} />
-                  <col style={{ width: "11%" }} />
-                  <col style={{ width: "8%" }} />
-                  <col style={{ width: "9%" }} />
-                  <col style={{ width: "8%" }} />
-                  <col style={{ width: "13%" }} />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th className="ctr">Sr.</th>
-                    <th>ItemName</th>
-                    <th className="num">Qty</th>
-                    <th className="num">Scheme</th>
-                    <th className="num">T/P</th>
-                    <th className="num">Disc %</th>
-                    <th className="num">Disc</th>
-                    <th className="num">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {page.pageLines.map((l, i) => {
-                    const sr = page.startIndex + i + 1;
-                    const pct = discPercent(l.qty, l.tradePrice, l.discount);
-                    const schemeLabel = formatSchemeLabel(l.scheme, l.bonus);
-                    return (
-                      <tr key={`${l.product_code || l.product_name}-${sr}`}>
-                        <td className="ctr">{sr}</td>
-                        <td
-                          className="si-item"
-                          title={itemLabel(l.product_code, l.product_name)}
-                        >
-                          {itemLabel(l.product_code, l.product_name)}
-                        </td>
-                        <td className="num">{formatNumber(l.qty, 2)}</td>
-                        <td className="num">{schemeLabel || "—"}</td>
-                        <td className="num">{formatNumber(l.tradePrice, 2)}</td>
-                        <td className="num">
-                          {pct > 0 ? `${formatNumber(pct, 1)} %` : "—"}
-                        </td>
-                        <td className="num">
-                          {l.discount > 0 ? formatNumber(l.discount, 2) : "—"}
-                        </td>
-                        <td className="num">{formatNumber(l.amount, 2)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              ) : null}
 
               {page.isLast ? (
-                <div className="si-foot">
+                <div
+                  className={cn(
+                    !useFullA4 && sheetPages.length > 1 && "si-sale-a5-last-chunk",
+                  )}
+                >
+                  {!page.isFirst ? (
+                    <div className="si-cont">
+                      <span className="si-k">Bill No :</span>{" "}
+                      <span className="si-v">
+                        {formatReportInvNo(docNo) || docNo}
+                      </span>
+                      <span className="si-cont-page">
+                        · Page {pageIdx + 1} of {sheetPages.length}
+                      </span>
+                    </div>
+                  ) : null}
+                  <table className="si-table">
+                    <colgroup>
+                      <col style={{ width: "4%" }} />
+                      <col style={{ width: "40%" }} />
+                      <col style={{ width: "7%" }} />
+                      <col style={{ width: "11%" }} />
+                      <col style={{ width: "8%" }} />
+                      <col style={{ width: "9%" }} />
+                      <col style={{ width: "8%" }} />
+                      <col style={{ width: "13%" }} />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th className="ctr">Sr.</th>
+                        <th>ItemName</th>
+                        <th className="num">Qty</th>
+                        <th className="num">Scheme</th>
+                        <th className="num">T/P</th>
+                        <th className="num">Disc %</th>
+                        <th className="num">Disc</th>
+                        <th className="num">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {page.pageLines.map((l, i) => {
+                        const sr = page.startIndex + i + 1;
+                        const pct = discPercent(l.qty, l.tradePrice, l.discount);
+                        const schemeLabel = formatSchemeLabel(l.scheme, l.bonus);
+                        return (
+                          <tr key={`${l.product_code || l.product_name}-${sr}`}>
+                            <td className="ctr">{sr}</td>
+                            <td
+                              className="si-item"
+                              title={itemLabel(l.product_code, l.product_name)}
+                            >
+                              {itemLabel(l.product_code, l.product_name)}
+                            </td>
+                            <td className="num">{formatNumber(l.qty, 2)}</td>
+                            <td className="num">{schemeLabel || "—"}</td>
+                            <td className="num">
+                              {formatNumber(l.tradePrice, 2)}
+                            </td>
+                            <td className="num">
+                              {pct > 0 ? `${formatNumber(pct, 1)} %` : "—"}
+                            </td>
+                            <td className="num">
+                              {l.discount > 0
+                                ? formatNumber(l.discount, 2)
+                                : "—"}
+                            </td>
+                            <td className="num">{formatNumber(l.amount, 2)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+
+                  <div className="si-foot">
                   <div className="si-foot-col si-foot-bill">
                     <div className="si-row">
                       <span>Products</span>
@@ -717,10 +732,65 @@ export function SaleInvoicePrint({
                     </div>
                   </div>
                 </div>
-              ) : null}
+                </div>
+              ) : (
+                <table className="si-table">
+                  <colgroup>
+                    <col style={{ width: "4%" }} />
+                    <col style={{ width: "40%" }} />
+                    <col style={{ width: "7%" }} />
+                    <col style={{ width: "11%" }} />
+                    <col style={{ width: "8%" }} />
+                    <col style={{ width: "9%" }} />
+                    <col style={{ width: "8%" }} />
+                    <col style={{ width: "13%" }} />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th className="ctr">Sr.</th>
+                      <th>ItemName</th>
+                      <th className="num">Qty</th>
+                      <th className="num">Scheme</th>
+                      <th className="num">T/P</th>
+                      <th className="num">Disc %</th>
+                      <th className="num">Disc</th>
+                      <th className="num">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {page.pageLines.map((l, i) => {
+                      const sr = page.startIndex + i + 1;
+                      const pct = discPercent(l.qty, l.tradePrice, l.discount);
+                      const schemeLabel = formatSchemeLabel(l.scheme, l.bonus);
+                      return (
+                        <tr key={`${l.product_code || l.product_name}-${sr}`}>
+                          <td className="ctr">{sr}</td>
+                          <td
+                            className="si-item"
+                            title={itemLabel(l.product_code, l.product_name)}
+                          >
+                            {itemLabel(l.product_code, l.product_name)}
+                          </td>
+                          <td className="num">{formatNumber(l.qty, 2)}</td>
+                          <td className="num">{schemeLabel || "—"}</td>
+                          <td className="num">{formatNumber(l.tradePrice, 2)}</td>
+                          <td className="num">
+                            {pct > 0 ? `${formatNumber(pct, 1)} %` : "—"}
+                          </td>
+                          <td className="num">
+                            {l.discount > 0 ? formatNumber(l.discount, 2) : "—"}
+                          </td>
+                          <td className="num">{formatNumber(l.amount, 2)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
-          ))
-        : null}
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

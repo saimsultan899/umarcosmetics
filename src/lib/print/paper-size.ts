@@ -212,9 +212,17 @@ function uprightHalfSheetCss(paper: PrintPaperSize) {
     max-height: none !important;
     overflow: visible !important;
   }
-  .print-sheet.si-half.si-sale-a5-page-break {
+  .si-sale-a5-chunk.si-sale-a5-page-break {
     page-break-after: always;
     break-after: page;
+  }
+  .si-sale-a5-last-chunk .si-foot {
+    page-break-before: avoid;
+    break-before: avoid;
+  }
+  .si-sale-a5-last-chunk .si-table tbody {
+    page-break-after: avoid;
+    break-after: avoid;
   }
 }`;
 }
@@ -226,7 +234,8 @@ function reportFlowCss() {
   .print-sheet.report-print,
   .print-sheet.recovery-sheet,
   .print-sheet.table-shell,
-  .print-sheet.si-a4 {
+  .print-sheet.si-a4,
+  .print-sheet.si-half {
     position: static !important;
     left: auto !important;
     right: auto !important;
