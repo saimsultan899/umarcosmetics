@@ -41,9 +41,13 @@ function productFields(p: Product, companyName: string): DetailField[] {
     { label: "Sale", value: formatPkr(p.sale_rate) },
     {
       label: "Stock QTY",
-      value: `${formatNumber(p.opening_qty, 0)} · ${formatPkr(
-        Number(p.opening_qty || 0) * Number(p.purchase_rate || 0),
-      )}`,
+      value: (() => {
+        const qty = Number(p.opening_qty || 0);
+        if (!(qty > 0)) return "—";
+        return `${formatNumber(qty, 0)} · ${formatPkr(
+          qty * Number(p.purchase_rate || 0),
+        )}`;
+      })(),
     },
     { label: "Opening rate", value: formatPkr(p.opening_rate) },
     { label: "Outer unit", value: p.unit_type || "Carton" },
@@ -276,9 +280,6 @@ export function ProductsTable({
                             </span>
                           ) : null}
                         </div>
-                        <div className="text-xs text-[var(--muted)]">
-                          {p.product_type || "—"}
-                        </div>
                       </td>
                       <td className="text-[var(--muted)]">
                         {warehouseName(p.default_warehouse_id)}
@@ -286,13 +287,19 @@ export function ProductsTable({
                       <td>{formatPkr(p.retail_rate)}</td>
                       <td>{formatPkr(p.purchase_rate)}</td>
                       <td>
-                        <div>{formatNumber(p.opening_qty, 0)}</div>
-                        <div className="text-[10px] text-[var(--muted)]">
-                          {formatPkr(
-                            Number(p.opening_qty || 0) *
-                              Number(p.purchase_rate || 0),
-                          )}
-                        </div>
+                        {Number(p.opening_qty || 0) > 0 ? (
+                          <>
+                            <div>{formatNumber(p.opening_qty, 0)}</div>
+                            <div className="text-[10px] text-[var(--muted)]">
+                              {formatPkr(
+                                Number(p.opening_qty || 0) *
+                                  Number(p.purchase_rate || 0),
+                              )}
+                            </div>
+                          </>
+                        ) : (
+                          <span className="text-[var(--muted)]">—</span>
+                        )}
                       </td>
                       <td>
                         {hasCartonPacking(p.packing) ? (
