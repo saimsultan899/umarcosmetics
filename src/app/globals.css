@@ -2383,7 +2383,16 @@ button[aria-haspopup="listbox"]:focus-visible {
   font-size: 13.5px;
 }
 .si-half .si-table {
-  font-size: 14.5px;
+  font-size: 12.5px;
+  margin-top: 4px;
+}
+.si-half .si-table th,
+.si-half .si-table td {
+  padding: 1px 2px;
+  line-height: 1.12;
+}
+.si-half .si-table .si-item {
+  line-height: 1.1;
 }
 .si-half .si-bonus {
   font-size: 12.5px;
@@ -2558,7 +2567,7 @@ button[aria-haspopup="listbox"]:focus-visible {
   /* A5 sale slip only. A4 stays on invoice-page / the unnamed @page above. */
   @page si-half-page {
     size: A5 portrait;
-    margin: 8mm;
+    margin: 7mm;
   }
 
   body * {
@@ -2984,7 +2993,7 @@ button[aria-haspopup="listbox"]:focus-visible {
     width: 100% !important;
     max-width: 100% !important;
     height: auto !important;
-    max-height: 194mm !important;
+    max-height: 196mm !important;
     overflow: hidden !important;
     box-sizing: border-box !important;
     border: none !important;
@@ -3034,6 +3043,45 @@ button[aria-haspopup="listbox"]:focus-visible {
   }
   .print-sheet.si-half .si-paid-kind {
     font-size: 12.5px !important;
+  }
+
+  /* A5 sale invoice — compact product grid (~25–28 lines); header/footer sizes unchanged above. */
+  .print-sheet.si-half {
+    line-height: 1.2 !important;
+  }
+  .print-sheet.si-half .si-meta {
+    margin-top: 2px !important;
+  }
+  .print-sheet.si-half .si-table {
+    font-size: 12px !important;
+    margin-top: 2px !important;
+  }
+  .print-sheet.si-half .si-table th,
+  .print-sheet.si-half .si-table td {
+    padding: 0 2px !important;
+    line-height: 1.1 !important;
+  }
+  .print-sheet.si-half .si-table .si-item {
+    line-height: 1.08 !important;
+  }
+  .print-sheet.si-half .si-foot {
+    margin-top: 2px !important;
+    font-size: 13.5px !important;
+  }
+  .print-sheet.si-half .si-row {
+    padding: 0 !important;
+  }
+  .print-sheet.si-half .si-note,
+  .print-sheet.si-half .si-prepared {
+    margin: 2px 0 0 !important;
+    font-size: 12.5px !important;
+  }
+  .print-sheet.si-half .si-checked {
+    margin-top: 5px !important;
+    font-size: 13.5px !important;
+  }
+  .print-sheet.si-half .si-bonus {
+    font-size: 11px !important;
   }
 
   /* Continuous roll: height follows content. Measured height is injected for

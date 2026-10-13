@@ -702,21 +702,6 @@ export const LineItemsEditor = forwardRef<
       return;
     }
 
-    const trimmed = value.trim();
-    const matched = trimmed
-      ? findProductByCodeOrBarcode(products, trimmed)
-      : null;
-
-    if (matched) {
-      patchDraft({ product_code: value });
-      cancelScheduledProductApply();
-      codeApplyTimer.current = window.setTimeout(() => {
-        codeApplyTimer.current = null;
-        void applyProductToDraft(matched);
-      }, 120);
-      return;
-    }
-
     cancelScheduledProductApply();
     const prev = draftRef.current;
     patchDraft({

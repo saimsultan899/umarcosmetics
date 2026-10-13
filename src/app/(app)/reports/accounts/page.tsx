@@ -145,8 +145,14 @@ export default async function AccountsReportPage({
       selectedParty?.party_subtype === "supplier" ||
       selectedParty?.party_subtype === "both";
 
+    const saleIds = (ledger || [])
+      .filter((e) => e.ref_table === "sale_invoices" && e.ref_id)
+      .map((e) => String(e.ref_id));
     const purchaseIds = (ledger || [])
       .filter((e) => e.ref_table === "purchase_invoices" && e.ref_id)
+      .map((e) => String(e.ref_id));
+    const saleReturnIds = (ledger || [])
+      .filter((e) => e.ref_table === "sale_returns" && e.ref_id)
       .map((e) => String(e.ref_id));
     const returnIds = (ledger || [])
       .filter((e) => e.ref_table === "purchase_returns" && e.ref_id)
@@ -155,26 +161,79 @@ export default async function AccountsReportPage({
       .filter((e) => e.ref_table === "vouchers" && e.ref_id)
       .map((e) => String(e.ref_id));
 
-    const [purchaseDocs, returnDocs, voucherDocs] = await Promise.all([
-      purchaseIds.length
-        ? supabase
-            .from("purchase_invoices")
-            .select("id, warehouses(name)")
-            .in("id", purchaseIds)
-        : Promise.resolve({ data: [] as { id: string; warehouses: { name?: string } | { name?: string }[] | null }[] }),
-      returnIds.length
-        ? supabase
-            .from("purchase_returns")
-            .select("id, warehouses(name)")
-            .in("id", returnIds)
-        : Promise.resolve({ data: [] as { id: string; warehouses: { name?: string } | { name?: string }[] | null }[] }),
-      voucherIds.length
-        ? supabase
-            .from("vouchers")
-            .select("id, warehouses(name)")
-            .in("id", voucherIds)
-        : Promise.resolve({ data: [] as { id: string; warehouses: { name?: string } | { name?: string }[] | null }[] }),
-    ]);
+    const [saleDocs, purchaseDocs, saleReturnDocs, returnDocs, voucherDocs] =
+      await Promise.all([
+        saleIds.length
+          ? supabase
+              .from("sale_invoices")
+              .select("id, status")
+              .in("id", saleIds)
+          : Promise.resolve({ data: [] as { id: string; status: string }[] }),
+        purchaseIds.length
+          ? supabase
+              .from("purchase_invoices")
+              .select("id, status, warehouses(name)")
+              .in("id", purchaseIds)
+          : Promise.resolve({
+              data: [] as {
+                id: string;
+                status: string;
+                warehouses: { name?: string } | { name?: string }[] | null;
+              }[],
+            }),
+        saleReturnIds.length
+          ? supabase
+              .from("sale_returns")
+              .select("id, status")
+              .in("id", saleReturnIds)
+          : Promise.resolve({ data: [] as { id: string; status: string }[] }),
+        returnIds.length
+          ? supabase
+              .from("purchase_returns")
+              .select("id, status, warehouses(name)")
+              .in("id", returnIds)
+          : Promise.resolve({
+              data: [] as {
+                id: string;
+                status: string;
+                warehouses: { name?: string } | { name?: string }[] | null;
+              }[],
+            }),
+        voucherIds.length
+          ? supabase
+              .from("vouchers")
+              .select("id, warehouses(name)")
+              .in("id", voucherIds)
+          : Promise.resolve({
+              data: [] as {
+                id: string;
+                warehouses: { name?: string } | { name?: string }[] | null;
+              }[],
+            }),
+      ]);
+
+    const cancelledLedgerRefs = new Set<string>();
+    const markCancelled = (
+      table: string,
+      rows: Array<{ id: string; status?: string | null }> | null,
+    ) => {
+      for (const row of rows || []) {
+        const status = String(row.status || "").toLowerCase();
+        if (status === "cancelled" || status === "void" || status === "voided") {
+          cancelledLedgerRefs.add(`${table}:${row.id}`);
+        }
+      }
+    };
+    markCancelled("sale_invoices", saleDocs.data);
+    markCancelled("purchase_invoices", purchaseDocs.data);
+    markCancelled("sale_returns", saleReturnDocs.data);
+    markCancelled("purchase_returns", returnDocs.data);
+
+    const visibleLedger = (ledger || []).filter((e) => {
+      if (!e.ref_table || !e.ref_id) return true;
+      const key = `${e.ref_table}:${e.ref_id}`;
+      return !cancelledLedgerRefs.has(key);
+    });
 
     const companyByRef = new Map<string, string>();
     const remember = (
@@ -211,7 +270,7 @@ export default async function AccountsReportPage({
         Credit: running < 0 ? Math.abs(running) : 0,
         Balance: signedText(running),
       },
-      ...(ledger || []).map((e) => {
+      ...visibleLedger.map((e) => {
         running += Number(e.debit) - Number(e.credit);
         const recoveryId =
           e.ref_id && (e.voucher_type === "CR" || e.narration === "Recovery")

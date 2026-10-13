@@ -56,11 +56,11 @@ function paperCss(paper: PrintPaperSize) {
   return `
 @page { ${active} }
 @page paper-thermal { size: 80mm auto; margin: 0; }
-@page paper-a5 { size: A5 portrait; margin: 8mm; }
+@page paper-a5 { size: A5 portrait; margin: 7mm; }
 @page paper-a4 { size: A4 portrait; margin: 8mm 10mm; }
 @page paper-a4-landscape { size: A4 landscape; margin: 8mm; }
 @page thermal-80 { size: 80mm auto; margin: 0; }
-@page si-half-page { ${paper === "a5" ? active : "size: A5 portrait; margin: 8mm;"} }
+@page si-half-page { ${paper === "a5" ? active : "size: A5 portrait; margin: 7mm;"} }
 @page invoice-page { ${paper === "a4" ? active : paper === "a5" ? active : "size: A4 portrait; margin: 8mm 10mm;"} }
 `;
 }
