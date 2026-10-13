@@ -214,6 +214,7 @@ function barcodeTaken(
   if (!b) return false;
   return products.some(
     (p) =>
+      p.is_active !== false &&
       String(p.id) !== String(exceptId || "") &&
       norm(p.barcode) === b,
   );

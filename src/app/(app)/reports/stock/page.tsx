@@ -135,6 +135,42 @@ export default async function StockReportPage({
     (warehouses || []).map((w) => [w.id, w.name]),
   );
 
+  const docTables = [
+    "purchase_invoices",
+    "sale_invoices",
+    "purchase_returns",
+    "sale_returns",
+  ] as const;
+  const idsByTable = new Map<(typeof docTables)[number], string[]>();
+  for (const move of movements || []) {
+    const table = String(move.ref_table || "");
+    const id = String(move.ref_id || "");
+    if (!docTables.includes(table as (typeof docTables)[number]) || !id) continue;
+    const key = table as (typeof docTables)[number];
+    const list = idsByTable.get(key) || [];
+    if (!list.includes(id)) list.push(id);
+    idsByTable.set(key, list);
+  }
+  const cancelledRefs = new Set<string>();
+  await Promise.all(
+    [...idsByTable.entries()].map(async ([table, ids]) => {
+      const { data: docs } = await supabase
+        .from(table)
+        .select("id, status")
+        .in("id", ids);
+      for (const doc of docs || []) {
+        const status = String(doc.status || "");
+        if (status === "cancelled" || status === "void" || status === "voided") {
+          cancelledRefs.add(`${table}:${doc.id}`);
+        }
+      }
+    }),
+  );
+  const visibleMovements = (movements || []).filter((move) => {
+    const key = `${move.ref_table || ""}:${move.ref_id || ""}`;
+    return !cancelledRefs.has(key);
+  });
+
   const balanceRows = (rows || []).map((r) => {
     const product = Array.isArray(r.products) ? r.products[0] : r.products;
     const warehouse = Array.isArray(r.warehouses) ? r.warehouses[0] : r.warehouses;
@@ -191,7 +227,7 @@ export default async function StockReportPage({
     };
   });
 
-  const movementRows = (movements || []).map((m) => {
+  const movementRows = visibleMovements.map((m) => {
     const product = Array.isArray(m.products) ? m.products[0] : m.products;
     const warehouse = Array.isArray(m.warehouses) ? m.warehouses[0] : m.warehouses;
     const qty = Number(m.qty);

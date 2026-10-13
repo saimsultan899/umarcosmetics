@@ -114,33 +114,44 @@ export function ProductForm({
       rows.push(row);
     }
 
+    let onlineCatalog = false;
     try {
       if (typeof navigator === "undefined" || navigator.onLine) {
         const supabase = createClient();
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from("products")
-          .select("id, code, name_en, barcode, extra_barcodes")
+          .select("id, code, name_en, barcode, extra_barcodes, is_active")
           .eq("company_id", companyId)
-          .limit(5000);
-        for (const row of data || []) push(row);
+          .eq("is_active", true)
+          .limit(10000);
+        if (!error) {
+          onlineCatalog = true;
+          for (const row of data || []) push(row);
+        }
       }
     } catch {
       /* fall through to local cache */
     }
+
+    // A deleted product can still sit in the offline cache. When the server
+    // catalog loaded, that copy must not block the barcode.
+    if (onlineCatalog) return rows;
 
     try {
       const { hasLocalSqlite, localListMaster } = await import(
         "@/lib/offline/sqlite-client"
       );
       if (hasLocalSqlite()) {
-        const res = await localListMaster("products", companyId, 5000);
+        const res = await localListMaster("products", companyId, 10000);
         for (const row of res.rows || []) {
+          if (row.is_active === false || row.is_active === 0) continue;
           push({
             id: row.id ? String(row.id) : null,
             code: row.code ? String(row.code) : null,
             name_en: row.name_en ? String(row.name_en) : null,
             barcode: row.barcode ? String(row.barcode) : null,
             extra_barcodes: row.extra_barcodes,
+            is_active: row.is_active !== false && row.is_active !== 0,
           });
         }
       }
@@ -151,12 +162,14 @@ export function ProductForm({
     try {
       const cached = await getCachedRows("products", companyId);
       for (const row of cached) {
+        if (row.is_active === false) continue;
         push({
           id: row.id ? String(row.id) : null,
           code: row.code ? String(row.code) : null,
           name_en: row.name_en ? String(row.name_en) : null,
           barcode: row.barcode ? String(row.barcode) : null,
           extra_barcodes: (row as { extra_barcodes?: unknown }).extra_barcodes,
+          is_active: true,
         });
       }
     } catch {

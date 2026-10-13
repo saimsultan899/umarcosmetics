@@ -74,7 +74,15 @@ export function PurchaseInvoiceForm({
     [parties],
   );
 
-  const [buyFrom, setBuyFrom] = useState<BuyFrom>(editing?.buyFrom || "vendor");
+  const [buyFrom, setBuyFrom] = useState<BuyFrom>(() => {
+    if (editing?.buyFrom) return editing.buyFrom;
+    if (!editing) return "company";
+    const linked = warehouses.find((w) => w.id === editing.warehouseId)
+      ?.default_supplier_id;
+    if (editing.partyId && linked && editing.partyId === linked) return "company";
+    if (editing.partyId) return "vendor";
+    return "company";
+  });
   const [partyId, setPartyId] = useState(editing?.partyId || "");
   const [warehouseId, setWarehouseId] = useState(
     editing?.warehouseId || warehouses[0]?.id || "",
@@ -353,10 +361,10 @@ export function PurchaseInvoiceForm({
           <Label>Buy from</Label>
           <Select
             value={buyFrom}
-            onChange={(e) => setBuyFrom((e.target.value as BuyFrom) || "vendor")}
+            onChange={(e) => setBuyFrom((e.target.value as BuyFrom) || "company")}
           >
-            <option value="vendor">Vendor</option>
             <option value="company">Company</option>
+            <option value="vendor">Vendor</option>
           </Select>
         </div>
         {buyFrom === "vendor" ? (

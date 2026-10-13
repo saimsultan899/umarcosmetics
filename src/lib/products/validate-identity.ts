@@ -6,7 +6,12 @@ export type ProductIdentityRow = {
   name_en?: string | null;
   barcode?: string | null;
   extra_barcodes?: unknown;
+  is_active?: boolean | null;
 };
+
+function isLiveProduct(row: ProductIdentityRow) {
+  return row.is_active !== false;
+}
 
 function norm(value: string | null | undefined) {
   return String(value || "").trim();
@@ -40,7 +45,7 @@ export function validateProductIdentity(input: {
   }
 
   const codeClash = input.catalog.find((row) => {
-    if (!row) return false;
+    if (!row || !isLiveProduct(row)) return false;
     if (selfId && String(row.id || "") === selfId) return false;
     return norm(row.code).toLowerCase() === code.toLowerCase();
   });
@@ -65,7 +70,7 @@ export function validateProductIdentity(input: {
     }
 
     const barcodeClash = input.catalog.find((row) => {
-      if (!row) return false;
+      if (!row || !isLiveProduct(row)) return false;
       if (selfId && String(row.id || "") === selfId) return false;
       return productBarcodeValues(row).some((value) => value.toLowerCase() === key);
     });
@@ -74,7 +79,7 @@ export function validateProductIdentity(input: {
     }
 
     const codeAsBarcode = input.catalog.find((row) => {
-      if (!row) return false;
+      if (!row || !isLiveProduct(row)) return false;
       if (selfId && String(row.id || "") === selfId) return false;
       return norm(row.code).toLowerCase() === key;
     });

@@ -345,12 +345,20 @@ export function CompanyStatementClient({
     e.preventDefault();
     const payWarehouse =
       view === "vendor" ? payWarehouseId : warehouseId;
-    if (!statement?.supplier?.id || !payWarehouse) {
+    if (!payWarehouse) {
       setPayError(
         view === "vendor"
           ? "Choose which linked company this payment is for."
-          : "Link a vendor to this company first.",
+          : "Select a company first.",
       );
+      return;
+    }
+    if (view === "vendor" && !statement?.supplier?.id) {
+      setPayError("Select a vendor first.");
+      return;
+    }
+    if (!statement) {
+      setPayError("Run the statement first.");
       return;
     }
     const amount = Number(payAmount);
@@ -399,21 +407,24 @@ export function CompanyStatementClient({
             payMethod === "bank_transfer" ? receiverName.trim() : null,
           receiver_account_no: payMethod === "bank_transfer" ? receiverNo.trim() : null,
           warehouse_id: payWarehouse,
+          amount,
           narration:
             payRemarks.trim() ||
             `Payment for ${
               statement.linkedCompanies?.find((c) => c.id === payWarehouse)
                 ?.name || statement.warehouseName
             }`,
-          lines: [
-            {
-              party_id: statement.supplier.id,
-              amount,
-              narration:
-                payRemarks.trim() ||
-                `${statement.warehouseName} · ${paymentMethodLabel(payMethod)}`,
-            },
-          ],
+          lines: statement.supplier?.id
+            ? [
+                {
+                  party_id: statement.supplier.id,
+                  amount,
+                  narration:
+                    payRemarks.trim() ||
+                    `${statement.warehouseName} · ${paymentMethodLabel(payMethod)}`,
+                },
+              ]
+            : [],
         },
       });
       setPayOpen(false);
@@ -569,7 +580,9 @@ export function CompanyStatementClient({
               <p className="mt-0.5 text-xs text-[var(--muted)]">
                 {view === "vendor"
                   ? "Purchases, stock, and payments below are only for companies that selected this vendor."
-                  : `Payments for ${statement.warehouseName} post to this supplier ledger.`}
+                  : statement.supplier
+                    ? `Payments for ${statement.warehouseName} post to this supplier ledger.`
+                    : `Payments for ${statement.warehouseName} stay on this company. Linking a vendor is optional.`}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -592,14 +605,11 @@ export function CompanyStatementClient({
                 size="sm"
                 disabled={
                   !online ||
-                  !statement.supplier ||
                   (view === "vendor" && !statement.linkedCompanies?.length)
                 }
                 title={
-                  !statement.supplier
-                    ? "Link a vendor first"
-                    : view === "vendor" && !statement.linkedCompanies?.length
-                      ? "Link this vendor on a company first"
+                  view === "vendor" && !statement.linkedCompanies?.length
+                    ? "Link this vendor on a company first"
                     : !online
                       ? "Go online to record a payment"
                       : undefined
@@ -746,7 +756,7 @@ export function CompanyStatementClient({
         description={
           statement?.supplier
             ? `Pay ${statement.supplier.party_code} — ${statement.supplier.name_en} for ${statement.warehouseName}. Outstanding ${formatPkr(statement.payableStats.outstanding)}.`
-            : "Link a vendor first."
+            : `Payment for ${statement?.warehouseName || "this company"}. Outstanding ${formatPkr(statement?.payableStats.outstanding || 0)}.`
         }
       >
         <form onSubmit={savePayment} className="space-y-4">
