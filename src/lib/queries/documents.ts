@@ -134,22 +134,45 @@ function mapDocumentRow(
   };
 }
 
-function applyDocumentSearch(query: any, q: string, docNoField: string) {
-  const term = escapeIlike(q);
-  if (!term) return query;
-  return query.or(
-    `${docNoField}.ilike.%${term}%,parties.party_code.ilike.%${term}%,parties.name_en.ilike.%${term}%`,
-  );
+/** Quote a value inside a PostgREST `or` filter so spaces and hyphens stay literal. */
+function quoteOrValue(value: string) {
+  return `"${value.replace(/"/g, '""')}"`;
 }
 
-/** Inner-join the party only while searching, so code/name filters drop non-matches. */
-function selectForSearch(select: string, searching: boolean) {
-  if (!searching) return select;
-  if (select.includes("parties!inner(")) return select;
-  if (select.includes("parties(")) {
-    return select.replace("parties(", "parties!inner(");
+/**
+ * Customer/vendor matches are applied as party ids.
+ * Filtering `parties.party_code` inside `or` makes PostgREST return PGRST100
+ * and the invoice list page crashes.
+ */
+async function partyIdsForSearch(
+  supabase: SupabaseClient,
+  companyId: string,
+  term: string,
+) {
+  const pattern = quoteOrValue(`%${term}%`);
+  const { data, error } = await supabase
+    .from("parties")
+    .select("id")
+    .eq("company_id", companyId)
+    .or(`party_code.ilike.${pattern},name_en.ilike.${pattern}`)
+    .limit(300);
+  if (error) throw new Error(error.message);
+  return (data || []).map((row) => String(row.id));
+}
+
+function applyDocumentSearch(
+  query: any,
+  term: string,
+  docNoField: string,
+  partyIds: string[],
+) {
+  if (!term) return query;
+  const pattern = quoteOrValue(`%${term}%`);
+  const parts = [`${docNoField}.ilike.${pattern}`];
+  if (partyIds.length > 0) {
+    parts.push(`party_id.in.(${partyIds.join(",")})`);
   }
-  return `${select}, parties!inner(party_code, name_en)`;
+  return query.or(parts.join(","));
 }
 
 export async function fetchDocumentList(
@@ -169,7 +192,10 @@ export async function fetchDocumentList(
   const payment = spString(searchParams, "payment") || "all";
   const warehouseId = spString(searchParams, "warehouse") || "";
 
-  const searching = Boolean(escapeIlike(q));
+  const term = escapeIlike(q);
+  const partyIds = term
+    ? await partyIdsForSearch(supabase, companyId, term)
+    : [];
   const selectParts = [
     config.columns,
     config.partySelect,
@@ -178,7 +204,7 @@ export async function fetchDocumentList(
 
   let listQuery = supabase
     .from(config.table)
-    .select(selectForSearch(selectParts.join(", "), searching), { count: "exact" })
+    .select(selectParts.join(", "), { count: "exact" })
     .eq("company_id", companyId);
   if (
     config.table === "sale_invoices" ||
@@ -190,7 +216,7 @@ export async function fetchDocumentList(
   ) {
     listQuery = listQuery.neq("status", "cancelled");
   }
-  listQuery = applyDocumentSearch(listQuery, q, config.docNoField);
+  listQuery = applyDocumentSearch(listQuery, term, config.docNoField, partyIds);
   if (warehouseId && config.warehouseSelect) {
     listQuery = listQuery.eq("warehouse_id", warehouseId);
   }
@@ -212,12 +238,17 @@ export async function fetchDocumentList(
 
   let summaryQuery = supabase
     .from(config.table)
-    .select(selectForSearch(recentSelect, searching))
+    .select(recentSelect)
     .eq("company_id", companyId);
   if (isTradingDoc) {
     summaryQuery = summaryQuery.neq("status", "cancelled");
   }
-  summaryQuery = applyDocumentSearch(summaryQuery, q, config.docNoField);
+  summaryQuery = applyDocumentSearch(
+    summaryQuery,
+    term,
+    config.docNoField,
+    partyIds,
+  );
   if (warehouseId && config.warehouseSelect) {
     summaryQuery = summaryQuery.eq("warehouse_id", warehouseId);
   }

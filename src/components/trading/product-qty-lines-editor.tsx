@@ -6,6 +6,7 @@ import { Select, type SelectHandle } from "@/components/ui/select";
 import { QtyUnitControl } from "@/components/trading/qty-unit-control";
 import { focusField } from "@/lib/keyboard/enter-nav";
 import type { Product } from "@/lib/types/database";
+import { formatNumber } from "@/lib/utils";
 import { Trash2 } from "lucide-react";
 import {
   forwardRef,
@@ -344,6 +345,18 @@ export const ProductQtyLinesEditor = forwardRef<
           </tbody>
         </table>
       </div>
+      <p className="text-sm">
+        <span className="font-semibold">
+          {formatNumber(lines.length, 0)} products
+        </span>
+        <span className="ml-3 text-[var(--muted)]">
+          Total qty{" "}
+          {formatNumber(
+            lines.reduce((sum, line) => sum + Number(line.qty || 0), 0),
+            0,
+          )}
+        </span>
+      </p>
     </div>
   );
 });

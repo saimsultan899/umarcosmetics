@@ -249,7 +249,20 @@ export function JournalVoucherForm({
           <Plus className="h-4 w-4" />
           Add line
         </Button>
-        <p className="text-sm font-semibold">Total {formatPkr(total)}</p>
+        <p className="text-sm">
+          <span className="font-semibold">
+            {
+              lines.filter(
+                (l) =>
+                  l.debit_party_id &&
+                  l.credit_party_id &&
+                  Number(l.amount) > 0,
+              ).length
+            }{" "}
+            lines
+          </span>
+          <span className="ml-3 font-semibold">Total {formatPkr(total)}</span>
+        </p>
       </div>
 
       {error ? (

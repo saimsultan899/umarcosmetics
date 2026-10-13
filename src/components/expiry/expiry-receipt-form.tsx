@@ -11,7 +11,7 @@ import { useSingleSubmit } from "@/lib/forms/single-submit";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { createClient } from "@/lib/supabase/client";
 import type { Party, Product } from "@/lib/types/database";
-import { AMOUNT_PLACEHOLDER, AMOUNT_STEP, formatPkr } from "@/lib/utils";
+import { AMOUNT_PLACEHOLDER, AMOUNT_STEP, formatNumber, formatPkr } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
@@ -118,9 +118,14 @@ export function ExpiryReceiptForm({
   }, [companyId, partyId, periodFrom, periodTo]);
 
   const grandTotal = lines.reduce((s, l) => s + (Number(l.amount) || 0), 0);
-  const enteredCount = lines.filter(
+  const enteredLines = lines.filter(
     (l) => Number(l.qty) > 0 || Number(l.amount) > 0,
-  ).length;
+  );
+  const enteredCount = enteredLines.length;
+  const enteredQty = enteredLines.reduce(
+    (sum, line) => sum + (Number(line.qty) || 0),
+    0,
+  );
 
   const visibleLines = useMemo(() => {
     const q = productQuery.trim().toLowerCase();
@@ -424,8 +429,16 @@ export function ExpiryReceiptForm({
         <Button type="button" variant="secondary" onClick={addProduct}>
           Add
         </Button>
-        <span className="ml-auto font-semibold">
-          Credit customer {formatPkr(grandTotal)}
+        <span className="ml-auto text-sm">
+          <span className="font-semibold">
+            {formatNumber(enteredCount, 0)} products
+          </span>
+          <span className="ml-3 text-[var(--muted)]">
+            Total qty {formatNumber(enteredQty, 0)}
+          </span>
+          <span className="ml-3 font-semibold">
+            Credit customer {formatPkr(grandTotal)}
+          </span>
         </span>
       </div>
 

@@ -170,6 +170,11 @@ export function SaleInvoicePrint({
       ? "0.00"
       : `${formatNumber(Math.abs(previousBalance), 2)} ${previousBalance >= 0 ? "Dr" : "Cr"}`;
 
+  const productCount = lines.length;
+  const totalQty = lines.reduce(
+    (sum, line) => sum + Number(line.qty || 0) + Number(line.bonus || 0),
+    0,
+  );
   const customerNo = (partyMobile || "").trim();
   const ownerNo = (partyPhone || "").trim();
   const dateTimeLabel = [formatDateLabel(date), formatTimeLabel(printedAt)]
@@ -423,6 +428,14 @@ export function SaleInvoicePrint({
           </table>
           <div className="th-dash">{THERMAL_DASH}</div>
           <div className="th-row">
+            <span>Products</span>
+            <span>{formatNumber(productCount, 0)}</span>
+          </div>
+          <div className="th-row">
+            <span>Total qty</span>
+            <span>{formatNumber(totalQty, 0)}</span>
+          </div>
+          <div className="th-row">
             <span>Total</span>
             <span>{formatNumber(subtotal, 2)}</span>
           </div>
@@ -587,6 +600,14 @@ export function SaleInvoicePrint({
 
         <div className="si-foot">
           <div className="si-foot-col si-foot-bill">
+            <div className="si-row">
+              <span>Products</span>
+              <span>{formatNumber(productCount, 0)}</span>
+            </div>
+            <div className="si-row">
+              <span>Total qty</span>
+              <span>{formatNumber(totalQty, 0)}</span>
+            </div>
             <div className="si-row">
               <span>Total</span>
               <span>{formatNumber(subtotal, 2)}</span>

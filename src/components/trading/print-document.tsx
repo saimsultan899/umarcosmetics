@@ -129,6 +129,11 @@ export function PrintDocument({
     printWithAutoPaper(sheet === "half" ? "a5" : "a4");
   }
 
+  const productCount = lines.length;
+  const totalQty = lines.reduce(
+    (sum, line) => sum + Number(line.qty || 0) + Number(line.bonus || 0),
+    0,
+  );
   const hasRate = lines.some((l) => l.rate != null);
   /** Show Disc. column whenever any line includes a discount field (incl. 0). */
   const hasDiscount = lines.some((l) => l.discount != null);
@@ -338,9 +343,16 @@ export function PrintDocument({
           </tbody>
         </table>
 
-        {totals?.length ? (
-          <div className="cdoc-totals">
-            {totals.map((t, i) => {
+        <div className="cdoc-totals">
+          <div className="si-row">
+            <span>Products</span>
+            <span>{formatNumber(productCount, 0)}</span>
+          </div>
+          <div className="si-row">
+            <span>Total qty</span>
+            <span>{formatNumber(totalQty, 0)}</span>
+          </div>
+          {totals?.map((t, i) => {
               const anyStrong = totals.some((x) => x.strong);
               const isGrand = t.strong ?? (!anyStrong && i === totals.length - 1);
               return (
@@ -353,8 +365,7 @@ export function PrintDocument({
                 </div>
               );
             })}
-          </div>
-        ) : null}
+        </div>
 
         {amountInWords ? (
           <p className="cdoc-words">

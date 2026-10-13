@@ -65,6 +65,7 @@ export function ExpiryClaimForm({
     .filter((row) => row.sendQty > 0);
 
   const grandTotal = sendLines.reduce((s, l) => s + l.sendAmount, 0);
+  const sendQty = sendLines.reduce((s, l) => s + l.sendQty, 0);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -234,8 +235,16 @@ export function ExpiryClaimForm({
         </table>
       </div>
 
-      <div className="flex justify-end text-sm font-semibold">
-        Claim amount {formatPkr(grandTotal)}
+      <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-sm">
+        <span className="font-semibold">
+          {formatNumber(sendLines.length, 0)} products
+        </span>
+        <span className="text-[var(--muted)]">
+          Total qty {formatNumber(sendQty, 0)}
+        </span>
+        <span className="font-semibold">
+          Claim amount {formatPkr(grandTotal)}
+        </span>
       </div>
 
       {error ? (

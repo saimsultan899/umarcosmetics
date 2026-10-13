@@ -757,9 +757,8 @@ export function RecoveryForm({
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-sm">
-          <span className="text-[var(--muted)]">
-            {lines.length} line{lines.length === 1 ? "" : "s"}
-            {draftAmt > 0 && partyId ? " (+ draft)" : ""}
+          <span className="font-semibold">
+            {pendingCount} customer{pendingCount === 1 ? "" : "s"}
           </span>
           <span className="font-semibold">Total {formatPkr(grand)}</span>
         </div>

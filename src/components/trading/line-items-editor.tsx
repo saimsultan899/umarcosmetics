@@ -31,7 +31,7 @@ import {
   perCartonRate,
 } from "@/lib/pricing/uom";
 import { computeLineScheme, purchaseDiscountPercentText } from "@/lib/pricing/discounts";
-import { AMOUNT_PLACEHOLDER, AMOUNT_STEP, formatPkr, cn } from "@/lib/utils";
+import { AMOUNT_PLACEHOLDER, AMOUNT_STEP, formatNumber, formatPkr, cn } from "@/lib/utils";
 import { Trash2 } from "lucide-react";
 import {
   forwardRef,
@@ -1445,7 +1445,23 @@ export const LineItemsEditor = forwardRef<
         </table>
       </div>
 
-      <div className="flex flex-wrap items-center justify-end gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm">
+          <span className="font-semibold">
+            {formatNumber(lines.length, 0)} products
+          </span>
+          <span className="ml-3 text-[var(--muted)]">
+            Total qty{" "}
+            {formatNumber(
+              lines.reduce(
+                (sum, line) =>
+                  sum + Number(line.qty || 0) + Number(line.bonus || 0),
+                0,
+              ),
+              0,
+            )}
+          </span>
+        </p>
         <div className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm">
           <div className="flex flex-col gap-2 sm:items-end">
             <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
