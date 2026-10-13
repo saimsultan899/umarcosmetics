@@ -18,7 +18,19 @@ import { formatReportInvNo } from "@/lib/reports/helpers";
 import { cn, formatNumber, formatPkr } from "@/lib/utils";
 import { ArrowLeft, Printer } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+/** A5 sale invoice: first page fits this many product lines; extra lines continue on the next A5 page. */
+export const A5_SALE_LINES_PER_PAGE = 28;
+
+function chunkLines<T>(items: T[], size: number): T[][] {
+  if (items.length <= size) return [items];
+  const pages: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    pages.push(items.slice(i, i + size));
+  }
+  return pages;
+}
 
 export type SalePrintLine = {
   product_code?: string | null;
@@ -198,6 +210,26 @@ export function SaleInvoicePrint({
   const sheetPaper = paperSizeProp ?? localPaper;
   const useFullA4 = !showThermal && sheetPaper === "a4";
 
+  const sheetPages = useMemo(() => {
+    if (useFullA4) {
+      return [
+        {
+          pageLines: lines,
+          startIndex: 0,
+          isFirst: true,
+          isLast: true,
+        },
+      ];
+    }
+    const chunks = chunkLines(lines, A5_SALE_LINES_PER_PAGE);
+    return chunks.map((pageLines, idx) => ({
+      pageLines,
+      startIndex: idx * A5_SALE_LINES_PER_PAGE,
+      isFirst: idx === 0,
+      isLast: idx === chunks.length - 1,
+    }));
+  }, [lines, useFullA4]);
+
   useEffect(() => {
     if (embedded || paperSizeProp) return;
     try {
@@ -302,8 +334,8 @@ export function SaleInvoicePrint({
                 : isWalkIn
                   ? savedDefault === "thermal"
                     ? "Standard invoice for this bill. Next walk-in still uses the thermal slip."
-                    : "A5 half slip. Switch to A4 if lines get cut off."
-                  : "A5 half slip (default). Switch to A4 if lines get cut off."}
+                    : `A5 · up to ${A5_SALE_LINES_PER_PAGE} lines per page, then next page.`
+                  : `A5 (default) · up to ${A5_SALE_LINES_PER_PAGE} lines per page, then next page.`}
           </p>
           {isWalkIn ? (
             <label className="flex items-center gap-2 text-sm font-medium text-[var(--ink)]">
@@ -479,190 +511,216 @@ export function SaleInvoicePrint({
         </div>
       ) : null}
 
-      {showSheet && !showThermal ? (
-      <div
-        className={cn(
-          "print-sheet mx-auto",
-          useFullA4 ? "si-a4" : "si-half",
-        )}
-        data-paper={useFullA4 ? "a4" : "a5"}
-      >
-        <div className="si-head">
-          <div className="si-doc-label">Sale Invoice</div>
-          {companyName ? (
-            <div className="si-title">{companyName}</div>
-          ) : (
-            <div className="si-title">Sale Invoice</div>
-          )}
-          {_companyPhone ? (
-            <div className="si-company-line">{_companyPhone}</div>
-          ) : null}
-        </div>
+      {showSheet && !showThermal
+        ? sheetPages.map((page, pageIdx) => (
+            <div
+              key={pageIdx}
+              className={cn(
+                "print-sheet mx-auto",
+                useFullA4 ? "si-a4" : "si-half",
+                !useFullA4 && sheetPages.length > 1 && "si-sale-a5-page",
+                !useFullA4 &&
+                  pageIdx < sheetPages.length - 1 &&
+                  "si-sale-a5-page-break",
+              )}
+              data-paper={useFullA4 ? "a4" : "a5"}
+            >
+              {page.isFirst ? (
+                <>
+                  <div className="si-head">
+                    <div className="si-doc-label">Sale Invoice</div>
+                    {companyName ? (
+                      <div className="si-title">{companyName}</div>
+                    ) : (
+                      <div className="si-title">Sale Invoice</div>
+                    )}
+                    {_companyPhone ? (
+                      <div className="si-company-line">{_companyPhone}</div>
+                    ) : null}
+                  </div>
 
-        <div className="si-meta">
-          <div className="si-meta-left si-meta-block">
-            <div>
-              <span className="si-k">A/C No :</span>{" "}
-              <span className="si-v">
-                {String(partyCode || "").toUpperCase() === "WALKIN"
-                  ? partyName || "Walk-in Customer"
-                  : [partyCode, partyName].filter(Boolean).join(" ")}
-              </span>
-            </div>
-            {partyOwner ? (
-              <div>
-                <span className="si-k">OWNER:</span>{" "}
-                <span className="si-v">{partyOwner}</span>
-              </div>
-            ) : null}
-            {customerNo ? (
-              <div>
-                <span className="si-k">Cust Mob No:</span>{" "}
-                <span className="si-v">{customerNo}</span>
-              </div>
-            ) : null}
-            {ownerNo ? (
-              <div>
-                <span className="si-k">Owner No:</span>{" "}
-                <span className="si-v">{ownerNo}</span>
-              </div>
-            ) : null}
-          </div>
-          <div className="si-meta-right si-meta-block">
-            <div>
-              <span className="si-k">Bill No :</span>{" "}
-              <span className="si-v">{formatReportInvNo(docNo) || docNo}</span>
-            </div>
-            {sector ? (
-              <div>
-                <span className="si-k">Sector:</span>{" "}
-                <span className="si-v">{sector}</span>
-              </div>
-            ) : null}
-            <div>
-              <span className="si-k">Date :</span>{" "}
-              <span className="si-v">{dateTimeLabel}</span>
-            </div>
-          </div>
-        </div>
+                  <div className="si-meta">
+                    <div className="si-meta-left si-meta-block">
+                      <div>
+                        <span className="si-k">A/C No :</span>{" "}
+                        <span className="si-v">
+                          {String(partyCode || "").toUpperCase() === "WALKIN"
+                            ? partyName || "Walk-in Customer"
+                            : [partyCode, partyName].filter(Boolean).join(" ")}
+                        </span>
+                      </div>
+                      {partyOwner ? (
+                        <div>
+                          <span className="si-k">OWNER:</span>{" "}
+                          <span className="si-v">{partyOwner}</span>
+                        </div>
+                      ) : null}
+                      {customerNo ? (
+                        <div>
+                          <span className="si-k">Cust Mob No:</span>{" "}
+                          <span className="si-v">{customerNo}</span>
+                        </div>
+                      ) : null}
+                      {ownerNo ? (
+                        <div>
+                          <span className="si-k">Owner No:</span>{" "}
+                          <span className="si-v">{ownerNo}</span>
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="si-meta-right si-meta-block">
+                      <div>
+                        <span className="si-k">Bill No :</span>{" "}
+                        <span className="si-v">
+                          {formatReportInvNo(docNo) || docNo}
+                        </span>
+                      </div>
+                      {sector ? (
+                        <div>
+                          <span className="si-k">Sector:</span>{" "}
+                          <span className="si-v">{sector}</span>
+                        </div>
+                      ) : null}
+                      <div>
+                        <span className="si-k">Date :</span>{" "}
+                        <span className="si-v">{dateTimeLabel}</span>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="si-cont">
+                  <span className="si-k">Bill No :</span>{" "}
+                  <span className="si-v">
+                    {formatReportInvNo(docNo) || docNo}
+                  </span>
+                  <span className="si-cont-page">
+                    · Page {pageIdx + 1} of {sheetPages.length}
+                  </span>
+                </div>
+              )}
 
-        <table className="si-table">
-          <colgroup>
-            <col style={{ width: "4%" }} />
-            <col style={{ width: "40%" }} />
-            <col style={{ width: "7%" }} />
-            <col style={{ width: "11%" }} />
-            <col style={{ width: "8%" }} />
-            <col style={{ width: "9%" }} />
-            <col style={{ width: "8%" }} />
-            <col style={{ width: "13%" }} />
-          </colgroup>
-          <thead>
-            <tr>
-              <th className="ctr">Sr.</th>
-              <th>ItemName</th>
-              <th className="num">Qty</th>
-              <th className="num">Scheme</th>
-              <th className="num">T/P</th>
-              <th className="num">Disc %</th>
-              <th className="num">Disc</th>
-              <th className="num">Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {lines.map((l, i) => {
-              const pct = discPercent(l.qty, l.tradePrice, l.discount);
-              const schemeLabel = formatSchemeLabel(l.scheme, l.bonus);
-              return (
-                <tr key={`${l.product_code || l.product_name}-${i}`}>
-                  <td className="ctr">{i + 1}</td>
-                  <td
-                    className="si-item"
-                    title={itemLabel(l.product_code, l.product_name)}
-                  >
-                    {itemLabel(l.product_code, l.product_name)}
-                  </td>
-                  <td className="num">{formatNumber(l.qty, 2)}</td>
-                  <td className="num">{schemeLabel || "—"}</td>
-                  <td className="num">{formatNumber(l.tradePrice, 2)}</td>
-                  <td className="num">
-                    {pct > 0 ? `${formatNumber(pct, 1)} %` : "—"}
-                  </td>
-                  <td className="num">
-                    {l.discount > 0 ? formatNumber(l.discount, 2) : "—"}
-                  </td>
-                  <td className="num">{formatNumber(l.amount, 2)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              <table className="si-table">
+                <colgroup>
+                  <col style={{ width: "4%" }} />
+                  <col style={{ width: "40%" }} />
+                  <col style={{ width: "7%" }} />
+                  <col style={{ width: "11%" }} />
+                  <col style={{ width: "8%" }} />
+                  <col style={{ width: "9%" }} />
+                  <col style={{ width: "8%" }} />
+                  <col style={{ width: "13%" }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th className="ctr">Sr.</th>
+                    <th>ItemName</th>
+                    <th className="num">Qty</th>
+                    <th className="num">Scheme</th>
+                    <th className="num">T/P</th>
+                    <th className="num">Disc %</th>
+                    <th className="num">Disc</th>
+                    <th className="num">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {page.pageLines.map((l, i) => {
+                    const sr = page.startIndex + i + 1;
+                    const pct = discPercent(l.qty, l.tradePrice, l.discount);
+                    const schemeLabel = formatSchemeLabel(l.scheme, l.bonus);
+                    return (
+                      <tr key={`${l.product_code || l.product_name}-${sr}`}>
+                        <td className="ctr">{sr}</td>
+                        <td
+                          className="si-item"
+                          title={itemLabel(l.product_code, l.product_name)}
+                        >
+                          {itemLabel(l.product_code, l.product_name)}
+                        </td>
+                        <td className="num">{formatNumber(l.qty, 2)}</td>
+                        <td className="num">{schemeLabel || "—"}</td>
+                        <td className="num">{formatNumber(l.tradePrice, 2)}</td>
+                        <td className="num">
+                          {pct > 0 ? `${formatNumber(pct, 1)} %` : "—"}
+                        </td>
+                        <td className="num">
+                          {l.discount > 0 ? formatNumber(l.discount, 2) : "—"}
+                        </td>
+                        <td className="num">{formatNumber(l.amount, 2)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
 
-        <div className="si-foot">
-          <div className="si-foot-col si-foot-bill">
-            <div className="si-row">
-              <span>Products</span>
-              <span>{formatNumber(productCount, 0)}</span>
-            </div>
-            <div className="si-row">
-              <span>Total qty</span>
-              <span>{formatNumber(totalQty, 0)}</span>
-            </div>
-            <div className="si-row">
-              <span>Total</span>
-              <span>{formatNumber(subtotal, 2)}</span>
-            </div>
-            <div className="si-row">
-              <span>Less Trade Discount</span>
-              <span>{formatNumber(tradeDiscount, 2)}</span>
-            </div>
-            <div className="si-row">
-              <span>Less Extra Discount</span>
-              <span>{formatNumber(extraDiscount, 2)}</span>
-            </div>
-            <div className="si-row si-strong">
-              <span>Bill Amount</span>
-              <span>{formatNumber(billAmount, 2)}</span>
-            </div>
-            <p className="si-note" lang="ur">
-              سابقہ بل کی ادائیگی پر نیا مال دیا جائے گا۔
-            </p>
-            <div className="si-prepared">
-              Prepared By : {(preparedBy || "—").toUpperCase()}
-            </div>
-          </div>
+              {page.isLast ? (
+                <div className="si-foot">
+                  <div className="si-foot-col si-foot-bill">
+                    <div className="si-row">
+                      <span>Products</span>
+                      <span>{formatNumber(productCount, 0)}</span>
+                    </div>
+                    <div className="si-row">
+                      <span>Total qty</span>
+                      <span>{formatNumber(totalQty, 0)}</span>
+                    </div>
+                    <div className="si-row">
+                      <span>Total</span>
+                      <span>{formatNumber(subtotal, 2)}</span>
+                    </div>
+                    <div className="si-row">
+                      <span>Less Trade Discount</span>
+                      <span>{formatNumber(tradeDiscount, 2)}</span>
+                    </div>
+                    <div className="si-row">
+                      <span>Less Extra Discount</span>
+                      <span>{formatNumber(extraDiscount, 2)}</span>
+                    </div>
+                    <div className="si-row si-strong">
+                      <span>Bill Amount</span>
+                      <span>{formatNumber(billAmount, 2)}</span>
+                    </div>
+                    <p className="si-note" lang="ur">
+                      سابقہ بل کی ادائیگی پر نیا مال دیا جائے گا۔
+                    </p>
+                    <div className="si-prepared">
+                      Prepared By : {(preparedBy || "—").toUpperCase()}
+                    </div>
+                  </div>
 
-          <div className="si-foot-col si-foot-pay">
-            <div className="si-row">
-              <span>Last Paid Amount</span>
-              <span>{formatNumber(previousPayment, 2)}</span>
+                  <div className="si-foot-col si-foot-pay">
+                    <div className="si-row">
+                      <span>Last Paid Amount</span>
+                      <span>{formatNumber(previousPayment, 2)}</span>
+                    </div>
+                    {showCounterCash ? (
+                      <div className="si-row">
+                        <span>Counter Cash Paid</span>
+                        <span>{formatNumber(paidOnBill, 2)}</span>
+                      </div>
+                    ) : null}
+                    <div className="si-row">
+                      <span>Bill Payable</span>
+                      <span>{formatNumber(billPayable, 2)}</span>
+                    </div>
+                    <div className="si-row">
+                      <span>Previous Balance</span>
+                      <span>{prevLabel}</span>
+                    </div>
+                    <div className="si-row si-strong">
+                      <span>Total Payable</span>
+                      <span>{formatPkr(totalPayable)}</span>
+                    </div>
+                    <div className="si-checked">
+                      Checked By.
+                      <span className="si-sign-line" />
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </div>
-            {showCounterCash ? (
-              <div className="si-row">
-                <span>Counter Cash Paid</span>
-                <span>{formatNumber(paidOnBill, 2)}</span>
-              </div>
-            ) : null}
-            <div className="si-row">
-              <span>Bill Payable</span>
-              <span>{formatNumber(billPayable, 2)}</span>
-            </div>
-            <div className="si-row">
-              <span>Previous Balance</span>
-              <span>{prevLabel}</span>
-            </div>
-            <div className="si-row si-strong">
-              <span>Total Payable</span>
-              <span>{formatPkr(totalPayable)}</span>
-            </div>
-            <div className="si-checked">
-              Checked By.
-              <span className="si-sign-line" />
-            </div>
-          </div>
-        </div>
-      </div>
-      ) : null}
+          ))
+        : null}
     </div>
   );
 }

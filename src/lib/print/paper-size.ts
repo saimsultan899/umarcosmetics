@@ -209,6 +209,12 @@ function uprightHalfSheetCss(paper: PrintPaperSize) {
     width: 100% !important;
     max-width: 100% !important;
     height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .print-sheet.si-half.si-sale-a5-page-break {
+    page-break-after: always;
+    break-after: page;
   }
 }`;
 }

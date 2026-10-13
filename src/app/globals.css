@@ -2360,6 +2360,17 @@ button[aria-haspopup="listbox"]:focus-visible {
   min-height: 14px;
 }
 
+/* A5 sale invoice — continuation page (lines after the first 28) */
+.si-cont {
+  margin: 6px 0 4px;
+  font-size: 14px;
+  text-align: center;
+}
+.si-cont-page {
+  font-weight: 400;
+  color: #333;
+}
+
 /* A5 sale invoice only — a step smaller than the A4 slip */
 .si-half {
   font-size: 15px;
@@ -3082,6 +3093,28 @@ button[aria-haspopup="listbox"]:focus-visible {
   }
   .print-sheet.si-half .si-bonus {
     font-size: 11px !important;
+  }
+
+  /* A5 sale invoice: paginate after 28 lines — do not clip totals at the bottom. */
+  .print-sheet.si-half {
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
+  .print-sheet.si-half.si-sale-a5-page-break {
+    page-break-after: always;
+    break-after: page;
+  }
+  .print-sheet.si-half .si-foot {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .print-sheet.si-half .si-cont {
+    margin: 2px 0 !important;
+    font-size: 13px !important;
   }
 
   /* Continuous roll: height follows content. Measured height is injected for
