@@ -328,7 +328,7 @@ export default async function AccountsReportPage({
       {view === "ledger" ? (
         <div className="space-y-4">
           <UrlFilterForm className="panel no-print flex flex-wrap items-end gap-3 p-4">
-            <div className="min-w-[260px] flex-1">
+            <div className="w-full max-w-md min-w-[200px] sm:w-[min(100%,28rem)]">
               <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
                 Customer / vendor
               </label>
@@ -347,7 +347,8 @@ export default async function AccountsReportPage({
             <input type="hidden" name="view" value="ledger" />
             <ReportFilterActions
               submitLabel="Load ledger"
-              className="w-full min-w-[220px] flex-none sm:w-auto"
+              nowrap
+              className="shrink-0"
             />
           </UrlFilterForm>
 

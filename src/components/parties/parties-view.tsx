@@ -2,6 +2,7 @@
 
 import { LocationListsManager } from "@/components/forms/location-lists-manager";
 import { PartyForm } from "@/components/forms/party-form";
+import { ArrangeShopsButton } from "@/components/parties/arrange-shops-dialog";
 import { PartiesTable } from "@/components/tables/parties-table";
 import {
   CreateDialogButton,
@@ -131,6 +132,17 @@ export function PartiesView({
         description={`${meta.description} Company: ${company.name}.`}
         actions={
           <>
+            {meta.showLocations &&
+            (type === "customer" || !type) &&
+            view !== "ledger" &&
+            canEdit ? (
+              <ArrangeShopsButton
+                companyId={company.id}
+                cityOptions={currentData.cityOptions}
+                sectorOptions={currentData.sectorOptions}
+                onSaved={refetch}
+              />
+            ) : null}
             {meta.showLocations ? (
               <CreateDialogButton
                 label="City / Head & Sector"

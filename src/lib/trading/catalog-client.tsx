@@ -76,6 +76,7 @@ async function fetchCatalog(
             .select("*")
             .eq("company_id", companyId)
             .eq("is_active", true)
+            .order("sort_order", { ascending: true })
             .order("name_en")
         : Promise.resolve(null),
       needBase

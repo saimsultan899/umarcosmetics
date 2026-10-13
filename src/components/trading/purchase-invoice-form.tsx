@@ -82,6 +82,21 @@ export function PurchaseInvoiceForm({
   const [warehouseId, setWarehouseId] = useState(
     editing?.warehouseId || warehouses[0]?.id || "",
   );
+
+  function changeWarehouse(nextId: string) {
+    setWarehouseId(nextId);
+    if (!nextId) {
+      setLines([]);
+      return;
+    }
+    setLines((prev) =>
+      prev.filter((line) => {
+        if (!line.product_id) return true;
+        const product = products.find((p) => p.id === line.product_id);
+        return product?.default_warehouse_id === nextId;
+      }),
+    );
+  }
   const [invoiceDate, setInvoiceDate] = useState(
     editing?.invoiceDate || new Date().toISOString().slice(0, 10),
   );
@@ -158,7 +173,7 @@ export function PurchaseInvoiceForm({
     setGatePassId(id);
     const pass = gatePasses.find((g) => g.id === id);
     if (!pass) return;
-    if (pass.warehouse_id) setWarehouseId(pass.warehouse_id);
+    if (pass.warehouse_id) changeWarehouse(pass.warehouse_id);
     if (pass.party_id) setPartyId(pass.party_id);
   }
 
@@ -290,7 +305,7 @@ export function PurchaseInvoiceForm({
       <Label>{buyFrom === "company" ? "Company" : "Stock company"}</Label>
       <Select
         value={warehouseId}
-        onChange={(e) => setWarehouseId(e.target.value)}
+        onChange={(e) => changeWarehouse(e.target.value)}
         required
       >
         <option value="">Select company</option>
@@ -390,7 +405,8 @@ export function PurchaseInvoiceForm({
         partyId={partyId}
         warehouseId={warehouseId}
         warehouses={warehouses}
-        onAutoPickWarehouse={setWarehouseId}
+        filterByWarehouse
+        onAutoPickWarehouse={changeWarehouse}
         extraDiscount={extraDiscount}
         onExtraDiscountChange={setExtraDiscount}
       />

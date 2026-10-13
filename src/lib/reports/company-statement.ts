@@ -3,7 +3,22 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 const TZ = "Asia/Karachi";
 
+export type CompanyStatementSupplier = {
+  id: string;
+  party_code: string;
+  name_en: string;
+} | null;
+
+export type CompanyPayableStats = {
+  purchases: number;
+  returns: number;
+  paid: number;
+  outstanding: number;
+  openingPayable: number;
+};
+
 export type CompanyStatement = {
+  warehouseId: string;
   warehouseName: string;
   openingQty: number;
   openingValue: number;
@@ -15,7 +30,17 @@ export type CompanyStatement = {
   saleAmount: number;
   summary: Record<string, unknown>[];
   lines: Record<string, unknown>[];
+  supplier: CompanyStatementSupplier;
+  payableStats: CompanyPayableStats;
+  payableLedger: Record<string, unknown>[];
 };
+
+export function paymentMethodLabel(value: string | null | undefined) {
+  const v = String(value || "cash").toLowerCase();
+  if (v === "bank_transfer") return "Bank transfer";
+  if (v === "other") return "Other";
+  return "Cash";
+}
 
 type Movement = {
   product_id: string;
@@ -72,6 +97,15 @@ function typeLabel(moveType: string, refTable: string) {
   return moveType.replaceAll("_", " ");
 }
 
+/** Stock cost: prefer master rate; if unset, fall back to billed line amount. */
+function stockCostValue(qty: number, rate: number, billAmount?: number | null) {
+  if (Math.abs(rate) > 1e-9) return qty * rate;
+  if (billAmount != null && Math.abs(billAmount) > 1e-9) {
+    return qty >= 0 ? Math.abs(billAmount) : -Math.abs(billAmount);
+  }
+  return 0;
+}
+
 function hrefFor(refTable: string, refId: string) {
   if (refTable === "sale_invoices") return `/sales/invoices/${refId}`;
   if (refTable === "purchase_invoices") return `/purchases/invoices/${refId}`;
@@ -94,7 +128,13 @@ export async function buildCompanyStatement(
 
   const [{ data: warehouse, error: whError }, { data: balances, error: balError }, { data: movementRows, error: moveError }] =
     await Promise.all([
-      supabase.from("warehouses").select("id, name").eq("id", warehouseId).maybeSingle(),
+      supabase
+        .from("warehouses")
+        .select(
+          "id, name, default_supplier_id, supplier:parties!warehouses_default_supplier_id_fkey(id, party_code, name_en)",
+        )
+        .eq("id", warehouseId)
+        .maybeSingle(),
       supabase
         .from("stock_balances")
         .select("product_id, qty")
@@ -149,7 +189,7 @@ export async function buildCompanyStatement(
     loadIds(idsFor("sale_invoices"), async (chunk) => {
       const { data, error } = await supabase
         .from("sale_invoices")
-        .select("id, invoice_no, invoice_date, parties(party_code, name_en)")
+        .select("id, invoice_no, invoice_date, status, parties(party_code, name_en)")
         .in("id", chunk);
       if (error) throw new Error(error.message);
       return data || [];
@@ -157,7 +197,9 @@ export async function buildCompanyStatement(
     loadIds(idsFor("purchase_invoices"), async (chunk) => {
       const { data, error } = await supabase
         .from("purchase_invoices")
-        .select("id, invoice_no, invoice_date, supplier_bill_no, parties(party_code, name_en)")
+        .select(
+          "id, invoice_no, invoice_date, supplier_bill_no, status, parties(party_code, name_en)",
+        )
         .in("id", chunk);
       if (error) throw new Error(error.message);
       return data || [];
@@ -165,7 +207,7 @@ export async function buildCompanyStatement(
     loadIds(idsFor("sale_returns"), async (chunk) => {
       const { data, error } = await supabase
         .from("sale_returns")
-        .select("id, return_no, return_date, parties(party_code, name_en)")
+        .select("id, return_no, return_date, status, parties(party_code, name_en)")
         .in("id", chunk);
       if (error) throw new Error(error.message);
       return data || [];
@@ -173,16 +215,27 @@ export async function buildCompanyStatement(
     loadIds(idsFor("purchase_returns"), async (chunk) => {
       const { data, error } = await supabase
         .from("purchase_returns")
-        .select("id, return_no, return_date, parties(party_code, name_en)")
+        .select("id, return_no, return_date, status, parties(party_code, name_en)")
         .in("id", chunk);
       if (error) throw new Error(error.message);
       return data || [];
     }),
   ]);
 
+  const cancelledRefs = new Set<string>();
+  const isCancelledStatus = (status: unknown) => {
+    const s = String(status || "posted").toLowerCase();
+    return s === "cancelled" || s === "voided";
+  };
+
   const docs = new Map<string, DocInfo>();
   for (const row of saleDocs) {
-    docs.set(`sale_invoices:${row.id}`, {
+    const key = `sale_invoices:${row.id}`;
+    if (isCancelledStatus(row.status)) {
+      cancelledRefs.add(key);
+      continue;
+    }
+    docs.set(key, {
       date: String(row.invoice_date || ""),
       no: String(row.invoice_no || ""),
       party: partyLabel(one(row.parties) as { party_code?: string; name_en?: string } | null),
@@ -190,8 +243,13 @@ export async function buildCompanyStatement(
     });
   }
   for (const row of purchaseDocs) {
+    const key = `purchase_invoices:${row.id}`;
+    if (isCancelledStatus(row.status)) {
+      cancelledRefs.add(key);
+      continue;
+    }
     const bill = String(row.supplier_bill_no || "").trim();
-    docs.set(`purchase_invoices:${row.id}`, {
+    docs.set(key, {
       date: String(row.invoice_date || ""),
       no: bill ? `${row.invoice_no} · ${bill}` : String(row.invoice_no || ""),
       party: partyLabel(one(row.parties) as { party_code?: string; name_en?: string } | null),
@@ -199,7 +257,12 @@ export async function buildCompanyStatement(
     });
   }
   for (const row of saleReturnDocs) {
-    docs.set(`sale_returns:${row.id}`, {
+    const key = `sale_returns:${row.id}`;
+    if (isCancelledStatus(row.status)) {
+      cancelledRefs.add(key);
+      continue;
+    }
+    docs.set(key, {
       date: String(row.return_date || ""),
       no: String(row.return_no || ""),
       party: partyLabel(one(row.parties) as { party_code?: string; name_en?: string } | null),
@@ -207,7 +270,12 @@ export async function buildCompanyStatement(
     });
   }
   for (const row of purchaseReturnDocs) {
-    docs.set(`purchase_returns:${row.id}`, {
+    const key = `purchase_returns:${row.id}`;
+    if (isCancelledStatus(row.status)) {
+      cancelledRefs.add(key);
+      continue;
+    }
+    docs.set(key, {
       date: String(row.return_date || ""),
       no: String(row.return_no || ""),
       party: partyLabel(one(row.parties) as { party_code?: string; name_en?: string } | null),
@@ -312,7 +380,12 @@ export async function buildCompanyStatement(
   for (const move of movements) {
     const date = effectiveDate(move);
     if (date < from || date > to) continue;
-    const doc = docs.get(`${move.ref_table}:${move.ref_id}`);
+    const refKey =
+      move.ref_table && move.ref_id ? `${move.ref_table}:${move.ref_id}` : "";
+    // Cancel leaves original moves + reverse adjustments on the same ref —
+    // hide both from the period table (opening/closing still net them out).
+    if (refKey && cancelledRefs.has(refKey)) continue;
+    const doc = docs.get(refKey);
     const rate = rateByProduct.get(move.product_id) || 0;
     const useBill =
       (move.move_type === "sale" && move.ref_table === "sale_invoices") ||
@@ -323,11 +396,12 @@ export async function buildCompanyStatement(
       ? lineAmount.get(amountKey(move.ref_id, move.product_id))
       : undefined;
     const amount = bill != null ? bill : Math.abs(move.qty) * rate;
+    const value = stockCostValue(move.qty, rate, bill);
     const label = typeLabel(move.move_type, move.ref_table);
     const slot = bucket(label);
     if (move.qty >= 0) slot.qtyIn += move.qty;
     else slot.qtyOut += Math.abs(move.qty);
-    slot.value += move.qty * rate;
+    slot.value += value;
     slot.amount += amount;
     if (
       (move.move_type === "purchase" || move.move_type === "sale") &&
@@ -343,7 +417,7 @@ export async function buildCompanyStatement(
       Document: doc?.no || "—",
       "Vendor / customer": doc?.party || "",
       Qty: move.qty,
-      "Purchase value": move.qty * rate,
+      "Purchase value": value,
       Amount: amount,
       _href: doc?.href || hrefFor(move.ref_table, move.ref_id),
     });
@@ -429,7 +503,27 @@ export async function buildCompanyStatement(
   const purchase = buckets.get("Purchase");
   const sale = buckets.get("Sale");
 
+  const supplierRow = one(
+    (warehouse as { supplier?: unknown } | null)?.supplier,
+  ) as { id?: string; party_code?: string; name_en?: string } | null;
+  const supplier: CompanyStatementSupplier =
+    supplierRow?.id
+      ? {
+          id: String(supplierRow.id),
+          party_code: String(supplierRow.party_code || ""),
+          name_en: String(supplierRow.name_en || ""),
+        }
+      : null;
+
+  const payable = await buildPayableLedger(supabase, {
+    companyId,
+    warehouseId,
+    from,
+    to,
+  });
+
   return {
+    warehouseId,
     warehouseName: warehouse?.name || "Company",
     openingQty,
     openingValue,
@@ -441,6 +535,193 @@ export async function buildCompanyStatement(
     saleAmount: sale?.amount || 0,
     summary,
     lines: movementLines,
+    supplier,
+    payableStats: payable.stats,
+    payableLedger: payable.rows,
+  };
+}
+
+async function buildPayableLedger(
+  supabase: SupabaseClient,
+  input: { companyId: string; warehouseId: string; from: string; to: string },
+): Promise<{ stats: CompanyPayableStats; rows: Record<string, unknown>[] }> {
+  const { companyId, warehouseId, from, to } = input;
+
+  const [
+    { data: purchases, error: piError },
+    { data: returns, error: prError },
+    { data: payments, error: payError },
+  ] = await Promise.all([
+    supabase
+      .from("purchase_invoices")
+      .select(
+        "id, invoice_no, invoice_date, supplier_bill_no, grand_total, parties(party_code, name_en)",
+      )
+      .eq("company_id", companyId)
+      .eq("warehouse_id", warehouseId)
+      .eq("status", "posted")
+      .lte("invoice_date", to)
+      .limit(10000),
+    supabase
+      .from("purchase_returns")
+      .select(
+        "id, return_no, return_date, grand_total, parties(party_code, name_en)",
+      )
+      .eq("company_id", companyId)
+      .eq("warehouse_id", warehouseId)
+      .eq("status", "posted")
+      .lte("return_date", to)
+      .limit(10000),
+    supabase
+      .from("vouchers")
+      .select("id, voucher_no, voucher_date, total_amount, payment_method, narration")
+      .eq("company_id", companyId)
+      .eq("warehouse_id", warehouseId)
+      .eq("voucher_type", "CP")
+      .eq("status", "posted")
+      .lte("voucher_date", to)
+      .limit(10000),
+  ]);
+
+  if (piError) throw new Error(piError.message);
+  if (prError) throw new Error(prError.message);
+  if (payError) throw new Error(payError.message);
+
+  type Ev = {
+    sort: string;
+    date: string;
+    type: string;
+    document: string;
+    party: string;
+    method: string;
+    debit: number;
+    credit: number;
+    href: string;
+  };
+
+  const events: Ev[] = [];
+  let openingPurchases = 0;
+  let openingReturns = 0;
+  let openingPaid = 0;
+  let periodPurchases = 0;
+  let periodReturns = 0;
+  let periodPaid = 0;
+
+  for (const row of purchases || []) {
+    const date = String(row.invoice_date || "");
+    const amount = Number(row.grand_total || 0);
+    if (date < from) {
+      openingPurchases += amount;
+      continue;
+    }
+    if (date > to) continue;
+    periodPurchases += amount;
+    const bill = String(row.supplier_bill_no || "").trim();
+    events.push({
+      sort: `${date}|1|${row.invoice_no || ""}`,
+      date,
+      type: "Purchase",
+      document: bill ? `${row.invoice_no} · ${bill}` : String(row.invoice_no || "—"),
+      party: partyLabel(
+        one(row.parties) as { party_code?: string; name_en?: string } | null,
+      ),
+      method: "—",
+      debit: amount,
+      credit: 0,
+      href: `/purchases/invoices/${row.id}`,
+    });
+  }
+
+  for (const row of returns || []) {
+    const date = String(row.return_date || "");
+    const amount = Number(row.grand_total || 0);
+    if (date < from) {
+      openingReturns += amount;
+      continue;
+    }
+    if (date > to) continue;
+    periodReturns += amount;
+    events.push({
+      sort: `${date}|2|${row.return_no || ""}`,
+      date,
+      type: "Purchase return",
+      document: String(row.return_no || "—"),
+      party: partyLabel(
+        one(row.parties) as { party_code?: string; name_en?: string } | null,
+      ),
+      method: "—",
+      debit: 0,
+      credit: amount,
+      href: `/purchases/returns/${row.id}`,
+    });
+  }
+
+  for (const row of payments || []) {
+    const date = String(row.voucher_date || "");
+    const amount = Number(row.total_amount || 0);
+    if (date < from) {
+      openingPaid += amount;
+      continue;
+    }
+    if (date > to) continue;
+    periodPaid += amount;
+    events.push({
+      sort: `${date}|3|${row.voucher_no || ""}`,
+      date,
+      type: "Payment",
+      document: String(row.voucher_no || "—"),
+      party: String(row.narration || "").trim() || "—",
+      method: paymentMethodLabel(row.payment_method as string),
+      debit: 0,
+      credit: amount,
+      href: `/vouchers/cash-payment/${row.id}`,
+    });
+  }
+
+  events.sort((a, b) => a.sort.localeCompare(b.sort));
+
+  const openingPayable = openingPurchases - openingReturns - openingPaid;
+  let running = openingPayable;
+  const rows: Record<string, unknown>[] = [];
+
+  if (Math.abs(openingPayable) > 0.005) {
+    rows.push({
+      Date: from,
+      Type: "Opening balance",
+      Document: "—",
+      Particulars: "Brought forward",
+      Method: "—",
+      Debit: openingPayable > 0 ? openingPayable : 0,
+      Credit: openingPayable < 0 ? Math.abs(openingPayable) : 0,
+      Balance: openingPayable,
+      _href: "",
+    });
+  }
+
+  for (const ev of events) {
+    running += ev.debit - ev.credit;
+    rows.push({
+      Date: ev.date,
+      Type: ev.type,
+      Document: ev.document,
+      Particulars: ev.party,
+      Method: ev.method,
+      Debit: ev.debit || "",
+      Credit: ev.credit || "",
+      Balance: running,
+      _href: ev.href,
+    });
+  }
+
+  return {
+    stats: {
+      purchases: periodPurchases,
+      returns: periodReturns,
+      paid: periodPaid,
+      outstanding: running,
+      openingPayable,
+    },
+    rows,
   };
 }
 
@@ -516,9 +797,10 @@ async function addDocumentLines(args: {
     const qty = -Math.abs(Number(item.qty || 0));
     const amount = Number(item.amount || 0);
     const rate = rateByProduct.get(productId) || 0;
+    const value = stockCostValue(qty, rate, amount);
     const slot = bucket("Purchase return");
     slot.qtyOut += Math.abs(qty);
-    slot.value += qty * rate;
+    slot.value += value;
     slot.amount += amount;
     const party = partyLabel(
       one(header?.parties) as { party_code?: string; name_en?: string } | null,
@@ -530,7 +812,7 @@ async function addDocumentLines(args: {
       Document: String(header?.return_no || "—"),
       "Vendor / customer": party,
       Qty: qty,
-      "Purchase value": qty * rate,
+      "Purchase value": value,
       Amount: amount,
       _href: `/purchases/returns/${item.purchase_return_id}`,
     });
@@ -547,9 +829,10 @@ async function addDocumentLines(args: {
     const qty = -Math.abs(Number(item.qty || 0));
     const amount = Number(item.amount || 0);
     const rate = rateByProduct.get(productId) || 0;
+    const value = stockCostValue(qty, rate, amount);
     const slot = bucket("Expiry claim");
     slot.qtyOut += Math.abs(qty);
-    slot.value += qty * rate;
+    slot.value += value;
     slot.amount += amount;
     const party = partyLabel(
       one(header?.parties) as { party_code?: string; name_en?: string } | null,
@@ -561,7 +844,7 @@ async function addDocumentLines(args: {
       Document: String(header?.claim_no || "—"),
       "Vendor / customer": party,
       Qty: qty,
-      "Purchase value": qty * rate,
+      "Purchase value": value,
       Amount: amount,
       _href: "/inventory/expiry?tab=claims",
     });
@@ -615,7 +898,7 @@ async function addPurchaseBills(args: {
     const { data, error: itemError } = await supabase
       .from("purchase_invoice_items")
       .select(
-        "purchase_invoice_id, product_id, qty, amount, products(purchase_rate, default_warehouse_id)",
+        "purchase_invoice_id, product_id, qty, amount, rate, products(purchase_rate, default_warehouse_id)",
       )
       .in("purchase_invoice_id", chunk);
     if (itemError) throw new Error(itemError.message);
@@ -641,8 +924,15 @@ async function addPurchaseBills(args: {
     const productId = String(item.product_id || "");
     const key = `purchase_invoices:${item.purchase_invoice_id}:${productId}`;
     if (covered.has(key)) continue;
-    const rate = Number(product?.purchase_rate || rateByProduct.get(productId) || 0);
-    if (!rateByProduct.has(productId)) rateByProduct.set(productId, rate);
+    const rate = Number(
+      product?.purchase_rate ||
+        item.rate ||
+        rateByProduct.get(productId) ||
+        0,
+    );
+    if (!rateByProduct.has(productId) || !rateByProduct.get(productId)) {
+      rateByProduct.set(productId, rate);
+    }
     const cur = pending.get(key) || {
       invoiceId: String(item.purchase_invoice_id),
       productId,
@@ -663,9 +953,10 @@ async function addPurchaseBills(args: {
       ? `${header?.invoice_no || ""} · ${billNo}`
       : String(header?.invoice_no || "—");
     const qty = row.qty;
+    const value = stockCostValue(qty, row.rate, row.amount);
     const slot = bucket("Purchase");
     slot.qtyIn += qty;
-    slot.value += qty * row.rate;
+    slot.value += value;
     slot.amount += row.amount;
     slot.bills.add(row.invoiceId);
     const party = partyLabel(
@@ -678,7 +969,7 @@ async function addPurchaseBills(args: {
       Document: docNo,
       "Vendor / customer": party,
       Qty: qty,
-      "Purchase value": qty * row.rate,
+      "Purchase value": value,
       Amount: row.amount,
       _href: `/purchases/invoices/${row.invoiceId}`,
     });

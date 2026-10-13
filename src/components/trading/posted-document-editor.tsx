@@ -248,6 +248,10 @@ export function PostedDocumentEditor({
             voucherNo: String(doc.voucher_no || ""),
             date: asDate(doc.voucher_date),
             narration: String(doc.narration || ""),
+            paymentMethod: String(doc.payment_method || "cash"),
+            warehouseId: doc.warehouse_id
+              ? String(doc.warehouse_id)
+              : null,
             lines: lines.map((line) => ({
               party_id: String(line.party_id || ""),
               amount: String(line.amount || ""),

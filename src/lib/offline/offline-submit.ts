@@ -224,6 +224,44 @@ async function runOfflineAwareSubmit(
         });
       }
 
+      // Keep IndexedDB / list caches in sync so document lists and stock
+      // reports show the new write immediately (company statement is live).
+      const cacheTarget = resolveCacheStore(mutationType, cacheStore);
+      const storesToRefresh = new Set<CacheStoreName>();
+      if (cacheTarget) storesToRefresh.add(cacheTarget);
+      if (stockChanges?.length) storesToRefresh.add("stock_balances");
+      if (storesToRefresh.size > 0) {
+        try {
+          const { refreshStoreCache } = await import(
+            "@/lib/offline/cache-manager"
+          );
+          await Promise.all(
+            [...storesToRefresh].map((store) =>
+              refreshStoreCache(store, companyId),
+            ),
+          );
+        } catch (err) {
+          console.warn("[offlineAwareSubmit] cache refresh failed:", err);
+          if (cacheTarget) {
+            try {
+              await putCachedRow(
+                cacheTarget,
+                companyId,
+                {
+                  ...(cacheRecord || payload),
+                  id: result.id,
+                  company_id: companyId,
+                  status: "posted",
+                },
+                "synced",
+              );
+            } catch {
+              /* list will catch up on next full sync */
+            }
+          }
+        }
+      }
+
       return {
         id: result.id,
         source: "server",

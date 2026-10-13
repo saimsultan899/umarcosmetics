@@ -625,7 +625,7 @@ type FetchConfig = {
 const STORE_FETCH_CONFIG: Record<string, FetchConfig> = {
   parties: {
     fetch: (s, cid) =>
-      s.from("parties").select("*").eq("company_id", cid).eq("is_active", true).order("name_en").limit(10000),
+      s.from("parties").select("*").eq("company_id", cid).eq("is_active", true).order("sort_order", { ascending: true }).order("name_en").limit(10000),
   },
   products: {
     fetch: (s, cid) =>
@@ -655,6 +655,7 @@ const STORE_FETCH_CONFIG: Record<string, FetchConfig> = {
       s.from("sale_invoices")
         .select("*, parties(name_en, party_code, route, head, city, address, phone, mobile, contact_person), warehouses(name), sale_invoice_items(*)")
         .eq("company_id", cid)
+        .neq("status", "cancelled")
         .order("invoice_date", { ascending: false })
         .order("created_at", { ascending: false })
         .limit(2000),
@@ -664,6 +665,7 @@ const STORE_FETCH_CONFIG: Record<string, FetchConfig> = {
       s.from("purchase_invoices")
         .select("*, parties(name_en, party_code, route, head, city, address, phone, mobile, contact_person), warehouses(name), purchase_invoice_items(*)")
         .eq("company_id", cid)
+        .neq("status", "cancelled")
         .order("invoice_date", { ascending: false })
         .order("created_at", { ascending: false })
         .limit(2000),

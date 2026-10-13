@@ -163,22 +163,33 @@ export default async function StockReportPage({
     };
   });
 
-  const analysisRows = (products || []).map((p) => ({
-    _warehouseId: String(p.default_warehouse_id || ""),
-    Company: companyByWarehouse.get(p.default_warehouse_id) || "—",
-    Code: p.code,
-    Product: p.name_en,
-    "Opening qty": Number(p.opening_qty || 0),
-    Packing: formatUomCompact(p.opening_qty, p.packing, {
-      unitType: p.unit_type,
-      baseUnit: p.base_unit,
-    }),
-    "Per pack": Number(p.packing || 1),
-    Reorder: Number(p.reorder_level || 0),
-    "Purchase rate": Number(p.purchase_rate || 0),
-    "Retail rate": Number(p.retail_rate || 0),
-    ...productActions(String(p.id || "")),
-  }));
+  const onHandByProduct = new Map<string, number>();
+  for (const r of rows || []) {
+    const pid = String(r.product_id ?? "");
+    if (pid.length === 0) continue;
+    onHandByProduct.set(pid, (onHandByProduct.get(pid) || 0) + Number(r.qty || 0));
+  }
+
+  const analysisRows = (products || []).map((p) => {
+    const onHand = onHandByProduct.get(p.id) || 0;
+    return {
+      _warehouseId: String(p.default_warehouse_id || ""),
+      Company: companyByWarehouse.get(p.default_warehouse_id) || "—",
+      Code: p.code,
+      Product: p.name_en,
+      "Opening qty": Number(p.opening_qty || 0),
+      "On hand": onHand,
+      Packing: formatUomCompact(onHand, p.packing, {
+        unitType: p.unit_type,
+        baseUnit: p.base_unit,
+      }),
+      "Per pack": Number(p.packing || 1),
+      Reorder: Number(p.reorder_level || 0),
+      "Purchase rate": Number(p.purchase_rate || 0),
+      "Retail rate": Number(p.retail_rate || 0),
+      ...productActions(String(p.id || "")),
+    };
+  });
 
   const movementRows = (movements || []).map((m) => {
     const product = Array.isArray(m.products) ? m.products[0] : m.products;

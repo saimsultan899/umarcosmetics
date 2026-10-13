@@ -29,6 +29,7 @@ export default async function CompanyStatementPage() {
     >
       <CompanyStatementClient
         companyId={company.id}
+        organizationId={company.organization_id}
         companyName={company.name}
         initialWarehouses={initialWarehouses}
       />

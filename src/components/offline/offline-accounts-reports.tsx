@@ -278,7 +278,7 @@ export function OfflineAccountsReportsPage({
             className="panel no-print flex flex-wrap items-end gap-3 p-4"
           >
             <input type="hidden" name="view" value="ledger" />
-            <div className="min-w-64 flex-1">
+            <div className="w-full max-w-md min-w-[200px] sm:w-[min(100%,28rem)]">
               <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
                 Select customer / vendor
               </label>
@@ -294,7 +294,11 @@ export function OfflineAccountsReportsPage({
                 ]}
               />
             </div>
-            <ReportFilterActions submitLabel="Load ledger" />
+            <ReportFilterActions
+              submitLabel="Load ledger"
+              nowrap
+              className="shrink-0"
+            />
           </UrlFilterForm>
 
           {sp.party ? (

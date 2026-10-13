@@ -53,6 +53,15 @@ export async function VoucherDetail({
 
   const partyMap = new Map((parties || []).map((p) => [p.id, p]));
 
+  const paymentMethodLabel =
+    voucher.payment_method === "bank_transfer"
+      ? "Bank transfer"
+      : voucher.payment_method === "other"
+        ? "Other"
+        : voucher.payment_method === "cash"
+          ? "Cash"
+          : null;
+
   const printLines =
     expectedType === "JV"
       ? (lines || []).map((l) => {
@@ -84,9 +93,14 @@ export async function VoucherDetail({
       title={title}
       docNo={voucher.voucher_no}
       date={voucher.voucher_date}
-      extraMeta={
-        voucher.narration ? [{ label: "Narration", value: voucher.narration }] : []
-      }
+      extraMeta={[
+        ...(expectedType === "CP" && paymentMethodLabel
+          ? [{ label: "Payment method", value: paymentMethodLabel }]
+          : []),
+        ...(voucher.narration
+          ? [{ label: "Narration", value: voucher.narration }]
+          : []),
+      ]}
       lines={printLines}
       totals={[{ label: "Total amount", value: formatPkr(voucher.total_amount) }]}
       autoPrint={autoPrint}

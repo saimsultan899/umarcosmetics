@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button";
 import { useCreateDialogClose } from "@/components/ui/create-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
 import { useSingleSubmit } from "@/lib/forms/single-submit";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
-import { createClient } from "@/lib/supabase/client";
 import type { Party } from "@/lib/types/database";
 import { AMOUNT_PLACEHOLDER, AMOUNT_STEP, formatPkr } from "@/lib/utils";
 import { Plus, Trash2 } from "lucide-react";
@@ -31,6 +31,8 @@ export type CashVoucherEdit = {
   voucherNo: string;
   date: string;
   narration: string;
+  paymentMethod?: string;
+  warehouseId?: string | null;
   lines: { party_id: string; amount: string; narration: string }[];
 };
 
@@ -55,6 +57,9 @@ export function CashVoucherForm({
     editing?.date || new Date().toISOString().slice(0, 10),
   );
   const [narration, setNarration] = useState(editing?.narration || "");
+  const [paymentMethod, setPaymentMethod] = useState(
+    editing?.paymentMethod || "cash",
+  );
   const [lines, setLines] = useState<Line[]>(
     editing?.lines.length
       ? editing.lines.map((line) => ({ key: crypto.randomUUID(), ...line }))
@@ -96,6 +101,12 @@ export function CashVoucherForm({
           company_id: companyId,
           voucher_date: date,
           narration,
+          ...(kind === "CP"
+            ? {
+                payment_method: paymentMethod || "cash",
+                warehouse_id: editing?.warehouseId || null,
+              }
+            : {}),
           lines: valid.map((l) => ({
             party_id: l.party_id,
             amount: Number(l.amount),
@@ -133,7 +144,21 @@ export function CashVoucherForm({
           <Label>Date</Label>
           <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
         </div>
-        <div>
+        {kind === "CP" ? (
+          <div>
+            <Label>Payment method</Label>
+            <Select
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value)}
+              options={[
+                { value: "cash", label: "Cash" },
+                { value: "bank_transfer", label: "Bank transfer" },
+                { value: "other", label: "Other" },
+              ]}
+            />
+          </div>
+        ) : null}
+        <div className={kind === "CP" ? "sm:col-span-2" : undefined}>
           <Label>Narration</Label>
           <Input value={narration} onChange={(e) => setNarration(e.target.value)} />
         </div>

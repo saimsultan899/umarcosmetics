@@ -178,11 +178,18 @@ export function usePartiesList({
           mode: view,
         };
 
+        const sorted = [...filtered].sort((a, b) => {
+          const ao = Number(a.sort_order ?? 0);
+          const bo = Number(b.sort_order ?? 0);
+          if (ao !== bo) return ao - bo;
+          return String(a.party_code || "").localeCompare(String(b.party_code || ""));
+        });
+
         // Paginate
-        const pagination = buildPaginationMeta(filtered.length, paginationParams);
+        const pagination = buildPaginationMeta(sorted.length, paginationParams);
         const from = pagination.from ? pagination.from - 1 : 0;
         const to = pagination.to;
-        const paged = filtered.slice(from, to);
+        const paged = sorted.slice(from, to);
 
         setData({
           parties: paged,

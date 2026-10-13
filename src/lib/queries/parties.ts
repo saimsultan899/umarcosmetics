@@ -190,6 +190,7 @@ export async function fetchPartiesForExport(
   query = applyPartyLocationFilters(query, location);
 
   const { data, error } = await query
+    .order("sort_order", { ascending: true })
     .order("party_code", { ascending: true })
     .limit(10000);
   if (error) throw new Error(error.message);
@@ -219,7 +220,10 @@ export async function fetchPartyList(
   listQuery = applyPartyLocationFilters(listQuery, location);
 
   const [{ data, count, error }, slim, savedLocations] = await Promise.all([
-    listQuery.order("party_code", { ascending: true }).range(from, to),
+    listQuery
+      .order("sort_order", { ascending: true })
+      .order("party_code", { ascending: true })
+      .range(from, to),
     supabase
       .from("parties")
       .select(

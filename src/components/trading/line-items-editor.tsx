@@ -72,6 +72,8 @@ type LineItemsEditorProps = {
   receiveStock?: boolean;
   onAutoPickWarehouse?: (warehouseId: string) => void;
   showCompanyPicker?: boolean;
+  /** Purchase: only list / scan products belonging to the selected company warehouse. */
+  filterByWarehouse?: boolean;
   extraDiscount?: string;
   onExtraDiscountChange?: (value: string) => void;
 };
@@ -101,6 +103,7 @@ export const LineItemsEditor = forwardRef<
     onAutoPickWarehouse,
     /** Show company control above product lines (sale invoice). */
     showCompanyPicker = false,
+    filterByWarehouse = false,
     /** Optional document-level extra discount (invoice / return footer). */
     extraDiscount,
     onExtraDiscountChange,
@@ -149,6 +152,19 @@ export const LineItemsEditor = forwardRef<
       setPickedWarehouseId(null);
     }
   }, [warehouseId, pickedWarehouseId]);
+
+  useEffect(() => {
+    if (!filterByWarehouse) return;
+    const productId = draftRef.current.product_id;
+    if (!productId) return;
+    const product = products.find((p) => p.id === productId);
+    if (!product) return;
+    const allowedWh = pickedWarehouseId || warehouseId;
+    if (!allowedWh || product.default_warehouse_id === allowedWh) return;
+    draftEpoch.current += 1;
+    setDraft(blankDraft());
+    setHint(null);
+  }, [filterByWarehouse, warehouseId, pickedWarehouseId, products]);
 
   useEffect(() => {
     if (!autoFocus) return;
@@ -492,8 +508,12 @@ export const LineItemsEditor = forwardRef<
     const trimmed = raw.trim();
     if (!trimmed) return null;
 
-    const local = findProductByCodeOrBarcode(products, trimmed);
+    const local = findProductByCodeOrBarcode(selectableProducts, trimmed);
     if (local) return local;
+
+    // Also check full catalog so we can give a clear "wrong company" hint.
+    const anyLocal = findProductByCodeOrBarcode(products, trimmed);
+    if (anyLocal && !acceptsProduct(anyLocal)) return anyLocal;
 
     const cached = await lookupCachedProduct(trimmed);
     if (cached) return cached;
@@ -524,10 +544,21 @@ export const LineItemsEditor = forwardRef<
       return null;
     }
 
+    if (filterByWarehouse && !effectiveWarehouseId) {
+      setHint("Select company first");
+      return null;
+    }
+
     const product = await lookupProduct(trimmed);
-    if (product) {
+    if (product && acceptsProduct(product)) {
       await applyProductToDraft(product);
       return product;
+    }
+
+    if (product && !acceptsProduct(product)) {
+      await applyProductToDraft(null);
+      setHint("This product belongs to another company");
+      return null;
     }
 
     setHint(
@@ -784,11 +815,17 @@ export const LineItemsEditor = forwardRef<
   }
 
   async function onProductPicked(productId: string) {
-    const p = products.find((x) => x.id === productId) || null;
-    await applyProductToDraft(p);
-    if (p) {
-      requestAnimationFrame(() => focusField(qtyRef.current));
+    const p = selectableProducts.find((x) => x.id === productId) || null;
+    if (!p) {
+      setHint(
+        filterByWarehouse && !effectiveWarehouseId
+          ? "Select company first"
+          : "No product for this company",
+      );
+      return;
     }
+    await applyProductToDraft(p);
+    requestAnimationFrame(() => focusField(qtyRef.current));
   }
 
   function onQtyEnter(e: ReactKeyboardEvent<HTMLInputElement>) {
@@ -877,16 +914,37 @@ export const LineItemsEditor = forwardRef<
     return map;
   }, [products]);
 
+  const selectableProducts = useMemo(() => {
+    if (!filterByWarehouse || !effectiveWarehouseId) return products;
+    return products.filter(
+      (p) => p.default_warehouse_id === effectiveWarehouseId,
+    );
+  }, [products, filterByWarehouse, effectiveWarehouseId]);
+
   const productOptions = useMemo(
     () => [
-      { value: "", label: "Select product" },
-      ...products.map((p) => ({
+      {
+        value: "",
+        label:
+          filterByWarehouse && !effectiveWarehouseId
+            ? "Select company first"
+            : filterByWarehouse && selectableProducts.length === 0
+              ? "No products for this company"
+              : "Select product",
+      },
+      ...selectableProducts.map((p) => ({
         value: p.id,
         label: `${p.code} — ${p.name_en}`,
       })),
     ],
-    [products],
+    [selectableProducts, filterByWarehouse, effectiveWarehouseId],
   );
+
+  function acceptsProduct(product: Product | null | undefined) {
+    if (!product) return false;
+    if (!filterByWarehouse || !effectiveWarehouseId) return true;
+    return product.default_warehouse_id === effectiveWarehouseId;
+  }
 
   function removeLine(key: string) {
     setLineHints((h) => {

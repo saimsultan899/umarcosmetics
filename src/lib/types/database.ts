@@ -84,6 +84,8 @@ export type Party = {
   opening_balance: number;
   credit_limit: number;
   sale_channel: SaleChannel | null;
+  /** Custom display order for shops (customers / both). Lower = first. */
+  sort_order?: number;
   is_active: boolean;
   /** Linked party on the organization main company, when hub sync is on. */
   hub_party_id?: string | null;
@@ -98,6 +100,8 @@ export type Warehouse = {
   name: string;
   code: string | null;
   address: string | null;
+  /** Linked supplier for company-statement payable ledger. */
+  default_supplier_id?: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;

@@ -135,8 +135,48 @@ export function DocumentRowActions({
   async function cancelEntry() {
     if (!cancel) return;
     const supabase = createClient();
-    const { error } = await supabase.rpc(cancel.rpc, { [cancel.param]: id });
-    if (error) throw new Error(error.message);
+    const { error: rpcError } = await supabase.rpc(cancel.rpc, {
+      [cancel.param]: id,
+    });
+    if (rpcError) {
+      const errMsg = rpcError.message || "Cancel failed";
+      if (!/already cancelled|not found/i.test(errMsg)) {
+        throw new Error(errMsg);
+      }
+    }
+
+    // Drop from local lists immediately; stock report cache must catch up too.
+    try {
+      await deleteCachedRow(table as CacheStoreName, id);
+    } catch {
+      /* cache optional */
+    }
+    if (
+      table === "purchase_invoices" ||
+      table === "sale_invoices" ||
+      table === "sale_returns" ||
+      table === "purchase_returns" ||
+      table === "stock_transfers"
+    ) {
+      try {
+        const { refreshStoreCache } = await import(
+          "@/lib/offline/cache-manager"
+        );
+        const companyId = (
+          await supabase.auth.getSession()
+        ).data.session?.user?.app_metadata?.company_id;
+        // Prefer company from the document when session metadata is empty.
+        const { data: doc } = await supabase
+          .from(table as "purchase_invoices")
+          .select("company_id")
+          .eq("id", id)
+          .maybeSingle();
+        const cid = String(doc?.company_id || companyId || "");
+        if (cid) await refreshStoreCache("stock_balances", cid);
+      } catch {
+        /* stock list refreshes on next visit */
+      }
+    }
   }
 
   async function hardDelete() {

@@ -108,6 +108,21 @@ export function OfflineStockReportsPage({
           hasLocalSqlite,
           localListByEntity,
         } = await import("@/lib/offline/sqlite-client");
+        const { isAppOnline } = await import("@/lib/offline/local-auth");
+        const online = await isAppOnline().catch(() => navigator.onLine);
+
+        // When online, pull fresh stock_balances so purchases show here too
+        // (company statement already reads live movements).
+        if (online) {
+          try {
+            const { refreshStoreCache } = await import(
+              "@/lib/offline/cache-manager"
+            );
+            await refreshStoreCache("stock_balances", companyId);
+          } catch {
+            /* fall through to local snapshot */
+          }
+        }
 
         let moves: Record<string, unknown>[] = [];
         if (hasLocalSqlite()) {

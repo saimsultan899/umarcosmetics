@@ -8,6 +8,7 @@ import {
   PageHeading,
 } from "@/components/ui/create-dialog";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
+import { useSyncStatus } from "@/components/offline/sync-provider";
 import { useOfflineData } from "@/hooks/use-offline-data";
 import { emptyDocumentSummary } from "@/lib/offline/local-list-meta";
 import { offlineStockSnapshot } from "@/lib/offline/offline-reports";
@@ -64,6 +65,8 @@ export function OfflineTradingListPage({
       : "Post supplier bills and increase stock.";
 
   const searchParams = useSearchParams();
+  const sync = useSyncStatus();
+  const forceServer = Boolean(sync?.online);
   const q = (searchParams.get("q") || "").toLowerCase().trim();
   const page = Math.max(1, Number(searchParams.get("page") || 1));
   const rawSize = Number(searchParams.get("pageSize") || 24);
@@ -71,7 +74,11 @@ export function OfflineTradingListPage({
   const paymentFilter = (searchParams.get("payment") || "all").toLowerCase();
   const warehouseFilter = searchParams.get("warehouse") || "";
 
-  const { data: invoiceRows, loading, refetch: refetchInvoices } = useOfflineData(STORE[kind], companyId);
+  const { data: invoiceRows, loading, refetch: refetchInvoices } = useOfflineData(
+    STORE[kind],
+    companyId,
+    { forceServer },
+  );
   const { data: parties } = useOfflineData<Party>("parties", companyId);
   const { data: products } = useOfflineData<Product>("products", companyId);
   const { data: warehouses } = useOfflineData<Warehouse>("warehouses", companyId);
@@ -138,40 +145,45 @@ export function OfflineTradingListPage({
 
   const listRows: (DocumentListRow & { warehouseId?: string })[] = useMemo(
     () =>
-      invoiceRows.map((r) => {
-        const warehouseId = String(r.warehouse_id || "");
-        const warehouseName =
-          (r.warehouses as { name?: string } | undefined)?.name ||
-          warehouseMap.get(warehouseId) ||
-          r.warehouse_name ||
-          "";
-        const rawDocNo = String(r.invoice_no || r._localId || r.id);
-        const docNo = formatReportInvNo(rawDocNo) || rawDocNo;
-        return {
-          id: String(r.id),
-          docNo,
-          date: String(r.invoice_date || ""),
-          partyLabel: String(
-            (r.parties as { name_en?: string } | undefined)?.name_en ||
-              partyMap.get(String(r.party_id || "")) ||
-              r.party_name ||
-              "",
-          ),
-          warehouseLabel: String(warehouseName),
-          warehouseId,
-          paymentType: String(r.payment_type || ""),
-          total: Number(r.grand_total) || 0,
-          href:
-            kind === "sale"
-              ? `/sales/invoices/${r.id}`
-              : `/purchases/invoices/${r.id}`,
-          table: kind === "sale" ? "sale_invoices" : "purchase_invoices",
-          linesTable:
-            kind === "sale" ? "sale_invoice_lines" : "purchase_invoice_lines",
-          linesFk:
-            kind === "sale" ? "sale_invoice_id" : "purchase_invoice_id",
-        };
-      }),
+      invoiceRows
+        .filter((r) => {
+          const status = String(r.status || "posted").toLowerCase();
+          return status !== "cancelled" && status !== "voided";
+        })
+        .map((r) => {
+          const warehouseId = String(r.warehouse_id || "");
+          const warehouseName =
+            (r.warehouses as { name?: string } | undefined)?.name ||
+            warehouseMap.get(warehouseId) ||
+            r.warehouse_name ||
+            "";
+          const rawDocNo = String(r.invoice_no || r._localId || r.id);
+          const docNo = formatReportInvNo(rawDocNo) || rawDocNo;
+          return {
+            id: String(r.id),
+            docNo,
+            date: String(r.invoice_date || ""),
+            partyLabel: String(
+              (r.parties as { name_en?: string } | undefined)?.name_en ||
+                partyMap.get(String(r.party_id || "")) ||
+                r.party_name ||
+                "",
+            ),
+            warehouseLabel: String(warehouseName),
+            warehouseId,
+            paymentType: String(r.payment_type || ""),
+            total: Number(r.grand_total) || 0,
+            href:
+              kind === "sale"
+                ? `/sales/invoices/${r.id}`
+                : `/purchases/invoices/${r.id}`,
+            table: kind === "sale" ? "sale_invoices" : "purchase_invoices",
+            linesTable:
+              kind === "sale" ? "sale_invoice_lines" : "purchase_invoice_lines",
+            linesFk:
+              kind === "sale" ? "sale_invoice_id" : "purchase_invoice_id",
+          };
+        }),
     [invoiceRows, kind, warehouseMap, partyMap],
   );
 
@@ -299,6 +311,7 @@ export function OfflineTradingListPage({
         showPrint
         enableBatchPrint={kind === "sale"}
         warehouses={warehouses}
+        partyColumnLabel={kind === "purchase" ? "Vendor" : "Customer"}
       />
     </div>
   );

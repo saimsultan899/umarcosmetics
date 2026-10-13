@@ -1,5 +1,8 @@
 import { loadRows, offlineStockSnapshot } from "@/lib/offline/offline-reports";
-import type { CompanyStatement } from "@/lib/reports/company-statement";
+import {
+  paymentMethodLabel,
+  type CompanyStatement,
+} from "@/lib/reports/company-statement";
 
 type Row = Record<string, unknown>;
 
@@ -77,6 +80,7 @@ export async function buildOfflineCompanyStatement(input: {
     saleReturns,
     purchaseReturns,
     claims,
+    vouchers,
     stock,
   ] = await Promise.all([
     loadRows("products", companyId),
@@ -87,6 +91,7 @@ export async function buildOfflineCompanyStatement(input: {
     loadRows("sale_returns", companyId),
     loadRows("purchase_returns", companyId),
     loadRows("expiry_claims", companyId),
+    loadRows("vouchers", companyId),
     offlineStockSnapshot(companyId),
   ]);
 
@@ -127,12 +132,15 @@ export async function buildOfflineCompanyStatement(input: {
         if (company !== warehouseId) continue;
         const qty = Math.abs(num(line.qty));
         const rate = num(product?.purchase_rate || product?.purchase_price || line.rate);
+        const amount = Math.abs(num(line.amount));
+        // Prefer master/line rate; if unset, use billed amount so Purchase value is not Rs 0.
+        const unitValue = Math.abs(rate) > 1e-9 ? qty * rate : amount;
         events.push({
           date,
           productId,
           qty: spec.sign * qty,
-          amount: Math.abs(num(line.amount)),
-          value: spec.sign * qty * rate,
+          amount,
+          value: spec.sign * unitValue,
           type: spec.type,
           doc: docNo,
           party,
@@ -320,7 +328,134 @@ export async function buildOfflineCompanyStatement(input: {
 
   const purchase = buckets.get("Purchase");
   const sale = buckets.get("Sale");
+
+  const warehouseRow = warehouseRows.find((w) => String(w.id) === warehouseId);
+  const supplierId = String(warehouseRow?.default_supplier_id || "");
+  const supplierParty = supplierId ? parties.get(supplierId) : null;
+
+  // Offline payable ledger: purchases / returns / brand-tagged CP when cached.
+  let periodPurchases = 0;
+  let periodReturns = 0;
+  let periodPaid = 0;
+  let openingPurchases = 0;
+  let openingReturns = 0;
+  let openingPaid = 0;
+  type PayEv = {
+    sort: string;
+    date: string;
+    type: string;
+    document: string;
+    party: string;
+    method: string;
+    debit: number;
+    credit: number;
+    href: string;
+  };
+  const payEvents: PayEv[] = [];
+
+  for (const row of purchases) {
+    if (!posted(row)) continue;
+    if (String(row.warehouse_id || "") !== warehouseId) continue;
+    const date = day(row.invoice_date || row.doc_date);
+    const amount = num(row.grand_total ?? row.total_amount);
+    if (!date || date > to) continue;
+    if (date < from) {
+      openingPurchases += amount;
+      continue;
+    }
+    periodPurchases += amount;
+    payEvents.push({
+      sort: `${date}|1|${row.invoice_no || ""}`,
+      date,
+      type: "Purchase",
+      document: String(row.invoice_no || "—"),
+      party: partyName(row, parties),
+      method: "—",
+      debit: amount,
+      credit: 0,
+      href: `/purchases/invoices/${row.id}`,
+    });
+  }
+  for (const row of purchaseReturns) {
+    if (!posted(row)) continue;
+    if (String(row.warehouse_id || "") !== warehouseId) continue;
+    const date = day(row.return_date || row.doc_date);
+    const amount = num(row.grand_total ?? row.total_amount);
+    if (!date || date > to) continue;
+    if (date < from) {
+      openingReturns += amount;
+      continue;
+    }
+    periodReturns += amount;
+    payEvents.push({
+      sort: `${date}|2|${row.return_no || ""}`,
+      date,
+      type: "Purchase return",
+      document: String(row.return_no || "—"),
+      party: partyName(row, parties),
+      method: "—",
+      debit: 0,
+      credit: amount,
+      href: `/purchases/returns/${row.id}`,
+    });
+  }
+  for (const row of vouchers) {
+    if (!posted(row)) continue;
+    if (String(row.voucher_type || "") !== "CP") continue;
+    if (String(row.warehouse_id || "") !== warehouseId) continue;
+    const date = day(row.voucher_date || row.doc_date);
+    const amount = num(row.total_amount);
+    if (!date || date > to) continue;
+    if (date < from) {
+      openingPaid += amount;
+      continue;
+    }
+    periodPaid += amount;
+    payEvents.push({
+      sort: `${date}|3|${row.voucher_no || ""}`,
+      date,
+      type: "Payment",
+      document: String(row.voucher_no || "—"),
+      party: String(row.narration || "").trim() || "—",
+      method: paymentMethodLabel(String(row.payment_method || "cash")),
+      debit: 0,
+      credit: amount,
+      href: `/vouchers/cash-payment/${row.id}`,
+    });
+  }
+  payEvents.sort((a, b) => a.sort.localeCompare(b.sort));
+  const openingPayable = openingPurchases - openingReturns - openingPaid;
+  let running = openingPayable;
+  const payableLedger: Row[] = [];
+  if (Math.abs(openingPayable) > 0.005) {
+    payableLedger.push({
+      Date: from,
+      Type: "Opening balance",
+      Document: "—",
+      Particulars: "Brought forward",
+      Method: "—",
+      Debit: openingPayable > 0 ? openingPayable : 0,
+      Credit: openingPayable < 0 ? Math.abs(openingPayable) : 0,
+      Balance: openingPayable,
+    });
+  }
+  for (const ev of payEvents) {
+    running += ev.debit - ev.credit;
+    payableLedger.push({
+      Date: ev.date,
+      Type: ev.type,
+      Document: ev.document,
+      Particulars: ev.party,
+      Method: ev.method,
+      Debit: ev.debit || "",
+      Credit: ev.credit || "",
+      Balance: running,
+      _href: ev.href,
+    });
+  }
+
   return {
+    warehouseId,
     warehouseName,
     openingQty,
     openingValue,
@@ -332,5 +467,21 @@ export async function buildOfflineCompanyStatement(input: {
     saleAmount: sale?.amount || 0,
     summary,
     lines: lines.map(({ _sort: _ignored, ...row }) => row),
+    supplier:
+      supplierId && supplierParty
+        ? {
+            id: supplierId,
+            party_code: String(supplierParty.party_code || ""),
+            name_en: String(supplierParty.name_en || ""),
+          }
+        : null,
+    payableStats: {
+      purchases: periodPurchases,
+      returns: periodReturns,
+      paid: periodPaid,
+      outstanding: running,
+      openingPayable,
+    },
+    payableLedger,
   };
 }
