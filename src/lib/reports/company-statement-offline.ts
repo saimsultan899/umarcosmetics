@@ -55,6 +55,13 @@ function partyName(
   return [code, name].filter(Boolean).join(" — ");
 }
 
+function bankSide(bank: unknown, name: unknown, accountNo: unknown) {
+  const parts = [bank, name, accountNo]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+  return parts.length ? parts.join(" · ") : "—";
+}
+
 function posted(row: Row) {
   const status = String(row.status || "posted");
   return status !== "cancelled" && status !== "voided" && status !== "draft";
@@ -347,6 +354,8 @@ export async function buildOfflineCompanyStatement(input: {
     document: string;
     party: string;
     method: string;
+    sender: string;
+    receiver: string;
     debit: number;
     credit: number;
     href: string;
@@ -371,6 +380,8 @@ export async function buildOfflineCompanyStatement(input: {
       document: String(row.invoice_no || "—"),
       party: partyName(row, parties),
       method: "—",
+      sender: "—",
+      receiver: "—",
       debit: amount,
       credit: 0,
       href: `/purchases/invoices/${row.id}`,
@@ -394,6 +405,8 @@ export async function buildOfflineCompanyStatement(input: {
       document: String(row.return_no || "—"),
       party: partyName(row, parties),
       method: "—",
+      sender: "—",
+      receiver: "—",
       debit: 0,
       credit: amount,
       href: `/purchases/returns/${row.id}`,
@@ -418,6 +431,12 @@ export async function buildOfflineCompanyStatement(input: {
       document: String(row.voucher_no || "—"),
       party: String(row.narration || "").trim() || "—",
       method: paymentMethodLabel(String(row.payment_method || "cash")),
+      sender: bankSide(row.sender_bank_name, row.sender_account_name, row.sender_account_no),
+      receiver: bankSide(
+        row.receiver_bank_name || row.bank_name,
+        row.receiver_account_name || row.bank_account_name,
+        row.receiver_account_no || row.bank_account_no,
+      ),
       debit: 0,
       credit: amount,
       href: `/vouchers/cash-payment/${row.id}`,
@@ -434,6 +453,8 @@ export async function buildOfflineCompanyStatement(input: {
       Document: "—",
       Particulars: "Brought forward",
       Method: "—",
+      Sender: "—",
+      Receiver: "—",
       Debit: openingPayable > 0 ? openingPayable : 0,
       Credit: openingPayable < 0 ? Math.abs(openingPayable) : 0,
       Balance: openingPayable,
@@ -447,6 +468,8 @@ export async function buildOfflineCompanyStatement(input: {
       Document: ev.document,
       Particulars: ev.party,
       Method: ev.method,
+      Sender: ev.sender,
+      Receiver: ev.receiver,
       Debit: ev.debit || "",
       Credit: ev.credit || "",
       Balance: running,

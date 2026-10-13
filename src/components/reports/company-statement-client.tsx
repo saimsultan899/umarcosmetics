@@ -15,11 +15,14 @@ import { getCachedRows } from "@/lib/offline/local-db";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import {
   buildCompanyStatement,
+  mergeCompanyStatements,
   paymentMethodLabel,
   type CompanyStatement,
+  type CompanyStatementSupplier,
 } from "@/lib/reports/company-statement";
 import { buildOfflineCompanyStatement } from "@/lib/reports/company-statement-offline";
 import { createClient } from "@/lib/supabase/client";
+import { BankPaymentFields } from "@/components/vouchers/bank-payment-fields";
 import { AMOUNT_PLACEHOLDER, AMOUNT_STEP, formatPkr } from "@/lib/utils";
 import {
   Banknote,
@@ -32,7 +35,11 @@ import {
 import { useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
-type WarehouseOption = { id: string; name: string };
+type WarehouseOption = {
+  id: string;
+  name: string;
+  supplierId?: string | null;
+};
 type SupplierOption = { value: string; label: string };
 
 function isInactive(value: unknown) {
@@ -43,9 +50,16 @@ function warehouseOptions(rows: Array<Record<string, unknown>>): WarehouseOption
   const byId = new Map<string, WarehouseOption>();
   for (const row of rows) {
     if (!row.id || isInactive(row.is_active)) continue;
-    byId.set(String(row.id), {
-      id: String(row.id),
-      name: String(row.name || "Company"),
+    const id = String(row.id);
+    const prev = byId.get(id);
+    const rawSupplier = row.default_supplier_id;
+    byId.set(id, {
+      id,
+      name: String(row.name || prev?.name || "Company"),
+      supplierId:
+        rawSupplier != null && String(rawSupplier) !== ""
+          ? String(rawSupplier)
+          : (prev?.supplierId ?? null),
     });
   }
   return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
@@ -66,7 +80,10 @@ export function CompanyStatementClient({
   const sp = useSearchParams();
   const from = sp.get("from") || monthStartLocal();
   const to = sp.get("to") || localDateIso();
+  const view = sp.get("view") === "vendor" ? "vendor" : "company";
+  const [viewDraft, setViewDraft] = useState<"company" | "vendor">(view);
   const warehouseId = sp.get("company") || "";
+  const vendorIdParam = sp.get("vendor") || "";
   const methodFilter = sp.get("method") || "";
 
   const [warehouses, setWarehouses] = useState<WarehouseOption[]>(initialWarehouses);
@@ -84,9 +101,16 @@ export function CompanyStatementClient({
   const [vendorError, setVendorError] = useState<string | null>(null);
 
   const [payOpen, setPayOpen] = useState(false);
+  const [payWarehouseId, setPayWarehouseId] = useState("");
   const [payDate, setPayDate] = useState(localDateIso());
   const [payAmount, setPayAmount] = useState("");
   const [payMethod, setPayMethod] = useState("cash");
+  const [senderBank, setSenderBank] = useState("");
+  const [senderName, setSenderName] = useState("");
+  const [senderNo, setSenderNo] = useState("");
+  const [receiverBank, setReceiverBank] = useState("");
+  const [receiverName, setReceiverName] = useState("");
+  const [receiverNo, setReceiverNo] = useState("");
   const [payRemarks, setPayRemarks] = useState("");
   const [paySaving, setPaySaving] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
@@ -120,7 +144,7 @@ export function CompanyStatementClient({
           const supabase = createClient();
           const { data, error: whError } = await supabase
             .from("warehouses")
-            .select("id, name, is_active")
+            .select("id, name, is_active, default_supplier_id")
             .eq("company_id", companyId)
             .eq("is_active", true)
             .order("name");
@@ -149,19 +173,14 @@ export function CompanyStatementClient({
         const supabase = createClient();
         const { data } = await supabase
           .from("parties")
-          .select("id, party_code, name_en, party_subtype, party_type, is_active")
+          .select("id, party_code, name_en, party_subtype, is_active")
           .eq("company_id", companyId)
           .eq("is_active", true)
+          .in("party_subtype", ["supplier", "both"])
           .order("name_en")
-          .limit(5000);
+          .limit(10000);
         if (cancelled) return;
         const opts = (data || [])
-          .filter(
-            (p) =>
-              p.party_subtype === "supplier" ||
-              p.party_subtype === "both" ||
-              p.party_type === "PARTY",
-          )
           .map((p) => ({
             value: String(p.id),
             label: `${p.party_code} — ${p.name_en}`,
@@ -176,8 +195,24 @@ export function CompanyStatementClient({
     };
   }, [companyId, online]);
 
+  const vendorWarehouses = useMemo(
+    () =>
+      vendorIdParam
+        ? warehouses.filter((w) => w.supplierId === vendorIdParam)
+        : [],
+    [warehouses, vendorIdParam],
+  );
+
   useEffect(() => {
-    if (!warehouseId) {
+    const wantsVendor = view === "vendor";
+    if (!wantsVendor && !warehouseId) {
+      setStatement(null);
+      setLoading(false);
+      setError("");
+      setUsingLocal(false);
+      return;
+    }
+    if (wantsVendor && !vendorIdParam) {
       setStatement(null);
       setLoading(false);
       setError("");
@@ -187,13 +222,26 @@ export function CompanyStatementClient({
     let cancelled = false;
     setLoading(true);
     setError("");
-    const local = () =>
-      buildOfflineCompanyStatement({
-        companyId,
-        warehouseId,
-        from,
-        to,
-      });
+    const ids = wantsVendor
+      ? vendorWarehouses.map((w) => w.id)
+      : [warehouseId];
+    const vendorParty = suppliers.find((s) => s.value === vendorIdParam);
+    const vendor: CompanyStatementSupplier = vendorParty
+      ? {
+          id: vendorParty.value,
+          party_code: vendorParty.label.split(" — ")[0] || "",
+          name_en: vendorParty.label.split(" — ").slice(1).join(" — "),
+        }
+      : null;
+    const title = vendor
+      ? `${vendor.party_code} — ${vendor.name_en}`
+      : "Vendor";
+
+    const loadOne = (id: string, fromLocal: boolean) =>
+      fromLocal
+        ? buildOfflineCompanyStatement({ companyId, warehouseId: id, from, to })
+        : buildCompanyStatement(createClient(), { companyId, warehouseId: id, from, to });
+
     const finish = (next: CompanyStatement, fromLocal: boolean) => {
       if (cancelled) return;
       setStatement(next);
@@ -207,31 +255,59 @@ export function CompanyStatementClient({
       setError(err instanceof Error ? err.message : "Could not load the statement.");
       setLoading(false);
     };
+
+    async function run(fromLocal: boolean) {
+      if (!ids.length) {
+        finish(mergeCompanyStatements([], vendor, title), fromLocal);
+        return;
+      }
+      const parts = await Promise.all(ids.map((id) => loadOne(id, fromLocal)));
+      finish(
+        wantsVendor ? mergeCompanyStatements(parts, vendor, title) : parts[0],
+        fromLocal,
+      );
+    }
+
     if (!online) {
-      local().then((next) => finish(next, true)).catch(fail);
+      run(true).catch(fail);
       return () => {
         cancelled = true;
       };
     }
-    const supabase = createClient();
-    buildCompanyStatement(supabase, {
-      companyId,
-      warehouseId,
-      from,
-      to,
-    })
-      .then((next) => finish(next, false))
-      .catch(() => {
-        local().then((next) => finish(next, true)).catch(fail);
-      });
+    run(false).catch(() => {
+      run(true).catch(fail);
+    });
     return () => {
       cancelled = true;
     };
-  }, [online, companyId, warehouseId, from, to, reloadKey]);
+  }, [
+    online,
+    companyId,
+    warehouseId,
+    view,
+    vendorIdParam,
+    vendorWarehouses,
+    suppliers,
+    from,
+    to,
+    reloadKey,
+  ]);
+
+  useEffect(() => {
+    setViewDraft(view);
+  }, [view]);
 
   useEffect(() => {
     setVendorId(statement?.supplier?.id || "");
   }, [statement?.supplier?.id]);
+
+  useEffect(() => {
+    if (view === "company") {
+      setPayWarehouseId(warehouseId);
+      return;
+    }
+    setPayWarehouseId(statement?.linkedCompanies?.[0]?.id || "");
+  }, [view, warehouseId, statement?.linkedCompanies]);
 
   const payableRows = useMemo(() => {
     const rows = statement?.payableLedger || [];
@@ -267,8 +343,14 @@ export function CompanyStatementClient({
 
   async function savePayment(e: FormEvent) {
     e.preventDefault();
-    if (!statement?.supplier?.id || !warehouseId) {
-      setPayError("Link a vendor to this company first.");
+    const payWarehouse =
+      view === "vendor" ? payWarehouseId : warehouseId;
+    if (!statement?.supplier?.id || !payWarehouse) {
+      setPayError(
+        view === "vendor"
+          ? "Choose which linked company this payment is for."
+          : "Link a vendor to this company first.",
+      );
       return;
     }
     const amount = Number(payAmount);
@@ -283,6 +365,19 @@ export function CompanyStatementClient({
       );
       return;
     }
+    if (payMethod === "bank_transfer") {
+      if (
+        !senderBank.trim() ||
+        !senderName.trim() ||
+        !senderNo.trim() ||
+        !receiverBank.trim() ||
+        !receiverName.trim() ||
+        !receiverNo.trim()
+      ) {
+        setPayError("Fill the sender and the receiver bank, name, and account number.");
+        return;
+      }
+    }
     setPaySaving(true);
     setPayError(null);
     try {
@@ -295,10 +390,21 @@ export function CompanyStatementClient({
           company_id: companyId,
           voucher_date: payDate,
           payment_method: payMethod,
-          warehouse_id: warehouseId,
+          sender_bank_name: payMethod === "bank_transfer" ? senderBank.trim() : null,
+          sender_account_name: payMethod === "bank_transfer" ? senderName.trim() : null,
+          sender_account_no: payMethod === "bank_transfer" ? senderNo.trim() : null,
+          receiver_bank_name:
+            payMethod === "bank_transfer" ? receiverBank.trim() : null,
+          receiver_account_name:
+            payMethod === "bank_transfer" ? receiverName.trim() : null,
+          receiver_account_no: payMethod === "bank_transfer" ? receiverNo.trim() : null,
+          warehouse_id: payWarehouse,
           narration:
             payRemarks.trim() ||
-            `Payment for ${statement.warehouseName}`,
+            `Payment for ${
+              statement.linkedCompanies?.find((c) => c.id === payWarehouse)
+                ?.name || statement.warehouseName
+            }`,
           lines: [
             {
               party_id: statement.supplier.id,
@@ -314,6 +420,12 @@ export function CompanyStatementClient({
       setPayAmount("");
       setPayRemarks("");
       setPayMethod("cash");
+      setSenderBank("");
+      setSenderName("");
+      setSenderNo("");
+      setReceiverBank("");
+      setReceiverName("");
+      setReceiverNo("");
       setPayDate(localDateIso());
       setReloadKey((k) => k + 1);
     } catch (err: any) {
@@ -330,31 +442,59 @@ export function CompanyStatementClient({
           Company statement
         </h1>
         <p className="mt-1 text-sm text-[var(--muted)]">
-          Stock, purchases, sales, and vendor payments for one product company —{" "}
-          {companyName}. Brand payments are tagged here and still post to the
-          linked vendor account.
+          Stock, purchases, sales, and vendor payments — {companyName}. Run by
+          one company, or by a vendor to include every company linked to that
+          vendor.
         </p>
       </div>
 
       <UrlFilterForm
-        key={`${warehouseId}|${from}|${to}|${methodFilter}`}
+        key={`${view}|${warehouseId}|${vendorIdParam}|${from}|${to}|${methodFilter}`}
         className="panel no-print flex flex-wrap items-end gap-3 p-4"
       >
-        <div className="w-72 max-w-full shrink-0">
+        <div className="w-40 max-w-full shrink-0">
           <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
-            Company
+            View
           </label>
           <Select
-            name="company"
-            defaultValue={warehouseId}
+            name="view"
+            value={viewDraft}
+            onChange={(e) =>
+              setViewDraft(e.target.value === "vendor" ? "vendor" : "company")
+            }
             options={[
-              {
-                value: "",
-                label: warehousesReady ? "Select company" : "Loading companies…",
-              },
-              ...warehouses.map((w) => ({ value: w.id, label: w.name })),
+              { value: "company", label: "Company wise" },
+              { value: "vendor", label: "Vendor wise" },
             ]}
           />
+        </div>
+        <div className="w-72 max-w-full shrink-0">
+          <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
+            {viewDraft === "vendor" ? "Vendor" : "Company"}
+          </label>
+          {viewDraft === "vendor" ? (
+            <Select
+              name="vendor"
+              defaultValue={vendorIdParam}
+              maxVisible={10000}
+              options={[
+                { value: "", label: "Select vendor" },
+                ...suppliers,
+              ]}
+            />
+          ) : (
+            <Select
+              name="company"
+              defaultValue={warehouseId}
+              options={[
+                {
+                  value: "",
+                  label: warehousesReady ? "Select company" : "Loading companies…",
+                },
+                ...warehouses.map((w) => ({ value: w.id, label: w.name })),
+              ]}
+            />
+          )}
         </div>
         <div>
           <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
@@ -396,9 +536,13 @@ export function CompanyStatementClient({
         <ReportFilterActions submitLabel="Run statement" nowrap className="shrink-0" />
       </UrlFilterForm>
 
-      {!warehouseId ? (
+      {view === "company" && !warehouseId ? (
         <p className="text-sm text-[var(--muted)]">
           Select a company and a date range.
+        </p>
+      ) : view === "vendor" && !vendorIdParam ? (
+        <p className="text-sm text-[var(--muted)]">
+          Select a vendor and a date range.
         </p>
       ) : loading ? (
         <p className="text-sm text-[var(--muted)]">
@@ -411,19 +555,25 @@ export function CompanyStatementClient({
           <div className="panel no-print flex flex-wrap items-center justify-between gap-3 p-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
-                Linked vendor
+                {view === "vendor" ? "Linked companies" : "Linked vendor"}
               </p>
               <p className="mt-1 text-sm font-medium text-[var(--ink)]">
-                {statement.supplier
-                  ? `${statement.supplier.party_code} — ${statement.supplier.name_en}`
-                  : "No vendor linked yet"}
+                {view === "vendor"
+                  ? statement.linkedCompanies?.length
+                    ? statement.linkedCompanies.map((c) => c.name).join(", ")
+                    : "No companies linked to this vendor yet"
+                  : statement.supplier
+                    ? `${statement.supplier.party_code} — ${statement.supplier.name_en}`
+                    : "No vendor linked yet"}
               </p>
               <p className="mt-0.5 text-xs text-[var(--muted)]">
-                Payments for {statement.warehouseName} post to this supplier
-                ledger.
+                {view === "vendor"
+                  ? "Purchases, stock, and payments below are only for companies that selected this vendor."
+                  : `Payments for ${statement.warehouseName} post to this supplier ledger.`}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              {view === "company" ? (
               <Button
                 type="button"
                 variant="secondary"
@@ -436,13 +586,20 @@ export function CompanyStatementClient({
               >
                 {statement.supplier ? "Change vendor" : "Link vendor"}
               </Button>
+              ) : null}
               <Button
                 type="button"
                 size="sm"
-                disabled={!online || !statement.supplier}
+                disabled={
+                  !online ||
+                  !statement.supplier ||
+                  (view === "vendor" && !statement.linkedCompanies?.length)
+                }
                 title={
                   !statement.supplier
                     ? "Link a vendor first"
+                    : view === "vendor" && !statement.linkedCompanies?.length
+                      ? "Link this vendor on a company first"
                     : !online
                       ? "Go online to record a payment"
                       : undefined
@@ -563,6 +720,7 @@ export function CompanyStatementClient({
             <Label>Vendor</Label>
             <Select
               value={vendorId}
+              maxVisible={10000}
               onChange={(e) => setVendorId(e.target.value)}
               options={[
                 { value: "", label: "No vendor (clear)" },
@@ -592,6 +750,19 @@ export function CompanyStatementClient({
         }
       >
         <form onSubmit={savePayment} className="space-y-4">
+          {view === "vendor" && (statement?.linkedCompanies?.length || 0) > 1 ? (
+            <div>
+              <Label>Company</Label>
+              <Select
+                value={payWarehouseId}
+                onChange={(e) => setPayWarehouseId(e.target.value)}
+                options={(statement?.linkedCompanies || []).map((c) => ({
+                  value: c.id,
+                  label: c.name,
+                }))}
+              />
+            </div>
+          ) : null}
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <Label>Date</Label>
@@ -615,6 +786,24 @@ export function CompanyStatementClient({
               />
             </div>
           </div>
+          {payMethod === "bank_transfer" ? (
+            <BankPaymentFields
+              companyId={companyId}
+              organizationId={organizationId}
+              senderBank={senderBank}
+              senderName={senderName}
+              senderNo={senderNo}
+              receiverBank={receiverBank}
+              receiverName={receiverName}
+              receiverNo={receiverNo}
+              onSenderBank={setSenderBank}
+              onSenderName={setSenderName}
+              onSenderNo={setSenderNo}
+              onReceiverBank={setReceiverBank}
+              onReceiverName={setReceiverName}
+              onReceiverNo={setReceiverNo}
+            />
+          ) : null}
           <div>
             <Label>Amount</Label>
             <Input

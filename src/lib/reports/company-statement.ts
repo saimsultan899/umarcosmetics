@@ -33,7 +33,190 @@ export type CompanyStatement = {
   supplier: CompanyStatementSupplier;
   payableStats: CompanyPayableStats;
   payableLedger: Record<string, unknown>[];
+  /** Set on a vendor-wise statement: companies linked to that vendor. */
+  linkedCompanies?: { id: string; name: string }[];
 };
+
+function numCell(value: unknown) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Combine one statement per linked company into a single vendor statement. */
+export function mergeCompanyStatements(
+  parts: CompanyStatement[],
+  vendor: CompanyStatementSupplier,
+  title: string,
+): CompanyStatement {
+  const linkedCompanies = parts.map((part) => ({
+    id: part.warehouseId,
+    name: part.warehouseName,
+  }));
+
+  if (!parts.length) {
+    return {
+      warehouseId: "",
+      warehouseName: title,
+      openingQty: 0,
+      openingValue: 0,
+      closingQty: 0,
+      closingValue: 0,
+      purchaseQty: 0,
+      purchaseAmount: 0,
+      saleQty: 0,
+      saleAmount: 0,
+      summary: [
+        {
+          Line: "Opening stock",
+          Bills: "",
+          "Qty in": 0,
+          "Qty out": "",
+          "Purchase value": 0,
+          Amount: "",
+        },
+        {
+          Line: "Closing stock",
+          Bills: "",
+          "Qty in": 0,
+          "Qty out": "",
+          "Purchase value": 0,
+          Amount: "",
+        },
+      ],
+      lines: [],
+      supplier: vendor,
+      payableStats: {
+        purchases: 0,
+        returns: 0,
+        paid: 0,
+        outstanding: 0,
+        openingPayable: 0,
+      },
+      payableLedger: [],
+      linkedCompanies,
+    };
+  }
+
+  const summaryByLine = new Map<string, Record<string, unknown>>();
+  for (const part of parts) {
+    for (const row of part.summary) {
+      const line = String(row.Line || "");
+      const cur = summaryByLine.get(line) || {
+        Line: line,
+        Bills: 0,
+        "Qty in": 0,
+        "Qty out": 0,
+        "Purchase value": 0,
+        Amount: 0,
+      };
+      for (const key of ["Bills", "Qty in", "Qty out", "Purchase value", "Amount"]) {
+        const add = numCell(row[key]);
+        if (!add && row[key] !== 0) continue;
+        cur[key] = numCell(cur[key]) + add;
+      }
+      summaryByLine.set(line, cur);
+    }
+  }
+  const summaryOrder = [
+    "Opening stock",
+    "Purchase",
+    "Sale return",
+    "Opening / adjustment",
+    "Stock adjustment",
+    "Sale",
+    "Purchase return",
+    "Expiry claim",
+    "Closing stock",
+  ];
+  const summary = [
+    ...summaryOrder.filter((name) => summaryByLine.has(name)),
+    ...[...summaryByLine.keys()].filter((name) => !summaryOrder.includes(name)),
+  ].map((name) => summaryByLine.get(name)!);
+
+  const lines: Record<string, unknown>[] = parts.flatMap((part) =>
+    part.lines.map((row) => ({
+      ...row,
+      Company: part.warehouseName,
+    })),
+  );
+  lines.sort((a, b) =>
+    `${a.Date || ""}|${a.Type || ""}|${a.Document || ""}`.localeCompare(
+      `${b.Date || ""}|${b.Type || ""}|${b.Document || ""}`,
+    ),
+  );
+
+  const openingPayable = parts.reduce(
+    (sum, part) => sum + numCell(part.payableStats.openingPayable),
+    0,
+  );
+  const periodRows: Array<Record<string, unknown> & { _sort: string }> = parts.flatMap(
+    (part) =>
+      part.payableLedger
+        .filter((row) => String(row.Type || "") !== "Opening balance")
+        .map((row) => ({
+          ...row,
+          Company: part.warehouseName,
+          _sort: `${row.Date || ""}|${row.Type || ""}|${row.Document || ""}`,
+        })),
+  );
+  periodRows.sort((a, b) => String(a._sort).localeCompare(String(b._sort)));
+
+  let running = openingPayable;
+  const payableLedger: Record<string, unknown>[] = [];
+  if (Math.abs(openingPayable) > 0.005) {
+    payableLedger.push({
+      Date: "",
+      Type: "Opening balance",
+      Document: "—",
+      Company: "All linked companies",
+      Particulars: "Brought forward",
+      Method: "—",
+      Sender: "—",
+      Receiver: "—",
+      Debit: openingPayable > 0 ? openingPayable : 0,
+      Credit: openingPayable < 0 ? Math.abs(openingPayable) : 0,
+      Balance: openingPayable,
+      _href: "",
+    });
+  }
+  for (const row of periodRows) {
+    const debit = numCell(row.Debit);
+    const credit = numCell(row.Credit);
+    running += debit - credit;
+    const { _sort: _ignored, ...rest } = row;
+    payableLedger.push({
+      ...rest,
+      Debit: debit || "",
+      Credit: credit || "",
+      Balance: running,
+    });
+  }
+
+  return {
+    warehouseId: parts[0]?.warehouseId || "",
+    warehouseName: title,
+    openingQty: parts.reduce((s, p) => s + p.openingQty, 0),
+    openingValue: parts.reduce((s, p) => s + p.openingValue, 0),
+    closingQty: parts.reduce((s, p) => s + p.closingQty, 0),
+    closingValue: parts.reduce((s, p) => s + p.closingValue, 0),
+    purchaseQty: parts.reduce((s, p) => s + p.purchaseQty, 0),
+    purchaseAmount: parts.reduce((s, p) => s + p.purchaseAmount, 0),
+    saleQty: parts.reduce((s, p) => s + p.saleQty, 0),
+    saleAmount: parts.reduce((s, p) => s + p.saleAmount, 0),
+    summary,
+    lines,
+    supplier: vendor,
+    payableStats: {
+      purchases: parts.reduce((s, p) => s + p.payableStats.purchases, 0),
+      returns: parts.reduce((s, p) => s + p.payableStats.returns, 0),
+      paid: parts.reduce((s, p) => s + p.payableStats.paid, 0),
+      outstanding: running,
+      openingPayable,
+    },
+    payableLedger,
+    linkedCompanies,
+  };
+}
 
 export function paymentMethodLabel(value: string | null | undefined) {
   const v = String(value || "cash").toLowerCase();
@@ -104,6 +287,13 @@ function stockCostValue(qty: number, rate: number, billAmount?: number | null) {
     return qty >= 0 ? Math.abs(billAmount) : -Math.abs(billAmount);
   }
   return 0;
+}
+
+function bankSide(bank: unknown, name: unknown, accountNo: unknown) {
+  const parts = [bank, name, accountNo]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+  return parts.length ? parts.join(" · ") : "—";
 }
 
 function hrefFor(refTable: string, refId: string) {
@@ -574,7 +764,9 @@ async function buildPayableLedger(
       .limit(10000),
     supabase
       .from("vouchers")
-      .select("id, voucher_no, voucher_date, total_amount, payment_method, narration")
+      .select(
+        "id, voucher_no, voucher_date, total_amount, payment_method, narration, bank_name, bank_account_name, bank_account_no, sender_bank_name, sender_account_name, sender_account_no, receiver_bank_name, receiver_account_name, receiver_account_no",
+      )
       .eq("company_id", companyId)
       .eq("warehouse_id", warehouseId)
       .eq("voucher_type", "CP")
@@ -594,6 +786,8 @@ async function buildPayableLedger(
     document: string;
     party: string;
     method: string;
+    sender: string;
+    receiver: string;
     debit: number;
     credit: number;
     href: string;
@@ -626,6 +820,8 @@ async function buildPayableLedger(
         one(row.parties) as { party_code?: string; name_en?: string } | null,
       ),
       method: "—",
+      sender: "—",
+      receiver: "—",
       debit: amount,
       credit: 0,
       href: `/purchases/invoices/${row.id}`,
@@ -650,6 +846,8 @@ async function buildPayableLedger(
         one(row.parties) as { party_code?: string; name_en?: string } | null,
       ),
       method: "—",
+      sender: "—",
+      receiver: "—",
       debit: 0,
       credit: amount,
       href: `/purchases/returns/${row.id}`,
@@ -672,6 +870,16 @@ async function buildPayableLedger(
       document: String(row.voucher_no || "—"),
       party: String(row.narration || "").trim() || "—",
       method: paymentMethodLabel(row.payment_method as string),
+      sender: bankSide(
+        row.sender_bank_name,
+        row.sender_account_name,
+        row.sender_account_no,
+      ),
+      receiver: bankSide(
+        row.receiver_bank_name || row.bank_name,
+        row.receiver_account_name || row.bank_account_name,
+        row.receiver_account_no || row.bank_account_no,
+      ),
       debit: 0,
       credit: amount,
       href: `/vouchers/cash-payment/${row.id}`,
@@ -691,6 +899,8 @@ async function buildPayableLedger(
       Document: "—",
       Particulars: "Brought forward",
       Method: "—",
+      Sender: "—",
+      Receiver: "—",
       Debit: openingPayable > 0 ? openingPayable : 0,
       Credit: openingPayable < 0 ? Math.abs(openingPayable) : 0,
       Balance: openingPayable,
@@ -706,6 +916,8 @@ async function buildPayableLedger(
       Document: ev.document,
       Particulars: ev.party,
       Method: ev.method,
+      Sender: ev.sender,
+      Receiver: ev.receiver,
       Debit: ev.debit || "",
       Credit: ev.credit || "",
       Balance: running,

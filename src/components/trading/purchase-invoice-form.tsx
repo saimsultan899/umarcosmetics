@@ -69,10 +69,7 @@ export function PurchaseInvoiceForm({
   const suppliers = useMemo(
     () =>
       parties.filter(
-        (p) =>
-          p.party_subtype === "supplier" ||
-          p.party_subtype === "both" ||
-          p.party_type === "PARTY",
+        (p) => p.party_subtype === "supplier" || p.party_subtype === "both",
       ),
     [parties],
   );
@@ -183,11 +180,16 @@ export function PurchaseInvoiceForm({
     setError(null);
     const flushed = linesEditorRef.current?.flush() || lines;
     const valid = flushed.filter((l) => l.product_id && Number(l.qty) > 0);
-    if (!partyId || !warehouseId || valid.length === 0) {
+    const companyVendorId =
+      warehouses.find((w) => w.id === warehouseId)?.default_supplier_id || "";
+    const payablePartyId = buyFrom === "company" ? companyVendorId : partyId;
+    if (!warehouseId || valid.length === 0 || !payablePartyId) {
       setError(
         buyFrom === "company"
-          ? "Select company, vendor (payable), and at least one product line."
-          : "Select vendor, company, and at least one product line (press Enter / Add on the draft row).",
+          ? companyVendorId
+            ? "Select a company and at least one product line."
+            : "This company has no vendor linked. Link a vendor on the company, or choose Buy from Vendor."
+          : "Select a vendor, a stock company, and at least one product line.",
       );
       return;
     }
@@ -225,7 +227,9 @@ export function PurchaseInvoiceForm({
         delta: (newNeed.get(productId) || 0) - (oldNeed.get(productId) || 0),
       }));
 
-      const vendor = suppliers.find((s) => s.id === partyId);
+      const vendor =
+        suppliers.find((s) => s.id === payablePartyId) ||
+        parties.find((p) => p.id === payablePartyId);
       const res = await offlineAwareSubmit({
         mutationType: editing ? "purchase_invoice_update" : "purchase_invoice",
         companyId,
@@ -241,7 +245,7 @@ export function PurchaseInvoiceForm({
           supplier_bill_no: supplierBillNo,
           company_invoice_date: companyInvoiceDate || null,
           gate_pass_id: gatePassId || null,
-          party_id: partyId,
+          party_id: payablePartyId,
           party_name: vendor?.name_en || null,
           party_code: vendor?.party_code || null,
           parties: vendor
@@ -296,9 +300,19 @@ export function PurchaseInvoiceForm({
       label={buyFrom === "company" ? "Vendor (payable)" : "Vendor"}
       emptyLabel="Select vendor"
       filterSubtype={["supplier", "both"]}
+      maxVisible={10000}
       onChange={(id) => setPartyId(id)}
     />
   );
+
+  const linkedVendorId =
+    warehouses.find((w) => w.id === warehouseId)?.default_supplier_id || "";
+  const linkedVendor = parties.find((p) => p.id === linkedVendorId);
+  const companyNote = !warehouseId
+    ? "Pick a company. The bill is saved on that company."
+    : linkedVendor
+      ? `Saved on this company. Payable goes to ${linkedVendor.party_code} — ${linkedVendor.name_en}.`
+      : "No vendor is linked to this company. Link one, or switch to Buy from Vendor.";
 
   const companyPicker = (
     <div>
@@ -351,10 +365,7 @@ export function PurchaseInvoiceForm({
             <div className="sm:col-span-3">{companyPicker}</div>
           </>
         ) : (
-          <>
-            <div className="sm:col-span-4">{companyPicker}</div>
-            <div className="sm:col-span-4">{vendorPicker}</div>
-          </>
+          <div className="sm:col-span-8">{companyPicker}</div>
         )}
 
         <div className="sm:col-span-3">
@@ -394,6 +405,10 @@ export function PurchaseInvoiceForm({
           />
         </div>
       </div>
+
+      {buyFrom === "company" ? (
+        <p className="text-xs text-[var(--muted)]">{companyNote}</p>
+      ) : null}
 
       <LineItemsEditor
         ref={linesEditorRef}

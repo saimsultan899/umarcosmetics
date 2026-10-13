@@ -4,12 +4,12 @@ import { Suspense } from "react";
 
 export default async function CompanyStatementPage() {
   const { company, supabase, offline } = await requireCompanyContext();
-  let initialWarehouses: { id: string; name: string }[] = [];
+  let initialWarehouses: { id: string; name: string; supplierId: string | null }[] = [];
   if (!offline) {
     const warehouses = await Promise.race([
       supabase
         .from("warehouses")
-        .select("id, name")
+        .select("id, name, default_supplier_id")
         .eq("company_id", company.id)
         .eq("is_active", true)
         .order("name"),
@@ -18,6 +18,7 @@ export default async function CompanyStatementPage() {
     initialWarehouses = (warehouses?.data || []).map((row) => ({
       id: row.id,
       name: row.name || "Company",
+      supplierId: row.default_supplier_id || null,
     }));
   }
 

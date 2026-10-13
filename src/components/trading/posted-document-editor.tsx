@@ -249,6 +249,18 @@ export function PostedDocumentEditor({
             date: asDate(doc.voucher_date),
             narration: String(doc.narration || ""),
             paymentMethod: String(doc.payment_method || "cash"),
+            senderBank: String(doc.sender_bank_name || ""),
+            senderAccountName: String(doc.sender_account_name || ""),
+            senderAccountNo: String(doc.sender_account_no || ""),
+            receiverBank: String(
+              doc.receiver_bank_name || doc.bank_name || "",
+            ),
+            receiverAccountName: String(
+              doc.receiver_account_name || doc.bank_account_name || "",
+            ),
+            receiverAccountNo: String(
+              doc.receiver_account_no || doc.bank_account_no || "",
+            ),
             warehouseId: doc.warehouse_id
               ? String(doc.warehouse_id)
               : null,

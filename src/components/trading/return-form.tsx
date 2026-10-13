@@ -23,6 +23,8 @@ import { formatPkr } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
+type BuyFrom = "vendor" | "company";
+
 type ReturnInvoice = {
   id: string;
   invoice_no: string;
@@ -222,10 +224,7 @@ export function ReturnForm({
   const partyOptions = useMemo(() => {
     if (kind === "purchase") {
       return parties.filter(
-        (p) =>
-          p.party_subtype === "supplier" ||
-          p.party_subtype === "both" ||
-          p.party_type === "PARTY",
+        (p) => p.party_subtype === "supplier" || p.party_subtype === "both",
       );
     }
     return parties.filter(
@@ -240,6 +239,12 @@ export function ReturnForm({
   const [warehouseId, setWarehouseId] = useState(
     editing?.warehouseId || warehouses[0]?.id || "",
   );
+  const [buyFrom, setBuyFrom] = useState<BuyFrom>(() => {
+    if (kind !== "purchase" || !editing?.partyId) return "vendor";
+    const linked = warehouses.find((w) => w.id === editing.warehouseId)
+      ?.default_supplier_id;
+    return linked && linked === editing.partyId ? "company" : "vendor";
+  });
   const [returnDate, setReturnDate] = useState(
     editing?.returnDate || new Date().toISOString().slice(0, 10),
   );
@@ -402,10 +407,18 @@ export function ReturnForm({
     const valid = flushed.filter(
       (l) => l.product_id && (Number(l.qty) > 0 || Number(l.bonus || 0) > 0),
     );
-    if (!partyId || !warehouseId || valid.length === 0) {
+    const companyVendorId =
+      warehouses.find((w) => w.id === warehouseId)?.default_supplier_id || "";
+    const payablePartyId =
+      kind === "purchase" && buyFrom === "company" ? companyVendorId : partyId;
+    if (!warehouseId || valid.length === 0 || !payablePartyId) {
       setError(
         kind === "purchase"
-          ? "Select vendor, company, and at least one line (Enter/Add on the draft row)."
+          ? buyFrom === "company"
+            ? companyVendorId
+              ? "Select a company and at least one line."
+              : "This company has no vendor linked. Link a vendor on the company, or choose Return to Vendor."
+            : "Select a vendor, a company, and at least one line."
           : "Select customer, company, and at least one line (Enter/Add on the draft row).",
       );
       return;
@@ -491,7 +504,7 @@ export function ReturnForm({
         delta: (newNeed.get(productId) || 0) - (oldNeed.get(productId) || 0),
       }));
 
-      const party = parties.find((p) => p.id === partyId);
+      const party = parties.find((p) => p.id === payablePartyId);
       const res = await offlineAwareSubmit({
         mutationType: editing
           ? kind === "sale"
@@ -508,7 +521,7 @@ export function ReturnForm({
           organization_id: organizationId,
           company_id: companyId,
           return_date: returnDate,
-          party_id: partyId,
+          party_id: payablePartyId,
           party_name: party?.name_en || null,
           party_code: party?.party_code || null,
           parties: party
@@ -569,28 +582,67 @@ export function ReturnForm({
           <Label>Date</Label>
           <Input type="date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} required />
         </div>
-        <div className="sm:col-span-5">
-          <PartyCodePicker
-            companyId={companyId}
-            parties={partyOptions}
-            value={partyId}
-            required
-            label={kind === "purchase" ? "Vendor code" : "Customer code"}
-            emptyLabel={kind === "purchase" ? "Select vendor" : "Select customer"}
-            filterSubtype={
-              kind === "purchase" ? ["supplier", "both"] : ["customer", "both"]
-            }
-            onChange={(id) => setPartyId(id)}
-          />
-        </div>
-          <div className="sm:col-span-3">
+        {kind === "purchase" ? (
+          <div className="sm:col-span-2">
+            <Label>Return to</Label>
+            <Select
+              value={buyFrom}
+              onChange={(e) => setBuyFrom((e.target.value as BuyFrom) || "vendor")}
+            >
+              <option value="vendor">Vendor</option>
+              <option value="company">Company</option>
+            </Select>
+          </div>
+        ) : null}
+        {kind === "purchase" && buyFrom === "company" ? (
+          <div className="sm:col-span-8">
             <Label>Company</Label>
-            <Select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} required>
+            <Select
+              value={warehouseId}
+              onChange={(e) => setWarehouseId(e.target.value)}
+              required
+            >
+              <option value="">Select company</option>
               {warehouses.map((w) => (
-                <option key={w.id} value={w.id}>{w.name}</option>
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
               ))}
             </Select>
           </div>
+        ) : (
+          <>
+            <div className={kind === "purchase" ? "sm:col-span-5" : "sm:col-span-5"}>
+              <PartyCodePicker
+                companyId={companyId}
+                parties={partyOptions}
+                value={partyId}
+                required
+                maxVisible={kind === "purchase" ? 10000 : undefined}
+                label={kind === "purchase" ? "Vendor" : "Customer code"}
+                emptyLabel={kind === "purchase" ? "Select vendor" : "Select customer"}
+                filterSubtype={
+                  kind === "purchase" ? ["supplier", "both"] : ["customer", "both"]
+                }
+                onChange={(id) => setPartyId(id)}
+              />
+            </div>
+            <div className="sm:col-span-3">
+              <Label>{kind === "purchase" ? "Stock company" : "Company"}</Label>
+              <Select
+                value={warehouseId}
+                onChange={(e) => setWarehouseId(e.target.value)}
+                required
+              >
+                {warehouses.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </>
+        )}
           {kind === "sale" ? (
             <div className="sm:col-span-5">
               <Label>Sale invoice</Label>
@@ -613,6 +665,21 @@ export function ReturnForm({
           <Input value={narration} onChange={(e) => setNarration(e.target.value)} />
         </div>
       </div>
+
+      {kind === "purchase" && buyFrom === "company" ? (
+        <p className="text-xs text-[var(--muted)]">
+          {(() => {
+            const linkedId =
+              warehouses.find((w) => w.id === warehouseId)?.default_supplier_id || "";
+            const linked = parties.find((p) => p.id === linkedId);
+            if (!warehouseId) return "Pick a company. The return is saved on that company.";
+            if (!linked) {
+              return "No vendor is linked to this company. Link one, or switch to Return to Vendor.";
+            }
+            return `Saved on this company. Credit goes to ${linked.party_code} — ${linked.name_en}.`;
+          })()}
+        </p>
+      ) : null}
 
       {kind === "sale" && partyId && recoveredTotal > 0.005 ? (
         <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
@@ -644,7 +711,18 @@ export function ReturnForm({
         receiveStock={kind === "sale"}
         enableBonus={kind === "sale"}
         companyId={companyId}
-        partyId={partyId}
+        partyId={
+          kind === "purchase" && buyFrom === "company"
+            ? warehouses.find((w) => w.id === warehouseId)?.default_supplier_id || ""
+            : partyId
+        }
+        {...(kind === "purchase"
+          ? {
+              warehouseId,
+              warehouses,
+              filterByWarehouse: true as const,
+            }
+          : {})}
         extraDiscount={extraDiscount}
         onExtraDiscountChange={(value) => {
           extraEdited.current = true;

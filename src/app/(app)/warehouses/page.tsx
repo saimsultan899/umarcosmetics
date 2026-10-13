@@ -71,12 +71,36 @@ export default async function WarehousesPage() {
         );
       }
 
+      const supplierIds = [
+        ...new Set(
+          initialWarehouses
+            .map((w) => w.default_supplier_id)
+            .filter((id): id is string => Boolean(id)),
+        ),
+      ];
+      const vendorLabel = new Map<string, string>();
+      if (supplierIds.length) {
+        const { data: vendors } = await supabase
+          .from("parties")
+          .select("id, party_code, name_en")
+          .in("id", supplierIds);
+        for (const vendor of vendors || []) {
+          vendorLabel.set(
+            vendor.id,
+            [vendor.party_code, vendor.name_en].filter(Boolean).join(" — "),
+          );
+        }
+      }
+
       for (const w of initialWarehouses) {
         initialStats[w.id] = {
           warehouseId: w.id,
           productCount: productCountByWh.get(w.id) || 0,
           inStockCount: inStockByWh.get(w.id)?.size || 0,
           stockValue: valueByWh.get(w.id) || 0,
+          vendorLabel: w.default_supplier_id
+            ? vendorLabel.get(w.default_supplier_id) || ""
+            : "",
         };
       }
     } catch (err) {

@@ -10,6 +10,7 @@ import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
 import { useSingleSubmit } from "@/lib/forms/single-submit";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import type { Party } from "@/lib/types/database";
+import { BankPaymentFields } from "@/components/vouchers/bank-payment-fields";
 import { AMOUNT_PLACEHOLDER, AMOUNT_STEP, formatPkr } from "@/lib/utils";
 import { Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -32,6 +33,12 @@ export type CashVoucherEdit = {
   date: string;
   narration: string;
   paymentMethod?: string;
+  senderBank?: string;
+  senderAccountName?: string;
+  senderAccountNo?: string;
+  receiverBank?: string;
+  receiverAccountName?: string;
+  receiverAccountNo?: string;
   warehouseId?: string | null;
   lines: { party_id: string; amount: string; narration: string }[];
 };
@@ -60,6 +67,18 @@ export function CashVoucherForm({
   const [paymentMethod, setPaymentMethod] = useState(
     editing?.paymentMethod || "cash",
   );
+  const [senderBank, setSenderBank] = useState(editing?.senderBank || "");
+  const [senderAccountName, setSenderAccountName] = useState(
+    editing?.senderAccountName || "",
+  );
+  const [senderAccountNo, setSenderAccountNo] = useState(editing?.senderAccountNo || "");
+  const [receiverBank, setReceiverBank] = useState(editing?.receiverBank || "");
+  const [receiverAccountName, setReceiverAccountName] = useState(
+    editing?.receiverAccountName || "",
+  );
+  const [receiverAccountNo, setReceiverAccountNo] = useState(
+    editing?.receiverAccountNo || "",
+  );
   const [lines, setLines] = useState<Line[]>(
     editing?.lines.length
       ? editing.lines.map((line) => ({ key: crypto.randomUUID(), ...line }))
@@ -78,6 +97,19 @@ export function CashVoucherForm({
     const valid = lines.filter((l) => l.party_id && Number(l.amount) > 0);
     if (valid.length === 0) {
       setError("Add at least one account line with amount.");
+      return;
+    }
+    if (
+      kind === "CP" &&
+      paymentMethod === "bank_transfer" &&
+      (!senderBank.trim() ||
+        !senderAccountName.trim() ||
+        !senderAccountNo.trim() ||
+        !receiverBank.trim() ||
+        !receiverAccountName.trim() ||
+        !receiverAccountNo.trim())
+    ) {
+      setError("Fill the sender and the receiver bank, name, and account number.");
       return;
     }
 
@@ -104,6 +136,18 @@ export function CashVoucherForm({
           ...(kind === "CP"
             ? {
                 payment_method: paymentMethod || "cash",
+                sender_bank_name:
+                  paymentMethod === "bank_transfer" ? senderBank.trim() : null,
+                sender_account_name:
+                  paymentMethod === "bank_transfer" ? senderAccountName.trim() : null,
+                sender_account_no:
+                  paymentMethod === "bank_transfer" ? senderAccountNo.trim() : null,
+                receiver_bank_name:
+                  paymentMethod === "bank_transfer" ? receiverBank.trim() : null,
+                receiver_account_name:
+                  paymentMethod === "bank_transfer" ? receiverAccountName.trim() : null,
+                receiver_account_no:
+                  paymentMethod === "bank_transfer" ? receiverAccountNo.trim() : null,
                 warehouse_id: editing?.warehouseId || null,
               }
             : {}),
@@ -155,6 +199,26 @@ export function CashVoucherForm({
                 { value: "bank_transfer", label: "Bank transfer" },
                 { value: "other", label: "Other" },
               ]}
+            />
+          </div>
+        ) : null}
+        {kind === "CP" && paymentMethod === "bank_transfer" ? (
+          <div className="sm:col-span-2">
+            <BankPaymentFields
+              companyId={companyId}
+              organizationId={organizationId}
+              senderBank={senderBank}
+              senderName={senderAccountName}
+              senderNo={senderAccountNo}
+              receiverBank={receiverBank}
+              receiverName={receiverAccountName}
+              receiverNo={receiverAccountNo}
+              onSenderBank={setSenderBank}
+              onSenderName={setSenderAccountName}
+              onSenderNo={setSenderAccountNo}
+              onReceiverBank={setReceiverBank}
+              onReceiverName={setReceiverAccountName}
+              onReceiverNo={setReceiverAccountNo}
             />
           </div>
         ) : null}

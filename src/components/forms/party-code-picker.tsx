@@ -35,6 +35,7 @@ export function PartyCodePicker({
   compact = false,
   onPartySelected,
   confineToList = false,
+  maxVisible,
 }: {
   companyId: string;
   parties: Party[];
@@ -49,6 +50,8 @@ export function PartyCodePicker({
   onPartySelected?: () => void;
   /** When a city or sector filter is on, do not accept a code outside that list. */
   confineToList?: boolean;
+  /** Show the full list instead of the default short window. */
+  maxVisible?: number;
 }) {
   const options = useMemo(() => {
     let list = parties.filter((p) => p.is_active !== false);
@@ -165,6 +168,7 @@ export function PartyCodePicker({
         <Select
           value={value}
           required={required}
+          maxVisible={maxVisible}
           className="min-w-0"
           onChange={(e) => {
             const party = options.find((p) => p.id === e.target.value) || null;

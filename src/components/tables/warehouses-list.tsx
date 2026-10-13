@@ -15,6 +15,7 @@ export type WarehouseListStats = {
   productCount: number;
   inStockCount: number;
   stockValue: number;
+  vendorLabel?: string;
 };
 
 function warehouseFields(
@@ -102,6 +103,13 @@ export function WarehousesList({
               </p>
               <p className="mt-2 text-sm text-[var(--muted)]">
                 {w.address || "No address"}
+              </p>
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                {stats?.vendorLabel
+                  ? `Vendor: ${stats.vendorLabel}`
+                  : w.default_supplier_id
+                    ? "Vendor linked"
+                    : "No vendor"}
               </p>
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
                 <span>

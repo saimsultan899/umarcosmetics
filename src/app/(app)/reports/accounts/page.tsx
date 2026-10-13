@@ -98,16 +98,17 @@ export default async function AccountsReportPage({
 
   const { data: parties } = await supabase
     .from("parties")
-    .select("id, party_code, name_en")
+    .select("id, party_code, name_en, party_subtype")
     .eq("company_id", company.id)
     .eq("is_active", true)
     .order("name_en");
 
   let ledgerRows: Record<string, unknown>[] = [];
+  let linkedCompanyNames: string[] = [];
   const selectedParty = parties?.find((p) => p.id === sp.party);
 
   if (view === "ledger" && sp.party) {
-    const [{ data: opening }, { data: ledger }, { data: partyRecoveries }] =
+    const [{ data: opening }, { data: ledger }, { data: partyRecoveries }, { data: linkedWh }] =
       await Promise.all([
         supabase
           .from("parties")
@@ -129,7 +130,64 @@ export default async function AccountsReportPage({
           .eq("party_id", sp.party)
           .order("recovery_date", { ascending: false })
           .limit(500),
+        supabase
+          .from("warehouses")
+          .select("id, name")
+          .eq("company_id", company.id)
+          .eq("is_active", true)
+          .eq("default_supplier_id", sp.party)
+          .order("name"),
       ]);
+
+    linkedCompanyNames = (linkedWh || []).map((w) => w.name || "Company");
+    const showCompany =
+      linkedCompanyNames.length > 0 ||
+      selectedParty?.party_subtype === "supplier" ||
+      selectedParty?.party_subtype === "both";
+
+    const purchaseIds = (ledger || [])
+      .filter((e) => e.ref_table === "purchase_invoices" && e.ref_id)
+      .map((e) => String(e.ref_id));
+    const returnIds = (ledger || [])
+      .filter((e) => e.ref_table === "purchase_returns" && e.ref_id)
+      .map((e) => String(e.ref_id));
+    const voucherIds = (ledger || [])
+      .filter((e) => e.ref_table === "vouchers" && e.ref_id)
+      .map((e) => String(e.ref_id));
+
+    const [purchaseDocs, returnDocs, voucherDocs] = await Promise.all([
+      purchaseIds.length
+        ? supabase
+            .from("purchase_invoices")
+            .select("id, warehouses(name)")
+            .in("id", purchaseIds)
+        : Promise.resolve({ data: [] as { id: string; warehouses: { name?: string } | { name?: string }[] | null }[] }),
+      returnIds.length
+        ? supabase
+            .from("purchase_returns")
+            .select("id, warehouses(name)")
+            .in("id", returnIds)
+        : Promise.resolve({ data: [] as { id: string; warehouses: { name?: string } | { name?: string }[] | null }[] }),
+      voucherIds.length
+        ? supabase
+            .from("vouchers")
+            .select("id, warehouses(name)")
+            .in("id", voucherIds)
+        : Promise.resolve({ data: [] as { id: string; warehouses: { name?: string } | { name?: string }[] | null }[] }),
+    ]);
+
+    const companyByRef = new Map<string, string>();
+    const remember = (
+      rows: Array<{ id: string; warehouses: { name?: string } | { name?: string }[] | null }> | null,
+    ) => {
+      for (const row of rows || []) {
+        const wh = Array.isArray(row.warehouses) ? row.warehouses[0] : row.warehouses;
+        if (wh?.name) companyByRef.set(String(row.id), wh.name);
+      }
+    };
+    remember(purchaseDocs.data);
+    remember(returnDocs.data);
+    remember(voucherDocs.data);
 
     const recoveryByRef = new Map<string, string>();
     for (const rec of partyRecoveries || []) {
@@ -147,6 +205,7 @@ export default async function AccountsReportPage({
       {
         Date: "",
         Type: "OP",
+        ...(showCompany ? { Company: "—" } : {}),
         Narration: "Opening balance",
         Debit: running > 0 ? running : 0,
         Credit: running < 0 ? Math.abs(running) : 0,
@@ -161,6 +220,13 @@ export default async function AccountsReportPage({
         return {
           Date: e.entry_date,
           Type: e.voucher_type || "—",
+          ...(showCompany
+            ? {
+                Company: e.ref_id
+                  ? companyByRef.get(String(e.ref_id)) || "—"
+                  : "—",
+              }
+            : {}),
           Narration: e.narration || "—",
           Debit: Number(e.debit),
           Credit: Number(e.credit),
@@ -357,7 +423,11 @@ export default async function AccountsReportPage({
             companyName={company.name}
             subtitle={
               selectedParty
-                ? `${ledgerRows.length} lines · closing = total debit − total credit`
+                ? `${ledgerRows.length} lines · closing = total debit − total credit${
+                    linkedCompanyNames.length
+                      ? ` · Companies: ${linkedCompanyNames.join(", ")}`
+                      : ""
+                  }`
                 : "Select a customer / vendor"
             }
             rows={selectedParty ? ledgerRows : []}

@@ -97,6 +97,35 @@ export async function VoucherDetail({
         ...(expectedType === "CP" && paymentMethodLabel
           ? [{ label: "Payment method", value: paymentMethodLabel }]
           : []),
+        ...(expectedType === "CP" && voucher.sender_bank_name
+          ? [
+              {
+                label: "Sender",
+                value: [
+                  voucher.sender_bank_name,
+                  voucher.sender_account_name,
+                  voucher.sender_account_no,
+                ]
+                  .filter(Boolean)
+                  .join(" · "),
+              },
+            ]
+          : []),
+        ...(expectedType === "CP" &&
+        (voucher.receiver_bank_name || voucher.bank_name)
+          ? [
+              {
+                label: "Receiver",
+                value: [
+                  voucher.receiver_bank_name || voucher.bank_name,
+                  voucher.receiver_account_name || voucher.bank_account_name,
+                  voucher.receiver_account_no || voucher.bank_account_no,
+                ]
+                  .filter(Boolean)
+                  .join(" · "),
+              },
+            ]
+          : []),
         ...(voucher.narration
           ? [{ label: "Narration", value: voucher.narration }]
           : []),
