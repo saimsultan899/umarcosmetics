@@ -2,11 +2,17 @@
 
 import { Button } from "@/components/ui/button";
 import { installDesktopPrint } from "@/lib/desktop-print";
+import {
+  A4_INVOICE_LINES_PER_PAGE,
+  A5_INVOICE_LINES_PER_PAGE,
+  chunkLines,
+  preferredInvoicePaper,
+} from "@/lib/print/invoice-paper";
 import { printWithAutoPaper } from "@/lib/print/paper-size";
 import { formatReportInvNo } from "@/lib/reports/helpers";
 import { cn, formatNumber } from "@/lib/utils";
 import { Printer } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export type PrintLine = {
   product_code: string;
@@ -62,6 +68,7 @@ export type PrintMeta = { label: string; value: string; strong?: boolean };
 /**
  * Generic document print — classic distributor layout shared by purchase
  * invoices, sales/purchase returns, transfers, load sheets and vouchers.
+ * A5/A4 line counts and auto page-shift match sale invoice print.
  */
 export function PrintDocument({
   companyName,
@@ -111,22 +118,55 @@ export function PrintDocument({
   amountInWords?: string | null;
   signatures?: string[];
   footerNote?: string | null;
+  /** @deprecated Prefer A5/A4 toggle; full=a4, half=a5 as initial hint only. */
   size?: "full" | "half";
   autoPrint?: boolean;
 }) {
-  const [sheet, setSheet] = useState<"full" | "half">(size);
+  const [paperTouched, setPaperTouched] = useState(false);
+  const [paper, setPaper] = useState<"a5" | "a4">(() => {
+    // Legacy half hint only when the bill still fits A5.
+    if (size === "half" && lines.length <= A5_INVOICE_LINES_PER_PAGE) {
+      return "a5";
+    }
+    return preferredInvoicePaper(lines.length);
+  });
+
+  useEffect(() => {
+    if (paperTouched) return;
+    setPaper(preferredInvoicePaper(lines.length));
+  }, [lines.length, paperTouched]);
+
+  const useFullA4 = paper === "a4";
+  const linesPerPage = useFullA4
+    ? A4_INVOICE_LINES_PER_PAGE
+    : A5_INVOICE_LINES_PER_PAGE;
+
+  const sheetPages = useMemo(() => {
+    const chunks = chunkLines(lines, linesPerPage);
+    return chunks.map((pageLines, idx) => ({
+      pageLines,
+      startIndex: idx * linesPerPage,
+      isFirst: idx === 0,
+      isLast: idx === chunks.length - 1,
+    }));
+  }, [lines, linesPerPage]);
 
   useEffect(() => {
     installDesktopPrint();
     if (!autoPrint) return;
     const t = window.setTimeout(() => {
-      printWithAutoPaper(sheet === "half" ? "a5" : "a4");
+      printWithAutoPaper(paper);
     }, 250);
     return () => window.clearTimeout(t);
-  }, [autoPrint, sheet]);
+  }, [autoPrint, paper]);
+
+  function choosePaper(next: "a5" | "a4") {
+    setPaperTouched(true);
+    setPaper(next);
+  }
 
   function printNow() {
-    printWithAutoPaper(sheet === "half" ? "a5" : "a4");
+    printWithAutoPaper(paper);
   }
 
   const productCount = lines.length;
@@ -147,29 +187,136 @@ export function PrintDocument({
     .filter(Boolean)
     .join(" ");
 
+  const itemNameWidth = (() => {
+    let used = 5; // Sr
+    if (hasLineCompany) used += 11;
+    used += 7; // Qty
+    if (hasUom) used += 7;
+    if (hasRate) used += 8;
+    if (hasDiscount) used += 7 + 7;
+    if (hasAmount) used += 16;
+    return `${Math.max(36, 100 - used)}%`;
+  })();
+
+  function renderTable(pageLines: PrintLine[], startIndex: number) {
+    return (
+      <table className="si-table">
+        <colgroup>
+          <col style={{ width: "5%" }} />
+          {hasLineCompany ? <col style={{ width: "11%" }} /> : null}
+          <col style={{ width: itemNameWidth }} />
+          <col style={{ width: "7%" }} />
+          {hasUom ? <col style={{ width: "7%" }} /> : null}
+          {hasRate ? <col style={{ width: "8%" }} /> : null}
+          {hasDiscount ? <col style={{ width: "7%" }} /> : null}
+          {hasDiscount ? <col style={{ width: "7%" }} /> : null}
+          {hasAmount ? <col style={{ width: "16%" }} /> : null}
+        </colgroup>
+        <thead>
+          <tr>
+            <th className="ctr">Sr.</th>
+            {hasLineCompany ? <th>Company</th> : null}
+            <th>ItemName</th>
+            <th className="num">Qty</th>
+            {hasUom ? <th className="ctr">Carton</th> : null}
+            {hasRate ? <th className="num">T/P</th> : null}
+            {hasDiscount ? <th className="num">Disc %</th> : null}
+            {hasDiscount ? <th className="num">Disc</th> : null}
+            {hasAmount ? <th className="num">Amount</th> : null}
+          </tr>
+        </thead>
+        <tbody>
+          {pageLines.map((l, i) => {
+            const packing = Number(l.packing || 0);
+            const cartonValue =
+              packing > 1
+                ? formatCartonQty(l.qty, packing)
+                : l.uom || l.base_unit || l.unit_type || "—";
+            const sr = startIndex + i + 1;
+            return (
+              <tr key={`${l.product_code}-${sr}`}>
+                <td className="ctr">{sr}</td>
+                {hasLineCompany ? <td>{l.company || "—"}</td> : null}
+                <td className="si-item">
+                  {[l.product_code, l.product_name].filter(Boolean).join(" ")}
+                </td>
+                <td className="num">
+                  <div>{formatNumber(l.qty, 2)}</div>
+                  {l.bonus && l.bonus > 0 ? (
+                    <div className="si-bonus">
+                      +{formatNumber(l.bonus, 0)} B
+                    </div>
+                  ) : null}
+                </td>
+                {hasUom ? <td className="ctr">{cartonValue}</td> : null}
+                {hasRate ? (
+                  <td className="num">
+                    {l.rate != null ? formatNumber(l.rate, 2) : "—"}
+                  </td>
+                ) : null}
+                {hasDiscount ? (
+                  <td className="num">
+                    {(() => {
+                      const pct = lineDiscPercent(
+                        Number(l.qty || 0),
+                        Number(l.rate || 0),
+                        Number(l.discount || 0),
+                      );
+                      return pct > 0 ? `${formatNumber(pct, 1)}%` : "—";
+                    })()}
+                  </td>
+                ) : null}
+                {hasDiscount ? (
+                  <td className="num">
+                    {l.discount ? formatNumber(l.discount, 2) : "—"}
+                  </td>
+                ) : null}
+                {hasAmount ? (
+                  <td className="num">
+                    {l.amount != null ? formatNumber(l.amount, 2) : "—"}
+                  </td>
+                ) : null}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    );
+  }
+
   return (
     <div className="space-y-4">
-      <div className="no-print flex items-center justify-end gap-2">
-        <div className="mr-auto flex items-center gap-1 rounded-lg border border-[var(--border)] bg-white p-1 text-sm">
+      <div className="no-print flex flex-wrap items-center justify-end gap-2">
+        <p className="mr-auto text-sm text-[var(--muted)]">
+          {useFullA4
+            ? `A4 · up to ${A4_INVOICE_LINES_PER_PAGE} lines per page, then next A4 page.`
+            : `A5 · up to ${A5_INVOICE_LINES_PER_PAGE} lines per page, then next page. Over ${A5_INVOICE_LINES_PER_PAGE} lines auto-selects A4.`}
+        </p>
+        <div className="inline-flex rounded-lg border border-[var(--border)] bg-white p-0.5">
           <button
             type="button"
-            onClick={() => setSheet("full")}
             className={cn(
-              "rounded-md px-3 py-1",
-              sheet === "full" ? "bg-[var(--brand)] text-white" : "text-[var(--muted)]",
+              "rounded-md px-2.5 py-1.5 text-xs font-semibold",
+              paper === "a5"
+                ? "bg-[var(--brand)] text-white"
+                : "text-[var(--muted)] hover:text-[var(--ink)]",
             )}
+            onClick={() => choosePaper("a5")}
           >
-            Full page
+            A5
           </button>
           <button
             type="button"
-            onClick={() => setSheet("half")}
             className={cn(
-              "rounded-md px-3 py-1",
-              sheet === "half" ? "bg-[var(--brand)] text-white" : "text-[var(--muted)]",
+              "rounded-md px-2.5 py-1.5 text-xs font-semibold",
+              paper === "a4"
+                ? "bg-[var(--brand)] text-white"
+                : "text-[var(--muted)] hover:text-[var(--ink)]",
             )}
+            onClick={() => choosePaper("a4")}
+            title={`A4 · ${A4_INVOICE_LINES_PER_PAGE} lines/page (auto when over ${A5_INVOICE_LINES_PER_PAGE} lines)`}
           >
-            Half page
+            A4
           </button>
         </div>
         <Button type="button" onClick={printNow}>
@@ -179,213 +326,180 @@ export function PrintDocument({
       </div>
 
       <div
-        className={cn("print-sheet cdoc mx-auto", sheet === "half" && "cdoc--half")}
-        data-paper={sheet === "half" ? "a5" : "a4"}
+        className={cn(
+          "print-sheet cdoc mx-auto",
+          useFullA4 ? "cdoc--a4" : "cdoc--half",
+        )}
+        data-paper={useFullA4 ? "a4" : "a5"}
       >
-        <div className="si-title">{title}</div>
-        {companyName ? <div className="si-company">{companyName}</div> : null}
-        {companyAddress ? (
-          <div className="si-distributor-addr">{companyAddress}</div>
-        ) : null}
-        {companyPhone || companyNtn ? (
-          <div className="si-distributor-addr">
-            {[companyPhone, companyNtn ? `NTN/STRN: ${companyNtn}` : ""]
-              .filter(Boolean)
-              .join("  ·  ")}
-          </div>
-        ) : null}
+        {sheetPages.map((page, pageIdx) => (
+          <div
+            key={pageIdx}
+            className={cn(
+              useFullA4 ? "si-sale-a4-chunk" : "si-sale-a5-chunk",
+              pageIdx < sheetPages.length - 1 &&
+                (useFullA4
+                  ? "si-sale-a4-page-break"
+                  : "si-sale-a5-page-break"),
+            )}
+          >
+            {page.isFirst ? (
+              <>
+                <div className="si-title">{title}</div>
+                {companyName ? (
+                  <div className="si-company">{companyName}</div>
+                ) : null}
+                {companyAddress ? (
+                  <div className="si-distributor-addr">{companyAddress}</div>
+                ) : null}
+                {companyPhone || companyNtn ? (
+                  <div className="si-distributor-addr">
+                    {[
+                      companyPhone,
+                      companyNtn ? `NTN/STRN: ${companyNtn}` : "",
+                    ]
+                      .filter(Boolean)
+                      .join("  ·  ")}
+                  </div>
+                ) : null}
 
-        <div className="si-meta">
-          <div className="si-meta-left">
-            {partyName ? (
-              <div>
-                <span className="si-k">A/C No :</span>{" "}
+                <div className="si-meta">
+                  <div className="si-meta-left">
+                    {partyName ? (
+                      <div>
+                        <span className="si-k">A/C No :</span>{" "}
+                        <span className="si-v">
+                          {String(partyCode || "").toUpperCase() === "WALKIN"
+                            ? partyName || "Walk-in Customer"
+                            : [partyCode, partyName]
+                                .filter(Boolean)
+                                .join(" ")}
+                        </span>
+                      </div>
+                    ) : null}
+                    {partyAddress ? (
+                      <div className="si-co">{partyAddress}</div>
+                    ) : null}
+                    {partyCity ? (
+                      <div className="si-co">{partyCity}</div>
+                    ) : null}
+                    {partyMobile ? (
+                      <div>
+                        <span className="si-k">Cust Mob No:</span>{" "}
+                        <span className="si-v">{partyMobile}</span>
+                      </div>
+                    ) : null}
+                    {partyPhone ? (
+                      <div>
+                        <span className="si-k">Owner No:</span>{" "}
+                        <span className="si-v">{partyPhone}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="si-meta-right si-meta-block">
+                    <div>
+                      <span className="si-k">No :</span>{" "}
+                      <span className="si-v">
+                        {formatReportInvNo(docNo) || docNo}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="si-k">Date :</span>{" "}
+                      <span className="si-v">{dateTimeLabel}</span>
+                    </div>
+                    {warehouseName ? (
+                      <div>
+                        <span className="si-k">Company:</span>{" "}
+                        <span className="si-v">{warehouseName}</span>
+                      </div>
+                    ) : null}
+                    {(extraMeta ?? []).map((m) => (
+                      <div key={m.label} className="si-meta-nowrap">
+                        <span className="si-k">{m.label}:</span>{" "}
+                        <span className="si-v">{m.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="si-cont">
+                <span className="si-k">No :</span>{" "}
                 <span className="si-v">
-                  {String(partyCode || "").toUpperCase() === "WALKIN"
-                    ? partyName || "Walk-in Customer"
-                    : [partyCode, partyName].filter(Boolean).join(" ")}
+                  {formatReportInvNo(docNo) || docNo}
+                </span>
+                <span className="si-cont-page">
+                  · Page {pageIdx + 1} of {sheetPages.length}
                 </span>
               </div>
-            ) : null}
-            {partyAddress ? (
-              <div className="si-co">{partyAddress}</div>
-            ) : null}
-            {partyCity ? <div className="si-co">{partyCity}</div> : null}
-            {partyMobile ? (
-              <div>
-                <span className="si-k">Cust Mob No:</span>{" "}
-                <span className="si-v">{partyMobile}</span>
-              </div>
-            ) : null}
-            {partyPhone ? (
-              <div>
-                <span className="si-k">Owner No:</span>{" "}
-                <span className="si-v">{partyPhone}</span>
-              </div>
-            ) : null}
-          </div>
-          <div className="si-meta-right si-meta-block">
-            <div>
-              <span className="si-k">No :</span>{" "}
-              <span className="si-v">{formatReportInvNo(docNo) || docNo}</span>
+            )}
+
+            <div
+              className={cn(
+                page.isLast &&
+                  sheetPages.length > 1 &&
+                  (useFullA4
+                    ? "si-sale-a4-last-chunk"
+                    : "si-sale-a5-last-chunk"),
+              )}
+            >
+              {renderTable(page.pageLines, page.startIndex)}
+
+              {page.isLast ? (
+                <>
+                  <div className="cdoc-totals">
+                    <div className="si-row">
+                      <span>Products</span>
+                      <span>{formatNumber(productCount, 0)}</span>
+                    </div>
+                    <div className="si-row">
+                      <span>Total qty</span>
+                      <span>{formatNumber(totalQty, 0)}</span>
+                    </div>
+                    {totals?.map((t, i) => {
+                      const anyStrong = totals.some((x) => x.strong);
+                      const isGrand =
+                        t.strong ??
+                        (!anyStrong && i === totals.length - 1);
+                      return (
+                        <div
+                          key={t.label}
+                          className={cn("si-row", isGrand && "si-strong")}
+                        >
+                          <span>{t.label}</span>
+                          <span>{t.value}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {amountInWords ? (
+                    <p className="cdoc-words">
+                      <b>Amount in words:</b> {amountInWords}
+                    </p>
+                  ) : null}
+
+                  {signatures?.length ? (
+                    <div className="cdoc-sign-row">
+                      {signatures.map((s) => (
+                        <div key={s}>{s}</div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  <p className="cdoc-foot">
+                    {footerNote ||
+                      "This is a computer-generated document · Umar Distribution Software"}
+                  </p>
+                </>
+              ) : null}
             </div>
-            <div>
-              <span className="si-k">Date :</span>{" "}
-              <span className="si-v">{dateTimeLabel}</span>
-            </div>
-            {warehouseName ? (
-              <div>
-                <span className="si-k">Company:</span>{" "}
-                <span className="si-v">{warehouseName}</span>
-              </div>
-            ) : null}
-            {(extraMeta ?? []).map((m) => (
-              <div key={m.label} className="si-meta-nowrap">
-                <span className="si-k">{m.label}:</span>{" "}
-                <span className="si-v">{m.value}</span>
-              </div>
-            ))}
           </div>
+        ))}
+
+        <div className="doc-cut">
+          ✂ — — — — — — — — — — cut here — — — — — — — — — —
         </div>
-
-        <table className="si-table">
-          <colgroup>
-            <col style={{ width: "5%" }} />
-            {hasLineCompany ? <col style={{ width: "11%" }} /> : null}
-            <col
-              style={{
-                width: (() => {
-                  // Remaining width for ItemName after fixed numeric cols.
-                  let used = 5; // Sr
-                  if (hasLineCompany) used += 11;
-                  used += 7; // Qty
-                  if (hasUom) used += 7;
-                  if (hasRate) used += 8;
-                  if (hasDiscount) used += 7 + 7;
-                  if (hasAmount) used += 16;
-                  return `${Math.max(36, 100 - used)}%`;
-                })(),
-              }}
-            />
-            <col style={{ width: "7%" }} />
-            {hasUom ? <col style={{ width: "7%" }} /> : null}
-            {hasRate ? <col style={{ width: "8%" }} /> : null}
-            {hasDiscount ? <col style={{ width: "7%" }} /> : null}
-            {hasDiscount ? <col style={{ width: "7%" }} /> : null}
-            {hasAmount ? <col style={{ width: "16%" }} /> : null}
-          </colgroup>
-          <thead>
-            <tr>
-              <th className="ctr">Sr.</th>
-              {hasLineCompany ? <th>Company</th> : null}
-              <th>ItemName</th>
-              <th className="num">Qty</th>
-              {hasUom ? <th className="ctr">Carton</th> : null}
-              {hasRate ? <th className="num">T/P</th> : null}
-              {hasDiscount ? <th className="num">Disc %</th> : null}
-              {hasDiscount ? <th className="num">Disc</th> : null}
-              {hasAmount ? <th className="num">Amount</th> : null}
-            </tr>
-          </thead>
-          <tbody>
-            {lines.map((l, i) => {
-              const packing = Number(l.packing || 0);
-              const cartonValue =
-                packing > 1
-                  ? formatCartonQty(l.qty, packing)
-                  : l.uom || l.base_unit || l.unit_type || "—";
-              return (
-                <tr key={`${l.product_code}-${i}`}>
-                  <td className="ctr">{i + 1}</td>
-                  {hasLineCompany ? (
-                    <td>{l.company || "—"}</td>
-                  ) : null}
-                  <td className="si-item">
-                    {[l.product_code, l.product_name].filter(Boolean).join(" ")}
-                  </td>
-                  <td className="num">
-                    <div>{formatNumber(l.qty, 2)}</div>
-                    {l.bonus && l.bonus > 0 ? (
-                      <div className="si-bonus">+{formatNumber(l.bonus, 0)} B</div>
-                    ) : null}
-                  </td>
-                  {hasUom ? <td className="ctr">{cartonValue}</td> : null}
-                  {hasRate ? (
-                    <td className="num">
-                      {l.rate != null ? formatNumber(l.rate, 2) : "—"}
-                    </td>
-                  ) : null}
-                  {hasDiscount ? (
-                    <td className="num">
-                      {(() => {
-                        const pct = lineDiscPercent(
-                          Number(l.qty || 0),
-                          Number(l.rate || 0),
-                          Number(l.discount || 0),
-                        );
-                        return pct > 0 ? `${formatNumber(pct, 1)}%` : "—";
-                      })()}
-                    </td>
-                  ) : null}
-                  {hasDiscount ? (
-                    <td className="num">
-                      {l.discount ? formatNumber(l.discount, 2) : "—"}
-                    </td>
-                  ) : null}
-                  {hasAmount ? (
-                    <td className="num">
-                      {l.amount != null ? formatNumber(l.amount, 2) : "—"}
-                    </td>
-                  ) : null}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-
-        <div className="cdoc-totals">
-          <div className="si-row">
-            <span>Products</span>
-            <span>{formatNumber(productCount, 0)}</span>
-          </div>
-          <div className="si-row">
-            <span>Total qty</span>
-            <span>{formatNumber(totalQty, 0)}</span>
-          </div>
-          {totals?.map((t, i) => {
-              const anyStrong = totals.some((x) => x.strong);
-              const isGrand = t.strong ?? (!anyStrong && i === totals.length - 1);
-              return (
-                <div
-                  key={t.label}
-                  className={cn("si-row", isGrand && "si-strong")}
-                >
-                  <span>{t.label}</span>
-                  <span>{t.value}</span>
-                </div>
-              );
-            })}
-        </div>
-
-        {amountInWords ? (
-          <p className="cdoc-words">
-            <b>Amount in words:</b> {amountInWords}
-          </p>
-        ) : null}
-
-        {signatures?.length ? (
-          <div className="cdoc-sign-row">
-            {signatures.map((s) => (
-              <div key={s}>{s}</div>
-            ))}
-          </div>
-        ) : null}
-
-        <p className="cdoc-foot">
-          {footerNote || "This is a computer-generated document · Umar Distribution Software"}
-        </p>
-
-        <div className="doc-cut">✂ — — — — — — — — — — cut here — — — — — — — — — —</div>
       </div>
     </div>
   );

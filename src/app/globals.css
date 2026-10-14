@@ -2483,7 +2483,38 @@ button[aria-haspopup="listbox"]:focus-visible {
 .cdoc--half {
   max-width: 190mm;
   padding: 6mm 7px;
+  font-size: 15px;
+}
+/* Match sale A5 table density on classic docs (purchase, returns, …). */
+.cdoc--half .si-table {
+  font-size: 12.5px;
+  margin-top: 4px;
+}
+.cdoc--half .si-table th,
+.cdoc--half .si-table td {
+  padding: 1px 2px;
+  line-height: 1.12;
+}
+.cdoc--half .si-title {
+  font-size: 26px;
+}
+.cdoc--half .si-company {
   font-size: 17px;
+}
+.cdoc--a4 {
+  max-width: 200mm;
+  padding: 3mm 5px;
+  font-size: 15px;
+  line-height: 1.2;
+}
+.cdoc--a4 .si-table {
+  font-size: 12.5px;
+  margin-top: 2px;
+}
+.cdoc--a4 .si-table th,
+.cdoc--a4 .si-table td {
+  padding: 1px 2px;
+  line-height: 1.12;
 }
 .cdoc-totals {
   margin-top: 10px;
@@ -2760,20 +2791,73 @@ button[aria-haspopup="listbox"]:focus-visible {
   .print-sheet.cdoc .si-table th {
     font-weight: 700;
   }
+  /* Classic docs A5 — same line budget / density as sale A5 (28 lines). */
   .print-sheet.cdoc--half {
     page: si-half-page;
-    left: 0 !important;
-    right: 0 !important;
-    top: 0 !important;
+    position: static !important;
+    left: auto !important;
+    right: auto !important;
+    top: auto !important;
     width: 100% !important;
     max-width: 100% !important;
     height: auto !important;
-    max-height: 194mm !important;
+    max-height: none !important;
     margin: 0 !important;
     padding: 0 !important;
-    overflow: hidden !important;
+    overflow: visible !important;
     transform: none !important;
-    font-size: 17px;
+    font-size: 15px !important;
+    line-height: 1.2 !important;
+  }
+  .print-sheet.cdoc--half .si-title {
+    font-size: 26px !important;
+  }
+  .print-sheet.cdoc--half .si-company {
+    font-size: 17px !important;
+  }
+  .print-sheet.cdoc--half .si-meta {
+    font-size: 14.5px !important;
+  }
+  .print-sheet.cdoc--half .si-table {
+    font-size: 12.5px !important;
+    margin-top: 4px !important;
+  }
+  .print-sheet.cdoc--half .si-table th,
+  .print-sheet.cdoc--half .si-table td {
+    padding: 1px 2px !important;
+    line-height: 1.12 !important;
+  }
+  /* Classic docs A4 — same density as sale A4 (45 lines/page). */
+  .print-sheet.cdoc--a4 {
+    page: invoice-page;
+    position: static !important;
+    left: auto !important;
+    right: auto !important;
+    top: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 3mm 5mm !important;
+    overflow: visible !important;
+    transform: none !important;
+    font-size: 15px !important;
+    line-height: 1.2 !important;
+  }
+  .print-sheet.cdoc--a4 .si-table {
+    font-size: 12.5px !important;
+    margin-top: 2px !important;
+  }
+  .print-sheet.cdoc--a4 .si-table th,
+  .print-sheet.cdoc--a4 .si-table td {
+    padding: 1px 2px !important;
+    line-height: 1.12 !important;
+  }
+  .print-sheet.cdoc--half .si-cont,
+  .print-sheet.cdoc--a4 .si-cont {
+    margin: 2px 0 !important;
+    font-size: 13px !important;
   }
 
   .gp-sheet {

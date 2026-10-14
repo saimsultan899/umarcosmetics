@@ -13,6 +13,12 @@ import {
   holdThermalZeroMargin,
   printThermalSlip,
 } from "@/lib/print/thermal-page";
+import {
+  A4_INVOICE_LINES_PER_PAGE,
+  A5_INVOICE_LINES_PER_PAGE,
+  chunkLines,
+  preferredInvoicePaper,
+} from "@/lib/print/invoice-paper";
 import { printWithAutoPaper, warmPrintCss } from "@/lib/print/paper-size";
 import { formatReportInvNo } from "@/lib/reports/helpers";
 import { cn, formatNumber, formatPkr } from "@/lib/utils";
@@ -20,26 +26,10 @@ import { ArrowLeft, Printer } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-/** A5 sale invoice: this many product lines per page; extra lines continue on the next A5 page. */
-export const A5_SALE_LINES_PER_PAGE = 28;
-/**
- * A4 sale invoice: more than 40 product lines on one A4 page (header/footer included).
- * Overflow continues on the next A4 page. Bills with more than A5 capacity auto-prefer A4.
- */
-export const A4_SALE_LINES_PER_PAGE = 45;
-
-function chunkLines<T>(items: T[], size: number): T[][] {
-  if (items.length <= size) return [items];
-  const pages: T[][] = [];
-  for (let i = 0; i < items.length; i += size) {
-    pages.push(items.slice(i, i + size));
-  }
-  return pages;
-}
-
-function preferredSalePaper(lineCount: number): "a5" | "a4" {
-  return lineCount > A5_SALE_LINES_PER_PAGE ? "a4" : "a5";
-}
+/** @deprecated Use A5_INVOICE_LINES_PER_PAGE — kept for existing imports. */
+export const A5_SALE_LINES_PER_PAGE = A5_INVOICE_LINES_PER_PAGE;
+/** @deprecated Use A4_INVOICE_LINES_PER_PAGE — kept for existing imports. */
+export const A4_SALE_LINES_PER_PAGE = A4_INVOICE_LINES_PER_PAGE;
 
 /** Default A5/A4 sale columns — compact for normal bills. */
 const SALE_COLS_NORMAL = ["4%", "40%", "7%", "11%", "8%", "9%", "8%", "13%"] as const;
@@ -252,7 +242,7 @@ export function SaleInvoicePrint({
   const [manualLayout, setManualLayout] = useState<WalkInSlipLayout | null>(null);
   const [paperTouched, setPaperTouched] = useState(false);
   const [localPaper, setLocalPaper] = useState<"a5" | "a4">(() =>
-    preferredSalePaper(lines.length),
+    preferredInvoicePaper(lines.length),
   );
   const layout = manualLayout ?? urlSlip ?? savedDefault;
   const showSheet = !isWalkIn || clientReady || forceStandard || embedded;
@@ -265,8 +255,8 @@ export function SaleInvoicePrint({
   const sheetPaper = paperSizeProp ?? localPaper;
   const useFullA4 = !showThermal && sheetPaper === "a4";
   const linesPerPage = useFullA4
-    ? A4_SALE_LINES_PER_PAGE
-    : A5_SALE_LINES_PER_PAGE;
+    ? A4_INVOICE_LINES_PER_PAGE
+    : A5_INVOICE_LINES_PER_PAGE;
 
   const sheetPages = useMemo(() => {
     const chunks = chunkLines(lines, linesPerPage);
@@ -299,7 +289,7 @@ export function SaleInvoicePrint({
 
   useEffect(() => {
     if (embedded || paperSizeProp || paperTouched) return;
-    setLocalPaper(preferredSalePaper(lines.length));
+    setLocalPaper(preferredInvoicePaper(lines.length));
   }, [embedded, paperSizeProp, paperTouched, lines.length]);
 
   function choosePaper(next: "a5" | "a4") {

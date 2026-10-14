@@ -459,24 +459,22 @@ export function CompanyStatementClient({
       return;
     }
     const outstanding = Number(statement.payableStats.outstanding || 0);
-    if (outstanding > 0.005 && amount > outstanding + 0.05) {
-      setPayError(
-        `Amount is more than outstanding (${formatPkr(outstanding)}).`,
-      );
-      return;
-    }
     const selectedBill = payPurchaseInvoiceId
       ? statement.purchaseBills.find((b) => b.id === payPurchaseInvoiceId)
       : null;
-    if (selectedBill && amount > selectedBill.remaining + 0.05) {
-      setPayError(
-        `Amount is more than the remaining balance on ${selectedBill.invoiceNo} (${formatPkr(selectedBill.remaining)}).`,
-      );
-      return;
-    }
+    // Overpay is allowed: clear the bill (if any), then leave the rest on
+    // account as company credit (company owes this distributor).
+    const billAlloc =
+      selectedBill && selectedBill.remaining > 0.005
+        ? Math.min(amount, selectedBill.remaining)
+        : 0;
     setPaySaving(true);
     setPayError(null);
     try {
+      const companyLabel =
+        statement.linkedCompanies?.find((c) => c.id === payWarehouse)?.name ||
+        statement.warehouseName;
+      const overpay = Math.max(0, amount - Math.max(0, outstanding));
       await offlineAwareSubmit({
         mutationType: "cash_payment",
         companyId,
@@ -498,10 +496,9 @@ export function CompanyStatementClient({
           amount,
           narration:
             payRemarks.trim() ||
-            `Payment for ${
-              statement.linkedCompanies?.find((c) => c.id === payWarehouse)
-                ?.name || statement.warehouseName
-            }`,
+            (overpay > 0.05
+              ? `Payment for ${companyLabel} (incl. company credit ${formatPkr(overpay)})`
+              : `Payment for ${companyLabel}`),
           lines: statement.supplier?.id
             ? [
                 {
@@ -514,11 +511,11 @@ export function CompanyStatementClient({
               ]
             : [],
           purchase_allocations:
-            selectedBill && amount > 0
+            billAlloc > 0.005 && selectedBill
               ? [
                   {
                     purchase_invoice_id: selectedBill.id,
-                    amount,
+                    amount: billAlloc,
                   },
                 ]
               : [],
@@ -748,14 +745,22 @@ export function CompanyStatementClient({
               hint={`${from} to ${to}`}
             />
             <StatCard
-              label="Outstanding"
-              value={statement.payableStats.outstanding}
+              label={
+                statement.payableStats.outstanding < -0.005
+                  ? "Company credit"
+                  : "Outstanding"
+              }
+              value={Math.abs(statement.payableStats.outstanding)}
               format="money"
               icon={Wallet}
               tone={
                 statement.payableStats.outstanding > 0.005 ? "warn" : "ok"
               }
-              hint="As of selected To date"
+              hint={
+                statement.payableStats.outstanding < -0.005
+                  ? "Company owes this distributor (as of To date)"
+                  : "As of selected To date"
+              }
             />
             <StatCard
               label="Sales"
@@ -874,9 +879,18 @@ export function CompanyStatementClient({
         onClose={() => setPayOpen(false)}
         title="Record payment"
         description={
-          statement?.supplier
-            ? `Pay ${statement.supplier.party_code} — ${statement.supplier.name_en} for ${statement.warehouseName}. Outstanding ${formatPkr(statement.payableStats.outstanding)}.`
-            : `Payment for ${statement?.warehouseName || "this company"}. Outstanding ${formatPkr(statement?.payableStats.outstanding || 0)}.`
+          statement
+            ? (() => {
+                const due = Number(statement.payableStats.outstanding || 0);
+                const balanceNote =
+                  due < -0.005
+                    ? `Company credit ${formatPkr(Math.abs(due))} (company owes distributor).`
+                    : `Outstanding ${formatPkr(due)}.`;
+                return statement.supplier
+                  ? `Pay ${statement.supplier.party_code} — ${statement.supplier.name_en} for ${statement.warehouseName}. ${balanceNote}`
+                  : `Payment for ${statement.warehouseName}. ${balanceNote}`;
+              })()
+            : "Record a company payment."
         }
       >
         <form onSubmit={savePayment} className="space-y-4">
@@ -967,6 +981,21 @@ export function CompanyStatementClient({
               onChange={(e) => setPayAmount(e.target.value)}
               required
             />
+            {(() => {
+              const amount = Number(payAmount);
+              if (!(amount > 0) || !statement) return null;
+              const outstanding = Number(
+                statement.payableStats.outstanding || 0,
+              );
+              const overpay = Math.max(0, amount - Math.max(0, outstanding));
+              if (overpay <= 0.05) return null;
+              return (
+                <p className="mt-1.5 text-sm text-amber-800">
+                  {formatPkr(overpay)} will be company credit — {statement.warehouseName}{" "}
+                  owes this distributor.
+                </p>
+              );
+            })()}
           </div>
           <div>
             <Label>Remarks</Label>
