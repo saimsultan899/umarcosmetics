@@ -2,14 +2,16 @@
 
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { putCachedRow } from "@/lib/offline/local-db";
 import { hasLocalSqlite, localUpsertMaster } from "@/lib/offline/sqlite-client";
 import { createClient } from "@/lib/supabase/client";
 import type { Party } from "@/lib/types/database";
-import { ArrowDown, ArrowUp, GripVertical, ListOrdered } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { cn } from "@/lib/utils";
+import { ArrowDown, ArrowUp, GripVertical, ListOrdered, Search } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type Scope = "overall" | "city" | "sector";
 
@@ -33,6 +35,43 @@ function moveItem<T>(list: T[], from: number, to: number) {
   const [item] = next.splice(from, 1);
   next.splice(to, 0, item);
   return next;
+}
+
+function scopeNeedsPick(scope: Scope, city: string, sector: string) {
+  return (scope === "city" && !city) || (scope === "sector" && !sector);
+}
+
+/** Prefer exact code → code prefix → name prefix → any includes (code/name/city/sector). */
+function findShopIndex(shops: ShopRow[], query: string): number {
+  const q = query.trim().toLowerCase();
+  if (!q) return -1;
+
+  const hay = (s: ShopRow) =>
+    [
+      s.party_code,
+      s.name_en,
+      cityHead(s),
+      s.route || "",
+    ]
+      .join(" ")
+      .toLowerCase();
+
+  const exactCode = shops.findIndex(
+    (s) => s.party_code.trim().toLowerCase() === q,
+  );
+  if (exactCode >= 0) return exactCode;
+
+  const codePrefix = shops.findIndex((s) =>
+    s.party_code.trim().toLowerCase().startsWith(q),
+  );
+  if (codePrefix >= 0) return codePrefix;
+
+  const namePrefix = shops.findIndex((s) =>
+    s.name_en.trim().toLowerCase().startsWith(q),
+  );
+  if (namePrefix >= 0) return namePrefix;
+
+  return shops.findIndex((s) => hay(s).includes(q));
 }
 
 export function ArrangeShopsButton({
@@ -98,6 +137,9 @@ export function ArrangeShopsDialog({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [search, setSearch] = useState("");
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   const loadShops = useCallback(async () => {
     setLoading(true);
@@ -138,6 +180,8 @@ export function ArrangeShopsDialog({
     setScope("overall");
     setCity("");
     setSector("");
+    setSearch("");
+    setHighlightId(null);
     setError(null);
     void loadShops();
   }, [open, loadShops]);
@@ -162,18 +206,46 @@ export function ArrangeShopsDialog({
     if (scope === "city") {
       if (!city) {
         setRows([]);
+        setHighlightId(null);
         return;
       }
       next = allShops.filter((s) => cityHead(s) === city);
     } else if (scope === "sector") {
       if (!sector) {
         setRows([]);
+        setHighlightId(null);
         return;
       }
       next = allShops.filter((s) => (s.route || "").trim() === sector);
     }
     setRows(next);
   }, [allShops, scope, city, sector, open]);
+
+  // Keep highlight on the best match for the current list (does not scroll).
+  useEffect(() => {
+    if (!open || loading || scopeNeedsPick(scope, city, sector)) {
+      return;
+    }
+    const q = search.trim();
+    if (!q) {
+      setHighlightId(null);
+      return;
+    }
+    const idx = findShopIndex(rows, q);
+    setHighlightId(idx >= 0 ? rows[idx].id : null);
+  }, [search, rows, open, loading, scope, city, sector]);
+
+  // Scroll only when the search text (or matched shop) changes — not on drag reorder.
+  useEffect(() => {
+    if (!highlightId || !search.trim()) return;
+    const frame = window.requestAnimationFrame(() => {
+      const el = listRef.current?.querySelector<HTMLElement>(
+        `[data-shop-id="${highlightId}"]`,
+      );
+      el?.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [search, highlightId]);
 
   function move(index: number, dir: -1 | 1) {
     setRows((prev) => moveItem(prev, index, index + dir));
@@ -220,15 +292,33 @@ export function ArrangeShopsDialog({
     }
   }
 
-  const needsPick =
-    (scope === "city" && !city) || (scope === "sector" && !sector);
+  const needsPick = scopeNeedsPick(scope, city, sector);
+  const searchMatchCount = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q || !rows.length) return 0;
+    return rows.filter((s) => {
+      const blob = [
+        s.party_code,
+        s.name_en,
+        cityHead(s),
+        s.route || "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return (
+        s.party_code.toLowerCase().includes(q) ||
+        s.name_en.toLowerCase().includes(q) ||
+        blob.includes(q)
+      );
+    }).length;
+  }, [rows, search]);
 
   return (
     <Dialog
       open={open}
       onClose={onClose}
       title="Arrange shops"
-      description="Choose overall, a city / head, or a sector. Then move shops up or down — first in the list shows first everywhere."
+      description="Choose overall, a city / head, or a sector. Search to jump to a shop, then drag or use arrows — first in the list shows first everywhere."
       className="max-w-xl"
     >
       <div className="space-y-4">
@@ -239,6 +329,8 @@ export function ArrangeShopsDialog({
               value={scope}
               onChange={(e) => {
                 setScope(e.target.value as Scope);
+                setSearch("");
+                setHighlightId(null);
                 setError(null);
               }}
               options={[
@@ -253,7 +345,11 @@ export function ArrangeShopsDialog({
               <Label>City / head</Label>
               <Select
                 value={city}
-                onChange={(e) => setCity(e.target.value)}
+                onChange={(e) => {
+                  setCity(e.target.value);
+                  setSearch("");
+                  setHighlightId(null);
+                }}
                 options={[
                   { value: "", label: "Select city / head…" },
                   ...cityChoices.map((c) => ({ value: c, label: c })),
@@ -266,7 +362,11 @@ export function ArrangeShopsDialog({
               <Label>Sector</Label>
               <Select
                 value={sector}
-                onChange={(e) => setSector(e.target.value)}
+                onChange={(e) => {
+                  setSector(e.target.value);
+                  setSearch("");
+                  setHighlightId(null);
+                }}
                 options={[
                   { value: "", label: "Select sector…" },
                   ...sectorChoices.map((s) => ({ value: s, label: s })),
@@ -275,6 +375,37 @@ export function ArrangeShopsDialog({
             </div>
           ) : null}
         </div>
+
+        {!loading && !needsPick && rows.length > 0 ? (
+          <div>
+            <Label htmlFor="arrange-shop-search">Search shop</Label>
+            <div className="relative mt-1">
+              <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
+              <Input
+                id="arrange-shop-search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Code or shop name…"
+                className="pl-9"
+                autoComplete="off"
+              />
+            </div>
+            {search.trim() ? (
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                {searchMatchCount === 0
+                  ? "No shop matches — try another code or name."
+                  : searchMatchCount === 1
+                    ? "1 match · highlighted below — drag to move."
+                    : `${searchMatchCount} matches · jumped to best match (highlighted).`}
+              </p>
+            ) : (
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                Type to find a shop; it scrolls into view and highlights so you
+                can drag it.
+              </p>
+            )}
+          </div>
+        ) : null}
 
         {loading ? (
           <p className="text-sm text-[var(--muted)]">Loading shops…</p>
@@ -289,59 +420,73 @@ export function ArrangeShopsDialog({
             No shops for this filter.
           </p>
         ) : (
-          <div className="max-h-[50vh] overflow-y-auto rounded-lg border border-[var(--border)]">
+          <div
+            ref={listRef}
+            className="max-h-[50vh] overflow-y-auto rounded-lg border border-[var(--border)]"
+          >
             <ul className="divide-y divide-[var(--border)]">
-              {rows.map((shop, index) => (
-                <li
-                  key={shop.id}
-                  draggable
-                  onDragStart={() => setDragIndex(index)}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={() => {
-                    if (dragIndex === null) return;
-                    setRows((prev) => moveItem(prev, dragIndex, index));
-                    setDragIndex(null);
-                  }}
-                  onDragEnd={() => setDragIndex(null)}
-                  className="flex items-center gap-2 bg-white px-3 py-2 text-sm"
-                >
-                  <GripVertical className="h-4 w-4 shrink-0 text-[var(--muted)]" />
-                  <span className="w-8 shrink-0 text-xs text-[var(--muted)]">
-                    {index + 1}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-[var(--ink)]">
-                      {shop.party_code} — {shop.name_en}
-                    </p>
-                    <p className="truncate text-xs text-[var(--muted)]">
-                      {[cityHead(shop), shop.route].filter(Boolean).join(" · ") ||
-                        "No city / sector"}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 gap-1">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      disabled={index === 0}
-                      onClick={() => move(index, -1)}
-                      aria-label="Move up"
-                    >
-                      <ArrowUp className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      disabled={index === rows.length - 1}
-                      onClick={() => move(index, 1)}
-                      aria-label="Move down"
-                    >
-                      <ArrowDown className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </li>
-              ))}
+              {rows.map((shop, index) => {
+                const highlighted = highlightId === shop.id;
+                return (
+                  <li
+                    key={shop.id}
+                    data-shop-id={shop.id}
+                    draggable
+                    onDragStart={() => setDragIndex(index)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => {
+                      if (dragIndex === null) return;
+                      setRows((prev) => moveItem(prev, dragIndex, index));
+                      setDragIndex(null);
+                    }}
+                    onDragEnd={() => setDragIndex(null)}
+                    className={cn(
+                      "flex items-center gap-2 px-3 py-2 text-sm transition-colors",
+                      highlighted
+                        ? "bg-amber-50 ring-1 ring-inset ring-amber-200"
+                        : "bg-white",
+                      dragIndex === index && "opacity-60",
+                    )}
+                  >
+                    <GripVertical className="h-4 w-4 shrink-0 text-[var(--muted)]" />
+                    <span className="w-8 shrink-0 text-xs text-[var(--muted)]">
+                      {index + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium text-[var(--ink)]">
+                        {shop.party_code} — {shop.name_en}
+                      </p>
+                      <p className="truncate text-xs text-[var(--muted)]">
+                        {[cityHead(shop), shop.route]
+                          .filter(Boolean)
+                          .join(" · ") || "No city / sector"}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 gap-1">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        disabled={index === 0}
+                        onClick={() => move(index, -1)}
+                        aria-label="Move up"
+                      >
+                        <ArrowUp className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        disabled={index === rows.length - 1}
+                        onClick={() => move(index, 1)}
+                        aria-label="Move down"
+                      >
+                        <ArrowDown className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         )}
