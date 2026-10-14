@@ -14,6 +14,8 @@ export type SectorSheetRow = {
   city: string | null;
   route: string | null;
   balance: number;
+  /** Optional — used when sorting offline/online to Arrange shops order. */
+  sort_order?: number;
 };
 
 export function SectorSheetTable({

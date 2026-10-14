@@ -319,6 +319,7 @@ export function OfflineTradingListPage({
         showPaymentFilter={kind === "sale"}
         showPrint
         enableBatchPrint={kind === "sale"}
+        showCompanyColumn={kind !== "sale"}
         warehouses={warehouses}
         partyColumnLabel={kind === "purchase" ? "Vendor" : "Customer"}
       />

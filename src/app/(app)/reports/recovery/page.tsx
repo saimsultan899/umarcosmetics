@@ -106,7 +106,8 @@ export default async function RecoverySheetPage({
         .eq("company_id", company.id)
         .eq("is_active", true)
         .in("party_subtype", ["customer", "both"])
-        .order("name_en"),
+        .order("sort_order", { ascending: true })
+        .order("party_code", { ascending: true }),
       supabase
         .from("parties")
         .select("route")

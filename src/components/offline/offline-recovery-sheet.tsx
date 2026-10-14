@@ -12,6 +12,7 @@ import { PrintButton } from "@/components/ui/print-button";
 import { Select } from "@/components/ui/select";
 import { RecoveryForm } from "@/components/vouchers/recovery-form";
 import { lastNDates } from "@/lib/analytics/aggregate";
+import { comparePartyArrangement } from "@/lib/parties/arrangement-order";
 import { parseReportList } from "@/lib/reports/filter-params";
 import {
   parseScopeToken,
@@ -327,6 +328,7 @@ export function OfflineRecoverySheetPage({
         name_en: String(p.name_en || ""),
         city: p.city ? String(p.city) : null,
         route: p.route ? String(p.route) : null,
+        sort_order: Number(p.sort_order ?? 0),
         balance,
         prev_balance: prevBal,
         last_sale_id: saleIsOpen && last ? last.id : null,
@@ -343,6 +345,9 @@ export function OfflineRecoverySheetPage({
     if (include === "dues") flat = flat.filter((r) => r.balance > 0.005);
     else if (include === "nonzero")
       flat = flat.filter((r) => Math.abs(r.balance) > 0.005);
+
+    // Match Arrange shops order (same as online customer receivables).
+    flat.sort(comparePartyArrangement);
 
     const groups = new Map<string, RecoverySheetRow[]>();
     for (const row of flat) {
@@ -363,7 +368,7 @@ export function OfflineRecoverySheetPage({
 
     for (const sec of sortedSectors) {
       const secRows = groups.get(sec) || [];
-      secRows.sort((a, b) => a.name_en.localeCompare(b.name_en));
+      // Already in arrangement order from flat; keep relative order.
 
       let secDue = 0;
       let secCr = 0;

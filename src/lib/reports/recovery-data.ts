@@ -1,3 +1,4 @@
+import { comparePartyArrangement } from "@/lib/parties/arrangement-order";
 import { one } from "@/lib/reports/helpers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -26,6 +27,8 @@ export type RecoverySheetRow = {
   name_en: string;
   city: string | null;
   route: string | null;
+  /** From Arrange shops — keeps receivable rows in the same visit order. */
+  sort_order: number;
   balance: number;
   /** Balance before the last unpaid sale (sale after last recovery). */
   prev_balance: number;
@@ -152,13 +155,17 @@ export async function buildRecoverySheet(
     (() => {
       let query = supabase
         .from("parties")
-        .select("id, party_code, name_en, city, route, head")
+        .select("id, party_code, name_en, city, route, head, sort_order")
         .eq("company_id", companyId)
         .eq("is_active", true)
         .in("party_subtype", ["customer", "both"]);
       if (sectors.length) query = query.in("route", sectors);
       if (partyIds.length) query = query.in("id", partyIds);
-      return query.order("name_en").limit(20000);
+      // Match Arrange shops / parties list order.
+      return query
+        .order("sort_order", { ascending: true })
+        .order("party_code", { ascending: true })
+        .limit(20000);
     })(),
     fetchLastSalesByParty(supabase, companyId, to),
     fetchLastRecoveriesByParty(supabase, companyId, to),
@@ -210,6 +217,7 @@ export async function buildRecoverySheet(
       name_en: (p.name_en as string) || "",
       city: (p.city as string | null) ?? null,
       route: (p.route as string | null) ?? null,
+      sort_order: Number((p as { sort_order?: number | null }).sort_order ?? 0),
       head: ((p.head as string | null) || "").trim() || null,
       balance,
       prev_balance: saleIsOpen && lastSaleValue != null
@@ -229,6 +237,9 @@ export async function buildRecoverySheet(
   if (include === "dues") flat = flat.filter((r) => r.balance > 0.005);
   else if (include === "nonzero")
     flat = flat.filter((r) => Math.abs(r.balance) > 0.005);
+
+  // Keep Arrange shops order after filters (stable within each sector group).
+  flat.sort(comparePartyArrangement);
 
   const sections = groupBySector(flat);
   const grand = sections.reduce(

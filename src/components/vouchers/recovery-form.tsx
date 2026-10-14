@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { focusField, handleEnterAsNext } from "@/lib/keyboard/enter-nav";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
+import { comparePartyArrangement } from "@/lib/parties/arrangement-order";
 import { createClient } from "@/lib/supabase/client";
 import type { Party } from "@/lib/types/database";
 import type { SalesmanOption } from "@/lib/queries/salesmen";
@@ -156,15 +157,15 @@ export function RecoveryForm({
       return;
     }
 
-    const base: SheetShop[] = visibleParties
+    const base: SheetShop[] = [...visibleParties]
+      .sort(comparePartyArrangement)
       .map((p) => ({
         id: p.id,
         code: p.party_code,
         name: p.name_en,
         balance: null,
         lastReceived: null,
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+      }));
 
     async function loadSheet() {
       if (typeof navigator !== "undefined" && !navigator.onLine) {

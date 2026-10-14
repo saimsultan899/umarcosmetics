@@ -43,6 +43,7 @@ export function DocumentListTable({
   batchPrintHref = "/sales/invoices/print",
   warehouses = [],
   partyColumnLabel = "Customer",
+  showCompanyColumn = true,
 }: {
   title?: string;
   rows: DocumentListRow[];
@@ -55,6 +56,11 @@ export function DocumentListTable({
   batchPrintHref?: string;
   warehouses?: Array<{ id: string; name: string }>;
   partyColumnLabel?: string;
+  /**
+   * Sale invoices often mix brands on one bill — hide the single Company
+   * column there. Filter dropdown can still narrow by warehouse when passed.
+   */
+  showCompanyColumn?: boolean;
 }) {
   const router = useRouter();
   const filterKeys = useMemo(
@@ -83,7 +89,10 @@ export function DocumentListTable({
     pageIds.length > 0 && pageIds.every((id) => selected.has(id));
   const selectedCount = selected.size;
   const colSpan =
-    (showPaymentFilter ? 7 : 6) + (enableBatchPrint ? 1 : 0);
+    5 +
+    (showCompanyColumn ? 1 : 0) +
+    (showPaymentFilter ? 1 : 0) +
+    (enableBatchPrint ? 1 : 0);
 
   function toggleOne(id: string) {
     setSelected((prev) => {
@@ -291,7 +300,7 @@ export function DocumentListTable({
                   <th>Doc #</th>
                   <th>Date</th>
                   <th>{partyColumnLabel}</th>
-                  <th>Company</th>
+                  {showCompanyColumn ? <th>Company</th> : null}
                   {showPaymentFilter ? <th>Payment</th> : null}
                   <th>Total</th>
                   <th className="text-right">Actions</th>
@@ -332,7 +341,9 @@ export function DocumentListTable({
                       </td>
                       <td>{inv.date}</td>
                       <td>{inv.partyLabel}</td>
-                      <td>{inv.warehouseLabel || "—"}</td>
+                      {showCompanyColumn ? (
+                        <td>{inv.warehouseLabel || "—"}</td>
+                      ) : null}
                       {showPaymentFilter ? (
                         <td className="text-xs font-semibold uppercase">
                           {inv.paymentType || "—"}
@@ -352,10 +363,14 @@ export function DocumentListTable({
                             { label: "Doc #", value: inv.docNo },
                             { label: "Date", value: inv.date },
                             { label: partyColumnLabel, value: inv.partyLabel },
-                            {
-                              label: "Company",
-                              value: inv.warehouseLabel || "—",
-                            },
+                            ...(showCompanyColumn
+                              ? [
+                                  {
+                                    label: "Company",
+                                    value: inv.warehouseLabel || "—",
+                                  },
+                                ]
+                              : []),
                             ...(inv.paymentType
                               ? [{ label: "Payment", value: inv.paymentType }]
                               : []),

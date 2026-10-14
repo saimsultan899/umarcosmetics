@@ -355,7 +355,14 @@ export async function offlineAccountsBalances(companyId: string) {
   const bal = new Map<string, number>();
   const meta = new Map<
     string,
-    { party_code: string; name_en: string; city: string | null; route: string | null; credit_limit: number }
+    {
+      party_code: string;
+      name_en: string;
+      city: string | null;
+      route: string | null;
+      credit_limit: number;
+      sort_order: number;
+    }
   >();
 
   for (const p of parties) {
@@ -367,6 +374,7 @@ export async function offlineAccountsBalances(companyId: string) {
       city: p.city == null ? null : String(p.city),
       route: p.route == null ? null : String(p.route),
       credit_limit: num(p.credit_limit),
+      sort_order: num(p.sort_order),
     });
     bal.set(id, num(p.opening_balance));
   }
@@ -428,6 +436,7 @@ export async function offlineAccountsBalances(companyId: string) {
         city: null,
         route: null,
         credit_limit: 0,
+        sort_order: 0,
       };
       return {
         party_id,
@@ -435,6 +444,7 @@ export async function offlineAccountsBalances(companyId: string) {
         name_en: m.name_en,
         city: m.city,
         route: m.route,
+        sort_order: m.sort_order,
         balance,
         credit_limit: m.credit_limit,
       };

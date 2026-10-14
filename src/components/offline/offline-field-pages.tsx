@@ -10,6 +10,7 @@ import { OfflineBanner } from "@/components/offline/offline-banner";
 import { PrintButton } from "@/components/ui/print-button";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { useOfflineData } from "@/hooks/use-offline-data";
+import { comparePartyArrangement } from "@/lib/parties/arrangement-order";
 import { offlineAccountsBalances } from "@/lib/offline/offline-reports";
 import {
   hasLocalSqlite,
@@ -417,7 +418,11 @@ export function OfflineSectorSheetsPage({
             city: r.city || null,
             route: r.route || null,
             balance: r.balance,
-          }));
+            sort_order: Number(
+              (r as { sort_order?: number }).sort_order ?? 0,
+            ),
+          }))
+          .sort(comparePartyArrangement);
         setRows(filtered);
         setLoading(false);
       }

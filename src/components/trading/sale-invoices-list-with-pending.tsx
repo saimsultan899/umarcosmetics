@@ -87,6 +87,7 @@ export function SaleInvoicesListWithPending({
         showPaymentFilter
         showPrint
         enableBatchPrint
+        showCompanyColumn={false}
         warehouses={warehouses}
       />
     </div>
