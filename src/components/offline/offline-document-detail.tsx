@@ -308,13 +308,7 @@ export function OfflineDocumentDetail({
         "",
     );
     const sector = String(
-      partiesObj.route ||
-        partiesObj.city ||
-        payload.route ||
-        payload.city ||
-        doc.route ||
-        doc.city ||
-        "",
+      partiesObj.route || payload.route || doc.route || "",
     );
 
     const subtotal = Number(doc.subtotal ?? payload.subtotal ?? 0);

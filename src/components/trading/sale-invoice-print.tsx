@@ -46,8 +46,24 @@ export type SalePrintLine = {
 const THERMAL_DASH = "--------------------------------";
 const THERMAL_EQ = "================================";
 
-function itemLabel(code?: string | null, name?: string | null) {
-  return [code, name].filter(Boolean).join(" ");
+function itemLabel(_code?: string | null, name?: string | null) {
+  const label = String(name || "").trim();
+  return label || "—";
+}
+
+/** Distributor owner contact lines on the sale invoice header. */
+const SALE_INVOICE_OWNER_PHONES = ["0300-6765266", "0307-7842100"];
+
+function distributorPhoneLines(companyPhone?: string | null): string[] {
+  const fromCompany = String(companyPhone || "")
+    .split(/[,;|]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const merged = [...fromCompany];
+  for (const n of SALE_INVOICE_OWNER_PHONES) {
+    if (!merged.includes(n)) merged.push(n);
+  }
+  return merged;
 }
 
 function discPercent(qty: number, tradePrice: number, discount: number) {
@@ -124,7 +140,7 @@ export function SaleInvoicePrint({
   previousPayment = 0,
   previousBalance,
   creditDays = 21,
-  preparedBy,
+  preparedBy: _preparedBy,
   autoPrint = false,
   isWalkIn = false,
   companyId = "",
@@ -183,16 +199,12 @@ export function SaleInvoicePrint({
       ? "0.00"
       : `${formatNumber(Math.abs(previousBalance), 2)} ${previousBalance >= 0 ? "Dr" : "Cr"}`;
 
-  const productCount = lines.length;
-  const totalQty = lines.reduce(
-    (sum, line) => sum + Number(line.qty || 0) + Number(line.bonus || 0),
-    0,
-  );
   const customerNo = (partyMobile || "").trim();
   const ownerNo = (partyPhone || "").trim();
   const dateTimeLabel = [formatDateLabel(date), formatTimeLabel(printedAt)]
     .filter(Boolean)
     .join(" ");
+  const headerPhones = distributorPhoneLines(_companyPhone);
 
   const savedTitle = useRef("");
   const clientReady = useClientReady();
@@ -422,7 +434,9 @@ export function SaleInvoicePrint({
       {showSheet && showThermal ? (
         <div className="print-sheet thermal-80 mx-auto" data-paper="thermal">
           <div className="th-shop">{companyName || "Sale"}</div>
-          {_companyPhone ? <div className="th-sub">{_companyPhone}</div> : null}
+          {headerPhones.length > 0 ? (
+            <div className="th-sub">{headerPhones.join("  ")}</div>
+          ) : null}
           <div className="th-eq">{THERMAL_EQ}</div>
           <div className="th-center th-strong">CASH SALE</div>
           <div className="th-center">{partyName || "Walk-in Customer"}</div>
@@ -461,14 +475,6 @@ export function SaleInvoicePrint({
           </table>
           <div className="th-dash">{THERMAL_DASH}</div>
           <div className="th-row">
-            <span>Products</span>
-            <span>{formatNumber(productCount, 0)}</span>
-          </div>
-          <div className="th-row">
-            <span>Total qty</span>
-            <span>{formatNumber(totalQty, 0)}</span>
-          </div>
-          <div className="th-row">
             <span>Total</span>
             <span>{formatNumber(subtotal, 2)}</span>
           </div>
@@ -503,9 +509,12 @@ export function SaleInvoicePrint({
           <div className="th-eq">{THERMAL_EQ}</div>
           <div className="th-thanks">Thank you</div>
           <div className="th-credit">
-            <div className="th-credit-line">Developed by Umar Distributor</div>
-            <div className="th-credit-line">03006031380</div>
-            <div className="th-credit-line">03084882425</div>
+            <div className="th-credit-line">
+              Prepared By : USMAN ISHAQ (0308-8664002)
+            </div>
+            <div className="th-credit-line">
+              Developed by Umar Distributor (0308-4882425, 03006031380)
+            </div>
           </div>
           {/* Exactly 2 line feeds before the cutter — not 4+. */}
           <div className="th-cut-feed" aria-hidden="true" />
@@ -539,14 +548,16 @@ export function SaleInvoicePrint({
                     ) : (
                       <div className="si-title">Sale Invoice</div>
                     )}
-                    {_companyPhone ? (
-                      <div className="si-company-line">{_companyPhone}</div>
+                    {headerPhones.length > 0 ? (
+                      <div className="si-company-line si-company-phones">
+                        {headerPhones.join("   ")}
+                      </div>
                     ) : null}
                   </div>
 
                   <div className="si-meta">
                     <div className="si-meta-left si-meta-block">
-                      <div>
+                      <div className="si-party-ac">
                         <span className="si-k">A/C No :</span>{" "}
                         <span className="si-v">
                           {String(partyCode || "").toUpperCase() === "WALKIN"
@@ -572,6 +583,10 @@ export function SaleInvoicePrint({
                           <span className="si-v">{ownerNo}</span>
                         </div>
                       ) : null}
+                      <div className="si-meta-nowrap">
+                        <span className="si-k">Date :</span>{" "}
+                        <span className="si-v">{dateTimeLabel}</span>
+                      </div>
                     </div>
                     <div className="si-meta-right si-meta-block">
                       <div>
@@ -586,10 +601,6 @@ export function SaleInvoicePrint({
                           <span className="si-v">{sector}</span>
                         </div>
                       ) : null}
-                      <div className="si-meta-nowrap">
-                        <span className="si-k">Date :</span>{" "}
-                        <span className="si-v">{dateTimeLabel}</span>
-                      </div>
                     </div>
                   </div>
                 </>
@@ -672,14 +683,6 @@ export function SaleInvoicePrint({
                   <div className="si-foot">
                   <div className="si-foot-col si-foot-bill">
                     <div className="si-row">
-                      <span>Products</span>
-                      <span>{formatNumber(productCount, 0)}</span>
-                    </div>
-                    <div className="si-row">
-                      <span>Total qty</span>
-                      <span>{formatNumber(totalQty, 0)}</span>
-                    </div>
-                    <div className="si-row">
                       <span>Total</span>
                       <span>{formatNumber(subtotal, 2)}</span>
                     </div>
@@ -696,10 +699,10 @@ export function SaleInvoicePrint({
                       <span>{formatNumber(billAmount, 2)}</span>
                     </div>
                     <p className="si-note" lang="ur">
-                      سابقہ بل کی ادائیگی پر نیا مال دیا جائے گا۔
+                      سابقہ بل کی ادائیگی پر نئی انوائس دی جائے گی۔
                     </p>
                     <div className="si-prepared">
-                      Prepared By : {(preparedBy || "—").toUpperCase()}
+                      Prepared By : USMAN ISHAQ (0308-8664002)
                     </div>
                   </div>
 
@@ -730,6 +733,9 @@ export function SaleInvoicePrint({
                       Checked By.
                       <span className="si-sign-line" />
                     </div>
+                  </div>
+                  <div className="si-developed">
+                    Developed by Umar Distributor (0308-4882425, 03006031380)
                   </div>
                 </div>
                 </div>

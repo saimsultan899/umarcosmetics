@@ -1,7 +1,78 @@
 import { createClient } from "@/lib/supabase/client";
-import { getCachedRows, listPendingMutations } from "@/lib/offline/local-db";
+import {
+  deleteCachedRow,
+  getCachedRows,
+  listPendingMutations,
+  removeMutation,
+} from "@/lib/offline/local-db";
 import type { DocumentListRow } from "@/lib/queries/documents";
 import { formatReportInvNo } from "@/lib/reports/helpers";
+import {
+  dedupeSaleInvoiceRows,
+  saleInvoiceDedupeKey,
+} from "@/lib/trading/dedupe-sale-invoices";
+
+function isActiveSaleInvoiceRow(row: Record<string, unknown>): boolean {
+  const status = String(row.status || "posted").toLowerCase();
+  return status !== "cancelled" && status !== "voided";
+}
+
+function isPostedSaleInvoiceRow(row: Record<string, unknown>): boolean {
+  return String(row.status || "posted").toLowerCase() === "posted";
+}
+
+/** Drop duplicate cache rows and pending mutations when a posted copy already exists. */
+export async function pruneStaleDuplicateSaleInvoices(
+  companyId: string,
+): Promise<void> {
+  try {
+    const cached = await getCachedRows("sale_invoices", companyId);
+    const active = cached.filter((r) =>
+      isActiveSaleInvoiceRow(r as Record<string, unknown>),
+    ) as Record<string, unknown>[];
+    const canonical = dedupeSaleInvoiceRows(active);
+    const keepIds = new Set(canonical.map((r) => String(r.id)));
+
+    for (const r of active) {
+      const id = String(r.id);
+      if (!keepIds.has(id)) {
+        await deleteCachedRow("sale_invoices", id);
+      }
+    }
+
+    const postedKeys = new Set(
+      canonical
+        .filter(isPostedSaleInvoiceRow)
+        .map((r) => saleInvoiceDedupeKey(r)),
+    );
+
+    const pending = await listPendingMutations(companyId);
+    for (const m of pending) {
+      if (m.type !== "sale_invoice") continue;
+      const payload = (m.payload || {}) as Record<string, unknown>;
+      if (postedKeys.has(saleInvoiceDedupeKey(payload))) {
+        await removeMutation(m.id);
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+async function postedSaleInvoiceKeys(companyId: string): Promise<Set<string>> {
+  try {
+    const cached = await getCachedRows("sale_invoices", companyId);
+    const active = cached.filter((r) =>
+      isActiveSaleInvoiceRow(r as Record<string, unknown>),
+    ) as Record<string, unknown>[];
+    const keys = dedupeSaleInvoiceRows(active)
+      .filter(isPostedSaleInvoiceRow)
+      .map((r) => saleInvoiceDedupeKey(r));
+    return new Set(keys);
+  } catch {
+    return new Set();
+  }
+}
 
 /** Stable id for one new sale invoice attempt (survives retries and offline sync). */
 export function createSaleClientRequestId(): string {
@@ -49,12 +120,16 @@ export async function loadPendingSaleInvoiceListRows(
 ): Promise<DocumentListRow[]> {
   const rows: DocumentListRow[] = [];
   const seen = new Set<string>();
+  const postedKeys = await postedSaleInvoiceKeys(companyId);
 
   try {
     const pending = await listPendingMutations(companyId);
     for (const m of pending) {
       if (m.type !== "sale_invoice") continue;
       const payload = m.payload || {};
+      if (postedKeys.has(saleInvoiceDedupeKey(payload as Record<string, unknown>))) {
+        continue;
+      }
       const id = String(payload.id || m.id);
       if (seen.has(id)) continue;
       seen.add(id);
@@ -88,6 +163,11 @@ export async function loadPendingSaleInvoiceListRows(
         (r as { _syncStatus?: string })._syncStatus || r.sync_status || "",
       ).toLowerCase();
       if (sync !== "pending") continue;
+      if (
+        postedKeys.has(saleInvoiceDedupeKey(r as Record<string, unknown>))
+      ) {
+        continue;
+      }
       const id = String(r.id);
       if (seen.has(id)) continue;
       seen.add(id);

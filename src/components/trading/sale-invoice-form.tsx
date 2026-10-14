@@ -28,7 +28,7 @@ import { useSingleSubmit } from "@/lib/forms/single-submit";
 import {
   createSaleClientRequestId,
 } from "@/lib/trading/sale-invoice-submit";
-import { formatNumber } from "@/lib/utils";
+import { formatNumber, formatPkr } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
@@ -160,24 +160,73 @@ export function SaleInvoiceForm({
   const singleSubmit = useSingleSubmit();
   const [error, setError] = useState<string | null>(null);
   const [creditWarning, setCreditWarning] = useState<string | null>(null);
+  const [previousBalance, setPreviousBalance] = useState<number | null>(null);
 
   const party = customers.find((p) => p.id === partyId);
   const walkInActive = paymentType === "cash" && walkInCustomer;
   const customerRequired = !walkInActive;
 
-  async function checkCreditLimit(nextPartyId: string) {
+  useEffect(() => {
+    let cancelled = false;
+    async function loadPreviousBalance(id: string) {
+      if (!id || walkInActive) {
+        setPreviousBalance(null);
+        return;
+      }
+      try {
+        if (typeof navigator !== "undefined" && !navigator.onLine) {
+          const { offlineAccountsBalances } = await import(
+            "@/lib/offline/offline-reports"
+          );
+          const rows = await offlineAccountsBalances(companyId);
+          const row = rows.find((r) => String(r.party_id) === id);
+          if (!cancelled) {
+            setPreviousBalance(row ? Number(row.balance || 0) : 0);
+          }
+          return;
+        }
+        const supabase = createClient();
+        const result = await Promise.race([
+          supabase.rpc("get_party_balance", {
+            p_company_id: companyId,
+            p_party_id: id,
+            p_as_of: invoiceDate || new Date().toISOString().slice(0, 10),
+          }),
+          new Promise<null>((r) => setTimeout(() => r(null), 4000)),
+        ]);
+        const data =
+          result && typeof result === "object" && "data" in result
+            ? (result as { data: unknown }).data
+            : null;
+        if (!cancelled) {
+          setPreviousBalance(data == null ? null : Number(data));
+        }
+      } catch {
+        if (!cancelled) setPreviousBalance(null);
+      }
+    }
+    void loadPreviousBalance(partyId);
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId, partyId, invoiceDate, walkInActive]);
+
+  async function checkCreditLimit(nextPartyId: string, knownBalance?: number | null) {
     setCreditWarning(null);
     if (!nextPartyId) return;
     const selected = customers.find((p) => p.id === nextPartyId);
     if (!selected || Number(selected.credit_limit) <= 0) return;
 
-    const supabase = createClient();
-    const { data: balance } = await supabase.rpc("get_party_balance", {
-      p_company_id: companyId,
-      p_party_id: nextPartyId,
-      p_as_of: new Date().toISOString().slice(0, 10),
-    });
-    const bal = Number(balance || 0);
+    let bal = knownBalance;
+    if (bal == null) {
+      const supabase = createClient();
+      const { data: balance } = await supabase.rpc("get_party_balance", {
+        p_company_id: companyId,
+        p_party_id: nextPartyId,
+        p_as_of: invoiceDate || new Date().toISOString().slice(0, 10),
+      });
+      bal = Number(balance || 0);
+    }
     if (bal >= Number(selected.credit_limit)) {
       setCreditWarning(
         `Credit limit reached/exceeded. Balance ${formatNumber(bal)} / Limit ${formatNumber(selected.credit_limit)}`,
@@ -460,19 +509,45 @@ export function SaleInvoiceForm({
           <Input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} required />
         </div>
         <div className="sm:col-span-6">
-          <PartyCodePicker
-            companyId={companyId}
-            parties={customers}
-            value={partyId}
-            required={customerRequired}
-            label="Customer code / shop"
-            filterSubtype={["customer", "both"]}
-            onChange={(id) => {
-              setPartyId(id);
-              if (id) setWalkInCustomer(false);
-              void checkCreditLimit(id);
-            }}
-          />
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <PartyCodePicker
+                companyId={companyId}
+                parties={customers}
+                value={partyId}
+                required={customerRequired}
+                label="Customer code / shop"
+                filterSubtype={["customer", "both"]}
+                onChange={(id) => {
+                  setPartyId(id);
+                  if (id) setWalkInCustomer(false);
+                  else setPreviousBalance(null);
+                  void checkCreditLimit(id);
+                }}
+              />
+            </div>
+            <div className="w-[9.5rem] shrink-0">
+              <Label>Prev. balance</Label>
+              <div className="flex h-10 items-center rounded-md border border-[var(--border)] bg-[var(--surface-2,#f8f8f8)] px-2 text-sm tabular-nums">
+                {partyId && !walkInActive ? (
+                  previousBalance != null ? (
+                    <span className="font-semibold text-[var(--ink)]">
+                      {formatPkr(Math.abs(previousBalance))}{" "}
+                      {previousBalance > 0.005
+                        ? "Dr"
+                        : previousBalance < -0.005
+                          ? "Cr"
+                          : "Nil"}
+                    </span>
+                  ) : (
+                    <span className="text-[var(--muted)]">…</span>
+                  )
+                ) : (
+                  <span className="text-[var(--muted)]">—</span>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
         <div className="sm:col-span-4">
           <div className="flex items-end gap-3">
@@ -501,6 +576,7 @@ export function SaleInvoiceForm({
                     if (on) {
                       setPartyId("");
                       setCreditWarning(null);
+                      setPreviousBalance(null);
                     }
                   }}
                   className="h-4 w-4 rounded border-[var(--border)] accent-[var(--brand)]"

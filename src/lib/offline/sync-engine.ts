@@ -519,9 +519,14 @@ async function executeSyncPendingMutations(params: {
         refreshAllCaches,
         reconcileMainCompanyHubCaches,
       } = await import("@/lib/offline/cache-manager");
-      void refreshAllCaches(params.companyId).then(() =>
-        reconcileMainCompanyHubCaches(params.companyId),
-      );
+      void refreshAllCaches(params.companyId)
+        .then(() => reconcileMainCompanyHubCaches(params.companyId))
+        .then(async () => {
+          const { pruneStaleDuplicateSaleInvoices } = await import(
+            "@/lib/trading/sale-invoice-submit"
+          );
+          await pruneStaleDuplicateSaleInvoices(params.companyId);
+        });
     } catch {
       /* ignore */
     }

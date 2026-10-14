@@ -14,6 +14,8 @@ import { emptyDocumentSummary } from "@/lib/offline/local-list-meta";
 import { offlineStockSnapshot } from "@/lib/offline/offline-reports";
 import { migrateLegacyLocalDocNos } from "@/lib/offline/offline-submit";
 import { formatReportInvNo } from "@/lib/reports/helpers";
+import { dedupeSaleInvoiceRows } from "@/lib/trading/dedupe-sale-invoices";
+import { pruneStaleDuplicateSaleInvoices } from "@/lib/trading/sale-invoice-submit";
 import type { CacheStoreName } from "@/lib/offline/local-db";
 import type { DocumentListRow } from "@/lib/queries/documents";
 import type { Party, Product, Warehouse } from "@/lib/types/database";
@@ -139,18 +141,24 @@ export function OfflineTradingListPage({
         }
       } catch {}
       await migrateLegacyLocalDocNos(companyId);
+      if (kind === "sale") {
+        await pruneStaleDuplicateSaleInvoices(companyId);
+      }
       await refetchInvoices();
     })();
-  }, [companyId, refetchInvoices]);
+  }, [companyId, kind, refetchInvoices]);
 
   const listRows: (DocumentListRow & { warehouseId?: string })[] = useMemo(
-    () =>
-      invoiceRows
-        .filter((r) => {
-          const status = String(r.status || "posted").toLowerCase();
-          return status !== "cancelled" && status !== "voided";
-        })
-        .map((r) => {
+    () => {
+      const active = invoiceRows.filter((r) => {
+        const status = String(r.status || "posted").toLowerCase();
+        return status !== "cancelled" && status !== "voided";
+      });
+      const rowsForList =
+        kind === "sale"
+          ? dedupeSaleInvoiceRows(active as Record<string, unknown>[])
+          : active;
+      return rowsForList.map((r) => {
           const warehouseId = String(r.warehouse_id || "");
           const warehouseName =
             (r.warehouses as { name?: string } | undefined)?.name ||
@@ -183,7 +191,8 @@ export function OfflineTradingListPage({
             linesFk:
               kind === "sale" ? "sale_invoice_id" : "purchase_invoice_id",
           };
-        }),
+        });
+    },
     [invoiceRows, kind, warehouseMap, partyMap],
   );
 

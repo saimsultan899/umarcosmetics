@@ -2181,10 +2181,26 @@ button[aria-haspopup="listbox"]:focus-visible {
 }
 .si-meta-left {
   flex: 1.7 1 0;
+  text-align: left;
 }
 .si-meta-right {
   flex: 0.9 1 0;
   text-align: right;
+}
+.si-party-ac {
+  min-width: 0;
+}
+.si-party-ac .si-v {
+  font-size: 0.94em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  display: inline-block;
+  vertical-align: bottom;
+}
+.si-company-phones {
+  letter-spacing: 0.02em;
 }
 /* Document slips: give the right meta enough room for Sold between / dates */
 .cdoc .si-meta-left {
@@ -2292,6 +2308,7 @@ button[aria-haspopup="listbox"]:focus-visible {
 }
 .si-foot {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: flex-start;
   gap: 12px;
@@ -2342,13 +2359,23 @@ button[aria-haspopup="listbox"]:focus-visible {
   font-size: 15px;
   line-height: 1.45;
   text-align: left;
-  direction: rtl;
+  direction: ltr;
   unicode-bidi: isolate;
 }
 .si-prepared {
   margin-top: 6px;
   font-size: 15px;
   font-weight: 600;
+  white-space: nowrap;
+}
+.si-developed {
+  flex: 1 0 100%;
+  margin-top: 6px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #333;
+  white-space: nowrap;
+  text-align: left;
 }
 .si-checked {
   margin-top: 18px;
@@ -2421,6 +2448,9 @@ button[aria-haspopup="listbox"]:focus-visible {
 .si-half .si-note,
 .si-half .si-prepared {
   font-size: 13.5px;
+}
+.si-half .si-developed {
+  font-size: 12px;
 }
 .si-half .si-checked {
   font-size: 14.5px;
@@ -2989,6 +3019,11 @@ button[aria-haspopup="listbox"]:focus-visible {
     margin: 4px 0 2px !important;
     font-size: 15px !important;
   }
+  .print-sheet.si-a4 .si-developed,
+  .print-sheet.si-half .si-developed {
+    margin: 1px 0 0 !important;
+    font-size: 13px !important;
+  }
   .print-sheet.si-a4 .si-checked,
   .print-sheet.si-half .si-checked {
     margin-top: 10px !important;
@@ -3054,6 +3089,9 @@ button[aria-haspopup="listbox"]:focus-visible {
   .print-sheet.si-half .si-prepared {
     font-size: 13.5px !important;
   }
+  .print-sheet.si-half .si-developed {
+    font-size: 12px !important;
+  }
   .print-sheet.si-half .si-checked {
     font-size: 14.5px !important;
   }
@@ -3091,6 +3129,10 @@ button[aria-haspopup="listbox"]:focus-visible {
   .print-sheet.si-half .si-prepared {
     margin: 2px 0 0 !important;
     font-size: 12.5px !important;
+  }
+  .print-sheet.si-half .si-developed {
+    margin: 1px 0 0 !important;
+    font-size: 11.5px !important;
   }
   .print-sheet.si-half .si-checked {
     margin-top: 5px !important;

@@ -144,9 +144,7 @@ export async function loadSaleInvoicePrintData(
     .filter(Boolean)
     .join(" ");
 
-  const sector = [partyObj?.route || partyObj?.head, partyObj?.city]
-    .filter(Boolean)
-    .join(" ");
+  const sector = partyObj?.route || invoice.route || null;
 
   return {
     id: String(invoice.id),
