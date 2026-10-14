@@ -94,6 +94,7 @@ export function PrintDocument({
   footerNote,
   size = "full",
   autoPrint = false,
+  showLineSummary = true,
 }: {
   companyName: string;
   companyAddress?: string | null;
@@ -121,6 +122,8 @@ export function PrintDocument({
   /** @deprecated Prefer A5/A4 toggle; full=a4, half=a5 as initial hint only. */
   size?: "full" | "half";
   autoPrint?: boolean;
+  /** Products / Total qty rows above money totals. Off for purchase invoices. */
+  showLineSummary?: boolean;
 }) {
   const [paperTouched, setPaperTouched] = useState(false);
   const [paper, setPaper] = useState<"a5" | "a4">(() => {
@@ -193,9 +196,9 @@ export function PrintDocument({
     used += 7; // Qty
     if (hasUom) used += 7;
     if (hasRate) used += 8;
-    if (hasDiscount) used += 7 + 7;
-    if (hasAmount) used += 16;
-    return `${Math.max(36, 100 - used)}%`;
+    if (hasDiscount) used += 5 + 5; // Disc % + Disc — keep narrow
+    if (hasAmount) used += 14;
+    return `${Math.max(40, 100 - used)}%`;
   })();
 
   function renderTable(pageLines: PrintLine[], startIndex: number) {
@@ -208,9 +211,9 @@ export function PrintDocument({
           <col style={{ width: "7%" }} />
           {hasUom ? <col style={{ width: "7%" }} /> : null}
           {hasRate ? <col style={{ width: "8%" }} /> : null}
-          {hasDiscount ? <col style={{ width: "7%" }} /> : null}
-          {hasDiscount ? <col style={{ width: "7%" }} /> : null}
-          {hasAmount ? <col style={{ width: "16%" }} /> : null}
+          {hasDiscount ? <col style={{ width: "5%" }} /> : null}
+          {hasDiscount ? <col style={{ width: "5%" }} /> : null}
+          {hasAmount ? <col style={{ width: "14%" }} /> : null}
         </colgroup>
         <thead>
           <tr>
@@ -448,14 +451,18 @@ export function PrintDocument({
               {page.isLast ? (
                 <>
                   <div className="cdoc-totals">
-                    <div className="si-row">
-                      <span>Products</span>
-                      <span>{formatNumber(productCount, 0)}</span>
-                    </div>
-                    <div className="si-row">
-                      <span>Total qty</span>
-                      <span>{formatNumber(totalQty, 0)}</span>
-                    </div>
+                    {showLineSummary ? (
+                      <>
+                        <div className="si-row">
+                          <span>Products</span>
+                          <span>{formatNumber(productCount, 0)}</span>
+                        </div>
+                        <div className="si-row">
+                          <span>Total qty</span>
+                          <span>{formatNumber(totalQty, 0)}</span>
+                        </div>
+                      </>
+                    ) : null}
                     {totals?.map((t, i) => {
                       const anyStrong = totals.some((x) => x.strong);
                       const isGrand =

@@ -2281,12 +2281,14 @@ button[aria-haspopup="listbox"]:focus-visible {
   word-break: break-word;
   line-height: 1.2;
 }
-/* Expiry / purchase / return slips — full ItemName, no … dots */
+/* Classic docs — wrap long ItemName onto the next line instead of hitting Qty. */
 .cdoc .si-table td.si-item {
-  white-space: nowrap;
-  overflow: visible;
+  white-space: normal;
+  overflow: hidden;
   text-overflow: clip;
-  word-break: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.15;
 }
 .si-table tbody tr:last-child td {
   border-bottom: 1.5px solid #111;
@@ -2516,15 +2518,25 @@ button[aria-haspopup="listbox"]:focus-visible {
   padding: 1px 2px;
   line-height: 1.12;
 }
+.cdoc--half .cdoc-totals,
+.cdoc--a4 .cdoc-totals {
+  font-size: 13px;
+}
+.cdoc--half .cdoc-words,
+.cdoc--a4 .cdoc-words {
+  font-size: 12px;
+}
 .cdoc-totals {
-  margin-top: 10px;
+  margin-top: 8px;
   margin-left: auto;
-  width: 82mm;
-  font-size: 16.5px;
+  width: 78mm;
+  font-size: 13.5px;
+  line-height: 1.25;
 }
 .cdoc-words {
-  margin-top: 10px;
-  font-size: 15px;
+  margin-top: 8px;
+  font-size: 12.5px;
+  line-height: 1.3;
 }
 .cdoc-words b {
   text-transform: uppercase;
@@ -2858,6 +2870,21 @@ button[aria-haspopup="listbox"]:focus-visible {
   .print-sheet.cdoc--a4 .si-cont {
     margin: 2px 0 !important;
     font-size: 13px !important;
+  }
+  .print-sheet.cdoc .si-table td.si-item {
+    white-space: normal !important;
+    overflow: hidden !important;
+    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
+    line-height: 1.15 !important;
+  }
+  .print-sheet.cdoc .cdoc-totals {
+    font-size: 13px !important;
+    line-height: 1.25 !important;
+  }
+  .print-sheet.cdoc .cdoc-words {
+    font-size: 12px !important;
+    line-height: 1.3 !important;
   }
 
   .gp-sheet {

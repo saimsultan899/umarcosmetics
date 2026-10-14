@@ -431,6 +431,7 @@ export function OfflineDocumentDetail({
         partyMobile={view.partyMobile || null}
         lines={lines}
         totals={view.totals}
+        showLineSummary={kind !== "purchase_invoice"}
         autoPrint={autoPrint}
       />
     </div>

@@ -133,6 +133,7 @@ export default async function PurchaseInvoiceDetailPage({
         ]}
         amountInWords={amountInWordsPkr(invoice.grand_total)}
         signatures={["Prepared by", "Authorized by"]}
+        showLineSummary={false}
         autoPrint={autoPrint}
       />
     </div>
