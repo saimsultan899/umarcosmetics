@@ -319,7 +319,17 @@ export function DocumentListTable({
                           />
                         </td>
                       ) : null}
-                      <td className="font-medium">{inv.docNo}</td>
+                      <td className="font-medium">
+                        {inv.docNo}
+                        {inv.syncPending ? (
+                          <span
+                            className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800 dark:text-amber-200"
+                            title="Saved on this device; waiting to sync"
+                          >
+                            Pending sync
+                          </span>
+                        ) : null}
+                      </td>
                       <td>{inv.date}</td>
                       <td>{inv.partyLabel}</td>
                       <td>{inv.warehouseLabel || "—"}</td>

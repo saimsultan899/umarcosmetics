@@ -1,8 +1,8 @@
-import { DocumentListTable } from "@/components/tables/document-list-table";
 import { OfflineTradingListPage } from "@/components/offline/offline-trading-list";
 import {
   SaleInvoiceCreateButton,
 } from "@/components/trading/lazy-invoice-create";
+import { SaleInvoicesListWithPending } from "@/components/trading/sale-invoices-list-with-pending";
 import { PageHeading } from "@/components/ui/create-dialog";
 import { requireCompanyContext } from "@/lib/auth";
 import {
@@ -52,14 +52,11 @@ export default async function SaleInvoicesPage({
         actions={<SaleInvoiceCreateButton company={company} />}
       />
 
-      <DocumentListTable
-        title="Sale invoices"
-        rows={list.rows}
+      <SaleInvoicesListWithPending
+        companyId={company.id}
+        serverRows={list.rows}
         pagination={list.pagination}
         summary={list.summary}
-        showPaymentFilter
-        showPrint
-        enableBatchPrint
         warehouses={warehouses || []}
       />
     </div>

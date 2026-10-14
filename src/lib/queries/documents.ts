@@ -21,6 +21,8 @@ export type DocumentListRow = {
   linesTable: string;
   linesFk: string;
   extraFields?: Array<{ label: string; value: string }>;
+  /** Saved locally; waiting for sync to the server. */
+  syncPending?: boolean;
 };
 
 export type DocumentListSummary = {

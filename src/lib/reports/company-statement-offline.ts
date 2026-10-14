@@ -1,5 +1,6 @@
 import { loadRows, offlineStockSnapshot } from "@/lib/offline/offline-reports";
 import {
+  buildPurchaseInvoicePayables,
   paymentMethodLabel,
   type CompanyStatement,
 } from "@/lib/reports/company-statement";
@@ -344,6 +345,42 @@ export async function buildOfflineCompanyStatement(input: {
   const warehouseRow = warehouseRows.find((w) => String(w.id) === warehouseId);
   const supplierId = String(warehouseRow?.default_supplier_id || "");
   const supplierParty = supplierId ? parties.get(supplierId) : null;
+  const setupOpeningPayable = num(warehouseRow?.opening_payable);
+
+  const paidByInvoiceId = new Map<string, number>();
+  for (const row of vouchers) {
+    if (!posted(row)) continue;
+    if (String(row.warehouse_id || "") !== warehouseId) continue;
+    const sources = [row];
+    if (row.payload && typeof row.payload === "object") {
+      sources.push(row.payload as Row);
+    }
+    for (const source of sources) {
+      const allocs = source.purchase_allocations;
+      if (!Array.isArray(allocs)) continue;
+      for (const alloc of allocs) {
+        const piId = String((alloc as Row).purchase_invoice_id || "");
+        const amt = num((alloc as Row).amount);
+        if (!piId || amt <= 0) continue;
+        paidByInvoiceId.set(piId, (paidByInvoiceId.get(piId) || 0) + amt);
+      }
+    }
+  }
+
+  const purchaseBills = buildPurchaseInvoicePayables(
+    purchases
+      .filter((row) => String(row.warehouse_id || "") === warehouseId && posted(row))
+      .map((row) => ({
+        id: String(row.id),
+        invoice_no: row.invoice_no == null ? null : String(row.invoice_no),
+        invoice_date: row.invoice_date == null ? null : String(row.invoice_date),
+        supplier_bill_no:
+          row.supplier_bill_no == null ? null : String(row.supplier_bill_no),
+        grand_total: num(row.grand_total ?? row.total_amount),
+      })),
+    paidByInvoiceId,
+    to,
+  );
 
   // Offline payable ledger: purchases / returns / brand-tagged CP when cached.
   let periodPurchases = 0;
@@ -448,15 +485,22 @@ export async function buildOfflineCompanyStatement(input: {
     });
   }
   payEvents.sort((a, b) => a.sort.localeCompare(b.sort));
-  const openingPayable = openingPurchases - openingReturns - openingPaid;
+  const broughtForward = openingPurchases - openingReturns - openingPaid;
+  const openingPayable = setupOpeningPayable + broughtForward;
   let running = openingPayable;
   const payableLedger: Row[] = [];
   if (Math.abs(openingPayable) > 0.005) {
+    const particulars =
+      Math.abs(setupOpeningPayable) > 0.005 && Math.abs(broughtForward) > 0.005
+        ? "Setup opening + brought forward"
+        : Math.abs(setupOpeningPayable) > 0.005
+          ? "Opening payable (setup)"
+          : "Brought forward";
     payableLedger.push({
       Date: from,
       Type: "Opening balance",
       Document: "—",
-      Particulars: "Brought forward",
+      Particulars: particulars,
       Method: "—",
       Sender: "—",
       Receiver: "—",
@@ -509,7 +553,9 @@ export async function buildOfflineCompanyStatement(input: {
       paid: periodPaid,
       outstanding: running,
       openingPayable,
+      setupOpeningPayable,
     },
     payableLedger,
+    purchaseBills,
   };
 }

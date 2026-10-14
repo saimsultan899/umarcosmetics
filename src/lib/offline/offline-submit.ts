@@ -79,7 +79,8 @@ export function isBusinessRuleError(message: string) {
     m.includes("more than the amount due") ||
     m.includes("does not match") ||
     m.includes("was just saved") ||
-    m.includes("was not saved again")
+    m.includes("was not saved again") ||
+    m.includes("this sale was just saved")
   );
 }
 
@@ -174,12 +175,83 @@ export function offlineAwareSubmit(
   return promise;
 }
 
+async function finalizeOnlineSubmit(
+  params: OfflineSubmitParams,
+  serverId: string,
+): Promise<string | undefined> {
+  const {
+    mutationType,
+    payload,
+    companyId,
+    stockChanges,
+    cacheStore,
+    cacheRecord,
+  } = params;
+
+  let hubNote: string | undefined;
+  if (hasLocalSqlite()) {
+    await persistMutationToSqlite({
+      mutationType,
+      payload,
+      companyId,
+      documentId: serverId,
+      syncStatus: "synced",
+      stockChanges,
+      enqueueOutbox: false,
+    }).catch((err) =>
+      console.warn("[offlineAwareSubmit] SQLite mirror failed:", err),
+    );
+    hubNote = await runOfflineHubSideEffects({
+      mutationType,
+      companyId,
+      documentId: serverId,
+      payload,
+      stockChanges,
+    });
+  }
+
+  const cacheTarget = resolveCacheStore(mutationType, cacheStore);
+  const storesToRefresh = new Set<CacheStoreName>();
+  if (cacheTarget) storesToRefresh.add(cacheTarget);
+  if (stockChanges?.length) storesToRefresh.add("stock_balances");
+  if (storesToRefresh.size > 0) {
+    try {
+      const { refreshStoreCache } = await import("@/lib/offline/cache-manager");
+      await Promise.all(
+        [...storesToRefresh].map((store) =>
+          refreshStoreCache(store, companyId),
+        ),
+      );
+    } catch (err) {
+      console.warn("[offlineAwareSubmit] cache refresh failed:", err);
+      if (cacheTarget) {
+        try {
+          await putCachedRow(
+            cacheTarget,
+            companyId,
+            {
+              ...(cacheRecord || payload),
+              id: serverId,
+              company_id: companyId,
+              status: "posted",
+            },
+            "synced",
+          );
+        } catch {
+          /* list will catch up on next full sync */
+        }
+      }
+    }
+  }
+
+  return hubNote;
+}
+
 async function runOfflineAwareSubmit(
   params: OfflineSubmitParams,
 ): Promise<OfflineSubmitResult> {
   const {
     mutationType,
-    payload,
     companyId,
     forceOffline,
     localDocNo,
@@ -187,6 +259,19 @@ async function runOfflineAwareSubmit(
     cacheStore,
     cacheRecord,
   } = params;
+  let { payload } = params;
+
+  if (
+    mutationType === "sale_invoice" &&
+    !payload.client_request_id
+  ) {
+    const { createSaleClientRequestId } = await import(
+      "@/lib/trading/sale-invoice-submit"
+    );
+    payload = { ...payload, client_request_id: createSaleClientRequestId() };
+  }
+
+  const submitParams: OfflineSubmitParams = { ...params, payload };
 
   const online =
     !forceOffline && (await isAppOnline().catch(() => navigator.onLine));
@@ -201,66 +286,7 @@ async function runOfflineAwareSubmit(
         ),
       ]);
 
-      // Mirror successful cloud writes into local SQLite for offline continuity.
-      let hubNote: string | undefined;
-      if (hasLocalSqlite()) {
-        await persistMutationToSqlite({
-          mutationType,
-          payload,
-          companyId,
-          documentId: result.id,
-          syncStatus: "synced",
-          stockChanges,
-          enqueueOutbox: false,
-        }).catch((err) =>
-          console.warn("[offlineAwareSubmit] SQLite mirror failed:", err),
-        );
-        hubNote = await runOfflineHubSideEffects({
-          mutationType,
-          companyId,
-          documentId: result.id,
-          payload,
-          stockChanges,
-        });
-      }
-
-      // Keep IndexedDB / list caches in sync so document lists and stock
-      // reports show the new write immediately (company statement is live).
-      const cacheTarget = resolveCacheStore(mutationType, cacheStore);
-      const storesToRefresh = new Set<CacheStoreName>();
-      if (cacheTarget) storesToRefresh.add(cacheTarget);
-      if (stockChanges?.length) storesToRefresh.add("stock_balances");
-      if (storesToRefresh.size > 0) {
-        try {
-          const { refreshStoreCache } = await import(
-            "@/lib/offline/cache-manager"
-          );
-          await Promise.all(
-            [...storesToRefresh].map((store) =>
-              refreshStoreCache(store, companyId),
-            ),
-          );
-        } catch (err) {
-          console.warn("[offlineAwareSubmit] cache refresh failed:", err);
-          if (cacheTarget) {
-            try {
-              await putCachedRow(
-                cacheTarget,
-                companyId,
-                {
-                  ...(cacheRecord || payload),
-                  id: result.id,
-                  company_id: companyId,
-                  status: "posted",
-                },
-                "synced",
-              );
-            } catch {
-              /* list will catch up on next full sync */
-            }
-          }
-        }
-      }
+      const hubNote = await finalizeOnlineSubmit(submitParams, result.id);
 
       return {
         id: result.id,
@@ -274,6 +300,30 @@ async function runOfflineAwareSubmit(
       if (isBusinessRuleError(message) && !isNetworkishError(err)) {
         throw err instanceof Error ? err : new Error(message);
       }
+
+      if (mutationType === "sale_invoice") {
+        const requestId = payload.client_request_id;
+        if (typeof requestId === "string" && requestId) {
+          const { findSaleInvoiceIdByClientRequest } = await import(
+            "@/lib/trading/sale-invoice-submit"
+          );
+          const existingId = await findSaleInvoiceIdByClientRequest(
+            companyId,
+            requestId,
+          );
+          if (existingId) {
+            const hubNote = await finalizeOnlineSubmit(submitParams, existingId);
+            return {
+              id: existingId,
+              source: "server",
+              message:
+                "Sale invoice was already saved on the server. Opened that bill.",
+              hubNote,
+            };
+          }
+        }
+      }
+
       console.warn(
         `[offlineAwareSubmit] Online ${mutationType} failed, queueing offline:`,
         err,
@@ -282,6 +332,24 @@ async function runOfflineAwareSubmit(
   }
 
   // ── Queue offline ───────────────────────────────────────────────
+  if (mutationType === "sale_invoice" && payload.client_request_id) {
+    const requestId = String(payload.client_request_id);
+    const pending = await listPendingMutations(companyId);
+    const existing = pending.find(
+      (m) =>
+        m.type === "sale_invoice" &&
+        String(m.payload?.client_request_id || "") === requestId,
+    );
+    if (existing) {
+      const existingId = String(existing.payload?.id || existing.id);
+      return {
+        id: existingId,
+        source: "offline",
+        message:
+          "This sale is already saved on this device and will sync when the connection is stable.",
+      };
+    }
+  }
   const localId =
     localDocNo || (await allocateSequentialDocNo(mutationType, companyId));
   const documentId =

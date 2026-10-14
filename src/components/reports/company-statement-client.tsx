@@ -137,6 +137,7 @@ export function CompanyStatementClient({
   const [receiverName, setReceiverName] = useState("");
   const [receiverNo, setReceiverNo] = useState("");
   const [payRemarks, setPayRemarks] = useState("");
+  const [payPurchaseInvoiceId, setPayPurchaseInvoiceId] = useState("");
   const [paySaving, setPaySaving] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
 
@@ -169,7 +170,7 @@ export function CompanyStatementClient({
           const supabase = createClient();
           const { data, error: whError } = await supabase
             .from("warehouses")
-            .select("id, name, is_active, default_supplier_id")
+            .select("id, name, is_active, default_supplier_id, opening_payable")
             .eq("company_id", companyId)
             .eq("is_active", true)
             .order("name");
@@ -464,6 +465,15 @@ export function CompanyStatementClient({
       );
       return;
     }
+    const selectedBill = payPurchaseInvoiceId
+      ? statement.purchaseBills.find((b) => b.id === payPurchaseInvoiceId)
+      : null;
+    if (selectedBill && amount > selectedBill.remaining + 0.05) {
+      setPayError(
+        `Amount is more than the remaining balance on ${selectedBill.invoiceNo} (${formatPkr(selectedBill.remaining)}).`,
+      );
+      return;
+    }
     if (payMethod === "bank_transfer") {
       if (
         !senderBank.trim() ||
@@ -516,11 +526,21 @@ export function CompanyStatementClient({
                 },
               ]
             : [],
+          purchase_allocations:
+            selectedBill && amount > 0
+              ? [
+                  {
+                    purchase_invoice_id: selectedBill.id,
+                    amount,
+                  },
+                ]
+              : [],
         },
       });
       setPayOpen(false);
       setPayAmount("");
       setPayRemarks("");
+      setPayPurchaseInvoiceId("");
       setPayMethod("cash");
       setSenderBank("");
       setSenderName("");
@@ -704,6 +724,7 @@ export function CompanyStatementClient({
                 onClick={() => {
                   setPayError(null);
                   setPayDate(to || localDateIso());
+                  setPayPurchaseInvoiceId("");
                   setPayOpen(true);
                 }}
               >
@@ -765,6 +786,31 @@ export function CompanyStatementClient({
               hint={`${statement.warehouseName} · qty ${statement.closingQty}`}
             />
           </StatsGrid>
+
+          {statement.purchaseBills.length > 0 ? (
+            <ReportTable
+              title={`${statement.warehouseName} — purchase bills`}
+              companyName={companyName}
+              subtitle={`Posted purchase invoices for this brand · paid vs remaining as of ${to}.`}
+              rows={statement.purchaseBills.map((bill) => ({
+                "Purchase #": bill.invoiceNo,
+                Date: bill.date,
+                "Vendor bill": bill.supplierBill || "—",
+                Total: bill.total,
+                Paid: bill.paid,
+                Remaining: bill.remaining,
+                Status:
+                  bill.status === "paid"
+                    ? "Paid"
+                    : bill.status === "partial"
+                      ? "Partial"
+                      : "Open",
+                _href: bill.href,
+              }))}
+              filename={`company-purchase-bills-${statement.warehouseName}`}
+              showFooter={false}
+            />
+          ) : null}
 
           <ReportTable
             title={`${statement.warehouseName} — payable ledger`}
@@ -901,6 +947,29 @@ export function CompanyStatementClient({
               onReceiverNo={setReceiverNo}
             />
           ) : null}
+          <div>
+            <Label>Apply to purchase bill (optional)</Label>
+            <Select
+              value={payPurchaseInvoiceId}
+              onChange={(e) => {
+                const id = e.target.value;
+                setPayPurchaseInvoiceId(id);
+                const bill = statement?.purchaseBills.find((b) => b.id === id);
+                if (bill && bill.remaining > 0) {
+                  setPayAmount(String(bill.remaining));
+                }
+              }}
+              options={[
+                { value: "", label: "On account (no bill selected)" },
+                ...(statement?.purchaseBills || [])
+                  .filter((b) => b.remaining > 0.005)
+                  .map((b) => ({
+                    value: b.id,
+                    label: `${b.invoiceNo} · due ${formatPkr(b.remaining)} of ${formatPkr(b.total)}`,
+                  })),
+              ]}
+            />
+          </div>
           <div>
             <Label>Amount</Label>
             <Input

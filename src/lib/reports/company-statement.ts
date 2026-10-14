@@ -15,6 +15,20 @@ export type CompanyPayableStats = {
   paid: number;
   outstanding: number;
   openingPayable: number;
+  /** Opening payable set on the brand company (warehouse) at setup. */
+  setupOpeningPayable: number;
+};
+
+export type PurchaseInvoicePayable = {
+  id: string;
+  invoiceNo: string;
+  date: string;
+  supplierBill: string;
+  total: number;
+  paid: number;
+  remaining: number;
+  status: "open" | "partial" | "paid";
+  href: string;
 };
 
 export type CompanyStatement = {
@@ -33,9 +47,55 @@ export type CompanyStatement = {
   supplier: CompanyStatementSupplier;
   payableStats: CompanyPayableStats;
   payableLedger: Record<string, unknown>[];
+  /** Purchase bills for this brand with paid / remaining (company payments). */
+  purchaseBills: PurchaseInvoicePayable[];
   /** Set on a vendor-wise statement: companies linked to that vendor. */
   linkedCompanies?: { id: string; name: string }[];
 };
+
+export function purchaseBillPayStatus(
+  total: number,
+  paid: number,
+): PurchaseInvoicePayable["status"] {
+  const remaining = Math.max(0, total - paid);
+  if (remaining <= 0.005) return "paid";
+  if (paid > 0.005) return "partial";
+  return "open";
+}
+
+export function buildPurchaseInvoicePayables(
+  purchases: Array<{
+    id: string;
+    invoice_no?: string | null;
+    invoice_date?: string | null;
+    supplier_bill_no?: string | null;
+    grand_total?: number | null;
+  }>,
+  paidByInvoiceId: Map<string, number>,
+  toDate: string,
+): PurchaseInvoicePayable[] {
+  const rows: PurchaseInvoicePayable[] = [];
+  for (const row of purchases) {
+    const date = String(row.invoice_date || "").slice(0, 10);
+    if (date && date > toDate) continue;
+    const total = Number(row.grand_total || 0);
+    const paid = paidByInvoiceId.get(String(row.id)) || 0;
+    const remaining = Math.max(0, total - paid);
+    rows.push({
+      id: String(row.id),
+      invoiceNo: String(row.invoice_no || "—"),
+      date,
+      supplierBill: String(row.supplier_bill_no || "").trim(),
+      total,
+      paid,
+      remaining,
+      status: purchaseBillPayStatus(total, paid),
+      href: `/purchases/invoices/${row.id}`,
+    });
+  }
+  rows.sort((a, b) => b.date.localeCompare(a.date) || a.invoiceNo.localeCompare(b.invoiceNo));
+  return rows;
+}
 
 function numCell(value: unknown) {
   const n = Number(value);
@@ -91,8 +151,10 @@ export function mergeCompanyStatements(
         paid: 0,
         outstanding: 0,
         openingPayable: 0,
+        setupOpeningPayable: 0,
       },
       payableLedger: [],
+      purchaseBills: [],
       linkedCompanies,
     };
   }
@@ -148,6 +210,19 @@ export function mergeCompanyStatements(
   const openingPayable = parts.reduce(
     (sum, part) => sum + numCell(part.payableStats.openingPayable),
     0,
+  );
+  const setupOpeningPayable = parts.reduce(
+    (sum, part) => sum + numCell(part.payableStats.setupOpeningPayable),
+    0,
+  );
+  const purchaseBillsMap = new Map<string, PurchaseInvoicePayable>();
+  for (const part of parts) {
+    for (const bill of part.purchaseBills || []) {
+      purchaseBillsMap.set(bill.id, bill);
+    }
+  }
+  const purchaseBills = [...purchaseBillsMap.values()].sort(
+    (a, b) => b.date.localeCompare(a.date) || a.invoiceNo.localeCompare(b.invoiceNo),
   );
   const periodRows: Array<Record<string, unknown> & { _sort: string }> = parts.flatMap(
     (part) =>
@@ -212,8 +287,10 @@ export function mergeCompanyStatements(
       paid: parts.reduce((s, p) => s + p.payableStats.paid, 0),
       outstanding: running,
       openingPayable,
+      setupOpeningPayable,
     },
     payableLedger,
+    purchaseBills,
     linkedCompanies,
   };
 }
@@ -321,7 +398,7 @@ export async function buildCompanyStatement(
       supabase
         .from("warehouses")
         .select(
-          "id, name, default_supplier_id, supplier:parties!warehouses_default_supplier_id_fkey(id, party_code, name_en)",
+          "id, name, default_supplier_id, opening_payable, supplier:parties!warehouses_default_supplier_id_fkey(id, party_code, name_en)",
         )
         .eq("id", warehouseId)
         .maybeSingle(),
@@ -705,11 +782,16 @@ export async function buildCompanyStatement(
         }
       : null;
 
+  const setupOpeningPayable = Number(
+    (warehouse as { opening_payable?: number } | null)?.opening_payable || 0,
+  );
+
   const payable = await buildPayableLedger(supabase, {
     companyId,
     warehouseId,
     from,
     to,
+    setupOpeningPayable,
   });
 
   return {
@@ -728,19 +810,31 @@ export async function buildCompanyStatement(
     supplier,
     payableStats: payable.stats,
     payableLedger: payable.rows,
+    purchaseBills: payable.purchaseBills,
   };
 }
 
 async function buildPayableLedger(
   supabase: SupabaseClient,
-  input: { companyId: string; warehouseId: string; from: string; to: string },
-): Promise<{ stats: CompanyPayableStats; rows: Record<string, unknown>[] }> {
-  const { companyId, warehouseId, from, to } = input;
+  input: {
+    companyId: string;
+    warehouseId: string;
+    from: string;
+    to: string;
+    setupOpeningPayable: number;
+  },
+): Promise<{
+  stats: CompanyPayableStats;
+  rows: Record<string, unknown>[];
+  purchaseBills: PurchaseInvoicePayable[];
+}> {
+  const { companyId, warehouseId, from, to, setupOpeningPayable } = input;
 
   const [
     { data: purchases, error: piError },
     { data: returns, error: prError },
     { data: payments, error: payError },
+    { data: allocationRows, error: allocError },
   ] = await Promise.all([
     supabase
       .from("purchase_invoices")
@@ -773,11 +867,45 @@ async function buildPayableLedger(
       .eq("status", "posted")
       .lte("voucher_date", to)
       .limit(10000),
+    supabase
+      .from("warehouse_payment_allocations")
+      .select("purchase_invoice_id, amount, voucher_id")
+      .eq("company_id", companyId)
+      .eq("warehouse_id", warehouseId)
+      .limit(20000),
   ]);
 
   if (piError) throw new Error(piError.message);
   if (prError) throw new Error(prError.message);
   if (payError) throw new Error(payError.message);
+  if (allocError) throw new Error(allocError.message);
+
+  const postedVoucherIds = new Set(
+    (payments || [])
+      .filter((v) => String(v.id))
+      .map((v) => String(v.id)),
+  );
+  const paidByInvoiceId = new Map<string, number>();
+  for (const row of allocationRows || []) {
+    const voucherId = String(row.voucher_id || "");
+    if (!postedVoucherIds.has(voucherId)) continue;
+    const piId = String(row.purchase_invoice_id || "");
+    if (!piId) continue;
+    const amt = Number(row.amount || 0);
+    paidByInvoiceId.set(piId, (paidByInvoiceId.get(piId) || 0) + amt);
+  }
+
+  const purchaseBills = buildPurchaseInvoicePayables(
+    (purchases || []).map((r) => ({
+      id: String(r.id),
+      invoice_no: r.invoice_no,
+      invoice_date: r.invoice_date,
+      supplier_bill_no: r.supplier_bill_no,
+      grand_total: r.grand_total,
+    })),
+    paidByInvoiceId,
+    to,
+  );
 
   type Ev = {
     sort: string;
@@ -888,16 +1016,23 @@ async function buildPayableLedger(
 
   events.sort((a, b) => a.sort.localeCompare(b.sort));
 
-  const openingPayable = openingPurchases - openingReturns - openingPaid;
+  const broughtForward = openingPurchases - openingReturns - openingPaid;
+  const openingPayable = setupOpeningPayable + broughtForward;
   let running = openingPayable;
   const rows: Record<string, unknown>[] = [];
 
   if (Math.abs(openingPayable) > 0.005) {
+    const particulars =
+      Math.abs(setupOpeningPayable) > 0.005 && Math.abs(broughtForward) > 0.005
+        ? "Setup opening + brought forward"
+        : Math.abs(setupOpeningPayable) > 0.005
+          ? "Opening payable (setup)"
+          : "Brought forward";
     rows.push({
       Date: from,
       Type: "Opening balance",
       Document: "—",
-      Particulars: "Brought forward",
+      Particulars: particulars,
       Method: "—",
       Sender: "—",
       Receiver: "—",
@@ -932,8 +1067,10 @@ async function buildPayableLedger(
       paid: periodPaid,
       outstanding: running,
       openingPayable,
+      setupOpeningPayable,
     },
     rows,
+    purchaseBills,
   };
 }
 

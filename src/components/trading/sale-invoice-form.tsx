@@ -25,6 +25,9 @@ import {
   type SaleStockPolicy,
 } from "@/lib/trading/sale-stock-policy";
 import { useSingleSubmit } from "@/lib/forms/single-submit";
+import {
+  createSaleClientRequestId,
+} from "@/lib/trading/sale-invoice-submit";
 import { formatNumber } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
@@ -94,6 +97,9 @@ export function SaleInvoiceForm({
   const router = useRouter();
   const closeDialog = useCreateDialogClose();
   const linesEditorRef = useRef<LineItemsEditorHandle>(null);
+  const clientRequestIdRef = useRef<string | null>(
+    editing ? null : createSaleClientRequestId(),
+  );
   const [stockPolicy, setStockPolicy] = useState<SaleStockPolicy>(
     normalizeSaleStockPolicy(saleStockPolicy),
   );
@@ -362,7 +368,7 @@ export function SaleInvoiceForm({
         payload: {
           ...(editing
             ? { invoice_id: editing.id, invoice_no: editing.invoiceNo }
-            : {}),
+            : { client_request_id: clientRequestIdRef.current }),
           organization_id: organizationId,
           company_id: companyId,
           invoice_date: invoiceDate,
@@ -417,19 +423,26 @@ export function SaleInvoiceForm({
         router.refresh();
         return;
       }
+      clientRequestIdRef.current = createSaleClientRequestId();
       const printThermal =
         walkInActive && readWalkInSlip(companyId) === "thermal";
-      if (res.source === "offline" && !printThermal) {
-        router.refresh();
-      } else {
-        router.push(
-          `/sales/invoices/${res.id}${printThermal ? "?print=1" : ""}`,
-        );
-        router.refresh();
-      }
+      router.push(
+        `/sales/invoices/${res.id}${printThermal ? "?print=1" : ""}`,
+      );
+      router.refresh();
     } catch (err: any) {
       setLoading(false);
-      setError(friendlyStockError(err?.message || String(err), products, warehouses));
+      const raw = err?.message || String(err);
+      if (
+        !editing &&
+        raw.toLowerCase().includes("this sale was just saved")
+      ) {
+        setError(
+          `${friendlyStockError(raw, products, warehouses)}\n\nCheck the sale invoice list — the bill may already be posted. Do not enter the same sale again unless it is a different bill.`,
+        );
+        return;
+      }
+      setError(friendlyStockError(raw, products, warehouses));
     }
     });
   }

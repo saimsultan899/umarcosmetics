@@ -34,6 +34,9 @@ export function WarehouseForm({
   const [code, setCode] = useState(initial?.code || "");
   const [address, setAddress] = useState(initial?.address || "");
   const [vendorId, setVendorId] = useState(initial?.default_supplier_id || "");
+  const [openingPayable, setOpeningPayable] = useState(
+    String(initial?.opening_payable ?? 0),
+  );
   const [vendors, setVendors] = useState<Array<{ value: string; label: string }>>([]);
 
   useEffect(() => {
@@ -119,6 +122,7 @@ export function WarehouseForm({
           code: code.trim() || null,
           address: address.trim() || null,
           default_supplier_id: vendorId || null,
+          opening_payable: Math.max(0, Number(openingPayable) || 0),
         }
       : {
           organization_id: organizationId,
@@ -127,6 +131,7 @@ export function WarehouseForm({
           code: code.trim() || null,
           address: address.trim() || null,
           default_supplier_id: vendorId || null,
+          opening_payable: Math.max(0, Number(openingPayable) || 0),
           is_active: true,
         };
 
@@ -155,6 +160,7 @@ export function WarehouseForm({
         setCode("");
         setAddress("");
         setVendorId("");
+        setOpeningPayable("0");
       }
       onDone?.();
       closeDialog?.();
@@ -192,6 +198,20 @@ export function WarehouseForm({
       <div>
         <Label>Address</Label>
         <Input value={address} onChange={(e) => setAddress(e.target.value)} />
+      </div>
+      <div>
+        <Label>Opening payable</Label>
+        <Input
+          type="number"
+          min="0"
+          step="0.01"
+          value={openingPayable}
+          onChange={(e) => setOpeningPayable(e.target.value)}
+          placeholder="0"
+        />
+        <p className="mt-1 text-xs text-[var(--muted)]">
+          Amount you already owed this brand&apos;s vendor before using the system.
+        </p>
       </div>
       <div className="sm:col-span-3">
         <Label>Vendor (optional)</Label>

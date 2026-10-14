@@ -27,6 +27,10 @@ function warehouseFields(
     { label: "Code", value: w.code || "—" },
     { label: "Address", value: w.address || "—" },
     {
+      label: "Opening payable",
+      value: formatPkr(Number(w.opening_payable || 0)),
+    },
+    {
       label: "Products",
       value: formatNumber(stats?.productCount ?? 0, 0),
     },

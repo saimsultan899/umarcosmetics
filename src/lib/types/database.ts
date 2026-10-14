@@ -102,6 +102,8 @@ export type Warehouse = {
   address: string | null;
   /** Linked supplier for company-statement payable ledger. */
   default_supplier_id?: string | null;
+  /** Amount owed to vendor before go-live (company statement). */
+  opening_payable?: number;
   is_active: boolean;
   created_at: string;
   updated_at: string;

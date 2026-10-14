@@ -17,7 +17,8 @@ import {
 } from "@/lib/trading/sale-stock-policy";
 import { AMOUNT_PLACEHOLDER, AMOUNT_STEP, formatPkr } from "@/lib/utils";
 import { useSingleSubmit } from "@/lib/forms/single-submit";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { createSaleClientRequestId } from "@/lib/trading/sale-invoice-submit";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 type Shop = {
   party_id: string;
@@ -45,6 +46,7 @@ export function FieldSaleForm({
   saleStockPolicy?: SaleStockPolicy;
 }) {
   const { online, refreshPending, runSync } = useSyncStatus();
+  const clientRequestIdRef = useRef(createSaleClientRequestId());
   const [partyId, setPartyId] = useState(shops[0]?.party_id || "");
   const [warehouseId, setWarehouseId] = useState(warehouses[0]?.id || "");
   const [productId, setProductId] = useState("");
@@ -189,6 +191,7 @@ export function FieldSaleForm({
     }
 
     const payload = {
+      client_request_id: clientRequestIdRef.current,
       organization_id: organizationId,
       company_id: companyId,
       invoice_date: new Date().toISOString().slice(0, 10),
@@ -235,6 +238,7 @@ export function FieldSaleForm({
         payload,
       });
 
+      clientRequestIdRef.current = createSaleClientRequestId();
       await refreshPending();
       if (res.source === "offline") {
         setMessage("Sale saved offline. Will sync when online.");
