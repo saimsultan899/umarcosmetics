@@ -5,6 +5,7 @@ export type SaleInvoicePrintData = {
   id: string;
   companyName: string;
   companyPhone: string | null;
+  organizationName: string | null;
   companyId: string;
   docNo: string;
   date: string;
@@ -64,7 +65,9 @@ export async function loadSaleInvoicePrintData(
     companyId: string;
     companyName: string;
     companyPhone?: string | null;
+    organizationName?: string | null;
     invoiceId: string;
+    /** Prefer company.prepared_by from settings; fallback is last resort. */
     preparedByFallback?: string | null;
   },
 ): Promise<SaleInvoicePrintData | null> {
@@ -140,7 +143,7 @@ export async function loadSaleInvoicePrintData(
   const salesman = invoice.salesman as SalesmanRow | SalesmanRow[] | null;
   const salesmanObj = Array.isArray(salesman) ? salesman[0] || null : salesman;
 
-  const salesmanLabel = [salesmanObj?.full_name || opts.preparedByFallback, salesmanObj?.phone]
+  const salesmanLabel = [salesmanObj?.full_name, salesmanObj?.phone]
     .filter(Boolean)
     .join(" ");
 
@@ -150,6 +153,7 @@ export async function loadSaleInvoicePrintData(
     id: String(invoice.id),
     companyName: opts.companyName,
     companyPhone: opts.companyPhone ?? null,
+    organizationName: opts.organizationName ?? null,
     companyId: opts.companyId,
     docNo: String(invoice.invoice_no || invoice.id),
     date: String(invoice.invoice_date || ""),
@@ -179,7 +183,7 @@ export async function loadSaleInvoicePrintData(
     paymentType,
     previousPayment: lastPaidAmount,
     previousBalance: isWalkIn ? 0 : previousBalance,
-    preparedBy: salesmanObj?.full_name || opts.preparedByFallback || null,
+    preparedBy: opts.preparedByFallback || salesmanObj?.full_name || null,
     isWalkIn,
     status: invoice.status ?? null,
   };

@@ -118,6 +118,7 @@ export function SaleInvoicesBatchPrint({
             key={inv.id}
             companyName={inv.companyName}
             companyPhone={inv.companyPhone}
+            organizationName={inv.organizationName}
             companyId={inv.companyId}
             docNo={inv.docNo}
             date={inv.date}

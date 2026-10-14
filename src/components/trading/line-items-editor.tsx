@@ -76,6 +76,9 @@ type LineItemsEditorProps = {
   filterByWarehouse?: boolean;
   extraDiscount?: string;
   onExtraDiscountChange?: (value: string) => void;
+  /** Purchase: add difference so bill matches company invoice amount. */
+  amountDifference?: string;
+  onAmountDifferenceChange?: (value: string) => void;
 };
 
 export const LineItemsEditor = forwardRef<
@@ -107,6 +110,8 @@ export const LineItemsEditor = forwardRef<
     /** Optional document-level extra discount (invoice / return footer). */
     extraDiscount,
     onExtraDiscountChange,
+    amountDifference,
+    onAmountDifferenceChange,
   },
   ref,
 ) {
@@ -891,7 +896,11 @@ export const LineItemsEditor = forwardRef<
   );
   const grand = lines.reduce((s, l) => s + l.amount, 0);
   const extra = Math.max(0, Number(extraDiscount || 0));
-  const billTotal = Math.max(0, grand - extra);
+  const difference = Math.max(0, Number(amountDifference || 0));
+  const billTotal = Math.max(
+    0,
+    grand - extra + (onAmountDifferenceChange ? difference : 0),
+  );
   const draftAmount = calcLineAmount(draft.qty, draft.rate, draft.discount);
 
   const [foundProducts, setFoundProducts] = useState<Product[]>([]);
@@ -1464,8 +1473,37 @@ export const LineItemsEditor = forwardRef<
                 onChange={onExtraDiscountChange}
               />
             ) : null}
+            {onAmountDifferenceChange ? (
+              <div className="flex flex-col gap-1 sm:items-end">
+                <Label className="text-xs uppercase tracking-wide text-[var(--muted)]">
+                  Add difference
+                </Label>
+                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                  <Input
+                    type="number"
+                    min="0"
+                    step={AMOUNT_STEP}
+                    inputMode="decimal"
+                    value={amountDifference ?? ""}
+                    onChange={(e) => onAmountDifferenceChange(e.target.value)}
+                    placeholder={AMOUNT_PLACEHOLDER}
+                    className="h-9 w-28 text-right tabular-nums"
+                    aria-label="Add difference amount"
+                    title="Difference when company bill is higher than item totals"
+                  />
+                  <span className="min-w-[5rem] text-right text-[var(--muted)]">
+                    {formatPkr(difference)}
+                  </span>
+                </div>
+              </div>
+            ) : null}
             <span className="font-semibold">
-              Bill amount {formatPkr(onExtraDiscountChange ? billTotal : grand)}
+              Bill amount{" "}
+              {formatPkr(
+                onExtraDiscountChange || onAmountDifferenceChange
+                  ? billTotal
+                  : grand,
+              )}
             </span>
           </div>
         </div>

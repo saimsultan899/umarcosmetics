@@ -188,6 +188,7 @@ export function PostedDocumentEditor({
           gatePassId: String(doc.gate_pass_id || ""),
           narration: String(doc.narration || ""),
           extraDiscount: String(Number(doc.extra_discount || 0) || ""),
+          amountDifference: String(Number(doc.amount_difference || 0) || ""),
           lines: toLines(items, false),
         }}
         onDone={onDone}

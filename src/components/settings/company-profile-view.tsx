@@ -4,6 +4,7 @@ import { ChangePasswordCard } from "@/components/settings/change-password-card";
 import { CopyCatalogForm } from "@/components/settings/copy-catalog-form";
 import { DesktopDownloadCard } from "@/components/settings/desktop-download-card";
 import { MainCompanyHubForm } from "@/components/settings/main-company-hub-form";
+import { PreparedBySetting } from "@/components/settings/prepared-by-setting";
 import { SaleStockPolicySetting } from "@/components/settings/sale-stock-policy-setting";
 import { WalkInSlipSetting } from "@/components/settings/walk-in-slip-setting";
 import { useCompanyProfile } from "@/hooks/use-company-profile";
@@ -44,6 +45,7 @@ export function CompanyProfileView({
     ["City", activeCompany.city || "—"],
     ["Phone", activeCompany.phone || "—"],
     ["NTN", activeCompany.ntn || "—"],
+    ["Prepared By", activeCompany.prepared_by || "—"],
     ["Address", activeCompany.address || "—"],
   ] as const;
 
@@ -85,6 +87,11 @@ export function CompanyProfileView({
         <ChangePasswordCard />
         <DesktopDownloadCard />
       </div>
+
+      <PreparedBySetting
+        companyId={activeCompany.id}
+        initialValue={activeCompany.prepared_by}
+      />
 
       <SaleStockPolicySetting
         companyId={activeCompany.id}

@@ -65,17 +65,29 @@ function itemLabel(_code?: string | null, name?: string | null) {
   return label || "—";
 }
 
-/** Distributor owner contact lines on the sale invoice header. */
-const SALE_INVOICE_OWNER_PHONES = ["0300-6765266", "0307-7842100"];
+/** Extra owner numbers — only for Umar Group sale invoices. */
+const UMAR_GROUP_OWNER_PHONES = ["0300-6765266", "0307-7842100"];
 
-function distributorPhoneLines(companyPhone?: string | null): string[] {
+function isUmarGroupOrg(organizationName?: string | null): boolean {
+  return String(organizationName || "")
+    .trim()
+    .toLowerCase() === "umar group";
+}
+
+/** Header phones: company settings for all; Umar Group also appends owner numbers. */
+function distributorPhoneLines(
+  companyPhone?: string | null,
+  organizationName?: string | null,
+): string[] {
   const fromCompany = String(companyPhone || "")
     .split(/[,;|]/)
     .map((s) => s.trim())
     .filter(Boolean);
   const merged = [...fromCompany];
-  for (const n of SALE_INVOICE_OWNER_PHONES) {
-    if (!merged.includes(n)) merged.push(n);
+  if (isUmarGroupOrg(organizationName)) {
+    for (const n of UMAR_GROUP_OWNER_PHONES) {
+      if (!merged.includes(n)) merged.push(n);
+    }
   }
   return merged;
 }
@@ -134,6 +146,7 @@ function formatSchemeLabel(scheme?: string | null, bonus?: number) {
 export function SaleInvoicePrint({
   companyName,
   companyPhone: _companyPhone,
+  organizationName = null,
   docNo,
   date,
   printedAt,
@@ -154,7 +167,7 @@ export function SaleInvoicePrint({
   previousPayment = 0,
   previousBalance,
   creditDays = 21,
-  preparedBy: _preparedBy,
+  preparedBy = null,
   autoPrint = false,
   isWalkIn = false,
   companyId = "",
@@ -165,6 +178,8 @@ export function SaleInvoicePrint({
 }: {
   companyName: string;
   companyPhone?: string | null;
+  /** When "Umar Group", owner phones are appended under the company name. */
+  organizationName?: string | null;
   docNo: string;
   date: string;
   /** Invoice created_at — used for time on the bill. */
@@ -218,7 +233,8 @@ export function SaleInvoicePrint({
   const dateTimeLabel = [formatDateLabel(date), formatTimeLabel(printedAt)]
     .filter(Boolean)
     .join(" ");
-  const headerPhones = distributorPhoneLines(_companyPhone);
+  const headerPhones = distributorPhoneLines(_companyPhone, organizationName);
+  const preparedByLabel = String(preparedBy || "").trim();
 
   const savedTitle = useRef("");
   const clientReady = useClientReady();
@@ -529,7 +545,9 @@ export function SaleInvoicePrint({
           <div className="th-thanks">Thank you</div>
           <div className="th-credit">
             <div className="th-credit-line">
-              Prepared By : USMAN ISHAQ (0308-8664002)
+              {preparedByLabel
+                ? `Prepared By : ${preparedByLabel}`
+                : "Prepared By : —"}
             </div>
             <div className="th-credit-line">
               Developed by Umar Distributor (0308-4882425, 03006031380)
@@ -715,9 +733,11 @@ export function SaleInvoicePrint({
                     <p className="si-note" lang="ur">
                       سابقہ بل کی ادائیگی پر نئی انوائس دی جائے گی۔
                     </p>
-                    <div className="si-prepared">
-                      Prepared By : USMAN ISHAQ (0308-8664002)
-                    </div>
+                    {preparedByLabel ? (
+                      <div className="si-prepared">
+                        Prepared By : {preparedByLabel}
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="si-foot-col si-foot-pay">

@@ -14,7 +14,7 @@ export default async function SaleInvoiceDetailPage({
   const { id } = await params;
   const sp = await searchParams;
   const autoPrint = sp.print === "1" || sp.print === "true";
-  const { supabase, company, profile, offline } = await requireCompanyContext();
+  const { supabase, company, offline } = await requireCompanyContext();
 
   if (offline) {
     const { renderOfflineDocument } = await import(
@@ -29,12 +29,19 @@ export default async function SaleInvoiceDetailPage({
     );
   }
 
+  const { data: orgRow } = await supabase
+    .from("organizations")
+    .select("name")
+    .eq("id", company.organization_id)
+    .maybeSingle();
+
   const invoice = await loadSaleInvoicePrintData(supabase, {
     companyId: company.id,
     companyName: company.name,
     companyPhone: company.phone,
+    organizationName: orgRow?.name ?? null,
     invoiceId: id,
-    preparedByFallback: profile?.full_name,
+    preparedByFallback: company.prepared_by?.trim() || null,
   });
 
   if (!invoice) notFound();
@@ -51,6 +58,7 @@ export default async function SaleInvoiceDetailPage({
       <SaleInvoicePrint
         companyName={invoice.companyName}
         companyPhone={invoice.companyPhone}
+        organizationName={invoice.organizationName}
         docNo={invoice.docNo}
         date={invoice.date}
         printedAt={invoice.printedAt}

@@ -32,6 +32,8 @@ export type Company = {
   phone: string | null;
   ntn: string | null;
   logo_url: string | null;
+  /** Printed on sale invoices (Company settings). */
+  prepared_by?: string | null;
   is_active: boolean;
   /** block = do not sell past stock. confirm = warn, then allow a short sale. */
   sale_stock_policy?: "block" | "confirm" | null;

@@ -55,6 +55,9 @@ export default async function PurchaseInvoiceDetailPage({
     : invoice.gate_passes;
 
   const extraDiscount = Number(invoice.extra_discount || 0);
+  const amountDifference = Number(
+    (invoice as { amount_difference?: number | null }).amount_difference || 0,
+  );
   const distributorAddress = [company.address, company.city]
     .filter(Boolean)
     .join(", ");
@@ -119,6 +122,9 @@ export default async function PurchaseInvoiceDetailPage({
           { label: "Subtotal", value: formatPkr(invoice.subtotal) },
           { label: "Trade discount", value: formatPkr(invoice.discount_total) },
           { label: "Extra discount", value: formatPkr(extraDiscount) },
+          ...(amountDifference > 0.005
+            ? [{ label: "Add difference", value: formatPkr(amountDifference) }]
+            : []),
           {
             label: "Grand total",
             value: formatPkr(invoice.grand_total),

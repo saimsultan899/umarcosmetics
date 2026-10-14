@@ -143,6 +143,7 @@ export function OfflineDocumentDetail({
   companyId,
   companyName,
   companyPhone,
+  preparedBy,
   documentId,
   listHref,
   autoPrint,
@@ -151,6 +152,7 @@ export function OfflineDocumentDetail({
   companyId: string;
   companyName?: string;
   companyPhone?: string | null;
+  preparedBy?: string | null;
   documentId: string;
   listHref: string;
   autoPrint?: boolean;
@@ -394,6 +396,7 @@ export function OfflineDocumentDetail({
           previousPayment={0}
           previousBalance={0}
           creditDays={21}
+          preparedBy={preparedBy}
           autoPrint={autoPrint}
           isWalkIn={String(view.partyCode || "").toUpperCase() === "WALKIN"}
           companyId={companyId}

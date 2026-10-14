@@ -45,6 +45,7 @@ export type PurchaseInvoiceEdit = {
   buyFrom?: BuyFrom;
   narration: string;
   extraDiscount: string;
+  amountDifference?: string;
   lines: LineItemDraft[];
 };
 
@@ -101,6 +102,9 @@ export function PurchaseInvoiceForm({
   const [gatePasses, setGatePasses] = useState<GatePassOption[]>([]);
   const [narration, setNarration] = useState(editing?.narration || "");
   const [extraDiscount, setExtraDiscount] = useState(editing?.extraDiscount || "");
+  const [amountDifference, setAmountDifference] = useState(
+    editing?.amountDifference || "",
+  );
   const [lines, setLines] = useState<LineItemDraft[]>(editing?.lines || []);
   const [loading, setLoading] = useState(false);
   const singleSubmit = useSingleSubmit();
@@ -275,11 +279,12 @@ export function PurchaseInvoiceForm({
 
     const { subtotal, discount_total, grand_total: linesTotal } = summarizeLines(valid);
     const extra = Math.max(0, Number(extraDiscount) || 0);
+    const difference = Math.max(0, Number(amountDifference) || 0);
     if (extra > linesTotal + 0.005) {
       setError("Extra discount cannot exceed the bill amount after trade discount.");
       return;
     }
-    const grand_total = Math.max(0, linesTotal - extra);
+    const grand_total = Math.max(0, linesTotal - extra + difference);
 
     setLoading(true);
     try {
@@ -340,6 +345,7 @@ export function PurchaseInvoiceForm({
           subtotal,
           discount_total,
           extra_discount: extra,
+          amount_difference: difference,
           grand_total,
           narration,
           items: valid.map((l) => ({
@@ -506,6 +512,8 @@ export function PurchaseInvoiceForm({
         onAutoPickWarehouse={changeWarehouse}
         extraDiscount={extraDiscount}
         onExtraDiscountChange={setExtraDiscount}
+        amountDifference={amountDifference}
+        onAmountDifferenceChange={setAmountDifference}
       />
 
       {error ? (

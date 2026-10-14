@@ -60,6 +60,7 @@ export function renderOfflineDocument(
       companyId={company.id}
       companyName={company.name}
       companyPhone={company.phone}
+      preparedBy={company.prepared_by?.trim() || null}
       documentId={documentId}
       listHref={listHref}
       autoPrint={autoPrint}

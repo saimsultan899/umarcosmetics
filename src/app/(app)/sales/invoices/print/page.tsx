@@ -14,7 +14,7 @@ export default async function SaleInvoicesBatchPrintPage({
   const sp = await searchParams;
   const ids = parseSelectedInvoiceIds(sp.ids);
   const autoPrint = sp.print !== "0" && sp.print !== "false";
-  const { supabase, company, profile, offline } = await requireCompanyContext();
+  const { supabase, company, offline } = await requireCompanyContext();
 
   if (!ids.length) {
     return (
@@ -52,14 +52,23 @@ export default async function SaleInvoicesBatchPrintPage({
     );
   }
 
+  const { data: orgRow } = await supabase
+    .from("organizations")
+    .select("name")
+    .eq("id", company.organization_id)
+    .maybeSingle();
+
+  const preparedBy = company.prepared_by?.trim() || null;
+
   const loaded = await Promise.all(
     ids.map((id) =>
       loadSaleInvoicePrintData(supabase, {
         companyId: company.id,
         companyName: company.name,
         companyPhone: company.phone,
+        organizationName: orgRow?.name ?? null,
         invoiceId: id,
-        preparedByFallback: profile?.full_name,
+        preparedByFallback: preparedBy,
       }),
     ),
   );
