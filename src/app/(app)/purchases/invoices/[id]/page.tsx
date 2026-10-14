@@ -58,9 +58,11 @@ export default async function PurchaseInvoiceDetailPage({
   const amountDifference = Number(
     (invoice as { amount_difference?: number | null }).amount_difference || 0,
   );
-  const distributorAddress = [company.address, company.city]
-    .filter(Boolean)
-    .join(", ");
+  const { data: orgRow } = await supabase
+    .from("organizations")
+    .select("name")
+    .eq("id", company.organization_id)
+    .maybeSingle();
 
   return (
     <div className="animate-rise">
@@ -73,9 +75,9 @@ export default async function PurchaseInvoiceDetailPage({
       ) : null}
       <PrintDocument
         companyName={company.name}
-        companyAddress={distributorAddress || null}
         companyNtn={company.ntn}
         companyPhone={company.phone}
+        organizationName={orgRow?.name ?? null}
         title="Purchase Invoice"
         docNo={invoice.invoice_no}
         date={invoice.invoice_date}

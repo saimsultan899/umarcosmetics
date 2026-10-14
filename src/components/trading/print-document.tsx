@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { installDesktopPrint } from "@/lib/desktop-print";
+import { distributorPhoneLines } from "@/lib/print/distributor-phones";
 import {
   A4_INVOICE_LINES_PER_PAGE,
   A5_INVOICE_LINES_PER_PAGE,
@@ -75,6 +76,7 @@ export function PrintDocument({
   companyAddress,
   companyNtn,
   companyPhone,
+  organizationName,
   title,
   docNo,
   date,
@@ -100,6 +102,8 @@ export function PrintDocument({
   companyAddress?: string | null;
   companyNtn?: string | null;
   companyPhone?: string | null;
+  /** When "Umar Group", owner phones are appended under the company name. */
+  organizationName?: string | null;
   title: string;
   docNo: string;
   date: string;
@@ -125,6 +129,7 @@ export function PrintDocument({
   /** Products / Total qty rows above money totals. Off for purchase invoices. */
   showLineSummary?: boolean;
 }) {
+  const headerPhones = distributorPhoneLines(companyPhone, organizationName);
   const [paperTouched, setPaperTouched] = useState(false);
   const [paper, setPaper] = useState<"a5" | "a4">(() => {
     // Legacy half hint only when the bill still fits A5.
@@ -196,9 +201,9 @@ export function PrintDocument({
     used += 7; // Qty
     if (hasUom) used += 7;
     if (hasRate) used += 8;
-    if (hasDiscount) used += 5 + 5; // Disc % + Disc — keep narrow
+    if (hasDiscount) used += 6 + 6; // Disc % + Disc — enough for headers
     if (hasAmount) used += 14;
-    return `${Math.max(40, 100 - used)}%`;
+    return `${Math.max(38, 100 - used)}%`;
   })();
 
   function renderTable(pageLines: PrintLine[], startIndex: number) {
@@ -211,8 +216,8 @@ export function PrintDocument({
           <col style={{ width: "7%" }} />
           {hasUom ? <col style={{ width: "7%" }} /> : null}
           {hasRate ? <col style={{ width: "8%" }} /> : null}
-          {hasDiscount ? <col style={{ width: "5%" }} /> : null}
-          {hasDiscount ? <col style={{ width: "5%" }} /> : null}
+          {hasDiscount ? <col style={{ width: "6%" }} /> : null}
+          {hasDiscount ? <col style={{ width: "6%" }} /> : null}
           {hasAmount ? <col style={{ width: "14%" }} /> : null}
         </colgroup>
         <thead>
@@ -352,17 +357,17 @@ export function PrintDocument({
                 {companyName ? (
                   <div className="si-company">{companyName}</div>
                 ) : null}
+                {headerPhones.length > 0 ? (
+                  <div className="si-distributor-addr si-company-phones">
+                    {headerPhones.join("   ")}
+                  </div>
+                ) : null}
                 {companyAddress ? (
                   <div className="si-distributor-addr">{companyAddress}</div>
                 ) : null}
-                {companyPhone || companyNtn ? (
+                {companyNtn ? (
                   <div className="si-distributor-addr">
-                    {[
-                      companyPhone,
-                      companyNtn ? `NTN/STRN: ${companyNtn}` : "",
-                    ]
-                      .filter(Boolean)
-                      .join("  ·  ")}
+                    NTN/STRN: {companyNtn}
                   </div>
                 ) : null}
 

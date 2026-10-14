@@ -2203,6 +2203,12 @@ button[aria-haspopup="listbox"]:focus-visible {
   letter-spacing: 0.02em;
 }
 /* Document slips: give the right meta enough room for Sold between / dates */
+.cdoc .si-meta {
+  font-size: 13px;
+}
+.cdoc .si-distributor-addr {
+  font-size: 13px;
+}
 .cdoc .si-meta-left {
   flex: 1.05 1 0;
 }
@@ -2787,7 +2793,10 @@ button[aria-haspopup="listbox"]:focus-visible {
     font-weight: 700;
   }
   .print-sheet.cdoc .si-meta {
-    font-size: 16.5px;
+    font-size: 13px;
+  }
+  .print-sheet.cdoc .si-distributor-addr {
+    font-size: 13px;
   }
   .print-sheet.cdoc .si-k {
     font-weight: 700;
@@ -2828,7 +2837,14 @@ button[aria-haspopup="listbox"]:focus-visible {
     font-size: 17px !important;
   }
   .print-sheet.cdoc--half .si-meta {
-    font-size: 14.5px !important;
+    font-size: 12.5px !important;
+  }
+  .print-sheet.cdoc--half .si-distributor-addr,
+  .print-sheet.cdoc--a4 .si-distributor-addr {
+    font-size: 12.5px !important;
+  }
+  .print-sheet.cdoc--a4 .si-meta {
+    font-size: 12.5px !important;
   }
   .print-sheet.cdoc--half .si-table {
     font-size: 12.5px !important;

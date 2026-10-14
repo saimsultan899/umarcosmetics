@@ -13,6 +13,7 @@ import {
   holdThermalZeroMargin,
   printThermalSlip,
 } from "@/lib/print/thermal-page";
+import { distributorPhoneLines } from "@/lib/print/distributor-phones";
 import {
   A4_INVOICE_LINES_PER_PAGE,
   A5_INVOICE_LINES_PER_PAGE,
@@ -62,33 +63,6 @@ const THERMAL_EQ = "================================";
 function itemLabel(_code?: string | null, name?: string | null) {
   const label = String(name || "").trim();
   return label || "—";
-}
-
-/** Extra owner numbers — only for Umar Group sale invoices. */
-const UMAR_GROUP_OWNER_PHONES = ["0300-6765266", "0307-7842100"];
-
-function isUmarGroupOrg(organizationName?: string | null): boolean {
-  return String(organizationName || "")
-    .trim()
-    .toLowerCase() === "umar group";
-}
-
-/** Header phones: company settings for all; Umar Group also appends owner numbers. */
-function distributorPhoneLines(
-  companyPhone?: string | null,
-  organizationName?: string | null,
-): string[] {
-  const fromCompany = String(companyPhone || "")
-    .split(/[,;|]/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const merged = [...fromCompany];
-  if (isUmarGroupOrg(organizationName)) {
-    for (const n of UMAR_GROUP_OWNER_PHONES) {
-      if (!merged.includes(n)) merged.push(n);
-    }
-  }
-  return merged;
 }
 
 function discPercent(qty: number, tradePrice: number, discount: number) {
