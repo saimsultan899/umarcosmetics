@@ -27,7 +27,11 @@ import { createClient } from "@/lib/supabase/client";
 import { AlertTriangle, Package, Tags } from "lucide-react";
 import { useMemo } from "react";
 
-function productFields(p: Product, companyName: string): DetailField[] {
+function productFields(
+  p: Product,
+  companyName: string,
+  onHandQty: number,
+): DetailField[] {
   return [
     { label: "Code", value: p.code },
     { label: "Name", value: p.name_en },
@@ -40,10 +44,10 @@ function productFields(p: Product, companyName: string): DetailField[] {
     { label: "Wholesale", value: formatPkr(p.wholesale_rate) },
     { label: "Sale", value: formatPkr(p.sale_rate) },
     {
-      label: "Stock QTY",
+      label: "Stock QTY (on hand)",
       value: (() => {
-        const qty = Number(p.opening_qty || 0);
-        if (!(qty > 0)) return "—";
+        const qty = Number(onHandQty || 0);
+        if (!(qty > 0.0005 || qty < -0.0005)) return "—";
         return `${formatNumber(qty, 0)} · ${formatPkr(
           qty * Number(p.purchase_rate || 0),
         )}`;
@@ -80,6 +84,7 @@ export function ProductsTable({
   warehouses,
   companyId,
   organizationId,
+  stockQtyById,
   lowStockCodes,
   canEdit = true,
   canInactivate = false,
@@ -93,6 +98,8 @@ export function ProductsTable({
   companyId: string;
   organizationId: string;
   stockValueByCode?: Record<string, number>;
+  /** Live on-hand qty by product id (from stock_balances). */
+  stockQtyById?: Record<string, number>;
   lowStockCodes?: string[];
   initialView?: string;
   canEdit?: boolean;
@@ -287,19 +294,24 @@ export function ProductsTable({
                       <td>{formatPkr(p.retail_rate)}</td>
                       <td>{formatPkr(p.purchase_rate)}</td>
                       <td>
-                        {Number(p.opening_qty || 0) > 0 ? (
-                          <>
-                            <div>{formatNumber(p.opening_qty, 0)}</div>
-                            <div className="text-[10px] text-[var(--muted)]">
-                              {formatPkr(
-                                Number(p.opening_qty || 0) *
-                                  Number(p.purchase_rate || 0),
-                              )}
-                            </div>
-                          </>
-                        ) : (
-                          <span className="text-[var(--muted)]">—</span>
-                        )}
+                        {(() => {
+                          const onHand = Number(stockQtyById?.[p.id] || 0);
+                          if (!(onHand > 0.0005 || onHand < -0.0005)) {
+                            return (
+                              <span className="text-[var(--muted)]">—</span>
+                            );
+                          }
+                          return (
+                            <>
+                              <div>{formatNumber(onHand, 0)}</div>
+                              <div className="text-[10px] text-[var(--muted)]">
+                                {formatPkr(
+                                  onHand * Number(p.purchase_rate || 0),
+                                )}
+                              </div>
+                            </>
+                          );
+                        })()}
                       </td>
                       <td>
                         {hasCartonPacking(p.packing) ? (
@@ -333,6 +345,7 @@ export function ProductsTable({
                           viewFields={productFields(
                             p,
                             warehouseName(p.default_warehouse_id),
+                            Number(stockQtyById?.[p.id] || 0),
                           )}
                           allowEdit={canEdit}
                           allowDelete={

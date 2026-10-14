@@ -703,11 +703,13 @@ export function OfflineModulePage({
 
     const stockValueByCode: Record<string, number> = {};
     const purchaseValueByCode: Record<string, number> = {};
+    const stockQtyById: Record<string, number> = {};
     const lowStockCodes: string[] = [];
     let lowStockCount = 0;
 
     for (const p of productList) {
       const qOnHand = qtyByProduct.get(p.id) || 0;
+      stockQtyById[p.id] = qOnHand;
       stockValueByCode[p.code] = qOnHand * Number(p.retail_rate || 0);
       purchaseValueByCode[p.code] = qOnHand * Number(p.purchase_rate || 0);
       if (Number(p.reorder_level) > 0 && qOnHand <= Number(p.reorder_level)) {
@@ -763,6 +765,7 @@ export function OfflineModulePage({
         companyId={companyId}
         organizationId={organizationId}
         stockValueByCode={stockValueByCode}
+        stockQtyById={stockQtyById}
         lowStockCodes={lowStockCodes}
         initialView={viewParam || undefined}
       />

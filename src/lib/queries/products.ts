@@ -29,6 +29,8 @@ export type ProductListResult = {
   pagination: PaginationMeta;
   stats: ProductListStats;
   stockValueByCode: Record<string, number>;
+  /** Live on-hand qty from stock_balances (purchases/sales), keyed by product id. */
+  stockQtyById: Record<string, number>;
   lowStockCodes: string[];
 };
 
@@ -186,6 +188,11 @@ export async function fetchProductList(
     { name: "Low stock", value: lowCount },
   ].filter((x) => x.value > 0);
 
+  const stockQtyById: Record<string, number> = {};
+  for (const [productId, qty] of qtyByProduct) {
+    stockQtyById[productId] = qty;
+  }
+
   return {
     products,
     pagination: meta,
@@ -205,6 +212,7 @@ export async function fetchProductList(
       health,
     },
     stockValueByCode,
+    stockQtyById,
     lowStockCodes,
   };
 }

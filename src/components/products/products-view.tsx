@@ -58,6 +58,7 @@ export function ProductsView({
       health: [],
     },
     stockValueByCode: {},
+    stockQtyById: {},
     lowStockCodes: [],
   };
 
@@ -101,6 +102,7 @@ export function ProductsView({
         companyId={company.id}
         organizationId={company.organization_id}
         stockValueByCode={currentData.stockValueByCode}
+        stockQtyById={currentData.stockQtyById}
         lowStockCodes={currentData.lowStockCodes}
         initialView={view}
         canEdit={canEdit}

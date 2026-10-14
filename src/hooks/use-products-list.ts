@@ -169,7 +169,19 @@ export function useProductsList({
         const from = pagination.from ? pagination.from - 1 : 0;
         const paged = filtered.slice(from, pagination.to);
 
-        setData({ products: paged, pagination, stats, stockValueByCode, lowStockCodes });
+        const stockQtyById: Record<string, number> = {};
+        for (const [productId, qty] of qtyByProduct) {
+          stockQtyById[productId] = qty;
+        }
+
+        setData({
+          products: paged,
+          pagination,
+          stats,
+          stockValueByCode,
+          stockQtyById,
+          lowStockCodes,
+        });
       } catch (err) {
         console.error("Failed to load offline products list:", err);
       } finally {
