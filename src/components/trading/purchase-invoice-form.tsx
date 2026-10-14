@@ -265,15 +265,15 @@ export function PurchaseInvoiceForm({
     const valid = flushed.filter((l) => l.product_id && Number(l.qty) > 0);
     const companyVendorId =
       warehouses.find((w) => w.id === warehouseId)?.default_supplier_id || "";
-    const payablePartyId = buyFrom === "company" ? companyVendorId : partyId;
-    if (!warehouseId || valid.length === 0 || !payablePartyId) {
-      setError(
-        buyFrom === "company"
-          ? companyVendorId
-            ? "Select a company and at least one product line."
-            : "This company has no vendor linked. Link a vendor on the company, or choose Buy from Vendor."
-          : "Select a vendor, a stock company, and at least one product line.",
-      );
+    // Company mode: use linked vendor when present; vendor is optional (stock-only OK).
+    const payablePartyId =
+      buyFrom === "company" ? companyVendorId || partyId || "" : partyId;
+    if (!warehouseId || valid.length === 0) {
+      setError("Select a company and at least one product line.");
+      return;
+    }
+    if (buyFrom === "vendor" && !payablePartyId) {
+      setError("Select a vendor, a stock company, and at least one product line.");
       return;
     }
 
@@ -329,7 +329,7 @@ export function PurchaseInvoiceForm({
           supplier_bill_no: supplierBillNo,
           company_invoice_date: companyInvoiceDate || null,
           gate_pass_id: gatePassId || null,
-          party_id: payablePartyId,
+          party_id: payablePartyId || null,
           party_name: vendor?.name_en || null,
           party_code: vendor?.party_code || null,
           parties: vendor
@@ -397,7 +397,7 @@ export function PurchaseInvoiceForm({
     ? "Pick a company. The bill is saved on that company."
     : linkedVendor
       ? `Saved on this company. Payable goes to ${linkedVendor.party_code} — ${linkedVendor.name_en}.`
-      : "No vendor is linked to this company. Link one, or switch to Buy from Vendor.";
+      : "Saved on this company. No vendor linked — stock posts without a payable balance (or choose Buy from Vendor).";
 
   const companyPicker = (
     <div className="flex items-start gap-2">
