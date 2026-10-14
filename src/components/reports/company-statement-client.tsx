@@ -474,19 +474,6 @@ export function CompanyStatementClient({
       );
       return;
     }
-    if (payMethod === "bank_transfer") {
-      if (
-        !senderBank.trim() ||
-        !senderName.trim() ||
-        !senderNo.trim() ||
-        !receiverBank.trim() ||
-        !receiverName.trim() ||
-        !receiverNo.trim()
-      ) {
-        setPayError("Fill the sender and the receiver bank, name, and account number.");
-        return;
-      }
-    }
     setPaySaving(true);
     setPayError(null);
     try {
@@ -913,7 +900,6 @@ export function CompanyStatementClient({
                 type="date"
                 value={payDate}
                 onChange={(e) => setPayDate(e.target.value)}
-                required
               />
             </div>
             <div>

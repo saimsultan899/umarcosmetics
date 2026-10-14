@@ -99,20 +99,6 @@ export function CashVoucherForm({
       setError("Add at least one account line with amount.");
       return;
     }
-    if (
-      kind === "CP" &&
-      paymentMethod === "bank_transfer" &&
-      (!senderBank.trim() ||
-        !senderAccountName.trim() ||
-        !senderAccountNo.trim() ||
-        !receiverBank.trim() ||
-        !receiverAccountName.trim() ||
-        !receiverAccountNo.trim())
-    ) {
-      setError("Fill the sender and the receiver bank, name, and account number.");
-      return;
-    }
-
     setLoading(true);
     try {
       const res = await offlineAwareSubmit({

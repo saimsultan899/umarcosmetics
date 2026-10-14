@@ -70,8 +70,7 @@ function PartyBankBlock({
           <Input
             value={name}
             onChange={(e) => onName(e.target.value)}
-            placeholder={`${title} name`}
-            required
+            placeholder={`${title} name (optional)`}
           />
         </div>
         <div>
@@ -79,8 +78,7 @@ function PartyBankBlock({
           <Input
             value={accountNo}
             onChange={(e) => onAccountNo(e.target.value)}
-            placeholder="Account number"
-            required
+            placeholder="Account number (optional)"
           />
         </div>
       </div>
