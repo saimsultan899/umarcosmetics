@@ -69,8 +69,7 @@ export function SaleInvoicesBatchPrint({
       <div className="no-print flex flex-wrap items-center justify-end gap-2">
         <p className="mr-auto text-sm text-[var(--muted)]">
           {invoices.length} sale invoice{invoices.length === 1 ? "" : "s"} selected
-          · {paperSize === "a4" ? "A4 full page" : "A5 half slip"} · one invoice
-          per page
+          · {paperSize === "a4" ? "A4 (overflow → next page)" : "A5 (28/page)"}
         </p>
         <div className="inline-flex rounded-lg border border-[var(--border)] bg-white p-0.5">
           <button
@@ -94,9 +93,9 @@ export function SaleInvoicesBatchPrint({
                 : "text-[var(--muted)] hover:text-[var(--ink)]",
             )}
             onClick={() => setPaperSize("a4")}
-            title="Full A4 when invoices have many product lines"
+            title="A4 · more lines per page, then next A4 page"
           >
-            A4 full
+            A4
           </button>
         </div>
         <Link

@@ -20,8 +20,13 @@ import { ArrowLeft, Printer } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-/** A5 sale invoice: first page fits this many product lines; extra lines continue on the next A5 page. */
+/** A5 sale invoice: this many product lines per page; extra lines continue on the next A5 page. */
 export const A5_SALE_LINES_PER_PAGE = 28;
+/**
+ * A4 sale invoice: more than 40 product lines on one A4 page (header/footer included).
+ * Overflow continues on the next A4 page. Bills with more than A5 capacity auto-prefer A4.
+ */
+export const A4_SALE_LINES_PER_PAGE = 45;
 
 function chunkLines<T>(items: T[], size: number): T[][] {
   if (items.length <= size) return [items];
@@ -30,6 +35,10 @@ function chunkLines<T>(items: T[], size: number): T[][] {
     pages.push(items.slice(i, i + size));
   }
   return pages;
+}
+
+function preferredSalePaper(lineCount: number): "a5" | "a4" {
+  return lineCount > A5_SALE_LINES_PER_PAGE ? "a4" : "a5";
 }
 
 /** Default A5/A4 sale columns — compact for normal bills. */
@@ -241,7 +250,10 @@ export function SaleInvoicePrint({
   const savedDefault = useWalkInSlip(companyId);
   const urlSlip = useSlipQuery();
   const [manualLayout, setManualLayout] = useState<WalkInSlipLayout | null>(null);
-  const [localPaper, setLocalPaper] = useState<"a5" | "a4">("a5");
+  const [paperTouched, setPaperTouched] = useState(false);
+  const [localPaper, setLocalPaper] = useState<"a5" | "a4">(() =>
+    preferredSalePaper(lines.length),
+  );
   const layout = manualLayout ?? urlSlip ?? savedDefault;
   const showSheet = !isWalkIn || clientReady || forceStandard || embedded;
   const showThermal =
@@ -252,26 +264,19 @@ export function SaleInvoicePrint({
     layout === "thermal";
   const sheetPaper = paperSizeProp ?? localPaper;
   const useFullA4 = !showThermal && sheetPaper === "a4";
+  const linesPerPage = useFullA4
+    ? A4_SALE_LINES_PER_PAGE
+    : A5_SALE_LINES_PER_PAGE;
 
   const sheetPages = useMemo(() => {
-    if (useFullA4) {
-      return [
-        {
-          pageLines: lines,
-          startIndex: 0,
-          isFirst: true,
-          isLast: true,
-        },
-      ];
-    }
-    const chunks = chunkLines(lines, A5_SALE_LINES_PER_PAGE);
+    const chunks = chunkLines(lines, linesPerPage);
     return chunks.map((pageLines, idx) => ({
       pageLines,
-      startIndex: idx * A5_SALE_LINES_PER_PAGE,
+      startIndex: idx * linesPerPage,
       isFirst: idx === 0,
       isLast: idx === chunks.length - 1,
     }));
-  }, [lines, useFullA4]);
+  }, [lines, linesPerPage]);
 
   const saleColWidths = useMemo(
     () => (hasSixDigitMoney(lines) ? SALE_COLS_WIDE : SALE_COLS_NORMAL),
@@ -282,11 +287,25 @@ export function SaleInvoicePrint({
     if (embedded || paperSizeProp) return;
     try {
       const raw = new URLSearchParams(window.location.search).get("paper");
-      if (raw === "a4" || raw === "a5") setLocalPaper(raw);
+      if (raw === "a4" || raw === "a5") {
+        setLocalPaper(raw);
+        setPaperTouched(true);
+        return;
+      }
     } catch {
       /* ignore */
     }
   }, [embedded, paperSizeProp]);
+
+  useEffect(() => {
+    if (embedded || paperSizeProp || paperTouched) return;
+    setLocalPaper(preferredSalePaper(lines.length));
+  }, [embedded, paperSizeProp, paperTouched, lines.length]);
+
+  function choosePaper(next: "a5" | "a4") {
+    setPaperTouched(true);
+    setLocalPaper(next);
+  }
 
   useEffect(() => {
     if (embedded) return;
@@ -378,12 +397,12 @@ export function SaleInvoicePrint({
             {showThermal
               ? "80mm thermal · walk-in cash slip"
               : useFullA4
-                ? "A4 full page · use when the bill has many lines"
+                ? `A4 · up to ${A4_SALE_LINES_PER_PAGE} lines per page, then next A4 page.`
                 : isWalkIn
                   ? savedDefault === "thermal"
                     ? "Standard invoice for this bill. Next walk-in still uses the thermal slip."
                     : `A5 · up to ${A5_SALE_LINES_PER_PAGE} lines per page, then next page.`
-                  : `A5 (default) · up to ${A5_SALE_LINES_PER_PAGE} lines per page, then next page.`}
+                  : `A5 · up to ${A5_SALE_LINES_PER_PAGE} lines per page, then next page. Over ${A5_SALE_LINES_PER_PAGE} lines auto-selects A4.`}
           </p>
           {isWalkIn ? (
             <label className="flex items-center gap-2 text-sm font-medium text-[var(--ink)]">
@@ -426,7 +445,7 @@ export function SaleInvoicePrint({
                     ? "bg-[var(--brand)] text-white"
                     : "text-[var(--muted)] hover:text-[var(--ink)]",
                 )}
-                onClick={() => setLocalPaper("a5")}
+                onClick={() => choosePaper("a5")}
               >
                 A5
               </button>
@@ -438,10 +457,10 @@ export function SaleInvoicePrint({
                     ? "bg-[var(--brand)] text-white"
                     : "text-[var(--muted)] hover:text-[var(--ink)]",
                 )}
-                onClick={() => setLocalPaper("a4")}
-                title="Full A4 when invoice has many product lines"
+                onClick={() => choosePaper("a4")}
+                title={`A4 · ${A4_SALE_LINES_PER_PAGE} lines/page (auto when over ${A5_SALE_LINES_PER_PAGE} lines)`}
               >
-                A4 full
+                A4
               </button>
             </div>
           ) : null}
@@ -570,10 +589,11 @@ export function SaleInvoicePrint({
             <div
               key={pageIdx}
               className={cn(
-                !useFullA4 && "si-sale-a5-chunk",
-                !useFullA4 &&
-                  pageIdx < sheetPages.length - 1 &&
-                  "si-sale-a5-page-break",
+                useFullA4 ? "si-sale-a4-chunk" : "si-sale-a5-chunk",
+                pageIdx < sheetPages.length - 1 &&
+                  (useFullA4
+                    ? "si-sale-a4-page-break"
+                    : "si-sale-a5-page-break"),
               )}
             >
               {page.isFirst ? (
@@ -646,7 +666,10 @@ export function SaleInvoicePrint({
               {page.isLast ? (
                 <div
                   className={cn(
-                    !useFullA4 && sheetPages.length > 1 && "si-sale-a5-last-chunk",
+                    sheetPages.length > 1 &&
+                      (useFullA4
+                        ? "si-sale-a4-last-chunk"
+                        : "si-sale-a5-last-chunk"),
                   )}
                 >
                   {!page.isFirst ? (

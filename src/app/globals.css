@@ -3041,6 +3041,45 @@ button[aria-haspopup="listbox"]:focus-visible {
     font-size: 14px !important;
   }
 
+  /* A4 sale: denser rows so 40+ items fit on one page before paging. */
+  .print-sheet.si-a4 {
+    font-size: 15px !important;
+    line-height: 1.2 !important;
+    padding: 3mm 5mm !important;
+  }
+  .print-sheet.si-a4 .si-table {
+    margin-top: 2px !important;
+    font-size: 12.5px !important;
+  }
+  .print-sheet.si-a4 .si-table th,
+  .print-sheet.si-a4 .si-table td {
+    padding: 1px 2px !important;
+    line-height: 1.12 !important;
+  }
+  .print-sheet.si-a4 .si-table .si-item {
+    line-height: 1.1 !important;
+  }
+  .print-sheet.si-a4 .si-bonus {
+    font-size: 12px !important;
+  }
+  .print-sheet.si-a4 .si-foot {
+    margin-top: 3px !important;
+    font-size: 14px !important;
+    gap: 8px !important;
+  }
+  .print-sheet.si-a4 .si-note,
+  .print-sheet.si-a4 .si-prepared {
+    margin: 2px 0 1px !important;
+    font-size: 13px !important;
+  }
+  .print-sheet.si-a4 .si-developed {
+    font-size: 11.5px !important;
+  }
+  .print-sheet.si-a4 .si-checked {
+    margin-top: 6px !important;
+    font-size: 14px !important;
+  }
+
   /* Legacy half-A5 slip (other docs / old paths) */
   .print-sheet.si-half {
     page: si-half-page;
@@ -3157,19 +3196,23 @@ button[aria-haspopup="listbox"]:focus-visible {
     overflow: visible !important;
     height: auto !important;
   }
-  .si-sale-a5-chunk.si-sale-a5-page-break {
+  .si-sale-a5-chunk.si-sale-a5-page-break,
+  .si-sale-a4-chunk.si-sale-a4-page-break {
     page-break-after: always;
     break-after: page;
   }
-  .si-sale-a5-last-chunk .si-foot {
+  .si-sale-a5-last-chunk .si-foot,
+  .si-sale-a4-last-chunk .si-foot {
     margin-top: 2px !important;
     page-break-before: avoid;
     break-before: avoid;
   }
-  .si-sale-a5-last-chunk .si-checked {
+  .si-sale-a5-last-chunk .si-checked,
+  .si-sale-a4-last-chunk .si-checked {
     margin-top: 4px !important;
   }
-  .si-sale-a5-last-chunk .si-table tbody {
+  .si-sale-a5-last-chunk .si-table tbody,
+  .si-sale-a4-last-chunk .si-table tbody {
     page-break-after: avoid;
     break-after: avoid;
   }

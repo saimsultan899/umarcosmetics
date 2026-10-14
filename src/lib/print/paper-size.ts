@@ -212,15 +212,25 @@ function uprightHalfSheetCss(paper: PrintPaperSize) {
     max-height: none !important;
     overflow: visible !important;
   }
-  .si-sale-a5-chunk.si-sale-a5-page-break {
+}`;
+}
+
+/** Sale invoice multi-page chunks (A5 and A4). */
+function saleInvoicePageBreakCss() {
+  return `
+@media print {
+  .si-sale-a5-chunk.si-sale-a5-page-break,
+  .si-sale-a4-chunk.si-sale-a4-page-break {
     page-break-after: always;
     break-after: page;
   }
-  .si-sale-a5-last-chunk .si-foot {
+  .si-sale-a5-last-chunk .si-foot,
+  .si-sale-a4-last-chunk .si-foot {
     page-break-before: avoid;
     break-before: avoid;
   }
-  .si-sale-a5-last-chunk .si-table tbody {
+  .si-sale-a5-last-chunk .si-table tbody,
+  .si-sale-a4-last-chunk .si-table tbody {
     page-break-after: avoid;
     break-after: avoid;
   }
@@ -279,6 +289,7 @@ html, body {
   .print-sheet { page: auto !important; background: #fff !important; }
 }
 ${uprightHalfSheetCss(paper)}
+${saleInvoicePageBreakCss()}
 ${reportFlowCss()}
 </style>
 </head>
