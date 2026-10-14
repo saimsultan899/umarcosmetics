@@ -51,6 +51,8 @@ export function ProductForm({
   const singleSubmit = useSingleSubmit();
   const [error, setError] = useState<string | null>(null);
   const [autoCode, setAutoCode] = useState(!initial);
+  /** Live warehouse stock (purchases/sales). Not the same as opening_qty. */
+  const [onHandQty, setOnHandQty] = useState<number | null>(null);
   const [form, setForm] = useState({
     code: initial?.code || "",
     name_en: initial?.name_en || "",
@@ -72,6 +74,47 @@ export function ProductForm({
       ? purchaseDiscountPercentText(initial.scheme)
       : "",
   });
+
+  useEffect(() => {
+    if (!initial?.id || !companyId) {
+      setOnHandQty(null);
+      return;
+    }
+    let cancelled = false;
+    async function loadOnHand() {
+      try {
+        if (typeof navigator !== "undefined" && !navigator.onLine) {
+          const { offlineStockSnapshot } = await import(
+            "@/lib/offline/offline-reports"
+          );
+          const rows = await offlineStockSnapshot(companyId);
+          const sum = rows
+            .filter((r) => String(r.product_id) === String(initial!.id))
+            .reduce((s, r) => s + Number(r.qty || 0), 0);
+          if (!cancelled) setOnHandQty(sum);
+          return;
+        }
+        const supabase = createClient();
+        const { data } = await supabase
+          .from("stock_balances")
+          .select("qty")
+          .eq("company_id", companyId)
+          .eq("product_id", initial!.id);
+        if (cancelled) return;
+        const sum = (data || []).reduce(
+          (s, r) => s + Number(r.qty || 0),
+          0,
+        );
+        setOnHandQty(sum);
+      } catch {
+        if (!cancelled) setOnHandQty(null);
+      }
+    }
+    void loadOnHand();
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId, initial?.id]);
 
   const [barcodes, setBarcodes] = useState<ProductBarcodeEntry[]>(() => {
     const rows = readProductBarcodes(initial);
@@ -492,6 +535,23 @@ export function ProductForm({
           onChange={(e) => set("purchase_rate", e.target.value)}
         />
       </div>
+      {initial?.id ? (
+        <div>
+          <Label>On hand (live stock)</Label>
+          <Input
+            readOnly
+            disabled
+            value={
+              onHandQty == null
+                ? "…"
+                : String(Math.round(onHandQty * 1000) / 1000)
+            }
+          />
+          <p className="mt-1 text-[11px] text-[var(--muted)]">
+            Updated by purchase / sale. Not the Opening field below.
+          </p>
+        </div>
+      ) : null}
       <div>
         <Label>Opening qty (base units)</Label>
         <Input
@@ -501,6 +561,10 @@ export function ProductForm({
           value={form.opening_qty}
           onChange={(e) => set("opening_qty", e.target.value)}
         />
+        <p className="mt-1 text-[11px] text-[var(--muted)]">
+          Starting stock only. Do not change this to fix purchase qty — use a
+          purchase invoice instead.
+        </p>
       </div>
       <div>
         <Label>Outer unit type</Label>
