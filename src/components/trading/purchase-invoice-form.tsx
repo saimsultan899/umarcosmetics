@@ -90,45 +90,6 @@ export function PurchaseInvoiceForm({
     editing?.warehouseId || warehouses[0]?.id || "",
   );
 
-  function changeWarehouse(nextId: string) {
-    setWarehouseId(nextId);
-    if (!nextId) {
-      setCompanyBalance(null);
-      setLines([]);
-      return;
-    }
-    setLines((prev) =>
-      prev.filter((line) => {
-        if (!line.product_id) return true;
-        const product = products.find((p) => p.id === line.product_id);
-        return product?.default_warehouse_id === nextId;
-      }),
-    );
-  }
-
-  const companyBalanceBox = (
-    <div className="w-[9.5rem] shrink-0">
-      <Label>Prev. balance</Label>
-      <div className="flex h-10 items-center rounded-md border border-[var(--border)] bg-[var(--surface-2,#f8f8f8)] px-2 text-sm tabular-nums">
-        {warehouseId ? (
-          companyBalance != null ? (
-            <span className="font-semibold text-[var(--ink)]">
-              {formatPkr(Math.abs(companyBalance))}{" "}
-              {companyBalance > 0.005
-                ? "Cr"
-                : companyBalance < -0.005
-                  ? "Dr"
-                  : "Nil"}
-            </span>
-          ) : (
-            <span className="text-[var(--muted)]">…</span>
-          )
-        ) : (
-          <span className="text-[var(--muted)]">—</span>
-        )}
-      </div>
-    </div>
-  );
   const [invoiceDate, setInvoiceDate] = useState(
     editing?.invoiceDate || new Date().toISOString().slice(0, 10),
   );
@@ -145,6 +106,22 @@ export function PurchaseInvoiceForm({
   const singleSubmit = useSingleSubmit();
   const [error, setError] = useState<string | null>(null);
   const [companyBalance, setCompanyBalance] = useState<number | null>(null);
+
+  function changeWarehouse(nextId: string) {
+    setWarehouseId(nextId);
+    if (!nextId) {
+      setCompanyBalance(null);
+      setLines([]);
+      return;
+    }
+    setLines((prev) =>
+      prev.filter((line) => {
+        if (!line.product_id) return true;
+        const product = products.find((p) => p.id === line.product_id);
+        return product?.default_warehouse_id === nextId;
+      }),
+    );
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -187,6 +164,30 @@ export function PurchaseInvoiceForm({
       cancelled = true;
     };
   }, [companyId, warehouseId, invoiceDate]);
+
+  const companyBalanceBox = (
+    <div className="w-[9.5rem] shrink-0">
+      <Label>Prev. balance</Label>
+      <div className="flex h-10 items-center rounded-md border border-[var(--border)] bg-[var(--surface-2,#f8f8f8)] px-2 text-sm tabular-nums">
+        {warehouseId ? (
+          companyBalance != null ? (
+            <span className="font-semibold text-[var(--ink)]">
+              {formatPkr(Math.abs(companyBalance))}{" "}
+              {companyBalance > 0.005
+                ? "Cr"
+                : companyBalance < -0.005
+                  ? "Dr"
+                  : "Nil"}
+            </span>
+          ) : (
+            <span className="text-[var(--muted)]">…</span>
+          )
+        ) : (
+          <span className="text-[var(--muted)]">—</span>
+        )}
+      </div>
+    </div>
+  );
 
   useEffect(() => {
     let cancelled = false;

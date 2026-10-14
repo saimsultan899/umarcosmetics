@@ -87,9 +87,9 @@ export function SyncProvider({
 }) {
   const router = useRouter();
   const activatingOffline = useRef(false);
-  const [online, setOnline] = useState(() =>
-    typeof navigator !== "undefined" ? navigator.onLine : true,
-  );
+  // Always start as online so SSR HTML matches the first client paint.
+  // Real navigator.onLine is applied in useEffect after mount.
+  const [online, setOnline] = useState(true);
   const [pending, setPending] = useState<PendingSummary>({
     total: 0,
     byType: {},
@@ -337,7 +337,7 @@ export function useSyncStatus() {
   const ctx = useContext(SyncContext);
   if (!ctx) {
     return {
-      online: typeof navigator !== "undefined" ? navigator.onLine : true,
+      online: true,
       companyId: null as string | null,
       pending: { total: 0, byType: {} } as PendingSummary,
       syncing: false,
