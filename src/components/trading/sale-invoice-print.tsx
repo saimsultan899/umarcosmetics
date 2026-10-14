@@ -32,6 +32,20 @@ function chunkLines<T>(items: T[], size: number): T[][] {
   return pages;
 }
 
+/** Default A5/A4 sale columns — compact for normal bills. */
+const SALE_COLS_NORMAL = ["4%", "40%", "7%", "11%", "8%", "9%", "8%", "13%"] as const;
+/** Wider money columns when any T/P, Disc, or Amount hits 6+ digits. */
+const SALE_COLS_WIDE = ["4%", "30%", "7%", "9%", "10%", "8%", "14%", "18%"] as const;
+
+function hasSixDigitMoney(lines: SalePrintLine[]): boolean {
+  for (const l of lines) {
+    for (const v of [l.tradePrice, l.discount, l.amount]) {
+      if (Math.floor(Math.abs(Number(v) || 0)) >= 100_000) return true;
+    }
+  }
+  return false;
+}
+
 export type SalePrintLine = {
   product_code?: string | null;
   product_name: string;
@@ -242,6 +256,11 @@ export function SaleInvoicePrint({
       isLast: idx === chunks.length - 1,
     }));
   }, [lines, useFullA4]);
+
+  const saleColWidths = useMemo(
+    () => (hasSixDigitMoney(lines) ? SALE_COLS_WIDE : SALE_COLS_NORMAL),
+    [lines],
+  );
 
   useEffect(() => {
     if (embedded || paperSizeProp) return;
@@ -625,14 +644,9 @@ export function SaleInvoicePrint({
                   ) : null}
                   <table className="si-table">
                     <colgroup>
-                      <col style={{ width: "4%" }} />
-                      <col style={{ width: "40%" }} />
-                      <col style={{ width: "7%" }} />
-                      <col style={{ width: "11%" }} />
-                      <col style={{ width: "8%" }} />
-                      <col style={{ width: "9%" }} />
-                      <col style={{ width: "8%" }} />
-                      <col style={{ width: "13%" }} />
+                      {saleColWidths.map((w, i) => (
+                        <col key={i} style={{ width: w }} />
+                      ))}
                     </colgroup>
                     <thead>
                       <tr>
@@ -742,14 +756,9 @@ export function SaleInvoicePrint({
               ) : (
                 <table className="si-table">
                   <colgroup>
-                    <col style={{ width: "4%" }} />
-                    <col style={{ width: "40%" }} />
-                    <col style={{ width: "7%" }} />
-                    <col style={{ width: "11%" }} />
-                    <col style={{ width: "8%" }} />
-                    <col style={{ width: "9%" }} />
-                    <col style={{ width: "8%" }} />
-                    <col style={{ width: "13%" }} />
+                    {saleColWidths.map((w, i) => (
+                      <col key={i} style={{ width: w }} />
+                    ))}
                   </colgroup>
                   <thead>
                     <tr>

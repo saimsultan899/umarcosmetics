@@ -2271,7 +2271,6 @@ button[aria-haspopup="listbox"]:focus-visible {
 .cdoc .si-table tbody tr:last-child td {
   border-bottom: none;
 }
-.si-table td.num,
 .si-table td.ctr {
   overflow: visible;
 }
@@ -2296,6 +2295,13 @@ button[aria-haspopup="listbox"]:focus-visible {
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  padding-left: 4px;
+  letter-spacing: -0.01em;
+}
+/* Keep large money figures inside their columns (7–10 digit amounts). */
+.si-table td.num {
+  overflow: hidden;
+  text-overflow: clip;
 }
 .si-table .ctr {
   text-align: center;
