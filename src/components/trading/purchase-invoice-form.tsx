@@ -18,6 +18,8 @@ import type { Party, Product, Warehouse } from "@/lib/types/database";
 import { useSingleSubmit } from "@/lib/forms/single-submit";
 import { type LineItemDraft, calcLineDiscount } from "@/lib/types/trading";
 import { createClient } from "@/lib/supabase/client";
+import { loadWarehousePayableOutstanding } from "@/lib/reports/company-statement";
+import { formatPkr } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
@@ -91,6 +93,7 @@ export function PurchaseInvoiceForm({
   function changeWarehouse(nextId: string) {
     setWarehouseId(nextId);
     if (!nextId) {
+      setCompanyBalance(null);
       setLines([]);
       return;
     }
@@ -102,6 +105,30 @@ export function PurchaseInvoiceForm({
       }),
     );
   }
+
+  const companyBalanceBox = (
+    <div className="w-[9.5rem] shrink-0">
+      <Label>Prev. balance</Label>
+      <div className="flex h-10 items-center rounded-md border border-[var(--border)] bg-[var(--surface-2,#f8f8f8)] px-2 text-sm tabular-nums">
+        {warehouseId ? (
+          companyBalance != null ? (
+            <span className="font-semibold text-[var(--ink)]">
+              {formatPkr(Math.abs(companyBalance))}{" "}
+              {companyBalance > 0.005
+                ? "Cr"
+                : companyBalance < -0.005
+                  ? "Dr"
+                  : "Nil"}
+            </span>
+          ) : (
+            <span className="text-[var(--muted)]">…</span>
+          )
+        ) : (
+          <span className="text-[var(--muted)]">—</span>
+        )}
+      </div>
+    </div>
+  );
   const [invoiceDate, setInvoiceDate] = useState(
     editing?.invoiceDate || new Date().toISOString().slice(0, 10),
   );
@@ -117,6 +144,49 @@ export function PurchaseInvoiceForm({
   const [loading, setLoading] = useState(false);
   const singleSubmit = useSingleSubmit();
   const [error, setError] = useState<string | null>(null);
+  const [companyBalance, setCompanyBalance] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadBalance(whId: string) {
+      if (!whId) {
+        setCompanyBalance(null);
+        return;
+      }
+      try {
+        if (typeof navigator !== "undefined" && !navigator.onLine) {
+          const { loadOfflineWarehousePayableOutstanding } = await import(
+            "@/lib/reports/company-statement-offline"
+          );
+          const bal = await loadOfflineWarehousePayableOutstanding({
+            companyId,
+            warehouseId: whId,
+            asOf: invoiceDate,
+          });
+          if (!cancelled) setCompanyBalance(bal);
+          return;
+        }
+        const supabase = createClient();
+        const result = await Promise.race([
+          loadWarehousePayableOutstanding(supabase, {
+            companyId,
+            warehouseId: whId,
+            asOf: invoiceDate,
+          }),
+          new Promise<null>((r) => setTimeout(() => r(null), 5000)),
+        ]);
+        if (!cancelled) {
+          setCompanyBalance(result == null ? null : Number(result));
+        }
+      } catch {
+        if (!cancelled) setCompanyBalance(null);
+      }
+    }
+    void loadBalance(warehouseId);
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId, warehouseId, invoiceDate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -323,20 +393,23 @@ export function PurchaseInvoiceForm({
       : "No vendor is linked to this company. Link one, or switch to Buy from Vendor.";
 
   const companyPicker = (
-    <div>
-      <Label>{buyFrom === "company" ? "Company" : "Stock company"}</Label>
-      <Select
-        value={warehouseId}
-        onChange={(e) => changeWarehouse(e.target.value)}
-        required
-      >
-        <option value="">Select company</option>
-        {warehouses.map((w) => (
-          <option key={w.id} value={w.id}>
-            {w.name}
-          </option>
-        ))}
-      </Select>
+    <div className="flex items-start gap-2">
+      <div className="min-w-0 flex-1">
+        <Label>{buyFrom === "company" ? "Company" : "Stock company"}</Label>
+        <Select
+          value={warehouseId}
+          onChange={(e) => changeWarehouse(e.target.value)}
+          required
+        >
+          <option value="">Select company</option>
+          {warehouses.map((w) => (
+            <option key={w.id} value={w.id}>
+              {w.name}
+            </option>
+          ))}
+        </Select>
+      </div>
+      {companyBalanceBox}
     </div>
   );
 
@@ -369,8 +442,8 @@ export function PurchaseInvoiceForm({
         </div>
         {buyFrom === "vendor" ? (
           <>
-            <div className="sm:col-span-5">{vendorPicker}</div>
-            <div className="sm:col-span-3">{companyPicker}</div>
+            <div className="sm:col-span-4">{vendorPicker}</div>
+            <div className="sm:col-span-4">{companyPicker}</div>
           </>
         ) : (
           <div className="sm:col-span-8">{companyPicker}</div>

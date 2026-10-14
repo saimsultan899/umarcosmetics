@@ -77,6 +77,22 @@ function pending(row: Row) {
   return String(row.sync_status || "") === "pending";
 }
 
+/** Payable outstanding for a brand company from local cache (offline / EXE). */
+export async function loadOfflineWarehousePayableOutstanding(input: {
+  companyId: string;
+  warehouseId: string;
+  asOf?: string;
+}): Promise<number> {
+  const to = (input.asOf || new Date().toISOString().slice(0, 10)).slice(0, 10);
+  const statement = await buildOfflineCompanyStatement({
+    companyId: input.companyId,
+    warehouseId: input.warehouseId,
+    from: "1970-01-01",
+    to,
+  });
+  return Number(statement.payableStats.outstanding || 0);
+}
+
 export async function buildOfflineCompanyStatement(input: {
   companyId: string;
   warehouseId: string;

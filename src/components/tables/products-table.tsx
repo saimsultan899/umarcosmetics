@@ -160,7 +160,7 @@ export function ProductsTable({
         throw new Error(
           msg.includes("posted documents")
             ? msg
-            : "This product is still on a posted bill or stock document. Cancelling a sale keeps history — mark the product inactive instead.",
+            : "This product is still on a posted bill or stock document. Cancel those bills first, then delete — or mark the product inactive.",
         );
       }
       throw new Error(msg);

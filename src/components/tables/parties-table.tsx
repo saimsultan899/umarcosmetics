@@ -234,21 +234,23 @@ export function PartiesTable({
 
   async function remove(id: string) {
     const supabase = createClient();
-    const { error } = await supabase
-      .from("parties")
-      .delete()
-      .eq("id", id)
-      .eq("company_id", companyId);
+    // Cancelled bills keep header FKs; delete_party purges cancelled-only history.
+    const { error } = await supabase.rpc("delete_party", {
+      p_party_id: id,
+    });
     if (error) {
-      if (error.code === "23503") {
-        throw new Error(
-          "This account is already on a bill, so it cannot be removed.",
-        );
-      }
-      if (/organization admin/i.test(error.message)) {
+      const msg = error.message || "";
+      if (/organization admin/i.test(msg)) {
         throw new Error("Only the organization admin can delete customers.");
       }
-      throw new Error(error.message);
+      if (/posted documents/i.test(msg) || error.code === "23503") {
+        throw new Error(
+          msg.includes("posted documents")
+            ? msg
+            : "This account is still on a posted bill. Cancel those bills first, or mark the account inactive.",
+        );
+      }
+      throw new Error(msg);
     }
     await deleteCachedRow("parties", id).catch(() => {});
     onChanged?.();

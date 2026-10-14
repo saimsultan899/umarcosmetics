@@ -1074,6 +1074,29 @@ async function buildPayableLedger(
   };
 }
 
+/** Current payable outstanding for a brand company (warehouse), as of a date. */
+export async function loadWarehousePayableOutstanding(
+  supabase: SupabaseClient,
+  input: { companyId: string; warehouseId: string; asOf?: string },
+): Promise<number> {
+  const to = (input.asOf || new Date().toISOString().slice(0, 10)).slice(0, 10);
+  const { data: warehouse, error } = await supabase
+    .from("warehouses")
+    .select("opening_payable")
+    .eq("id", input.warehouseId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  const setupOpeningPayable = Number(warehouse?.opening_payable || 0);
+  const payable = await buildPayableLedger(supabase, {
+    companyId: input.companyId,
+    warehouseId: input.warehouseId,
+    from: "1970-01-01",
+    to,
+    setupOpeningPayable,
+  });
+  return Number(payable.stats.outstanding || 0);
+}
+
 async function addDocumentLines(args: {
   supabase: SupabaseClient;
   companyId: string;

@@ -110,7 +110,7 @@ export function ProductReportActions({
         throw new Error(
           msg.includes("posted documents")
             ? msg
-            : "This product is still on a posted bill. Mark it inactive instead.",
+            : "This product is still on a posted bill. Cancel those bills first, then delete — or mark it inactive.",
         );
       }
       throw new Error(msg);
