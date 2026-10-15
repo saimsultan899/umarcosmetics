@@ -235,6 +235,32 @@ export function ReturnForm({
     );
   }, [kind, parties]);
 
+  const [sector, setSector] = useState(() => {
+    if (kind !== "sale") return "";
+    const id = editing?.partyId;
+    if (!id) return "";
+    const hit = parties.find((p) => p.id === id);
+    return (hit?.route || "").trim();
+  });
+  const sectorOptions = useMemo(() => {
+    if (kind !== "sale") return [] as string[];
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const p of partyOptions) {
+      const v = (p.route || "").trim();
+      if (!v) continue;
+      const key = v.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(v);
+    }
+    return out.sort((a, b) => a.localeCompare(b));
+  }, [kind, partyOptions]);
+  const filteredParties = useMemo(() => {
+    if (kind !== "sale" || !sector) return partyOptions;
+    return partyOptions.filter((p) => (p.route || "").trim() === sector);
+  }, [kind, partyOptions, sector]);
+
   const [partyId, setPartyId] = useState(editing?.partyId || "");
   const [warehouseId, setWarehouseId] = useState(
     editing?.warehouseId || warehouses[0]?.id || "",
@@ -258,12 +284,32 @@ export function ReturnForm({
   const [invoiceId, setInvoiceId] = useState(editing?.invoiceId || "");
   const [caps, setCaps] = useState<Map<string, { qty: number; bonus: number }>>(new Map());
   const [partyDue, setPartyDue] = useState<number | null>(null);
+  const [previousBalance, setPreviousBalance] = useState<number | null>(null);
   const [recoveredTotal, setRecoveredTotal] = useState(0);
   const extraEdited = useRef(Boolean(editing));
   const invoiceBasis = useRef<{ extra: number; linesTotal: number } | null>(null);
   const preserveEdit = useRef(Boolean(editing));
   const editingRef = useRef(editing);
   editingRef.current = editing;
+
+  // Edit open / late party list: fill Sector from the shop when still empty.
+  useEffect(() => {
+    if (kind !== "sale" || !partyId || sector) return;
+    const hit =
+      partyOptions.find((p) => p.id === partyId) ||
+      parties.find((p) => p.id === partyId);
+    const route = (hit?.route || "").trim();
+    if (route) setSector(route);
+  }, [kind, partyId, sector, partyOptions, parties]);
+
+  useEffect(() => {
+    if (kind !== "sale" || !sector || !partyId) return;
+    if (!filteredParties.some((p) => p.id === partyId)) {
+      setPartyId("");
+      setPreviousBalance(null);
+      setPartyDue(null);
+    }
+  }, [kind, sector, filteredParties, partyId]);
 
   useEffect(() => {
     if (kind !== "sale") return;
@@ -312,42 +358,61 @@ export function ReturnForm({
   useEffect(() => {
     if (kind !== "sale" || !partyId) {
       setPartyDue(null);
+      setPreviousBalance(null);
       setRecoveredTotal(0);
       return;
     }
     let cancelled = false;
     void (async () => {
-      if (!(await isAppOnline())) {
-        if (!cancelled) {
-          setPartyDue(null);
-          setRecoveredTotal(0);
-        }
-        return;
-      }
       try {
+        if (!(await isAppOnline())) {
+          const { offlineAccountsBalances } = await import(
+            "@/lib/offline/offline-reports"
+          );
+          const rows = await offlineAccountsBalances(companyId);
+          const row = rows.find((r) => String(r.party_id) === partyId);
+          const bal = row ? Number(row.balance || 0) : 0;
+          if (!cancelled) {
+            setPartyDue(bal);
+            setPreviousBalance(bal);
+            setRecoveredTotal(0);
+          }
+          return;
+        }
         const supabase = createClient();
-        const [{ data: bal }, { data: recs }] = await Promise.all([
+        const asOf = returnDate || new Date().toISOString().slice(0, 10);
+        const balanceResult = await Promise.race([
           supabase.rpc("get_party_balance", {
             p_company_id: companyId,
             p_party_id: partyId,
-            p_as_of: returnDate,
+            p_as_of: asOf,
           }),
-          supabase
-            .from("recoveries")
-            .select("amount")
-            .eq("company_id", companyId)
-            .eq("party_id", partyId)
-            .gt("amount", 0)
-            .lte("recovery_date", returnDate),
+          new Promise<null>((r) => setTimeout(() => r(null), 4000)),
         ]);
+        const balRaw =
+          balanceResult && typeof balanceResult === "object" && "data" in balanceResult
+            ? (balanceResult as { data: unknown }).data
+            : null;
+        const bal = balRaw == null ? null : Number(balRaw);
+
+        const { data: recs } = await supabase
+          .from("recoveries")
+          .select("amount")
+          .eq("company_id", companyId)
+          .eq("party_id", partyId)
+          .gt("amount", 0)
+          .lte("recovery_date", asOf);
+
         if (cancelled) return;
-        setPartyDue(bal == null ? null : Number(bal));
+        setPartyDue(bal);
+        setPreviousBalance(bal);
         setRecoveredTotal(
           (recs || []).reduce((sum, row) => sum + Number(row.amount || 0), 0),
         );
       } catch {
         if (!cancelled) {
           setPartyDue(null);
+          setPreviousBalance(null);
           setRecoveredTotal(0);
         }
       }
@@ -577,11 +642,24 @@ export function ReturnForm({
       data-enter-root
       onKeyDown={(e) => handleEnterAsNext(e)}
     >
-      <div className="grid items-end gap-2 sm:grid-cols-12">
+      <div className="grid items-start gap-2 sm:grid-cols-12">
         <div className="sm:col-span-2">
           <Label>Date</Label>
           <Input type="date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} required />
         </div>
+        {kind === "sale" ? (
+          <div className="sm:col-span-2">
+            <Label>Sector</Label>
+            <Select
+              value={sector}
+              onChange={(e) => setSector(e.target.value)}
+              options={[
+                { value: "", label: "All sectors" },
+                ...sectorOptions.map((name) => ({ value: name, label: name })),
+              ]}
+            />
+          </div>
+        ) : null}
         {kind === "purchase" ? (
           <div className="sm:col-span-2">
             <Label>Return to</Label>
@@ -612,20 +690,71 @@ export function ReturnForm({
           </div>
         ) : (
           <>
-            <div className={kind === "purchase" ? "sm:col-span-5" : "sm:col-span-5"}>
-              <PartyCodePicker
-                companyId={companyId}
-                parties={partyOptions}
-                value={partyId}
-                required
-                maxVisible={kind === "purchase" ? 10000 : undefined}
-                label={kind === "purchase" ? "Vendor" : "Customer code"}
-                emptyLabel={kind === "purchase" ? "Select vendor" : "Select customer"}
-                filterSubtype={
-                  kind === "purchase" ? ["supplier", "both"] : ["customer", "both"]
-                }
-                onChange={(id) => setPartyId(id)}
-              />
+            <div className={kind === "sale" ? "sm:col-span-8" : "sm:col-span-5"}>
+              <div className="flex items-start gap-2">
+                <div className="min-w-0 flex-1">
+                  <PartyCodePicker
+                    companyId={companyId}
+                    parties={kind === "sale" ? filteredParties : partyOptions}
+                    value={partyId}
+                    required
+                    maxVisible={kind === "purchase" ? 10000 : undefined}
+                    label={kind === "purchase" ? "Vendor" : "Customer code / shop"}
+                    emptyLabel={
+                      kind === "purchase"
+                        ? "Select vendor"
+                        : sector
+                          ? filteredParties.length
+                            ? "Select customer"
+                            : "No shops in this sector"
+                          : "Select customer"
+                    }
+                    filterSubtype={
+                      kind === "purchase" ? ["supplier", "both"] : ["customer", "both"]
+                    }
+                    confineToList={kind === "sale" && Boolean(sector)}
+                    confineRoute={kind === "sale" ? sector : ""}
+                    onChange={(id) => {
+                      setPartyId(id);
+                      if (kind === "sale") {
+                        if (id) {
+                          const selected =
+                            partyOptions.find((p) => p.id === id) ||
+                            parties.find((p) => p.id === id);
+                          const route = (selected?.route || "").trim();
+                          if (route) setSector(route);
+                        } else {
+                          setPreviousBalance(null);
+                          setPartyDue(null);
+                        }
+                      }
+                    }}
+                  />
+                </div>
+                {kind === "sale" ? (
+                  <div className="w-[9.5rem] shrink-0">
+                    <Label>Prev. balance</Label>
+                    <div className="flex h-10 items-center rounded-md border border-[var(--border)] bg-[var(--surface-2,#f8f8f8)] px-2 text-sm tabular-nums">
+                      {partyId ? (
+                        previousBalance != null ? (
+                          <span className="font-semibold text-[var(--ink)]">
+                            {formatPkr(Math.abs(previousBalance))}{" "}
+                            {previousBalance > 0.005
+                              ? "Dr"
+                              : previousBalance < -0.005
+                                ? "Cr"
+                                : "Nil"}
+                          </span>
+                        ) : (
+                          <span className="text-[var(--muted)]">…</span>
+                        )
+                      ) : (
+                        <span className="text-[var(--muted)]">—</span>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
             </div>
             <div className="sm:col-span-3">
               <Label>{kind === "purchase" ? "Stock company" : "Company"}</Label>
@@ -643,24 +772,24 @@ export function ReturnForm({
             </div>
           </>
         )}
-          {kind === "sale" ? (
-            <div className="sm:col-span-5">
-              <Label>Sale invoice</Label>
-              <Select
-                value={invoiceId}
-                onChange={(e) => applyInvoice(e.target.value)}
-                disabled={!partyId}
-              >
-                <option value="">Not against an invoice</option>
-                {invoices.map((inv) => (
-                  <option key={inv.id} value={inv.id}>
-                    {inv.invoice_no} · {inv.invoice_date}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          ) : null}
-        <div className="sm:col-span-7">
+        {kind === "sale" ? (
+          <div className="sm:col-span-5">
+            <Label>Sale invoice</Label>
+            <Select
+              value={invoiceId}
+              onChange={(e) => applyInvoice(e.target.value)}
+              disabled={!partyId}
+            >
+              <option value="">Not against an invoice</option>
+              {invoices.map((inv) => (
+                <option key={inv.id} value={inv.id}>
+                  {inv.invoice_no} · {inv.invoice_date}
+                </option>
+              ))}
+            </Select>
+          </div>
+        ) : null}
+        <div className={kind === "sale" ? "sm:col-span-7" : "sm:col-span-7"}>
           <Label>Narration</Label>
           <Input value={narration} onChange={(e) => setNarration(e.target.value)} />
         </div>
