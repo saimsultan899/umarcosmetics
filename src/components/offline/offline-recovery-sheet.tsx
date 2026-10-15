@@ -234,16 +234,19 @@ export function OfflineRecoverySheetPage({
   }, [parties]);
 
   const partyOptions = useMemo(() => {
+    const sectorSet = new Set(sectors.map((s) => s.trim()).filter(Boolean));
     return parties
       .filter((p) => {
         const sub = String(p.party_subtype || p.party_type || "").toLowerCase();
-        return sub === "customer" || sub === "both" || !sub;
+        if (!(sub === "customer" || sub === "both" || !sub)) return false;
+        if (!sectorSet.size) return true;
+        return sectorSet.has(String(p.route || "").trim());
       })
       .map((p) => ({
         value: String(p.id),
         label: `${p.party_code} — ${p.name_en}`,
       }));
-  }, [parties]);
+  }, [parties, sectors]);
 
   // Balance map
   const balanceMap = useMemo(() => {

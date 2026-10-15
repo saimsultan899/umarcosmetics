@@ -139,13 +139,26 @@ export function RecoveryForm({
 
   function onCityChange(next: string) {
     setCity(next);
-    if (!sector) return;
-    const stillThere = customers.some(
-      (p) =>
-        (!next || (p.city || "").trim() === next) &&
-        (p.route || "").trim() === sector,
-    );
-    if (!stillThere) setSector("");
+    if (sector) {
+      const stillThere = customers.some(
+        (p) =>
+          (!next || (p.city || "").trim() === next) &&
+          (p.route || "").trim() === sector,
+      );
+      if (!stillThere) setSector("");
+    }
+    if (partyId) {
+      const stillVisible = customers.some((p) => {
+        if (p.id !== partyId) return false;
+        if (next && (p.city || "").trim() !== next) return false;
+        if (sector && (p.route || "").trim() !== sector) return false;
+        return true;
+      });
+      if (!stillVisible) {
+        setPartyId("");
+        setParty(null);
+      }
+    }
     setSheetQuery("");
   }
 
@@ -599,8 +612,21 @@ export function RecoveryForm({
           <Select
             value={sector}
             onChange={(e) => {
-              setSector(e.target.value);
+              const next = e.target.value;
+              setSector(next);
               setSheetQuery("");
+              if (partyId) {
+                const stillVisible = customers.some((p) => {
+                  if (p.id !== partyId) return false;
+                  if (city && (p.city || "").trim() !== city) return false;
+                  if (next && (p.route || "").trim() !== next) return false;
+                  return true;
+                });
+                if (!stillVisible) {
+                  setPartyId("");
+                  setParty(null);
+                }
+              }
             }}
           >
             <option value="">All sectors</option>
@@ -630,11 +656,17 @@ export function RecoveryForm({
                 <td colSpan={2}>
                   <PartyCodePicker
                     companyId={companyId}
-                    parties={parties}
+                    parties={locationFilterOn ? visibleParties : customers}
                     value={partyId}
                     label=""
                     compact
                     filterSubtype={["customer", "both"]}
+                    confineToList={locationFilterOn}
+                    emptyLabel={
+                      locationFilterOn && visibleParties.length === 0
+                        ? "No shops in this sector"
+                        : "Select customer"
+                    }
                     onChange={(id, next) => {
                       setPartyId(id);
                       setParty(next);
@@ -778,7 +810,7 @@ export function RecoveryForm({
                   {sheetTerm && shownSheet.length !== sheetRows.length
                     ? ` of ${sheetRows.length}`
                     : ""}
-                  . Type the amount on the row. The search above still finds every customer.
+                  . Type the amount on the row. Customer search above matches this city/sector.
                 </p>
               </div>
               <Input
@@ -906,8 +938,8 @@ export function RecoveryForm({
           </div>
         ) : (
           <p className="text-xs text-[var(--muted)]">
-            Select a city and sector to list those shops here. Customer search
-            above still finds every shop.
+            Select a city or sector to list those shops here and to limit the
+            customer search above to the same shops.
           </p>
         )}
       </div>

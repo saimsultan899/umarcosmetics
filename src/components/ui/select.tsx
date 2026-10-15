@@ -25,6 +25,8 @@ export type SelectOption = {
   value: string;
   label: string;
   disabled?: boolean;
+  /** Optional right-side hint (e.g. piece rate on product pickers). */
+  meta?: string;
 };
 
 type SelectChangeEvent = {
@@ -546,7 +548,7 @@ export const Select = forwardRef<
                         onMouseEnter={() => setHighlight(idx)}
                         onClick={() => commit(option.value)}
                         className={cn(
-                          "flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm",
+                          "flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm",
                           hi
                             ? "bg-[var(--brand)] text-white"
                             : active && !searching
@@ -555,10 +557,28 @@ export const Select = forwardRef<
                           option.disabled && "opacity-50",
                         )}
                       >
-                        <span className="truncate">{option.label}</span>
-                        {active && !searching && !hi ? (
-                          <Check className="h-3.5 w-3.5 shrink-0" />
-                        ) : null}
+                        <span className="min-w-0 flex-1 truncate">
+                          {option.label}
+                        </span>
+                        <span className="flex shrink-0 items-center gap-2">
+                          {option.meta ? (
+                            <span
+                              className={cn(
+                                "tabular-nums text-xs font-semibold tracking-tight",
+                                hi
+                                  ? "text-white/95"
+                                  : active && !searching
+                                    ? "text-[var(--brand-strong)]"
+                                    : "text-[var(--muted)]",
+                              )}
+                            >
+                              {option.meta}
+                            </span>
+                          ) : null}
+                          {active && !searching && !hi ? (
+                            <Check className="h-3.5 w-3.5 shrink-0" />
+                          ) : null}
+                        </span>
                       </button>
                     );
                   })

@@ -88,16 +88,32 @@ export function PartyCodePicker({
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const options = useMemo(() => {
+    const allowedIds = new Set(
+      parties.filter((p) => p?.id).map((p) => p.id),
+    );
     const byId = new Map<string, Party>();
-    for (const party of [...parties, ...found]) {
+    for (const party of parties) {
       if (party?.id) byId.set(party.id, party);
+    }
+    // Remote search can find shops outside the sector/city list — keep them
+    // out when the caller has confined the picker to a filtered list.
+    for (const party of found) {
+      if (!party?.id) continue;
+      if (confineToList && !allowedIds.has(party.id)) continue;
+      byId.set(party.id, party);
     }
     let list = [...byId.values()].filter((p) => p.is_active !== false);
     if (filterSubtype?.length) {
       list = list.filter((p) => filterSubtype.includes(p.party_subtype));
     }
+    list.sort((a, b) => {
+      const ao = Number(a.sort_order ?? 0);
+      const bo = Number(b.sort_order ?? 0);
+      if (ao !== bo) return ao - bo;
+      return String(a.party_code || "").localeCompare(String(b.party_code || ""));
+    });
     return list;
-  }, [parties, found, filterSubtype]);
+  }, [parties, found, filterSubtype, confineToList]);
 
   function onSearch(raw: string) {
     if (searchTimer.current) clearTimeout(searchTimer.current);
@@ -231,7 +247,7 @@ export function PartyCodePicker({
 
     if (confineToList && !options.some((p) => p.id === party.id)) {
       onChange("", null);
-      setStatus("This shop is not in the selected city and sector");
+      setStatus("This shop is not in the selected sector");
       return;
     }
 

@@ -125,10 +125,16 @@ export default async function RecoverySheetPage({
 
   const sectorOptions = distinctSorted((sectorRows || []).map((r) => r.route));
 
-  const partyOptions = (parties || []).map((p) => ({
-    value: p.id,
-    label: `${p.party_code} — ${p.name_en}`,
-  }));
+  const sectorSet = new Set(sectors.map((s) => s.trim()).filter(Boolean));
+  const partyOptions = (parties || [])
+    .filter((p) => {
+      if (!sectorSet.size) return true;
+      return sectorSet.has(String(p.route || "").trim());
+    })
+    .map((p) => ({
+      value: p.id,
+      label: `${p.party_code} — ${p.name_en}`,
+    }));
 
   const dueTotal = sheet.grand.dueTotal;
   const dueShops = sheet.flat.filter((r) => Number(r.balance) > 0.005).length;

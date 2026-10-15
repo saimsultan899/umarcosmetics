@@ -1,13 +1,16 @@
 import type { Product } from "@/lib/types/database";
+import { formatPkr } from "@/lib/utils";
 
 export type RateField = "sale_rate" | "purchase_rate" | "retail_rate";
 
+type RateProduct = Pick<
+  Product,
+  "sale_rate" | "purchase_rate" | "retail_rate" | "wholesale_rate"
+>;
+
 /** Pick first positive rate from preferred field, then sensible fallbacks. */
 export function resolveProductRate(
-  product: Pick<
-    Product,
-    "sale_rate" | "purchase_rate" | "retail_rate" | "wholesale_rate"
-  >,
+  product: RateProduct,
   rateField: RateField = "sale_rate",
 ) {
   const order: RateField[] =
@@ -29,11 +32,18 @@ export function resolveProductRate(
   return 0;
 }
 
+/** Piece rate for product dropdowns (right-side hint). Catalog rates are per piece. */
+export function productPieceRateMeta(
+  product: RateProduct,
+  rateField: RateField = "sale_rate",
+): string | undefined {
+  const rate = resolveProductRate(product, rateField);
+  if (!(rate > 0)) return undefined;
+  return formatPkr(rate);
+}
+
 export function rateSourceLabel(
-  product: Pick<
-    Product,
-    "sale_rate" | "purchase_rate" | "retail_rate" | "wholesale_rate"
-  >,
+  product: RateProduct,
   rateField: RateField,
   rate: number,
 ) {

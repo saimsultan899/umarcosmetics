@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
-import { resolveProductRate } from "@/lib/product-rate";
+import { productPieceRateMeta, resolveProductRate } from "@/lib/product-rate";
 import { computeLineScheme } from "@/lib/pricing/discounts";
 import { createClient } from "@/lib/supabase/client";
 import type { Product, Warehouse } from "@/lib/types/database";
@@ -261,6 +261,7 @@ export function FieldSaleForm({
       ...products.map((p) => ({
         value: p.id,
         label: `${p.code} — ${p.name_en}`,
+        meta: productPieceRateMeta(p, "sale_rate"),
       })),
     ],
     [products],

@@ -10,6 +10,7 @@ import { isAppOnline } from "@/lib/offline/local-auth";
 import { useBarcodeWedge } from "@/lib/barcode/use-barcode-wedge";
 import { focusField } from "@/lib/keyboard/enter-nav";
 import {
+  productPieceRateMeta,
   rateSourceLabel,
   resolveProductRate,
   type RateField,
@@ -1016,9 +1017,15 @@ export const LineItemsEditor = forwardRef<
       ...selectableProducts.map((p) => ({
         value: p.id,
         label: `${p.code} — ${p.name_en}`,
+        meta: productPieceRateMeta(p, rateField),
       })),
     ],
-    [selectableProducts, filterByWarehouse, effectiveWarehouseId],
+    [
+      selectableProducts,
+      filterByWarehouse,
+      effectiveWarehouseId,
+      rateField,
+    ],
   );
 
   function acceptsProduct(product: Product | null | undefined) {

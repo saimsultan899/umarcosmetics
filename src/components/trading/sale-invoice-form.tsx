@@ -125,6 +125,24 @@ export function SaleInvoiceForm({
     () => parties.filter((p) => p.party_subtype === "customer" || p.party_subtype === "both" || p.party_type === "PARTY"),
     [parties],
   );
+  const [sector, setSector] = useState("");
+  const sectorOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const p of customers) {
+      const v = (p.route || "").trim();
+      if (!v) continue;
+      const key = v.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(v);
+    }
+    return out.sort((a, b) => a.localeCompare(b));
+  }, [customers]);
+  const filteredCustomers = useMemo(() => {
+    if (!sector) return customers;
+    return customers.filter((p) => (p.route || "").trim() === sector);
+  }, [customers, sector]);
 
   // product_id → warehouses that stock it, highest qty first
   const stockByProduct = useMemo(() => {
@@ -162,9 +180,19 @@ export function SaleInvoiceForm({
   const [creditWarning, setCreditWarning] = useState<string | null>(null);
   const [previousBalance, setPreviousBalance] = useState<number | null>(null);
 
-  const party = customers.find((p) => p.id === partyId);
+  const party = filteredCustomers.find((p) => p.id === partyId)
+    || customers.find((p) => p.id === partyId);
   const walkInActive = paymentType === "cash" && walkInCustomer;
   const customerRequired = !walkInActive;
+
+  useEffect(() => {
+    if (!sector || !partyId) return;
+    if (!filteredCustomers.some((p) => p.id === partyId)) {
+      setPartyId("");
+      setPreviousBalance(null);
+      setCreditWarning(null);
+    }
+  }, [sector, filteredCustomers, partyId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -508,16 +536,35 @@ export function SaleInvoiceForm({
           <Label>Date</Label>
           <Input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} required />
         </div>
-        <div className="sm:col-span-6">
+        <div className="sm:col-span-2">
+          <Label>Sector</Label>
+          <Select
+            value={sector}
+            onChange={(e) => setSector(e.target.value)}
+            options={[
+              { value: "", label: "All sectors" },
+              ...sectorOptions.map((name) => ({ value: name, label: name })),
+            ]}
+          />
+        </div>
+        <div className="sm:col-span-8">
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1">
               <PartyCodePicker
                 companyId={companyId}
-                parties={customers}
+                parties={filteredCustomers}
                 value={partyId}
                 required={customerRequired}
                 label="Customer code / shop"
                 filterSubtype={["customer", "both"]}
+                confineToList={Boolean(sector)}
+                emptyLabel={
+                  sector
+                    ? filteredCustomers.length
+                      ? "Select customer"
+                      : "No shops in this sector"
+                    : "Select customer"
+                }
                 onChange={(id) => {
                   setPartyId(id);
                   if (id) setWalkInCustomer(false);
@@ -549,24 +596,40 @@ export function SaleInvoiceForm({
             </div>
           </div>
         </div>
-        <div className="sm:col-span-4">
-          <div className="flex items-end gap-3">
-            <div className="w-40 shrink-0">
-              <Label>Payment</Label>
-              <Select
-                value={paymentType}
-                onChange={(e) => {
-                  const next = (e.target.value as PaymentType) || "credit";
-                  setPaymentType(next);
-                  if (next !== "cash") setWalkInCustomer(false);
-                }}
-              >
-                <option value="credit">Credit</option>
-                <option value="cash">Paid</option>
-              </Select>
-            </div>
+
+        <div
+          className="sm:col-span-3"
+          title="Fills automatically when you pick a product."
+        >
+          <Label>Company</Label>
+          <Select
+            value={warehouseId}
+            onChange={(e) => setWarehouseId(e.target.value)}
+            options={[
+              { value: "", label: "Auto from product" },
+              ...warehouses.map((w) => ({
+                value: w.id,
+                label: w.name,
+              })),
+            ]}
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <div className="flex flex-col gap-1">
+            <Label>Payment</Label>
+            <Select
+              value={paymentType}
+              onChange={(e) => {
+                const next = (e.target.value as PaymentType) || "credit";
+                setPaymentType(next);
+                if (next !== "cash") setWalkInCustomer(false);
+              }}
+            >
+              <option value="credit">Credit</option>
+              <option value="cash">Paid</option>
+            </Select>
             {paymentType === "cash" ? (
-              <label className="mb-2.5 flex cursor-pointer items-center gap-2 text-sm text-[var(--ink)]">
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-[var(--ink)]">
                 <input
                   type="checkbox"
                   checked={walkInCustomer}
@@ -579,14 +642,18 @@ export function SaleInvoiceForm({
                       setPreviousBalance(null);
                     }
                   }}
-                  className="h-4 w-4 rounded border-[var(--border)] accent-[var(--brand)]"
+                  className="h-3.5 w-3.5 rounded border-[var(--border)] accent-[var(--brand)]"
                 />
-                <span>Walk-in customer</span>
+                <span>Walk-in</span>
               </label>
             ) : null}
           </div>
         </div>
-        <div className={salesmen.length ? "sm:col-span-6" : "sm:col-span-8"}>
+        <div
+          className={
+            salesmen.length ? "sm:col-span-5" : "sm:col-span-7"
+          }
+        >
           <Label>Narration</Label>
           <Input
             value={narration}
@@ -604,20 +671,6 @@ export function SaleInvoiceForm({
             />
           </div>
         ) : null}
-        <div className="sm:col-span-4" title="Fills automatically when you pick a product.">
-          <Label>Company</Label>
-          <Select
-            value={warehouseId}
-            onChange={(e) => setWarehouseId(e.target.value)}
-            options={[
-              { value: "", label: "Auto from product" },
-              ...warehouses.map((w) => ({
-                value: w.id,
-                label: w.name,
-              })),
-            ]}
-          />
-        </div>
       </div>
 
       <LineItemsEditor

@@ -9,6 +9,7 @@ import { Select } from "@/components/ui/select";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
 import { useSingleSubmit } from "@/lib/forms/single-submit";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
+import { productPieceRateMeta } from "@/lib/product-rate";
 import { createClient } from "@/lib/supabase/client";
 import type { Party, Product } from "@/lib/types/database";
 import { AMOUNT_PLACEHOLDER, AMOUNT_STEP, formatNumber, formatPkr } from "@/lib/utils";
@@ -422,6 +423,7 @@ export function ExpiryReceiptForm({
               ...products.map((p) => ({
                 value: p.id,
                 label: `${p.code} — ${p.name_en}`,
+                meta: productPieceRateMeta(p, "sale_rate"),
               })),
             ]}
           />

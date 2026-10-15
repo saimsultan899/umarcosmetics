@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, type SelectHandle } from "@/components/ui/select";
 import { QtyUnitControl } from "@/components/trading/qty-unit-control";
 import { focusField } from "@/lib/keyboard/enter-nav";
+import { productPieceRateMeta } from "@/lib/product-rate";
 import type { Product } from "@/lib/types/database";
 import { formatNumber } from "@/lib/utils";
 import { Trash2 } from "lucide-react";
@@ -93,6 +94,7 @@ export const ProductQtyLinesEditor = forwardRef<
       ...products.map((p) => ({
         value: p.id,
         label: `${p.code} — ${p.name_en}`,
+        meta: productPieceRateMeta(p, "sale_rate"),
       })),
     ],
     [products],
