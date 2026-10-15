@@ -1,5 +1,6 @@
 import { comparePartyArrangement } from "@/lib/parties/arrangement-order";
 import { one } from "@/lib/reports/helpers";
+import { fetchAllPages } from "@/lib/supabase/fetch-all-pages";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
@@ -152,7 +153,7 @@ export async function buildRecoverySheet(
       p_city: null,
       p_route: sectors.length === 1 ? sectors[0] : null,
     }),
-    (() => {
+    fetchAllPages((from, to) => {
       let query = supabase
         .from("parties")
         .select("id, party_code, name_en, city, route, head, sort_order")
@@ -161,12 +162,12 @@ export async function buildRecoverySheet(
         .in("party_subtype", ["customer", "both"]);
       if (sectors.length) query = query.in("route", sectors);
       if (partyIds.length) query = query.in("id", partyIds);
-      // Match Arrange shops / parties list order.
+      // Page past the API max-rows cap (~1000) so every sector shop appears.
       return query
         .order("sort_order", { ascending: true })
         .order("party_code", { ascending: true })
-        .limit(20000);
-    })(),
+        .range(from, to);
+    }).then((data) => ({ data, error: null })),
     fetchLastSalesByParty(supabase, companyId, to),
     fetchLastRecoveriesByParty(supabase, companyId, to),
     fetchSaleReturns(supabase, companyId, to),

@@ -170,7 +170,7 @@ export function RecoveryForm({
       return;
     }
 
-    const base: SheetShop[] = [...visibleParties]
+    const offlineBase: SheetShop[] = [...visibleParties]
       .sort(comparePartyArrangement)
       .map((p) => ({
         id: p.id,
@@ -182,7 +182,7 @@ export function RecoveryForm({
 
     async function loadSheet() {
       if (typeof navigator !== "undefined" && !navigator.onLine) {
-        if (!cancelled) setSheetRows(base);
+        if (!cancelled) setSheetRows(offlineBase);
         return;
       }
       setSheetLoading(true);
@@ -194,13 +194,23 @@ export function RecoveryForm({
           p_city: city || null,
           p_route: sector || null,
         });
-        const balanceById = new Map<string, number>();
-        for (const row of (balances || []) as Array<{
-          party_id: string;
-          balance: number | string;
-        }>) {
-          balanceById.set(row.party_id, Number(row.balance || 0));
-        }
+        // Prefer the RPC list so every shop in the sector appears even when
+        // the page only loaded the first ~1000 parties.
+        const sheetBase: SheetShop[] = (
+          (balances || []) as Array<{
+            party_id: string;
+            party_code: string;
+            name_en: string;
+            balance: number | string;
+          }>
+        ).map((row) => ({
+          id: row.party_id,
+          code: row.party_code,
+          name: row.name_en,
+          balance: Number(row.balance || 0),
+          lastReceived: null,
+        }));
+        const base = sheetBase.length ? sheetBase : offlineBase;
 
         const lastById = new Map<string, number>();
         const ids = base.map((row) => row.id);
@@ -226,13 +236,12 @@ export function RecoveryForm({
           setSheetRows(
             base.map((row) => ({
               ...row,
-              balance: balanceById.has(row.id) ? balanceById.get(row.id)! : 0,
               lastReceived: lastById.get(row.id) ?? null,
             })),
           );
         }
       } catch {
-        if (!cancelled) setSheetRows(base);
+        if (!cancelled) setSheetRows(offlineBase);
       } finally {
         if (!cancelled) setSheetLoading(false);
       }
@@ -662,6 +671,9 @@ export function RecoveryForm({
                     compact
                     filterSubtype={["customer", "both"]}
                     confineToList={locationFilterOn}
+                    confineRoute={sector}
+                    confineCity={city}
+                    maxVisible={80}
                     emptyLabel={
                       locationFilterOn && visibleParties.length === 0
                         ? "No shops in this sector"

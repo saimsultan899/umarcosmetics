@@ -6,6 +6,7 @@ import {
   toRange,
   type PaginationMeta,
 } from "@/lib/pagination";
+import { fetchAllPages } from "@/lib/supabase/fetch-all-pages";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type DocumentListRow = {
@@ -177,14 +178,16 @@ async function partyIdsForSector(
   companyId: string,
   sector: string,
 ) {
-  const { data, error } = await supabase
-    .from("parties")
-    .select("id")
-    .eq("company_id", companyId)
-    .eq("route", sector)
-    .limit(10000);
-  if (error) throw new Error(error.message);
-  return (data || []).map((row) => String(row.id));
+  const data = await fetchAllPages<{ id: string }>((from, to) =>
+    supabase
+      .from("parties")
+      .select("id")
+      .eq("company_id", companyId)
+      .eq("route", sector)
+      .order("id")
+      .range(from, to),
+  );
+  return data.map((row) => String(row.id));
 }
 
 function isoDateParam(value: string | undefined) {

@@ -11,6 +11,7 @@ import {
   parsePartyLocationFilters,
   type PartyLocationFilters,
 } from "@/lib/queries/party-filters";
+import { fetchAllPages } from "@/lib/supabase/fetch-all-pages";
 import type { Party, PartyType } from "@/lib/types/database";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -45,6 +46,35 @@ export type PartyListResult = {
   sectorOptions: string[];
   headOptions: string[];
 };
+
+/** Load every active party (past the default 1000-row API page). */
+export async function fetchAllActiveParties(
+  supabase: SupabaseClient,
+  companyId: string,
+  opts?: {
+    subtypes?: Array<Party["party_subtype"]>;
+    /** Extra columns; default `*`. */
+    columns?: string;
+    partyType?: Party["party_type"];
+  },
+): Promise<Party[]> {
+  const columns = opts?.columns || "*";
+  return fetchAllPages<Party>((from, to) => {
+    let query = supabase
+      .from("parties")
+      .select(columns)
+      .eq("company_id", companyId)
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true })
+      .order("party_code", { ascending: true })
+      .range(from, to);
+    if (opts?.partyType) query = query.eq("party_type", opts.partyType);
+    if (opts?.subtypes?.length) {
+      query = query.in("party_subtype", opts.subtypes);
+    }
+    return query;
+  });
+}
 
 function applyViewFilter(query: any, view: PartyViewFilter) {
   if (view === "ledger") {
@@ -183,18 +213,17 @@ export async function fetchPartiesForExport(
     : spString(searchParams, "type") || "all") as PartySubtypeFilter;
   const location = parsePartyLocationFilters(searchParams);
 
-  let query = supabase.from("parties").select("*").eq("company_id", companyId);
-  query = applyViewFilter(query, view);
-  query = applySubtypeFilter(query, subtype);
-  query = applySearch(query, q);
-  query = applyPartyLocationFilters(query, location);
-
-  const { data, error } = await query
-    .order("sort_order", { ascending: true })
-    .order("party_code", { ascending: true })
-    .limit(10000);
-  if (error) throw new Error(error.message);
-  return (data || []) as Party[];
+  return fetchAllPages<Party>((from, to) => {
+    let query = supabase.from("parties").select("*").eq("company_id", companyId);
+    query = applyViewFilter(query, view);
+    query = applySubtypeFilter(query, subtype);
+    query = applySearch(query, q);
+    query = applyPartyLocationFilters(query, location);
+    return query
+      .order("sort_order", { ascending: true })
+      .order("party_code", { ascending: true })
+      .range(from, to);
+  });
 }
 
 export async function fetchPartyList(
@@ -219,19 +248,22 @@ export async function fetchPartyList(
   listQuery = applySearch(listQuery, q);
   listQuery = applyPartyLocationFilters(listQuery, location);
 
-  const [{ data, count, error }, slim, savedLocations] = await Promise.all([
+  const [{ data, count, error }, activeRows, savedLocations] = await Promise.all([
     listQuery
       .order("sort_order", { ascending: true })
       .order("party_code", { ascending: true })
       .range(from, to),
-    supabase
-      .from("parties")
-      .select(
-        "party_type, party_subtype, credit_limit, city, route, head, party_code, name_en, name_ur, mobile, phone",
-      )
-      .eq("company_id", companyId)
-      .eq("is_active", true)
-      .limit(20000),
+    fetchAllPages<PartyStatRow>((fromPage, toPage) =>
+      supabase
+        .from("parties")
+        .select(
+          "party_type, party_subtype, credit_limit, city, route, head, party_code, name_en, name_ur, mobile, phone",
+        )
+        .eq("company_id", companyId)
+        .eq("is_active", true)
+        .order("party_code", { ascending: true })
+        .range(fromPage, toPage),
+    ),
     supabase
       .from("company_locations")
       .select("kind, name")
@@ -239,9 +271,6 @@ export async function fetchPartyList(
   ]);
 
   if (error) throw new Error(error.message);
-  if (slim.error) throw new Error(slim.error.message);
-
-  const activeRows = (slim.data || []) as PartyStatRow[];
   const inView = (row: PartyStatRow, nextView: PartyViewFilter = view) =>
     matchesPartyView(row, nextView) &&
     matchesPartySearch(row, q) &&

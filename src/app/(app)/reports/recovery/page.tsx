@@ -12,7 +12,9 @@ import { lastNDates, sumByDay } from "@/lib/analytics/aggregate";
 import { requireCompanyContext } from "@/lib/auth";
 import { parseReportList } from "@/lib/reports/filter-params";
 import { buildRecoverySheet, parseScopeToken } from "@/lib/reports/recovery-data";
+import { fetchAllActiveParties } from "@/lib/queries/parties";
 import { fetchCompanySalesmen } from "@/lib/queries/salesmen";
+import { fetchAllPages } from "@/lib/supabase/fetch-all-pages";
 import type { Party } from "@/lib/types/database";
 import { localDateIso, monthStartLocal } from "@/lib/dates";
 import { Layers, Store, Wallet } from "lucide-react";
@@ -100,21 +102,19 @@ export default async function RecoverySheetPage({
         partyIds,
         include,
       }),
-      supabase
-        .from("parties")
-        .select("*")
-        .eq("company_id", company.id)
-        .eq("is_active", true)
-        .in("party_subtype", ["customer", "both"])
-        .order("sort_order", { ascending: true })
-        .order("party_code", { ascending: true }),
-      supabase
-        .from("parties")
-        .select("route")
-        .eq("company_id", company.id)
-        .eq("is_active", true)
-        .not("route", "is", null)
-        .limit(20000),
+      fetchAllActiveParties(supabase, company.id, {
+        subtypes: ["customer", "both"],
+      }).then((rows) => ({ data: rows })),
+      fetchAllPages<{ route: string | null }>((fromPage, toPage) =>
+        supabase
+          .from("parties")
+          .select("route")
+          .eq("company_id", company.id)
+          .eq("is_active", true)
+          .not("route", "is", null)
+          .order("route")
+          .range(fromPage, toPage),
+      ),
       supabase
         .from("recoveries")
         .select("recovery_date, amount, parties(name_en)")
@@ -123,7 +123,7 @@ export default async function RecoverySheetPage({
       fetchCompanySalesmen(supabase, company.id),
     ]);
 
-  const sectorOptions = distinctSorted((sectorRows || []).map((r) => r.route));
+  const sectorOptions = distinctSorted(sectorRows.map((r) => r.route));
 
   const sectorSet = new Set(sectors.map((s) => s.trim()).filter(Boolean));
   const partyOptions = (parties || [])

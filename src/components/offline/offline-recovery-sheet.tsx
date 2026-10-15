@@ -311,7 +311,9 @@ export function OfflineRecoverySheetPage({
       return true;
     });
 
-    let flat: RecoverySheetRow[] = customerParties.map((p) => {
+    const arrangedParties = [...customerParties].sort(comparePartyArrangement);
+
+    let flat: RecoverySheetRow[] = arrangedParties.map((p, index) => {
       const partyId = String(p.id);
       const balance = balanceMap.get(partyId) ?? 0;
       const last = lastSaleByParty.get(partyId);
@@ -332,6 +334,7 @@ export function OfflineRecoverySheetPage({
         city: p.city ? String(p.city) : null,
         route: p.route ? String(p.route) : null,
         sort_order: Number(p.sort_order ?? 0),
+        arrangement_index: index,
         balance,
         prev_balance: prevBal,
         last_sale_id: saleIsOpen && last ? last.id : null,
@@ -345,12 +348,16 @@ export function OfflineRecoverySheetPage({
       };
     });
 
+    // Hide Nil / paid shops but keep Arrange shops sequence for the rest.
     if (include === "dues") flat = flat.filter((r) => r.balance > 0.005);
     else if (include === "nonzero")
       flat = flat.filter((r) => Math.abs(r.balance) > 0.005);
 
-    // Match Arrange shops order (same as online customer receivables).
-    flat.sort(comparePartyArrangement);
+    flat.sort(
+      (a, b) =>
+        a.arrangement_index - b.arrangement_index ||
+        comparePartyArrangement(a, b),
+    );
 
     const groups = new Map<string, RecoverySheetRow[]>();
     for (const row of flat) {
@@ -360,9 +367,14 @@ export function OfflineRecoverySheetPage({
       groups.set(sec, list);
     }
 
-    const sortedSectors = [...groups.keys()].sort((a, b) =>
-      a.localeCompare(b),
-    );
+    const sortedSectors = [...groups.keys()].sort((a, b) => {
+      if (a === "No sector") return 1;
+      if (b === "No sector") return -1;
+      const ai = groups.get(a)?.[0]?.arrangement_index ?? Number.MAX_SAFE_INTEGER;
+      const bi = groups.get(b)?.[0]?.arrangement_index ?? Number.MAX_SAFE_INTEGER;
+      if (ai !== bi) return ai - bi;
+      return a.localeCompare(b);
+    });
 
     const sections: RecoverySheetSection[] = [];
     let dueTotal = 0;
@@ -370,8 +382,11 @@ export function OfflineRecoverySheetPage({
     let netTotal = 0;
 
     for (const sec of sortedSectors) {
-      const secRows = groups.get(sec) || [];
-      // Already in arrangement order from flat; keep relative order.
+      const secRows = [...(groups.get(sec) || [])].sort(
+        (a, b) =>
+          a.arrangement_index - b.arrangement_index ||
+          comparePartyArrangement(a, b),
+      );
 
       let secDue = 0;
       let secCr = 0;

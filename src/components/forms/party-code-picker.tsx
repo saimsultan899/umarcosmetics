@@ -65,6 +65,8 @@ export function PartyCodePicker({
   compact = false,
   onPartySelected,
   confineToList = false,
+  confineRoute = "",
+  confineCity = "",
   maxVisible,
 }: {
   companyId: string;
@@ -80,6 +82,10 @@ export function PartyCodePicker({
   onPartySelected?: () => void;
   /** When a city or sector filter is on, do not accept a code outside that list. */
   confineToList?: boolean;
+  /** Remote search must stay inside this sector (route). */
+  confineRoute?: string;
+  /** Remote search must stay inside this city. */
+  confineCity?: string;
   /** Show the full list instead of the default short window. */
   maxVisible?: number;
 }) {
@@ -87,7 +93,19 @@ export function PartyCodePicker({
   const searchGen = useRef(0);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const routeKey = confineRoute.trim().toLowerCase();
+  const cityKey = confineCity.trim().toLowerCase();
+
   const options = useMemo(() => {
+    function matchesConfine(party: Party) {
+      if (routeKey && (party.route || "").trim().toLowerCase() !== routeKey) {
+        return false;
+      }
+      if (cityKey && (party.city || "").trim().toLowerCase() !== cityKey) {
+        return false;
+      }
+      return true;
+    }
     const allowedIds = new Set(
       parties.filter((p) => p?.id).map((p) => p.id),
     );
@@ -96,15 +114,25 @@ export function PartyCodePicker({
       if (party?.id) byId.set(party.id, party);
     }
     // Remote search can find shops outside the sector/city list — keep them
-    // out when the caller has confined the picker to a filtered list.
+    // out when the caller has confined the picker. Prefer route/city match so
+    // shops beyond the first API page still appear for that sector.
     for (const party of found) {
       if (!party?.id) continue;
-      if (confineToList && !allowedIds.has(party.id)) continue;
+      if (confineToList) {
+        if (routeKey || cityKey) {
+          if (!matchesConfine(party)) continue;
+        } else if (!allowedIds.has(party.id)) {
+          continue;
+        }
+      }
       byId.set(party.id, party);
     }
     let list = [...byId.values()].filter((p) => p.is_active !== false);
     if (filterSubtype?.length) {
       list = list.filter((p) => filterSubtype.includes(p.party_subtype));
+    }
+    if (confineToList && (routeKey || cityKey)) {
+      list = list.filter((p) => matchesConfine(p));
     }
     list.sort((a, b) => {
       const ao = Number(a.sort_order ?? 0);
@@ -113,7 +141,7 @@ export function PartyCodePicker({
       return String(a.party_code || "").localeCompare(String(b.party_code || ""));
     });
     return list;
-  }, [parties, found, filterSubtype, confineToList]);
+  }, [parties, found, filterSubtype, confineToList, routeKey, cityKey]);
 
   function onSearch(raw: string) {
     if (searchTimer.current) clearTimeout(searchTimer.current);
@@ -137,14 +165,15 @@ export function PartyCodePicker({
       if (typeof navigator === "undefined" || navigator.onLine) {
         const pattern = `%${term}%`;
         const supabase = createClient();
-        const { data, error } = await supabase
+        let query = supabase
           .from("parties")
           .select("*")
           .eq("company_id", companyId)
           .eq("is_active", true)
-          .or(`party_code.ilike."${pattern}",name_en.ilike."${pattern}"`)
-          .order("name_en")
-          .limit(50);
+          .or(`party_code.ilike."${pattern}",name_en.ilike."${pattern}"`);
+        if (confineRoute.trim()) query = query.eq("route", confineRoute.trim());
+        if (confineCity.trim()) query = query.eq("city", confineCity.trim());
+        const { data, error } = await query.order("name_en").limit(80);
         if (!error && data) rows.push(...(data as Party[]));
       }
     } catch {
@@ -173,9 +202,23 @@ export function PartyCodePicker({
         const code = String(row.party_code || row.code || "").toLowerCase();
         const name = String(row.name_en || "").toLowerCase();
         if (!code.includes(term) && !name.includes(term)) continue;
+        if (
+          confineRoute.trim() &&
+          String(row.route || "").trim().toLowerCase() !==
+            confineRoute.trim().toLowerCase()
+        ) {
+          continue;
+        }
+        if (
+          confineCity.trim() &&
+          String(row.city || "").trim().toLowerCase() !==
+            confineCity.trim().toLowerCase()
+        ) {
+          continue;
+        }
         if (rows.some((existing) => existing.id === row.id)) continue;
         rows.push(row as Party);
-        if (rows.length >= 50) break;
+        if (rows.length >= 80) break;
       }
     }
     if (gen !== searchGen.current) return;
@@ -245,10 +288,26 @@ export function PartyCodePicker({
       return;
     }
 
-    if (confineToList && !options.some((p) => p.id === party.id)) {
-      onChange("", null);
-      setStatus("This shop is not in the selected sector");
-      return;
+    if (confineToList) {
+      const inList = options.some((p) => p.id === party.id);
+      const routeOk =
+        !confineRoute.trim() ||
+        String(party.route || "").trim().toLowerCase() ===
+          confineRoute.trim().toLowerCase();
+      const cityOk =
+        !confineCity.trim() ||
+        String(party.city || "").trim().toLowerCase() ===
+          confineCity.trim().toLowerCase();
+      if (!inList && !(routeOk && cityOk && (confineRoute.trim() || confineCity.trim()))) {
+        onChange("", null);
+        setStatus("This shop is not in the selected sector");
+        return;
+      }
+      if ((confineRoute.trim() || confineCity.trim()) && !(routeOk && cityOk)) {
+        onChange("", null);
+        setStatus("This shop is not in the selected sector");
+        return;
+      }
     }
 
     if (

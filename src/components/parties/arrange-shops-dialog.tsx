@@ -146,18 +146,14 @@ export function ArrangeShopsDialog({
     setError(null);
     try {
       const supabase = createClient();
-      const { data, error: qError } = await supabase
-        .from("parties")
-        .select("id, party_code, name_en, city, head, route, sort_order, is_active, party_type, party_subtype")
-        .eq("company_id", companyId)
-        .eq("party_type", "PARTY")
-        .in("party_subtype", ["customer", "both"])
-        .eq("is_active", true)
-        .order("sort_order", { ascending: true })
-        .order("party_code", { ascending: true })
-        .limit(10000);
-      if (qError) throw new Error(qError.message);
-      const mapped = ((data || []) as Party[]).map((p) => ({
+      const { fetchAllActiveParties } = await import("@/lib/queries/parties");
+      const data = await fetchAllActiveParties(supabase, companyId, {
+        partyType: "PARTY",
+        subtypes: ["customer", "both"],
+        columns:
+          "id, party_code, name_en, city, head, route, sort_order, is_active, party_type, party_subtype",
+      });
+      const mapped = data.map((p) => ({
         id: p.id,
         party_code: p.party_code,
         name_en: p.name_en,
