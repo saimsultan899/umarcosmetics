@@ -532,9 +532,8 @@ export function SaleInvoicePrint({
                 ? `Prepared By : ${preparedByLabel}`
                 : "Prepared By : —"}
             </div>
-            <div className="th-credit-line">
-              Developed by Umar Distributor (0308-4882425, 03006031380)
-            </div>
+            <div className="th-credit-line">Developed by Umar Distributor</div>
+            <div className="th-credit-phones">0308-4882425, 03006031380</div>
           </div>
           {/* Exactly 2 line feeds before the cutter — not 4+. */}
           <div className="th-cut-feed" aria-hidden="true" />

@@ -2089,6 +2089,10 @@ button[aria-haspopup="listbox"]:focus-visible {
   display: block;
   white-space: nowrap;
 }
+.th-credit-phones {
+  display: block;
+  white-space: nowrap;
+}
 
 /* Full-A4 sale invoice (classic distributor pattern) */
 .si-a4,
@@ -3396,7 +3400,8 @@ button[aria-haspopup="listbox"]:focus-visible {
     background: #fff !important;
     color: #000 !important;
     font-family: "Courier New", Courier, monospace !important;
-    font-size: 13px !important;
+    /* Match on-screen thermal slip — do not shrink on print. */
+    font-size: 15px !important;
     font-weight: 700 !important;
     line-height: 1.3 !important;
     letter-spacing: 0 !important;
@@ -3427,8 +3432,15 @@ button[aria-haspopup="listbox"]:focus-visible {
   .print-sheet.thermal-80 .th-shop {
     margin: 0 !important;
     padding: 0 !important;
-    font-size: 18px !important;
+    font-size: 22px !important;
     text-align: center !important;
+  }
+
+  .print-sheet.thermal-80 .th-sub,
+  .print-sheet.thermal-80 .th-meta,
+  .print-sheet.thermal-80 .th-table,
+  .print-sheet.thermal-80 .th-credit {
+    font-size: 12px !important;
   }
 
   .print-sheet.thermal-80 .th-total,

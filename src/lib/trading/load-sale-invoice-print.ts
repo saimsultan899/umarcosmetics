@@ -47,16 +47,9 @@ type SalesmanRow = {
   phone?: string | null;
 };
 
-function isBeforeThisBill(
-  invoiceDate: string,
-  invoiceAt: number,
-  entryDate: string,
-  createdAt?: string | null,
-) {
-  if (entryDate < invoiceDate) return true;
-  if (entryDate > invoiceDate) return false;
-  if (!createdAt) return true;
-  return new Date(createdAt).getTime() < invoiceAt;
+/** Recoveries on or before the bill date count as last paid (same-day included). */
+function isRecoveryForBillPrint(invoiceDate: string, recoveryDate: string) {
+  return recoveryDate <= invoiceDate;
 }
 
 export async function loadSaleInvoicePrintData(
@@ -89,13 +82,25 @@ export async function loadSaleInvoicePrintData(
 
   if (!invoice) return null;
 
-  const [{ data: balanceBeforeRaw }, { data: recoveryRows }] = await Promise.all([
-    supabase.rpc("get_party_balance_before", {
+  const balancePromise = (async () => {
+    const next = await supabase.rpc("get_party_balance_before_sale", {
       p_company_id: opts.companyId,
       p_party_id: invoice.party_id,
       p_as_of: invoice.invoice_date,
       p_before: invoice.created_at,
-    }),
+      p_sale_invoice_id: invoice.id,
+    });
+    if (!next.error) return Number(next.data || 0);
+    const fallback = await supabase.rpc("get_party_balance_before", {
+      p_company_id: opts.companyId,
+      p_party_id: invoice.party_id,
+      p_as_of: invoice.invoice_date,
+      p_before: invoice.created_at,
+    });
+    return Number(fallback.data || 0);
+  })();
+
+  const [{ data: recoveryRows }, previousBalance] = await Promise.all([
     supabase
       .from("recoveries")
       .select("recovery_date, amount, created_at")
@@ -105,13 +110,12 @@ export async function loadSaleInvoicePrintData(
       .order("recovery_date", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(20),
+    balancePromise,
   ]);
 
-  const invoiceAt = new Date(invoice.created_at).getTime();
   const billAmount = Number(invoice.grand_total || 0);
   const paidOnThisBill = Number(invoice.amount_paid || 0);
   const paymentType = String(invoice.payment_type || "credit");
-  const previousBalance = Number(balanceBeforeRaw || 0);
 
   const party = invoice.parties as PartyRow | PartyRow[] | null;
   const partyObj = Array.isArray(party) ? party[0] || null : party;
@@ -122,14 +126,7 @@ export async function loadSaleInvoicePrintData(
   let lastPaidAmount = 0;
   if (!isWalkIn) {
     for (const row of recoveryRows || []) {
-      if (
-        !isBeforeThisBill(
-          invoice.invoice_date,
-          invoiceAt,
-          row.recovery_date,
-          row.created_at,
-        )
-      ) {
+      if (!isRecoveryForBillPrint(invoice.invoice_date, row.recovery_date)) {
         continue;
       }
       const amount = Number(row.amount || 0);
