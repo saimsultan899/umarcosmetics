@@ -35,7 +35,6 @@ import { filterUsableMemberships } from "@/lib/super-admin/access";
 import { getCachedSessionData, cacheSessionData } from "@/lib/offline/cache-manager";
 import { createClient } from "@/lib/supabase/client";
 import { withTimeout } from "@/lib/offline/fetch-timeout";
-import { DesktopDownloadCard } from "@/components/settings/desktop-download-card";
 import { DESKTOP_UPDATE_SITE } from "@/lib/desktop/update-feed";
 import { isElectronRuntime } from "@/lib/offline/service-worker";
 import { ArrowLeft } from "lucide-react";
@@ -936,7 +935,7 @@ function LoginForm() {
         {step === "forgot" ? (
           <form onSubmit={sendReset} className="login-form">
             <p className="text-sm text-[var(--muted)]">
-              Enter the account email. A reset link will be sent there. After you choose a new password, sign in again. If this computer was formatted, download the Windows app below.
+              Enter the account email. A reset link will be sent there. After you choose a new password, sign in again.
             </p>
             <div className="login-field">
               <label htmlFor="reset-email">Email</label>
@@ -975,8 +974,6 @@ function LoginForm() {
             </button>
           </form>
         ) : null}
-
-        {step === "credentials" || step === "forgot" ? <DesktopDownloadCard compact /> : null}
 
         {step === "company" ? (
           <div>

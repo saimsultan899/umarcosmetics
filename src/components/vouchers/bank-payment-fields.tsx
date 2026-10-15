@@ -7,8 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
 import { DEFAULT_PAYMENT_BANKS } from "@/lib/vouchers/pakistan-banks";
-import { ArrowDown, ArrowUp, GripVertical, ListOrdered, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ArrowDown, ArrowUp, ChevronDown, GripVertical, ListOrdered, Trash2 } from "lucide-react";
+import { useState, useEffect } from "react";
 
 type BankRow = {
   id: string;
@@ -33,6 +33,7 @@ function PartyBankBlock({
   onBank,
   onName,
   onAccountNo,
+  collapsible = false,
 }: {
   title: string;
   banks: string[];
@@ -42,7 +43,9 @@ function PartyBankBlock({
   onBank: (value: string) => void;
   onName: (value: string) => void;
   onAccountNo: (value: string) => void;
+  collapsible?: boolean;
 }) {
+  const [open, setOpen] = useState(false);
   const options = [
     { value: "", label: "Select bank" },
     ...banks.map((item) => ({ value: item, label: item })),
@@ -51,11 +54,9 @@ function PartyBankBlock({
     options.splice(1, 0, { value: bank, label: bank });
   }
 
-  return (
-    <div className="space-y-3 rounded-lg border border-[var(--border)] p-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
-        {title}
-      </p>
+  const summary = [bank, name, accountNo].filter(Boolean).join(" · ");
+  const fields = (
+    <>
       <div>
         <Label>Bank</Label>
         <Select
@@ -82,6 +83,43 @@ function PartyBankBlock({
           />
         </div>
       </div>
+    </>
+  );
+
+  if (!collapsible) {
+    return (
+      <div className="space-y-3 rounded-lg border border-[var(--border)] p-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+          {title}
+        </p>
+        {fields}
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-[var(--border)]">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span className="min-w-0">
+          <span className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+            {title}
+          </span>
+          <span className="mt-0.5 block truncate text-sm text-[var(--ink)]">
+            {summary || "Optional — click to add bank details"}
+          </span>
+        </span>
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-[var(--muted)] transition-transform ${
+            open ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+      {open ? <div className="space-y-3 border-t border-[var(--border)] px-3 py-3">{fields}</div> : null}
     </div>
   );
 }
@@ -101,6 +139,7 @@ export function BankPaymentFields({
   onReceiverBank,
   onReceiverName,
   onReceiverNo,
+  collapsible = false,
 }: {
   companyId: string;
   organizationId: string;
@@ -116,6 +155,8 @@ export function BankPaymentFields({
   onReceiverBank: (value: string) => void;
   onReceiverName: (value: string) => void;
   onReceiverNo: (value: string) => void;
+  /** Sender and receiver stay closed until clicked. */
+  collapsible?: boolean;
 }) {
   const [banks, setBanks] = useState<BankRow[]>([]);
   const [arrangeOpen, setArrangeOpen] = useState(false);
@@ -183,6 +224,7 @@ export function BankPaymentFields({
         onBank={onSenderBank}
         onName={onSenderName}
         onAccountNo={onSenderNo}
+        collapsible={collapsible}
       />
       <PartyBankBlock
         title="Receiver"
@@ -193,6 +235,7 @@ export function BankPaymentFields({
         onBank={onReceiverBank}
         onName={onReceiverName}
         onAccountNo={onReceiverNo}
+        collapsible={collapsible}
       />
       <ArrangeBanksDialog
         open={arrangeOpen}

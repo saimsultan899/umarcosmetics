@@ -707,7 +707,7 @@ export function CompanyStatementClient({
                 }
                 onClick={() => {
                   setPayError(null);
-                  setPayDate(to || localDateIso());
+                  setPayDate(localDateIso());
                   setPayPurchaseInvoiceId("");
                   setPayOpen(true);
                 }}
@@ -907,27 +907,17 @@ export function CompanyStatementClient({
               />
             </div>
           ) : null}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <Label>Date</Label>
-              <Input
-                type="date"
-                value={payDate}
-                onChange={(e) => setPayDate(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label>Method</Label>
-              <Select
-                value={payMethod}
-                onChange={(e) => setPayMethod(e.target.value)}
-                options={[
-                  { value: "cash", label: "Cash" },
-                  { value: "bank_transfer", label: "Bank transfer" },
-                  { value: "other", label: "Other" },
-                ]}
-              />
-            </div>
+          <div>
+            <Label>Method</Label>
+            <Select
+              value={payMethod}
+              onChange={(e) => setPayMethod(e.target.value)}
+              options={[
+                { value: "cash", label: "Cash" },
+                { value: "bank_transfer", label: "Bank transfer" },
+                { value: "other", label: "Other" },
+              ]}
+            />
           </div>
           {payMethod === "bank_transfer" ? (
             <BankPaymentFields
@@ -945,6 +935,7 @@ export function CompanyStatementClient({
               onReceiverBank={setReceiverBank}
               onReceiverName={setReceiverName}
               onReceiverNo={setReceiverNo}
+              collapsible
             />
           ) : null}
           <div>
@@ -970,17 +961,41 @@ export function CompanyStatementClient({
               ]}
             />
           </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <Label>Today</Label>
+              <Input
+                type="date"
+                value={localDateIso()}
+                readOnly
+                tabIndex={-1}
+                className="bg-[var(--surface-2)]"
+              />
+            </div>
+            <div>
+              <Label>Paid date</Label>
+              <Input
+                type="date"
+                value={payDate}
+                onChange={(e) => setPayDate(e.target.value)}
+                required
+              />
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                Date this amount was paid to the company. Starts as today.
+              </p>
+            </div>
+          </div>
           <div>
-            <Label>Amount</Label>
-            <Input
-              type="number"
-              min="0"
-              step={AMOUNT_STEP}
-              placeholder={AMOUNT_PLACEHOLDER}
-              value={payAmount}
-              onChange={(e) => setPayAmount(e.target.value)}
-              required
-            />
+              <Label>Amount</Label>
+              <Input
+                type="number"
+                min="0"
+                step={AMOUNT_STEP}
+                placeholder={AMOUNT_PLACEHOLDER}
+                value={payAmount}
+                onChange={(e) => setPayAmount(e.target.value)}
+                required
+              />
             {(() => {
               const amount = Number(payAmount);
               if (!(amount > 0) || !statement) return null;

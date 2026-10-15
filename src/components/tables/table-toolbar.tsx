@@ -26,7 +26,7 @@ export function TableToolbar({
 }) {
   return (
     <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-      <div className="relative w-full shrink-0 sm:w-64">
+      <div className="relative w-full basis-full">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
         <Input
           value={query}

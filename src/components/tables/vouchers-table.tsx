@@ -4,6 +4,7 @@ import { DocumentRowActions } from "@/components/tables/document-row-actions";
 import { TableScroll } from "@/components/tables/table-scroll";
 import { TablePagination } from "@/components/tables/table-pagination";
 import { TableToolbar } from "@/components/tables/table-toolbar";
+import { TableFilterSelect, stringOptions } from "@/components/tables/table-filter-select";
 import { useSearchInput, useUrlTableState } from "@/hooks/use-url-table-state";
 import type { VoucherRow } from "@/lib/queries/vouchers";
 import type { PaginationMeta } from "@/lib/pagination";
@@ -14,14 +15,22 @@ export function VouchersTable({
   pagination,
   emptyLabel,
   detailBasePath,
+  showParty = false,
+  sectors = [],
 }: {
   vouchers: VoucherRow[];
   pagination: PaginationMeta;
   emptyLabel: string;
   detailBasePath: string;
+  /** Customer and sector columns, plus sector filter (cash receipts). */
+  showParty?: boolean;
+  sectors?: string[];
 }) {
-  const { q, isPending, setPage, setPageSize, setQuery } = useUrlTableState();
+  const filterKeys = showParty && sectors.length ? ["sector"] : [];
+  const { q, filters, isPending, setPage, setPageSize, setQuery, setFilter } =
+    useUrlTableState(filterKeys);
   const search = useSearchInput(q, setQuery);
+  const colSpan = showParty ? 7 : 5;
 
   return (
     <div>
@@ -30,9 +39,24 @@ export function VouchersTable({
         onQueryChange={search.onQueryChange}
         onFocus={search.onFocus}
         onBlur={search.onBlur}
-        placeholder="Search vouchers..."
+        placeholder={
+          showParty
+            ? "Search voucher, customer, sector, or narration..."
+            : "Search vouchers..."
+        }
         resultCount={pagination.total}
         totalCount={pagination.total}
+        filters={
+          showParty && sectors.length ? (
+            <TableFilterSelect
+              label="Sector"
+              value={filters.sector || ""}
+              options={stringOptions(sectors)}
+              loading={isPending}
+              onChange={(value) => setFilter("sector", value)}
+            />
+          ) : null
+        }
       />
       <div className="table-shell">
         <TableScroll loading={isPending}>
@@ -41,6 +65,8 @@ export function VouchersTable({
               <tr>
                 <th>Vr. No</th>
                 <th>Date</th>
+                {showParty ? <th>Customer</th> : null}
+                {showParty ? <th>Sector</th> : null}
                 <th>Total</th>
                 <th>Narration</th>
                 <th className="text-right">Actions</th>
@@ -52,6 +78,12 @@ export function VouchersTable({
                   <tr key={v.id}>
                     <td className="font-medium">{v.voucher_no}</td>
                     <td>{v.voucher_date}</td>
+                    {showParty ? (
+                      <td className="max-w-[16rem] truncate" title={v.partyLabel}>
+                        {v.partyLabel || "—"}
+                      </td>
+                    ) : null}
+                    {showParty ? <td>{v.sectorLabel || "—"}</td> : null}
                     <td>{formatPkr(v.total_amount)}</td>
                     <td className="text-[var(--muted)]">{v.narration || "—"}</td>
                     <td>
@@ -65,6 +97,12 @@ export function VouchersTable({
                         fields={[
                           { label: "Voucher #", value: v.voucher_no },
                           { label: "Date", value: v.voucher_date },
+                          ...(showParty
+                            ? [
+                                { label: "Customer", value: v.partyLabel || "—" },
+                                { label: "Sector", value: v.sectorLabel || "—" },
+                              ]
+                            : []),
                           { label: "Total", value: formatPkr(v.total_amount) },
                           { label: "Narration", value: v.narration || "—" },
                         ]}
@@ -74,7 +112,7 @@ export function VouchersTable({
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-[var(--muted)]">
+                  <td colSpan={colSpan} className="py-8 text-center text-[var(--muted)]">
                     {emptyLabel}
                   </td>
                 </tr>

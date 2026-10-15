@@ -187,6 +187,29 @@ async function partyIdsForSector(
   return (data || []).map((row) => String(row.id));
 }
 
+function isoDateParam(value: string | undefined) {
+  const raw = (value || "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : "";
+}
+
+function applyDateRange(
+  query: any,
+  dateField: string,
+  fromDate: string,
+  toDate: string,
+) {
+  let from = fromDate;
+  let to = toDate;
+  if (from && to && from > to) {
+    const swap = from;
+    from = to;
+    to = swap;
+  }
+  if (from) query = query.gte(dateField, from);
+  if (to) query = query.lte(dateField, to);
+  return query;
+}
+
 function applyDocumentSearch(
   query: any,
   term: string,
@@ -219,6 +242,9 @@ export async function fetchDocumentList(
   const payment = spString(searchParams, "payment") || "all";
   const warehouseId = spString(searchParams, "warehouse") || "";
   const sector = (spString(searchParams, "sector") || "").trim();
+  const fromDate = isoDateParam(spString(searchParams, "fromDate"));
+  const toDate = isoDateParam(spString(searchParams, "toDate"));
+  const dateField = config.dateField;
 
   const term = escapeIlike(q);
   let partyIds = term
@@ -267,8 +293,10 @@ export async function fetchDocumentList(
   if (options?.showPaymentFilter && payment !== "all" && config.paymentField) {
     listQuery = listQuery.eq(config.paymentField, payment);
   }
+  if (options?.showPaymentFilter) {
+    listQuery = applyDateRange(listQuery, dateField, fromDate, toDate);
+  }
 
-  const dateField = config.dateField;
   const recentSelect = config.paymentField
     ? `${dateField}, grand_total, ${config.paymentField}`
     : `${dateField}, grand_total`;
@@ -308,6 +336,9 @@ export async function fetchDocumentList(
   }
   if (options?.showPaymentFilter && payment !== "all" && config.paymentField) {
     summaryQuery = summaryQuery.eq(config.paymentField, payment);
+  }
+  if (options?.showPaymentFilter) {
+    summaryQuery = applyDateRange(summaryQuery, dateField, fromDate, toDate);
   }
 
   const [{ data, count, error }, recent] = await Promise.all([

@@ -268,18 +268,47 @@ export function useVoucherList({
         });
 
         const q = (searchParams.get("q") || "").toLowerCase().trim();
+        const sector = (searchParams.get("sector") || "").trim().toLowerCase();
+        const partyById = new Map(pts.map((p) => [p.id, p]));
 
-        const allVouchers: VoucherRow[] = filtered.map((r) => ({
-          id: String(r.id),
-          voucher_no: String(r.voucher_no || r.doc_no || r.id),
-          voucher_date: String(r.voucher_date || r.doc_date || ""),
-          total_amount: Number(r.total_amount ?? r.amount ?? r.grand_total ?? 0),
-          narration: r.narration == null ? null : String(r.narration),
-        }));
+        const allVouchers: VoucherRow[] = filtered.map((r) => {
+          const rawLines = Array.isArray(r.voucher_lines)
+            ? (r.voucher_lines as Array<{ party_id?: string }>)
+            : Array.isArray(r.lines)
+              ? (r.lines as Array<{ party_id?: string }>)
+              : [];
+          const names: string[] = [];
+          const sectors = new Set<string>();
+          for (const line of rawLines) {
+            const party = line.party_id ? partyById.get(String(line.party_id)) : undefined;
+            if (!party) continue;
+            const label = [party.party_code, party.name_en].filter(Boolean).join(" — ");
+            if (label && !names.includes(label)) names.push(label);
+            const route = (party.route || "").trim();
+            if (route) sectors.add(route);
+          }
+          return {
+            id: String(r.id),
+            voucher_no: String(r.voucher_no || r.doc_no || r.id),
+            voucher_date: String(r.voucher_date || r.doc_date || ""),
+            total_amount: Number(r.total_amount ?? r.amount ?? r.grand_total ?? 0),
+            narration: r.narration == null ? null : String(r.narration),
+            partyLabel: names.join(", ") || undefined,
+            sectorLabel: [...sectors].join(", ") || undefined,
+          };
+        });
 
         const filteredVouchers = allVouchers.filter((v) => {
+          if (sector) {
+            const routes = (v.sectorLabel || "")
+              .split(",")
+              .map((part) => part.trim().toLowerCase());
+            if (!routes.includes(sector)) return false;
+          }
           if (!q) return true;
-          return `${v.voucher_no} ${v.narration || ""}`.toLowerCase().includes(q);
+          return `${v.voucher_no} ${v.narration || ""} ${v.partyLabel || ""} ${v.sectorLabel || ""}`
+            .toLowerCase()
+            .includes(q);
         });
 
         const { paged, pagination } = offlinePaginate(filteredVouchers, spRecord);

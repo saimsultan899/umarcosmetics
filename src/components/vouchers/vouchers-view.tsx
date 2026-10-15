@@ -3,6 +3,7 @@
 import { VouchersTable } from "@/components/tables/vouchers-table";
 import { CreateDialogButton, PageHeading } from "@/components/ui/create-dialog";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
+import { CashReceiptForm } from "@/components/vouchers/cash-receipt-form";
 import { CashVoucherForm } from "@/components/vouchers/voucher-lines-form";
 import { JournalVoucherForm } from "@/components/vouchers/journal-form";
 import { useVoucherList } from "@/hooks/use-voucher-lists";
@@ -27,10 +28,11 @@ const VOUCHER_META: Record<
   CR: {
     title: "Cash Receipt",
     description:
-      "Record money received from customers (reduces receivable). Vendor expiry claim credits are also cleared here if the company pays cash.",
+      "Record money received from customers. Choose a sector to see those shops and each shop's previous balance.",
     addLabel: "New receipt",
     addTitle: "New cash receipt",
-    addDescription: "Post money received against customers",
+    addDescription:
+      "Receive from a customer the same way as a recovery. Previous balance shows under the shop.",
     emptyLabel: "No cash receipts yet.",
     detailBasePath: "/vouchers/cash-receipt",
   },
@@ -78,6 +80,21 @@ export function VouchersView({
   const formParties = parties.length ? parties : catalog.parties;
 
   const meta = VOUCHER_META[kind];
+  const sectors =
+    kind === "CR"
+      ? [
+          ...new Set(
+            formParties
+              .filter(
+                (p) =>
+                  p.is_active !== false &&
+                  (p.party_subtype === "customer" || p.party_subtype === "both"),
+              )
+              .map((p) => (p.route || "").trim())
+              .filter(Boolean),
+          ),
+        ].sort((a, b) => a.localeCompare(b))
+      : [];
 
   if (loading && !vouchers.length) return <PageSkeleton />;
 
@@ -104,6 +121,13 @@ export function VouchersView({
                   parties={formParties}
                   onDone={refetch}
                 />
+              ) : kind === "CR" ? (
+                <CashReceiptForm
+                  companyId={company.id}
+                  organizationId={company.organization_id}
+                  parties={formParties}
+                  onDone={refetch}
+                />
               ) : (
                 <CashVoucherForm
                   kind={kind}
@@ -123,6 +147,8 @@ export function VouchersView({
         pagination={pagination}
         emptyLabel={meta.emptyLabel}
         detailBasePath={meta.detailBasePath}
+        showParty={kind === "CR"}
+        sectors={sectors}
       />
     </div>
   );

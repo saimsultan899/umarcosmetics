@@ -76,6 +76,8 @@ export function OfflineTradingListPage({
   const paymentFilter = (searchParams.get("payment") || "all").toLowerCase();
   const warehouseFilter = searchParams.get("warehouse") || "";
   const sectorFilter = (searchParams.get("sector") || "").trim();
+  const fromDate = (searchParams.get("fromDate") || "").slice(0, 10);
+  const toDate = (searchParams.get("toDate") || "").slice(0, 10);
 
   const { data: invoiceRows, loading, refetch: refetchInvoices } = useOfflineData(
     STORE[kind],
@@ -250,6 +252,13 @@ export function OfflineTradingListPage({
       if (sectorFilter && (r.sectorLabel || "") !== sectorFilter) {
         return false;
       }
+      if (kind === "sale" && (fromDate || toDate)) {
+        const day = (r.date || "").slice(0, 10);
+        const start = fromDate && toDate && fromDate > toDate ? toDate : fromDate;
+        const end = fromDate && toDate && fromDate > toDate ? fromDate : toDate;
+        if (start && day < start) return false;
+        if (end && day > end) return false;
+      }
       if (q) {
         const text =
           `${r.docNo} ${r.partyLabel} ${r.sectorLabel || ""} ${r.warehouseLabel} ${r.paymentType}`.toLowerCase();
@@ -257,7 +266,7 @@ export function OfflineTradingListPage({
       }
       return true;
     });
-  }, [listRows, paymentFilter, warehouseFilter, sectorFilter, q]);
+  }, [listRows, paymentFilter, warehouseFilter, sectorFilter, q, kind, fromDate, toDate]);
 
   // Sliced page items
   const { paged, meta: paginationMeta } = useMemo(

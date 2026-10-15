@@ -4,7 +4,6 @@ import { ChartCard } from "@/components/analytics/chart-card";
 import { DonutChart, TrendAreaChart } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { DocumentRowActions } from "@/components/tables/document-row-actions";
-import { FilterChip } from "@/components/tables/filter-chip";
 import {
   stringOptions,
   TableFilterSelect,
@@ -72,7 +71,7 @@ export function DocumentListTable({
   const router = useRouter();
   const filterKeys = useMemo(
     () => [
-      ...(showPaymentFilter ? ["payment"] : []),
+      ...(showPaymentFilter ? ["payment", "fromDate", "toDate"] : []),
       ...(warehouses.length ? ["warehouse"] : []),
       ...(showSectorColumn && sectors.length ? ["sector"] : []),
     ],
@@ -93,6 +92,8 @@ export function DocumentListTable({
   }, [
     q,
     filters.payment,
+    filters.fromDate,
+    filters.toDate,
     filters.warehouse,
     filters.sector,
     pagination.page,
@@ -244,26 +245,44 @@ export function DocumentListTable({
           totalCount={pagination.total}
           filters={
             <div className="flex flex-wrap items-center gap-2">
-              {showPaymentFilter
-                ? (
-                    [
-                      ["all", "All"],
-                      ["cash", "Cash"],
-                      ["credit", "Credit"],
-                      ["partial", "Partial"],
-                    ] as const
-                  ).map(([key, label]) => (
-                    <FilterChip
-                      key={key}
-                      active={payment === key}
-                      onClick={() =>
-                        setFilter("payment", key === "all" ? null : key)
-                      }
-                    >
-                      {label}
-                    </FilterChip>
-                  ))
-                : null}
+              {showPaymentFilter ? (
+                <>
+                  <TableFilterSelect
+                    label="Payment"
+                    value={payment === "all" ? "" : payment}
+                    allLabel="All"
+                    options={[
+                      { value: "cash", label: "Cash" },
+                      { value: "credit", label: "Credit" },
+                      { value: "partial", label: "Partial" },
+                    ]}
+                    loading={isPending}
+                    onChange={(value) => setFilter("payment", value)}
+                  />
+                  <label className="inline-flex items-center gap-1.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">
+                      From
+                    </span>
+                    <input
+                      type="date"
+                      value={filters.fromDate || ""}
+                      onChange={(e) => setFilter("fromDate", e.target.value || null)}
+                      className="h-9 rounded-lg border border-[var(--border)] bg-white px-2 text-sm"
+                    />
+                  </label>
+                  <label className="inline-flex items-center gap-1.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">
+                      To
+                    </span>
+                    <input
+                      type="date"
+                      value={filters.toDate || ""}
+                      onChange={(e) => setFilter("toDate", e.target.value || null)}
+                      className="h-9 rounded-lg border border-[var(--border)] bg-white px-2 text-sm"
+                    />
+                  </label>
+                </>
+              ) : null}
               {warehouses.length ? (
                 <TableFilterSelect
                   label="Company"
