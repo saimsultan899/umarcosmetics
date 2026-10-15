@@ -4,10 +4,11 @@
  * needs the complete company list (shops, products, etc.).
  */
 export async function fetchAllPages<T>(
+  // Accept PostgREST builders directly — their PromiseLike generics vary with `.select()`.
   make: (
     from: number,
     to: number,
-  ) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+  ) => PromiseLike<{ data: unknown; error: { message: string } | null }>,
   opts?: { pageSize?: number; maxRows?: number },
 ): Promise<T[]> {
   const pageSize = opts?.pageSize ?? 1000;
@@ -16,7 +17,7 @@ export async function fetchAllPages<T>(
   for (let from = 0; from < maxRows; from += pageSize) {
     const { data, error } = await make(from, from + pageSize - 1);
     if (error) throw new Error(error.message);
-    const batch = data || [];
+    const batch = (Array.isArray(data) ? data : []) as T[];
     rows.push(...batch);
     if (batch.length < pageSize) break;
   }

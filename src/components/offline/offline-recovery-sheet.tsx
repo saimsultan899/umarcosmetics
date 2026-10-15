@@ -313,7 +313,7 @@ export function OfflineRecoverySheetPage({
 
     const arrangedParties = [...customerParties].sort(comparePartyArrangement);
 
-    let flat: RecoverySheetRow[] = arrangedParties.map((p, index) => {
+    let flat: RecoverySheetRow[] = arrangedParties.map((p) => {
       const partyId = String(p.id);
       const balance = balanceMap.get(partyId) ?? 0;
       const last = lastSaleByParty.get(partyId);
@@ -334,7 +334,6 @@ export function OfflineRecoverySheetPage({
         city: p.city ? String(p.city) : null,
         route: p.route ? String(p.route) : null,
         sort_order: Number(p.sort_order ?? 0),
-        arrangement_index: index,
         balance,
         prev_balance: prevBal,
         last_sale_id: saleIsOpen && last ? last.id : null,
@@ -353,11 +352,7 @@ export function OfflineRecoverySheetPage({
     else if (include === "nonzero")
       flat = flat.filter((r) => Math.abs(r.balance) > 0.005);
 
-    flat.sort(
-      (a, b) =>
-        a.arrangement_index - b.arrangement_index ||
-        comparePartyArrangement(a, b),
-    );
+    flat.sort(comparePartyArrangement);
 
     const groups = new Map<string, RecoverySheetRow[]>();
     for (const row of flat) {
@@ -370,8 +365,8 @@ export function OfflineRecoverySheetPage({
     const sortedSectors = [...groups.keys()].sort((a, b) => {
       if (a === "No sector") return 1;
       if (b === "No sector") return -1;
-      const ai = groups.get(a)?.[0]?.arrangement_index ?? Number.MAX_SAFE_INTEGER;
-      const bi = groups.get(b)?.[0]?.arrangement_index ?? Number.MAX_SAFE_INTEGER;
+      const ai = groups.get(a)?.[0]?.sort_order ?? Number.MAX_SAFE_INTEGER;
+      const bi = groups.get(b)?.[0]?.sort_order ?? Number.MAX_SAFE_INTEGER;
       if (ai !== bi) return ai - bi;
       return a.localeCompare(b);
     });
@@ -382,11 +377,7 @@ export function OfflineRecoverySheetPage({
     let netTotal = 0;
 
     for (const sec of sortedSectors) {
-      const secRows = [...(groups.get(sec) || [])].sort(
-        (a, b) =>
-          a.arrangement_index - b.arrangement_index ||
-          comparePartyArrangement(a, b),
-      );
+      const secRows = [...(groups.get(sec) || [])].sort(comparePartyArrangement);
 
       let secDue = 0;
       let secCr = 0;

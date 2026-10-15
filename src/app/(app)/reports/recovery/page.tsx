@@ -89,7 +89,7 @@ export default async function RecoverySheetPage({
         : `${sectors.length} sectors`;
 
   const from7 = lastNDates(7)[0];
-  const [sheet, { data: parties }, { data: sectorRows }, { data: weekRec }, salesmen] =
+  const [sheet, parties, sectorRows, { data: weekRec }, salesmen] =
     await Promise.all([
       buildRecoverySheet(supabase, {
         companyId: company.id,
@@ -104,7 +104,7 @@ export default async function RecoverySheetPage({
       }),
       fetchAllActiveParties(supabase, company.id, {
         subtypes: ["customer", "both"],
-      }).then((rows) => ({ data: rows })),
+      }),
       fetchAllPages<{ route: string | null }>((fromPage, toPage) =>
         supabase
           .from("parties")
@@ -123,7 +123,9 @@ export default async function RecoverySheetPage({
       fetchCompanySalesmen(supabase, company.id),
     ]);
 
-  const sectorOptions = distinctSorted(sectorRows.map((r) => r.route));
+  const sectorOptions = distinctSorted(
+    sectorRows.map((r: { route: string | null }) => r.route),
+  );
 
   const sectorSet = new Set(sectors.map((s) => s.trim()).filter(Boolean));
   const partyOptions = (parties || [])

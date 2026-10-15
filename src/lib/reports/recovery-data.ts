@@ -153,7 +153,15 @@ export async function buildRecoverySheet(
       p_city: null,
       p_route: sectors.length === 1 ? sectors[0] : null,
     }),
-    fetchAllPages((from, to) => {
+    fetchAllPages<{
+      id: string;
+      party_code: string | null;
+      name_en: string | null;
+      city: string | null;
+      route: string | null;
+      head: string | null;
+      sort_order: number | null;
+    }>((from, to) => {
       let query = supabase
         .from("parties")
         .select("id, party_code, name_en, city, route, head, sort_order")
@@ -174,7 +182,6 @@ export async function buildRecoverySheet(
   ]);
 
   if (balanceSheet.error) throw new Error(balanceSheet.error.message);
-  if (partyRows.error) throw new Error(partyRows.error.message);
 
   const brandOptions = distinctSorted(
     (manufacturers.data || []).map((r) => r.manufacturer),
