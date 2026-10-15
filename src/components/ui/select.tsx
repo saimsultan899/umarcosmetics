@@ -168,6 +168,9 @@ export const Select = forwardRef<
   const highlightRef = useRef(0);
   const keyboardOptionsRef = useRef<SelectOption[]>([]);
   const pendingSearchRef = useRef<string | null>(null);
+  /** Arrow-key moves ignore hover until the pointer actually moves again. */
+  const pointerNavRef = useRef(true);
+  const keyNavAtRef = useRef(0);
 
   const open = openProp !== undefined ? openProp : uncontrolledOpen;
 
@@ -291,11 +294,20 @@ export const Select = forwardRef<
 
   function moveHighlight(delta: number) {
     const opts = keyboardOptionsRef.current;
+    pointerNavRef.current = false;
+    keyNavAtRef.current = Date.now();
     setHighlight((h) => {
       const next = Math.max(0, Math.min(h + delta, Math.max(opts.length - 1, 0)));
       highlightRef.current = next;
       return next;
     });
+  }
+
+  function highlightFromPointer(index: number) {
+    if (!pointerNavRef.current) return;
+    if (Date.now() - keyNavAtRef.current < 400) return;
+    highlightRef.current = index;
+    setHighlight(index);
   }
 
   function commitHighlighted() {
@@ -396,13 +408,28 @@ export const Select = forwardRef<
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, listId]);
 
-  // Re-highlight first match when search text changes
+  // Jump to the first match only when the search text changes.
+  // Remote results (products, customers) update the list a moment later —
+  // resetting highlight then snaps Arrow Down back to the top row.
   useEffect(() => {
     if (!open) return;
     const idx = pickHighlightIndex(keyboardOptions, query, selectedValue);
     setHighlight(idx);
     highlightRef.current = idx;
-  }, [open, query, keyboardOptions, selectedValue]);
+    // keyboardOptions is read for the list that matches this query.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, query, selectedValue]);
+
+  // Keep the current row when late search results change the list length.
+  useEffect(() => {
+    if (!open) return;
+    const max = Math.max(keyboardOptions.length - 1, 0);
+    setHighlight((h) => {
+      const next = Math.min(h, max);
+      highlightRef.current = next;
+      return next;
+    });
+  }, [open, keyboardOptions.length]);
 
   // Keep highlighted row visible inside the list only (no page scroll)
   useEffect(() => {
@@ -507,14 +534,20 @@ export const Select = forwardRef<
                 </div>
               </div>
 
-              <div ref={optionsListRef} className="min-h-0 flex-1 overflow-y-auto p-1">
+              <div
+                ref={optionsListRef}
+                className="min-h-0 flex-1 overflow-y-auto p-1"
+                onMouseMove={() => {
+                  pointerNavRef.current = true;
+                }}
+              >
                 {emptyOption ? (
                   <button
                     type="button"
                     role="option"
                     data-option-idx={0}
                     aria-selected={selectedValue === "" && !searching}
-                    onMouseEnter={() => setHighlight(0)}
+                    onMouseEnter={() => highlightFromPointer(0)}
                     onClick={() => commit("")}
                     className={cn(
                       "flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm",
@@ -545,7 +578,7 @@ export const Select = forwardRef<
                         data-option-idx={idx}
                         aria-selected={active}
                         disabled={option.disabled}
-                        onMouseEnter={() => setHighlight(idx)}
+                        onMouseEnter={() => highlightFromPointer(idx)}
                         onClick={() => commit(option.value)}
                         className={cn(
                           "flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm",
