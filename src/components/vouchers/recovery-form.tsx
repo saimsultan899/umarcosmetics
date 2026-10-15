@@ -670,6 +670,12 @@ export function RecoveryForm({
                     onChange={(id, next) => {
                       setPartyId(id);
                       setParty(next);
+                      if (next) {
+                        const route = (next.route || "").trim();
+                        const cityName = (next.city || "").trim();
+                        if (route) setSector(route);
+                        if (cityName) setCity(cityName);
+                      }
                     }}
                     onPartySelected={() => focusField(amountRef.current)}
                   />

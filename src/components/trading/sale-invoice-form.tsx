@@ -125,7 +125,12 @@ export function SaleInvoiceForm({
     () => parties.filter((p) => p.party_subtype === "customer" || p.party_subtype === "both" || p.party_type === "PARTY"),
     [parties],
   );
-  const [sector, setSector] = useState("");
+  const [sector, setSector] = useState(() => {
+    const id = editing?.partyId;
+    if (!id) return "";
+    const hit = parties.find((p) => p.id === id);
+    return (hit?.route || "").trim();
+  });
   const sectorOptions = useMemo(() => {
     const seen = new Set<string>();
     const out: string[] = [];
@@ -184,6 +189,16 @@ export function SaleInvoiceForm({
     || customers.find((p) => p.id === partyId);
   const walkInActive = paymentType === "cash" && walkInCustomer;
   const customerRequired = !walkInActive;
+
+  // Edit open / late party list: fill Sector from the shop when still empty.
+  useEffect(() => {
+    if (!partyId || sector) return;
+    const hit =
+      customers.find((p) => p.id === partyId) ||
+      parties.find((p) => p.id === partyId);
+    const route = (hit?.route || "").trim();
+    if (route) setSector(route);
+  }, [partyId, sector, customers, parties]);
 
   useEffect(() => {
     if (!sector || !partyId) return;
@@ -567,8 +582,16 @@ export function SaleInvoiceForm({
                 }
                 onChange={(id) => {
                   setPartyId(id);
-                  if (id) setWalkInCustomer(false);
-                  else setPreviousBalance(null);
+                  if (id) {
+                    setWalkInCustomer(false);
+                    const selected =
+                      customers.find((p) => p.id === id) ||
+                      parties.find((p) => p.id === id);
+                    const route = (selected?.route || "").trim();
+                    if (route) setSector(route);
+                  } else {
+                    setPreviousBalance(null);
+                  }
                   void checkCreditLimit(id);
                 }}
               />
