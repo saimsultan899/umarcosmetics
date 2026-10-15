@@ -18,12 +18,14 @@ export function SaleInvoicesListWithPending({
   pagination,
   summary,
   warehouses,
+  sectors = [],
 }: {
   companyId: string;
   serverRows: DocumentListRow[];
   pagination: PaginationMeta;
   summary: DocumentListSummary;
   warehouses: Array<{ id: string; name: string }>;
+  sectors?: string[];
 }) {
   const sync = useSyncStatus();
   const [pendingRows, setPendingRows] = useState<DocumentListRow[]>([]);
@@ -88,7 +90,9 @@ export function SaleInvoicesListWithPending({
         showPrint
         enableBatchPrint
         showCompanyColumn={false}
+        showSectorColumn
         warehouses={warehouses}
+        sectors={sectors}
       />
     </div>
   );

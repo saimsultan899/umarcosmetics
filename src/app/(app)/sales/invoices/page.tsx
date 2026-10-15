@@ -28,13 +28,21 @@ export default async function SaleInvoicesPage({
     );
   }
 
-  const [{ data: warehouses }, list] = await Promise.all([
+  const [{ data: warehouses }, { data: sectorRows }, list] = await Promise.all([
     supabase
       .from("warehouses")
       .select("id, name")
       .eq("company_id", company.id)
       .eq("is_active", true)
       .order("name"),
+    supabase
+      .from("parties")
+      .select("route")
+      .eq("company_id", company.id)
+      .eq("is_active", true)
+      .in("party_subtype", ["customer", "both"])
+      .not("route", "is", null)
+      .limit(20000),
     fetchDocumentList(
       supabase,
       company.id,
@@ -43,6 +51,14 @@ export default async function SaleInvoicesPage({
       { showPaymentFilter: true },
     ),
   ]);
+
+  const sectors = Array.from(
+    new Set(
+      (sectorRows || [])
+        .map((r) => String(r.route || "").trim())
+        .filter(Boolean),
+    ),
+  ).sort((a, b) => a.localeCompare(b));
 
   return (
     <div className="animate-rise space-y-6">
@@ -58,6 +74,7 @@ export default async function SaleInvoicesPage({
         pagination={list.pagination}
         summary={list.summary}
         warehouses={warehouses || []}
+        sectors={sectors}
       />
     </div>
   );

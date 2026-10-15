@@ -6,6 +6,7 @@ import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { DocumentRowActions } from "@/components/tables/document-row-actions";
 import { FilterChip } from "@/components/tables/filter-chip";
 import {
+  stringOptions,
   TableFilterSelect,
   warehouseOptions,
 } from "@/components/tables/table-filter-select";
@@ -42,8 +43,10 @@ export function DocumentListTable({
   enableBatchPrint = false,
   batchPrintHref = "/sales/invoices/print",
   warehouses = [],
+  sectors = [],
   partyColumnLabel = "Customer",
   showCompanyColumn = true,
+  showSectorColumn = false,
 }: {
   title?: string;
   rows: DocumentListRow[];
@@ -55,20 +58,25 @@ export function DocumentListTable({
   enableBatchPrint?: boolean;
   batchPrintHref?: string;
   warehouses?: Array<{ id: string; name: string }>;
+  /** Distinct party sectors for the Sector filter (sale invoices). */
+  sectors?: string[];
   partyColumnLabel?: string;
   /**
    * Sale invoices often mix brands on one bill — hide the single Company
    * column there. Filter dropdown can still narrow by warehouse when passed.
    */
   showCompanyColumn?: boolean;
+  /** Show Sector column next to Customer (sale invoices). */
+  showSectorColumn?: boolean;
 }) {
   const router = useRouter();
   const filterKeys = useMemo(
     () => [
       ...(showPaymentFilter ? ["payment"] : []),
       ...(warehouses.length ? ["warehouse"] : []),
+      ...(showSectorColumn && sectors.length ? ["sector"] : []),
     ],
-    [showPaymentFilter, warehouses.length],
+    [showPaymentFilter, warehouses.length, showSectorColumn, sectors.length],
   );
   const { q, isPending, setPage, setPageSize, setQuery, setFilter, filters } =
     useUrlTableState(filterKeys);
@@ -82,7 +90,14 @@ export function DocumentListTable({
 
   useEffect(() => {
     setSelected(new Set());
-  }, [q, filters.payment, filters.warehouse, pagination.page, pagination.pageSize]);
+  }, [
+    q,
+    filters.payment,
+    filters.warehouse,
+    filters.sector,
+    pagination.page,
+    pagination.pageSize,
+  ]);
 
   const pageIds = useMemo(() => rows.map((r) => r.id), [rows]);
   const allPageSelected =
@@ -90,6 +105,7 @@ export function DocumentListTable({
   const selectedCount = selected.size;
   const colSpan =
     5 +
+    (showSectorColumn ? 1 : 0) +
     (showCompanyColumn ? 1 : 0) +
     (showPaymentFilter ? 1 : 0) +
     (enableBatchPrint ? 1 : 0);
@@ -219,7 +235,11 @@ export function DocumentListTable({
           onQueryChange={search.onQueryChange}
           onFocus={search.onFocus}
           onBlur={search.onBlur}
-          placeholder={`Search doc #, ${partyColumnLabel.toLowerCase()} code or name...`}
+          placeholder={
+            showSectorColumn
+              ? `Search doc #, ${partyColumnLabel.toLowerCase()}, or sector...`
+              : `Search doc #, ${partyColumnLabel.toLowerCase()} code or name...`
+          }
           resultCount={pagination.total}
           totalCount={pagination.total}
           filters={
@@ -251,6 +271,15 @@ export function DocumentListTable({
                   options={warehouseOptions(warehouses)}
                   loading={isPending}
                   onChange={(value) => setFilter("warehouse", value)}
+                />
+              ) : null}
+              {showSectorColumn && sectors.length ? (
+                <TableFilterSelect
+                  label="Sector"
+                  value={filters.sector || ""}
+                  options={stringOptions(sectors)}
+                  loading={isPending}
+                  onChange={(value) => setFilter("sector", value)}
                 />
               ) : null}
               {enableBatchPrint ? (
@@ -300,6 +329,7 @@ export function DocumentListTable({
                   <th>Doc #</th>
                   <th>Date</th>
                   <th>{partyColumnLabel}</th>
+                  {showSectorColumn ? <th>Sector</th> : null}
                   {showCompanyColumn ? <th>Company</th> : null}
                   {showPaymentFilter ? <th>Payment</th> : null}
                   <th>Total</th>
@@ -341,6 +371,9 @@ export function DocumentListTable({
                       </td>
                       <td>{inv.date}</td>
                       <td>{inv.partyLabel}</td>
+                      {showSectorColumn ? (
+                        <td>{inv.sectorLabel || "—"}</td>
+                      ) : null}
                       {showCompanyColumn ? (
                         <td>{inv.warehouseLabel || "—"}</td>
                       ) : null}
@@ -363,6 +396,14 @@ export function DocumentListTable({
                             { label: "Doc #", value: inv.docNo },
                             { label: "Date", value: inv.date },
                             { label: partyColumnLabel, value: inv.partyLabel },
+                            ...(showSectorColumn
+                              ? [
+                                  {
+                                    label: "Sector",
+                                    value: inv.sectorLabel || "—",
+                                  },
+                                ]
+                              : []),
                             ...(showCompanyColumn
                               ? [
                                   {

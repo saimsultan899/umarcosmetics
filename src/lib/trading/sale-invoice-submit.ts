@@ -105,13 +105,21 @@ export async function findSaleInvoiceIdByClientRequest(
 
 function partyLabelFromPayload(payload: Record<string, unknown>): string {
   const parties = payload.parties as
-    | { party_code?: string; name_en?: string }
+    | { party_code?: string; name_en?: string; route?: string | null }
     | null
     | undefined;
   const code = String(payload.party_code || parties?.party_code || "").trim();
   const name = String(payload.party_name || parties?.name_en || "").trim();
   if (code && name) return `${code} — ${name}`;
   return name || code || "—";
+}
+
+function sectorLabelFromPayload(payload: Record<string, unknown>): string | undefined {
+  const parties = payload.parties as { route?: string | null } | null | undefined;
+  const route = String(
+    payload.route || parties?.route || payload.party_route || "",
+  ).trim();
+  return route || undefined;
 }
 
 /** Pending local sale invoices for the online list (Chrome + desktop). */
@@ -142,6 +150,7 @@ export async function loadPendingSaleInvoiceListRows(
         docNo,
         date: String(payload.invoice_date || ""),
         partyLabel: partyLabelFromPayload(payload),
+        sectorLabel: sectorLabelFromPayload(payload),
         warehouseLabel: "—",
         paymentType: String(payload.payment_type || ""),
         total: Number(payload.grand_total) || 0,
@@ -178,6 +187,7 @@ export async function loadPendingSaleInvoiceListRows(
         docNo,
         date: String(r.invoice_date || ""),
         partyLabel: partyLabelFromPayload(r as Record<string, unknown>),
+        sectorLabel: sectorLabelFromPayload(r as Record<string, unknown>),
         warehouseLabel: "—",
         paymentType: String(r.payment_type || ""),
         total: Number(r.grand_total) || 0,

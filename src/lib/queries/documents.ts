@@ -13,6 +13,8 @@ export type DocumentListRow = {
   docNo: string;
   date: string;
   partyLabel: string;
+  /** parties.route — shop sector / town for sale lists. */
+  sectorLabel?: string;
   warehouseLabel?: string;
   paymentType?: string;
   total: number;
@@ -50,7 +52,7 @@ type DocumentTableConfig = {
 
 const SALE_CONFIG: DocumentTableConfig = {
   table: "sale_invoices",
-  partySelect: "parties(name_en, party_code)",
+  partySelect: "parties(name_en, party_code, route)",
   warehouseSelect: "warehouses(name)",
   dateField: "invoice_date",
   docNoField: "invoice_no",
@@ -113,8 +115,13 @@ function mapDocumentRow(
       ? inv.warehouses[0]
       : inv.warehouses
     : null;
-  const partyObj = party as { party_code?: string; name_en?: string } | null;
+  const partyObj = party as {
+    party_code?: string;
+    name_en?: string;
+    route?: string | null;
+  } | null;
   const whObj = wh as { name?: string } | null;
+  const sectorLabel = (partyObj?.route || "").trim();
 
   return {
     id: String(inv.id),
@@ -123,6 +130,7 @@ function mapDocumentRow(
     partyLabel: partyObj
       ? `${partyObj.party_code} — ${partyObj.name_en}`
       : "—",
+    sectorLabel: sectorLabel || undefined,
     warehouseLabel: whObj?.name || "—",
     paymentType: config.paymentField
       ? String(inv[config.paymentField] || "")
@@ -156,8 +164,25 @@ async function partyIdsForSearch(
     .from("parties")
     .select("id")
     .eq("company_id", companyId)
-    .or(`party_code.ilike.${pattern},name_en.ilike.${pattern}`)
+    .or(
+      `party_code.ilike.${pattern},name_en.ilike.${pattern},route.ilike.${pattern}`,
+    )
     .limit(300);
+  if (error) throw new Error(error.message);
+  return (data || []).map((row) => String(row.id));
+}
+
+async function partyIdsForSector(
+  supabase: SupabaseClient,
+  companyId: string,
+  sector: string,
+) {
+  const { data, error } = await supabase
+    .from("parties")
+    .select("id")
+    .eq("company_id", companyId)
+    .eq("route", sector)
+    .limit(10000);
   if (error) throw new Error(error.message);
   return (data || []).map((row) => String(row.id));
 }
@@ -193,11 +218,21 @@ export async function fetchDocumentList(
   const q = spString(searchParams, "q") || "";
   const payment = spString(searchParams, "payment") || "all";
   const warehouseId = spString(searchParams, "warehouse") || "";
+  const sector = (spString(searchParams, "sector") || "").trim();
 
   const term = escapeIlike(q);
-  const partyIds = term
+  let partyIds = term
     ? await partyIdsForSearch(supabase, companyId, term)
     : [];
+  const sectorPartyIds = sector
+    ? await partyIdsForSector(supabase, companyId, sector)
+    : null;
+  if (sectorPartyIds) {
+    const allowed = new Set(sectorPartyIds);
+    if (partyIds.length) {
+      partyIds = partyIds.filter((id) => allowed.has(id));
+    }
+  }
   const selectParts = [
     config.columns,
     config.partySelect,
@@ -217,6 +252,13 @@ export async function fetchDocumentList(
     config.table === "expiry_claims"
   ) {
     listQuery = listQuery.neq("status", "cancelled");
+  }
+  if (sectorPartyIds) {
+    if (sectorPartyIds.length === 0) {
+      listQuery = listQuery.eq("party_id", "00000000-0000-0000-0000-000000000000");
+    } else {
+      listQuery = listQuery.in("party_id", sectorPartyIds);
+    }
   }
   listQuery = applyDocumentSearch(listQuery, term, config.docNoField, partyIds);
   if (warehouseId && config.warehouseSelect) {
@@ -244,6 +286,16 @@ export async function fetchDocumentList(
     .eq("company_id", companyId);
   if (isTradingDoc) {
     summaryQuery = summaryQuery.neq("status", "cancelled");
+  }
+  if (sectorPartyIds) {
+    if (sectorPartyIds.length === 0) {
+      summaryQuery = summaryQuery.eq(
+        "party_id",
+        "00000000-0000-0000-0000-000000000000",
+      );
+    } else {
+      summaryQuery = summaryQuery.in("party_id", sectorPartyIds);
+    }
   }
   summaryQuery = applyDocumentSearch(
     summaryQuery,

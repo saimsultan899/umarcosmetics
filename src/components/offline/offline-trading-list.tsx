@@ -75,6 +75,7 @@ export function OfflineTradingListPage({
   const pageSize = [12, 24, 48, 96].includes(rawSize) ? (rawSize as 12 | 24 | 48 | 96) : 24;
   const paymentFilter = (searchParams.get("payment") || "all").toLowerCase();
   const warehouseFilter = searchParams.get("warehouse") || "";
+  const sectorFilter = (searchParams.get("sector") || "").trim();
 
   const { data: invoiceRows, loading, refetch: refetchInvoices } = useOfflineData(
     STORE[kind],
@@ -126,9 +127,31 @@ export function OfflineTradingListPage({
   );
 
   const partyMap = useMemo(
-    () => new Map(parties.map((p) => [p.id, p.name_en || p.name_ur || ""])),
+    () =>
+      new Map(
+        parties.map((p) => [
+          p.id,
+          {
+            name: p.name_en || p.name_ur || "",
+            code: String(p.party_code || ""),
+            route: String(p.route || "").trim(),
+          },
+        ]),
+      ),
     [parties],
   );
+
+  const sectors = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const p of parties) {
+      const route = String(p.route || "").trim();
+      if (!route || seen.has(route)) continue;
+      seen.add(route);
+      out.push(route);
+    }
+    return out.sort((a, b) => a.localeCompare(b));
+  }, [parties]);
 
   useEffect(() => {
     void (async () => {
@@ -167,16 +190,32 @@ export function OfflineTradingListPage({
             "";
           const rawDocNo = String(r.invoice_no || r._localId || r.id);
           const docNo = formatReportInvNo(rawDocNo) || rawDocNo;
+          const partyId = String(r.party_id || "");
+          const partyInfo = partyMap.get(partyId);
+          const partyName =
+            (r.parties as { name_en?: string } | undefined)?.name_en ||
+            partyInfo?.name ||
+            r.party_name ||
+            "";
+          const partyCode =
+            (r.parties as { party_code?: string } | undefined)?.party_code ||
+            partyInfo?.code ||
+            "";
+          const sectorLabel =
+            String(
+              (r.parties as { route?: string } | undefined)?.route ||
+                partyInfo?.route ||
+                r.route ||
+                "",
+            ).trim() || undefined;
           return {
             id: String(r.id),
             docNo,
             date: String(r.invoice_date || ""),
-            partyLabel: String(
-              (r.parties as { name_en?: string } | undefined)?.name_en ||
-                partyMap.get(String(r.party_id || "")) ||
-                r.party_name ||
-                "",
-            ),
+            partyLabel: partyCode
+              ? `${partyCode} — ${partyName}`
+              : String(partyName),
+            sectorLabel,
             warehouseLabel: String(warehouseName),
             warehouseId,
             paymentType: String(r.payment_type || ""),
@@ -196,7 +235,7 @@ export function OfflineTradingListPage({
     [invoiceRows, kind, warehouseMap, partyMap],
   );
 
-  // Filter rows based on search, payment, and warehouse
+  // Filter rows based on search, payment, warehouse, and sector
   const filteredRows = useMemo(() => {
     return listRows.filter((r) => {
       if (paymentFilter !== "all") {
@@ -208,13 +247,17 @@ export function OfflineTradingListPage({
       if (warehouseFilter && r.warehouseId !== warehouseFilter) {
         return false;
       }
+      if (sectorFilter && (r.sectorLabel || "") !== sectorFilter) {
+        return false;
+      }
       if (q) {
-        const text = `${r.docNo} ${r.partyLabel} ${r.warehouseLabel} ${r.paymentType}`.toLowerCase();
+        const text =
+          `${r.docNo} ${r.partyLabel} ${r.sectorLabel || ""} ${r.warehouseLabel} ${r.paymentType}`.toLowerCase();
         if (!text.includes(q)) return false;
       }
       return true;
     });
-  }, [listRows, paymentFilter, warehouseFilter, q]);
+  }, [listRows, paymentFilter, warehouseFilter, sectorFilter, q]);
 
   // Sliced page items
   const { paged, meta: paginationMeta } = useMemo(
@@ -320,7 +363,9 @@ export function OfflineTradingListPage({
         showPrint
         enableBatchPrint={kind === "sale"}
         showCompanyColumn={kind !== "sale"}
+        showSectorColumn={kind === "sale"}
         warehouses={warehouses}
+        sectors={kind === "sale" ? sectors : []}
         partyColumnLabel={kind === "purchase" ? "Vendor" : "Customer"}
       />
     </div>
