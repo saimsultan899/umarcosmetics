@@ -267,12 +267,33 @@ export function PartyCodePicker({
     let party: any = null;
     try {
       const supabase = createClient();
-      const { data, error } = await supabase.rpc("get_party_by_code", {
-        p_company_id: companyId,
-        p_code: trimmed,
-      });
-      if (!error && data) {
-        party = Array.isArray(data) ? data[0] : data;
+      // When a sector/city filter is on, resolve inside that filter first so
+      // shops past the company-wide 1000-row page are still found.
+      if (confineRoute.trim() || confineCity.trim()) {
+        let direct = supabase
+          .from("parties")
+          .select("*")
+          .eq("company_id", companyId)
+          .eq("is_active", true)
+          .ilike("party_code", trimmed)
+          .limit(1);
+        if (confineRoute.trim()) {
+          direct = direct.eq("route", confineRoute.trim());
+        }
+        if (confineCity.trim()) {
+          direct = direct.eq("city", confineCity.trim());
+        }
+        const { data: scoped, error: scopedErr } = await direct.maybeSingle();
+        if (!scopedErr && scoped) party = scoped;
+      }
+      if (!party) {
+        const { data, error } = await supabase.rpc("get_party_by_code", {
+          p_company_id: companyId,
+          p_code: trimmed,
+        });
+        if (!error && data) {
+          party = Array.isArray(data) ? data[0] : data;
+        }
       }
     } catch {
       // offline fallback
@@ -289,7 +310,6 @@ export function PartyCodePicker({
     }
 
     if (confineToList) {
-      const inList = options.some((p) => p.id === party.id);
       const routeOk =
         !confineRoute.trim() ||
         String(party.route || "").trim().toLowerCase() ===
@@ -298,15 +318,20 @@ export function PartyCodePicker({
         !confineCity.trim() ||
         String(party.city || "").trim().toLowerCase() ===
           confineCity.trim().toLowerCase();
-      if (!inList && !(routeOk && cityOk && (confineRoute.trim() || confineCity.trim()))) {
-        onChange("", null);
-        setStatus("This shop is not in the selected sector");
-        return;
-      }
+      // Trust the shop's own route/city from the server — do not require it to
+      // already be in the truncated in-memory list.
       if ((confineRoute.trim() || confineCity.trim()) && !(routeOk && cityOk)) {
         onChange("", null);
         setStatus("This shop is not in the selected sector");
         return;
+      }
+      if (!confineRoute.trim() && !confineCity.trim()) {
+        const inList = options.some((p) => p.id === party.id);
+        if (!inList) {
+          onChange("", null);
+          setStatus("This shop is not in the selected sector");
+          return;
+        }
       }
     }
 
