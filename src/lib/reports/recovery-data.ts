@@ -531,21 +531,6 @@ function isLastSaleAfterRecovery(
   );
 }
 
-function preferNewerRecovery(
-  map: Map<string, LastRecovery>,
-  partyId: string,
-  next: LastRecovery,
-) {
-  const cur = map.get(partyId);
-  if (!cur) {
-    map.set(partyId, next);
-    return;
-  }
-  if (happenedAfter(next.recovery_date, next.created_at, cur.recovery_date, cur.created_at)) {
-    map.set(partyId, next);
-  }
-}
-
 async function fetchLastRecoveriesByParty(
   supabase: SupabaseClient,
   companyId: string,
@@ -561,6 +546,8 @@ async function fetchLastRecoveriesByParty(
     created_at: string;
   };
 
+  // Cash receipts now write recoveries rows (and legacy CRs were backfilled),
+  // so Last received only needs the recoveries table.
   const data = await fetchAllPages<RecoveryRow>((from, toIdx) =>
     supabase
       .from("recoveries")
@@ -571,61 +558,18 @@ async function fetchLastRecoveriesByParty(
       .not("party_id", "is", null)
       .order("recovery_date", { ascending: false })
       .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
       .range(from, toIdx),
   );
 
   for (const row of data) {
-    const partyId = row.party_id as string;
+    const partyId = row.party_id;
     if (!partyId || map.has(partyId)) continue;
     map.set(partyId, {
       id: String(row.id || ""),
       amount: Number(row.amount || 0),
       recovery_date: String(row.recovery_date || ""),
       created_at: String(row.created_at || ""),
-    });
-  }
-
-  // Cash receipt vouchers (without recoveries rows) also count as last received —
-  // Imran Traders / Umar Group posted collections via Cash Receipt only.
-  type CrLineRow = {
-    id: string;
-    party_id: string | null;
-    amount: number;
-    created_at: string;
-    vouchers:
-      | { id: string; voucher_date: string; created_at: string }
-      | { id: string; voucher_date: string; created_at: string }[]
-      | null;
-  };
-
-  const crLines = await fetchAllPages<CrLineRow>((from, toIdx) =>
-    supabase
-      .from("voucher_lines")
-      .select(
-        "id, party_id, amount, created_at, vouchers!inner(id, voucher_date, created_at, status, voucher_type, company_id)",
-      )
-      .eq("company_id", companyId)
-      .eq("vouchers.company_id", companyId)
-      .eq("vouchers.voucher_type", "CR")
-      .eq("vouchers.status", "posted")
-      .lte("vouchers.voucher_date", to)
-      .gt("amount", 0)
-      .not("party_id", "is", null)
-      .order("created_at", { ascending: false })
-      .range(from, toIdx),
-  );
-
-  for (const row of crLines) {
-    const partyId = row.party_id as string | null;
-    if (!partyId || map.has(partyId)) continue;
-    const voucher = one(row.vouchers);
-    if (!voucher) continue;
-    // Amount-only fallback (no recovery id for delete until backfill runs).
-    preferNewerRecovery(map, partyId, {
-      id: "",
-      amount: Number(row.amount || 0),
-      recovery_date: String(voucher.voucher_date || "").slice(0, 10),
-      created_at: String(voucher.created_at || row.created_at || ""),
     });
   }
 
