@@ -210,13 +210,17 @@ export function OfflineTradingListPage({
                 r.route ||
                 "",
             ).trim() || undefined;
+          const gatePass =
+            (r.gate_passes as { pass_no?: string } | undefined)?.pass_no ||
+            r.gate_pass_no ||
+            "";
           return {
             id: String(r.id),
             docNo,
             date: String(r.invoice_date || ""),
             partyLabel: partyCode
               ? `${partyCode} — ${partyName}`
-              : String(partyName),
+              : String(partyName) || "—",
             sectorLabel,
             warehouseLabel: String(warehouseName),
             warehouseId,
@@ -231,6 +235,22 @@ export function OfflineTradingListPage({
               kind === "sale" ? "sale_invoice_lines" : "purchase_invoice_lines",
             linesFk:
               kind === "sale" ? "sale_invoice_id" : "purchase_invoice_id",
+            supplierBillNo: r.supplier_bill_no
+              ? String(r.supplier_bill_no)
+              : undefined,
+            gatePassNo: gatePass ? String(gatePass) : undefined,
+            companyInvoiceDate: r.company_invoice_date
+              ? String(r.company_invoice_date).slice(0, 10)
+              : undefined,
+            discountTotal:
+              r.discount_total != null ? Number(r.discount_total) : undefined,
+            extraDiscount:
+              r.extra_discount != null ? Number(r.extra_discount) : undefined,
+            amountDifference:
+              r.amount_difference != null
+                ? Number(r.amount_difference)
+                : undefined,
+            narration: r.narration ? String(r.narration) : undefined,
           };
         });
     },
@@ -252,7 +272,7 @@ export function OfflineTradingListPage({
       if (sectorFilter && (r.sectorLabel || "") !== sectorFilter) {
         return false;
       }
-      if (kind === "sale" && (fromDate || toDate)) {
+      if (fromDate || toDate) {
         const day = (r.date || "").slice(0, 10);
         const start = fromDate && toDate && fromDate > toDate ? toDate : fromDate;
         const end = fromDate && toDate && fromDate > toDate ? fromDate : toDate;
@@ -369,13 +389,18 @@ export function OfflineTradingListPage({
         pagination={paginationMeta}
         summary={summary}
         showPaymentFilter={kind === "sale"}
+        showDateFilter={kind === "purchase"}
         showPrint
         enableBatchPrint={kind === "sale"}
         showCompanyColumn={kind !== "sale"}
         showSectorColumn={kind === "sale"}
+        showPurchaseColumns={kind === "purchase"}
+        enableExport={kind === "purchase"}
+        exportFilename="purchase-invoices"
         warehouses={warehouses}
         sectors={kind === "sale" ? sectors : []}
         partyColumnLabel={kind === "purchase" ? "Vendor" : "Customer"}
+        companyId={companyId}
       />
     </div>
   );

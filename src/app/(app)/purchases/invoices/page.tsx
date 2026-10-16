@@ -52,6 +52,12 @@ export default async function PurchaseInvoicesPage({
         warehouses={warehouses || []}
         partyColumnLabel="Vendor"
         showPrint
+        showDateFilter
+        showPurchaseColumns
+        enableExport
+        exportFilename="purchase-invoices"
+        exportConfigKey="purchase"
+        companyId={company.id}
       />
     </div>
   );

@@ -3,6 +3,7 @@
 import { ChartCard } from "@/components/analytics/chart-card";
 import { DonutChart, TrendAreaChart } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
+import { ExportButtons } from "@/components/reports/export-buttons";
 import { DocumentRowActions } from "@/components/tables/document-row-actions";
 import {
   stringOptions,
@@ -18,7 +19,13 @@ import type {
   DocumentListRow,
   DocumentListSummary,
 } from "@/lib/queries/documents";
+import {
+  documentListConfigs,
+  documentListExportRows,
+  fetchDocumentsForExport,
+} from "@/lib/queries/documents";
 import type { PaginationMeta } from "@/lib/pagination";
+import { createClient } from "@/lib/supabase/client";
 import { formatCompactPkr, formatPkr } from "@/lib/utils";
 import {
   Banknote,
@@ -27,8 +34,8 @@ import {
   Printer,
   ShoppingCart,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 export type { DocumentListRow };
 
@@ -38,6 +45,7 @@ export function DocumentListTable({
   pagination,
   summary,
   showPaymentFilter = false,
+  showDateFilter = false,
   showPrint = false,
   enableBatchPrint = false,
   batchPrintHref = "/sales/invoices/print",
@@ -46,12 +54,19 @@ export function DocumentListTable({
   partyColumnLabel = "Customer",
   showCompanyColumn = true,
   showSectorColumn = false,
+  showPurchaseColumns = false,
+  enableExport = false,
+  exportFilename = "documents",
+  exportConfigKey,
+  companyId,
 }: {
   title?: string;
   rows: DocumentListRow[];
   pagination: PaginationMeta;
   summary: DocumentListSummary;
   showPaymentFilter?: boolean;
+  /** From / To date filters without requiring payment filter (purchases). */
+  showDateFilter?: boolean;
   showPrint?: boolean;
   /** Show checkboxes + Print selected (sale invoices). */
   enableBatchPrint?: boolean;
@@ -67,15 +82,31 @@ export function DocumentListTable({
   showCompanyColumn?: boolean;
   /** Show Sector column next to Customer (sale invoices). */
   showSectorColumn?: boolean;
+  /** Extra purchase columns: company invoice #, gate pass, discounts, etc. */
+  showPurchaseColumns?: boolean;
+  enableExport?: boolean;
+  exportFilename?: string;
+  /** Which documentListConfigs key to use when exporting all filtered rows. */
+  exportConfigKey?: keyof typeof documentListConfigs;
+  companyId?: string;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const dateFiltersOn = showPaymentFilter || showDateFilter;
   const filterKeys = useMemo(
     () => [
-      ...(showPaymentFilter ? ["payment", "fromDate", "toDate"] : []),
+      ...(showPaymentFilter ? ["payment"] : []),
+      ...(dateFiltersOn ? ["fromDate", "toDate"] : []),
       ...(warehouses.length ? ["warehouse"] : []),
       ...(showSectorColumn && sectors.length ? ["sector"] : []),
     ],
-    [showPaymentFilter, warehouses.length, showSectorColumn, sectors.length],
+    [
+      showPaymentFilter,
+      dateFiltersOn,
+      warehouses.length,
+      showSectorColumn,
+      sectors.length,
+    ],
   );
   const { q, isPending, setPage, setPageSize, setQuery, setFilter, filters } =
     useUrlTableState(filterKeys);
@@ -109,7 +140,75 @@ export function DocumentListTable({
     (showSectorColumn ? 1 : 0) +
     (showCompanyColumn ? 1 : 0) +
     (showPaymentFilter ? 1 : 0) +
+    (showPurchaseColumns ? 5 : 0) +
     (enableBatchPrint ? 1 : 0);
+
+  const [exportRows, setExportRows] = useState<Record<string, unknown>[]>(() =>
+    documentListExportRows(rows, {
+      partyColumnLabel,
+      purchaseRich: showPurchaseColumns,
+    }),
+  );
+  const [exportLoading, setExportLoading] = useState(false);
+
+  const loadExportRows = useCallback(async () => {
+    if (!enableExport) return;
+    const fallback = documentListExportRows(rows, {
+      partyColumnLabel,
+      purchaseRich: showPurchaseColumns,
+    });
+    if (!companyId || !exportConfigKey) {
+      setExportRows(fallback);
+      return;
+    }
+    setExportLoading(true);
+    try {
+      const sp: Record<string, string | string[] | undefined> = {};
+      searchParams.forEach((v, k) => {
+        sp[k] = v;
+      });
+      const list = await fetchDocumentsForExport(
+        createClient(),
+        companyId,
+        sp,
+        documentListConfigs[exportConfigKey],
+        { showPaymentFilter },
+      );
+      setExportRows(
+        documentListExportRows(list, {
+          partyColumnLabel,
+          purchaseRich: showPurchaseColumns,
+        }),
+      );
+    } catch {
+      setExportRows(fallback);
+    } finally {
+      setExportLoading(false);
+    }
+  }, [
+    enableExport,
+    companyId,
+    exportConfigKey,
+    searchParams,
+    showPaymentFilter,
+    rows,
+    partyColumnLabel,
+    showPurchaseColumns,
+  ]);
+
+  useEffect(() => {
+    setExportRows(
+      documentListExportRows(rows, {
+        partyColumnLabel,
+        purchaseRich: showPurchaseColumns,
+      }),
+    );
+  }, [rows, partyColumnLabel, showPurchaseColumns]);
+
+  useEffect(() => {
+    if (!enableExport) return;
+    void loadExportRows();
+  }, [enableExport, loadExportRows]);
 
   function toggleOne(id: string) {
     setSelected((prev) => {
@@ -246,19 +345,21 @@ export function DocumentListTable({
           filters={
             <div className="flex flex-wrap items-center gap-2">
               {showPaymentFilter ? (
+                <TableFilterSelect
+                  label="Payment"
+                  value={payment === "all" ? "" : payment}
+                  allLabel="All"
+                  options={[
+                    { value: "cash", label: "Cash" },
+                    { value: "credit", label: "Credit" },
+                    { value: "partial", label: "Partial" },
+                  ]}
+                  loading={isPending}
+                  onChange={(value) => setFilter("payment", value)}
+                />
+              ) : null}
+              {dateFiltersOn ? (
                 <>
-                  <TableFilterSelect
-                    label="Payment"
-                    value={payment === "all" ? "" : payment}
-                    allLabel="All"
-                    options={[
-                      { value: "cash", label: "Cash" },
-                      { value: "credit", label: "Credit" },
-                      { value: "partial", label: "Partial" },
-                    ]}
-                    loading={isPending}
-                    onChange={(value) => setFilter("payment", value)}
-                  />
                   <label className="inline-flex items-center gap-1.5">
                     <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">
                       From
@@ -266,7 +367,9 @@ export function DocumentListTable({
                     <input
                       type="date"
                       value={filters.fromDate || ""}
-                      onChange={(e) => setFilter("fromDate", e.target.value || null)}
+                      onChange={(e) =>
+                        setFilter("fromDate", e.target.value || null)
+                      }
                       className="h-9 rounded-lg border border-[var(--border)] bg-white px-2 text-sm"
                     />
                   </label>
@@ -277,7 +380,9 @@ export function DocumentListTable({
                     <input
                       type="date"
                       value={filters.toDate || ""}
-                      onChange={(e) => setFilter("toDate", e.target.value || null)}
+                      onChange={(e) =>
+                        setFilter("toDate", e.target.value || null)
+                      }
                       className="h-9 rounded-lg border border-[var(--border)] bg-white px-2 text-sm"
                     />
                   </label>
@@ -317,6 +422,21 @@ export function DocumentListTable({
                   Print selected{selectedCount ? ` (${selectedCount})` : ""}
                 </Button>
               ) : null}
+              {enableExport ? (
+                <div className="flex items-center gap-2">
+                  {exportLoading ? (
+                    <span className="text-[10px] text-[var(--muted)]">
+                      Preparing export…
+                    </span>
+                  ) : null}
+                  <ExportButtons
+                    rows={exportRows}
+                    filename={exportFilename}
+                    title={title || "Documents"}
+                    printId="document-list-export"
+                  />
+                </div>
+              ) : null}
             </div>
           }
         />
@@ -350,6 +470,11 @@ export function DocumentListTable({
                   <th>{partyColumnLabel}</th>
                   {showSectorColumn ? <th>Sector</th> : null}
                   {showCompanyColumn ? <th>Company</th> : null}
+                  {showPurchaseColumns ? <th>Company inv #</th> : null}
+                  {showPurchaseColumns ? <th>Gate pass</th> : null}
+                  {showPurchaseColumns ? <th>Co. inv date</th> : null}
+                  {showPurchaseColumns ? <th>Discount</th> : null}
+                  {showPurchaseColumns ? <th>Diff</th> : null}
                   {showPaymentFilter ? <th>Payment</th> : null}
                   <th>Total</th>
                   <th className="text-right">Actions</th>
@@ -357,90 +482,132 @@ export function DocumentListTable({
               </thead>
               <tbody>
                 {rows.length ? (
-                  rows.map((inv) => (
-                    <tr
-                      key={inv.id}
-                      className={
-                        enableBatchPrint && selected.has(inv.id)
-                          ? "bg-[var(--surface-2)]/70"
-                          : undefined
-                      }
-                    >
-                      {enableBatchPrint ? (
+                  rows.map((inv) => {
+                    const discount =
+                      Number(inv.discountTotal || 0) +
+                      Number(inv.extraDiscount || 0);
+                    const diff = Number(inv.amountDifference || 0);
+                    return (
+                      <tr
+                        key={inv.id}
+                        className={
+                          enableBatchPrint && selected.has(inv.id)
+                            ? "bg-[var(--surface-2)]/70"
+                            : undefined
+                        }
+                      >
+                        {enableBatchPrint ? (
+                          <td>
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 accent-[var(--brand)]"
+                              checked={selected.has(inv.id)}
+                              onChange={() => toggleOne(inv.id)}
+                              aria-label={`Select ${inv.docNo}`}
+                            />
+                          </td>
+                        ) : null}
+                        <td className="font-medium">
+                          {inv.docNo}
+                          {inv.syncPending ? (
+                            <span
+                              className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800 dark:text-amber-200"
+                              title="Saved on this device; waiting to sync"
+                            >
+                              Pending sync
+                            </span>
+                          ) : null}
+                          {showPurchaseColumns && inv.narration ? (
+                            <p
+                              className="mt-0.5 max-w-[14rem] truncate text-[11px] font-normal text-[var(--muted)]"
+                              title={inv.narration}
+                            >
+                              {inv.narration}
+                            </p>
+                          ) : null}
+                        </td>
+                        <td>{inv.date}</td>
+                        <td>{inv.partyLabel}</td>
+                        {showSectorColumn ? (
+                          <td>{inv.sectorLabel || "—"}</td>
+                        ) : null}
+                        {showCompanyColumn ? (
+                          <td>{inv.warehouseLabel || "—"}</td>
+                        ) : null}
+                        {showPurchaseColumns ? (
+                          <td>{inv.supplierBillNo || "—"}</td>
+                        ) : null}
+                        {showPurchaseColumns ? (
+                          <td>{inv.gatePassNo || "—"}</td>
+                        ) : null}
+                        {showPurchaseColumns ? (
+                          <td>{inv.companyInvoiceDate || "—"}</td>
+                        ) : null}
+                        {showPurchaseColumns ? (
+                          <td>{discount > 0.005 ? formatPkr(discount) : "—"}</td>
+                        ) : null}
+                        {showPurchaseColumns ? (
+                          <td>
+                            {Math.abs(diff) > 0.005 ? formatPkr(diff) : "—"}
+                          </td>
+                        ) : null}
+                        {showPaymentFilter ? (
+                          <td className="text-xs font-semibold uppercase">
+                            {inv.paymentType || "—"}
+                          </td>
+                        ) : null}
+                        <td>{formatPkr(inv.total)}</td>
                         <td>
-                          <input
-                            type="checkbox"
-                            className="h-4 w-4 accent-[var(--brand)]"
-                            checked={selected.has(inv.id)}
-                            onChange={() => toggleOne(inv.id)}
-                            aria-label={`Select ${inv.docNo}`}
+                          <DocumentRowActions
+                            title={inv.docNo}
+                            href={inv.href}
+                            table={inv.table}
+                            id={inv.id}
+                            linesTable={inv.linesTable}
+                            linesFk={inv.linesFk}
+                            showPrint={showPrint}
+                            fields={[
+                              { label: "Doc #", value: inv.docNo },
+                              { label: "Date", value: inv.date },
+                              {
+                                label: partyColumnLabel,
+                                value: inv.partyLabel,
+                              },
+                              ...(showSectorColumn
+                                ? [
+                                    {
+                                      label: "Sector",
+                                      value: inv.sectorLabel || "—",
+                                    },
+                                  ]
+                                : []),
+                              ...(showCompanyColumn
+                                ? [
+                                    {
+                                      label: "Company",
+                                      value: inv.warehouseLabel || "—",
+                                    },
+                                  ]
+                                : []),
+                              ...(inv.paymentType
+                                ? [
+                                    {
+                                      label: "Payment",
+                                      value: inv.paymentType,
+                                    },
+                                  ]
+                                : []),
+                              {
+                                label: "Total",
+                                value: formatPkr(inv.total),
+                              },
+                              ...(inv.extraFields || []),
+                            ]}
                           />
                         </td>
-                      ) : null}
-                      <td className="font-medium">
-                        {inv.docNo}
-                        {inv.syncPending ? (
-                          <span
-                            className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800 dark:text-amber-200"
-                            title="Saved on this device; waiting to sync"
-                          >
-                            Pending sync
-                          </span>
-                        ) : null}
-                      </td>
-                      <td>{inv.date}</td>
-                      <td>{inv.partyLabel}</td>
-                      {showSectorColumn ? (
-                        <td>{inv.sectorLabel || "—"}</td>
-                      ) : null}
-                      {showCompanyColumn ? (
-                        <td>{inv.warehouseLabel || "—"}</td>
-                      ) : null}
-                      {showPaymentFilter ? (
-                        <td className="text-xs font-semibold uppercase">
-                          {inv.paymentType || "—"}
-                        </td>
-                      ) : null}
-                      <td>{formatPkr(inv.total)}</td>
-                      <td>
-                        <DocumentRowActions
-                          title={inv.docNo}
-                          href={inv.href}
-                          table={inv.table}
-                          id={inv.id}
-                          linesTable={inv.linesTable}
-                          linesFk={inv.linesFk}
-                          showPrint={showPrint}
-                          fields={[
-                            { label: "Doc #", value: inv.docNo },
-                            { label: "Date", value: inv.date },
-                            { label: partyColumnLabel, value: inv.partyLabel },
-                            ...(showSectorColumn
-                              ? [
-                                  {
-                                    label: "Sector",
-                                    value: inv.sectorLabel || "—",
-                                  },
-                                ]
-                              : []),
-                            ...(showCompanyColumn
-                              ? [
-                                  {
-                                    label: "Company",
-                                    value: inv.warehouseLabel || "—",
-                                  },
-                                ]
-                              : []),
-                            ...(inv.paymentType
-                              ? [{ label: "Payment", value: inv.paymentType }]
-                              : []),
-                            { label: "Total", value: formatPkr(inv.total) },
-                            ...(inv.extraFields || []),
-                          ]}
-                        />
-                      </td>
-                    </tr>
-                  ))
+                      </tr>
+                    );
+                  })
                 ) : (
                   <tr>
                     <td
@@ -467,6 +634,49 @@ export function DocumentListTable({
           />
         </div>
       </div>
+
+      {enableExport && exportRows.length ? (
+        <div
+          className="print-sheet hidden print:block"
+          data-print-id="document-list-export"
+        >
+          <h1 className="mb-2 text-lg font-semibold">{title || "Documents"}</h1>
+          <p className="mb-3 text-xs text-[var(--muted)]">
+            {exportRows.length} row(s) · printed{" "}
+            {new Date().toLocaleString()}
+          </p>
+          <table className="w-full border-collapse text-xs">
+            <thead>
+              <tr>
+                {Object.keys(exportRows[0] || {}).map((key) => (
+                  <th
+                    key={key}
+                    className="border border-[var(--border)] px-1.5 py-1 text-left"
+                  >
+                    {key}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {exportRows.map((row, idx) => (
+                <tr key={idx}>
+                  {Object.keys(exportRows[0] || {}).map((key) => (
+                    <td
+                      key={key}
+                      className="border border-[var(--border)] px-1.5 py-1"
+                    >
+                      {row[key] == null || row[key] === ""
+                        ? "—"
+                        : String(row[key])}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
     </div>
   );
 }

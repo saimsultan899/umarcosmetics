@@ -26,6 +26,16 @@ export type DocumentListRow = {
   extraFields?: Array<{ label: string; value: string }>;
   /** Saved locally; waiting for sync to the server. */
   syncPending?: boolean;
+  /** Purchase invoice — vendor / company bill number. */
+  supplierBillNo?: string;
+  /** Purchase invoice — linked gate pass number. */
+  gatePassNo?: string;
+  /** Purchase invoice — date on the company / brand bill. */
+  companyInvoiceDate?: string;
+  discountTotal?: number;
+  extraDiscount?: number;
+  amountDifference?: number;
+  narration?: string;
 };
 
 export type DocumentListSummary = {
@@ -73,13 +83,43 @@ const PURCHASE_CONFIG: DocumentTableConfig = {
   hrefPrefix: "/purchases/invoices",
   linesTable: "purchase_invoice_items",
   linesFk: "purchase_invoice_id",
-  columns: "id, invoice_no, invoice_date, grand_total, supplier_bill_no",
-  mapExtra: (inv) => [
-    {
-      label: "Vendor bill #",
-      value: String(inv.supplier_bill_no || "—"),
-    },
-  ],
+  columns:
+    "id, invoice_no, invoice_date, grand_total, supplier_bill_no, company_invoice_date, discount_total, extra_discount, amount_difference, narration, gate_passes(pass_no)",
+  mapExtra: (inv) => {
+    const gate = Array.isArray(inv.gate_passes)
+      ? inv.gate_passes[0]
+      : inv.gate_passes;
+    const gateNo =
+      gate && typeof gate === "object"
+        ? String((gate as { pass_no?: string }).pass_no || "")
+        : "";
+    const extras: Array<{ label: string; value: string }> = [
+      {
+        label: "Company invoice #",
+        value: String(inv.supplier_bill_no || "—"),
+      },
+    ];
+    if (gateNo) extras.push({ label: "Gate pass", value: gateNo });
+    if (inv.company_invoice_date) {
+      extras.push({
+        label: "Company invoice date",
+        value: String(inv.company_invoice_date),
+      });
+    }
+    const disc =
+      Number(inv.discount_total || 0) + Number(inv.extra_discount || 0);
+    if (disc > 0.005) {
+      extras.push({ label: "Discount", value: String(disc) });
+    }
+    const diff = Number(inv.amount_difference || 0);
+    if (Math.abs(diff) > 0.005) {
+      extras.push({ label: "Amount difference", value: String(diff) });
+    }
+    if (inv.narration) {
+      extras.push({ label: "Narration", value: String(inv.narration) });
+    }
+    return extras;
+  },
 };
 
 const SALE_RETURN_CONFIG: DocumentTableConfig = {
@@ -124,6 +164,11 @@ function mapDocumentRow(
   const whObj = wh as { name?: string } | null;
   const sectorLabel = (partyObj?.route || "").trim();
 
+  const gate = Array.isArray(inv.gate_passes)
+    ? inv.gate_passes[0]
+    : inv.gate_passes;
+  const gateObj = gate as { pass_no?: string } | null;
+
   return {
     id: String(inv.id),
     docNo: String(inv[config.docNoField] || inv.id),
@@ -142,6 +187,22 @@ function mapDocumentRow(
     linesTable: config.linesTable,
     linesFk: config.linesFk,
     extraFields: config.mapExtra?.(inv),
+    supplierBillNo: inv.supplier_bill_no
+      ? String(inv.supplier_bill_no)
+      : undefined,
+    gatePassNo: gateObj?.pass_no ? String(gateObj.pass_no) : undefined,
+    companyInvoiceDate: inv.company_invoice_date
+      ? String(inv.company_invoice_date).slice(0, 10)
+      : undefined,
+    discountTotal:
+      inv.discount_total != null ? Number(inv.discount_total) : undefined,
+    extraDiscount:
+      inv.extra_discount != null ? Number(inv.extra_discount) : undefined,
+    amountDifference:
+      inv.amount_difference != null
+        ? Number(inv.amount_difference)
+        : undefined,
+    narration: inv.narration ? String(inv.narration) : undefined,
   };
 }
 
@@ -296,9 +357,8 @@ export async function fetchDocumentList(
   if (options?.showPaymentFilter && payment !== "all" && config.paymentField) {
     listQuery = listQuery.eq(config.paymentField, payment);
   }
-  if (options?.showPaymentFilter) {
-    listQuery = applyDateRange(listQuery, dateField, fromDate, toDate);
-  }
+  // Date filters apply whenever present (sale payment toolbar or purchase dates).
+  listQuery = applyDateRange(listQuery, dateField, fromDate, toDate);
 
   const recentSelect = config.paymentField
     ? `${dateField}, grand_total, ${config.paymentField}`
@@ -340,9 +400,7 @@ export async function fetchDocumentList(
   if (options?.showPaymentFilter && payment !== "all" && config.paymentField) {
     summaryQuery = summaryQuery.eq(config.paymentField, payment);
   }
-  if (options?.showPaymentFilter) {
-    summaryQuery = applyDateRange(summaryQuery, dateField, fromDate, toDate);
-  }
+  summaryQuery = applyDateRange(summaryQuery, dateField, fromDate, toDate);
 
   const [{ data, count, error }, recent] = await Promise.all([
     listQuery
@@ -452,3 +510,117 @@ export const documentListConfigs = {
   expiryReceipt: EXPIRY_RECEIPT_CONFIG,
   expiryClaim: EXPIRY_CLAIM_CONFIG,
 };
+
+/** All matching rows for Excel / PDF / print (paged past the list cap). */
+export async function fetchDocumentsForExport(
+  supabase: SupabaseClient,
+  companyId: string,
+  searchParams: Record<string, string | string[] | undefined>,
+  config: DocumentTableConfig,
+  options?: { showPaymentFilter?: boolean },
+): Promise<DocumentListRow[]> {
+  const q = spString(searchParams, "q") || "";
+  const payment = spString(searchParams, "payment") || "all";
+  const warehouseId = spString(searchParams, "warehouse") || "";
+  const sector = (spString(searchParams, "sector") || "").trim();
+  const fromDate = isoDateParam(spString(searchParams, "fromDate"));
+  const toDate = isoDateParam(spString(searchParams, "toDate"));
+  const dateField = config.dateField;
+
+  const term = escapeIlike(q);
+  let partyIds = term
+    ? await partyIdsForSearch(supabase, companyId, term)
+    : [];
+  const sectorPartyIds = sector
+    ? await partyIdsForSector(supabase, companyId, sector)
+    : null;
+  if (sectorPartyIds) {
+    const allowed = new Set(sectorPartyIds);
+    if (partyIds.length) {
+      partyIds = partyIds.filter((id) => allowed.has(id));
+    }
+  }
+
+  const selectParts = [
+    config.columns,
+    config.partySelect,
+    config.warehouseSelect,
+  ].filter(Boolean);
+
+  const rows = await fetchAllPages<Record<string, unknown>>((from, to) => {
+    let query = supabase
+      .from(config.table)
+      .select(selectParts.join(", "))
+      .eq("company_id", companyId);
+    if (
+      config.table === "sale_invoices" ||
+      config.table === "purchase_invoices" ||
+      config.table === "sale_returns" ||
+      config.table === "purchase_returns" ||
+      config.table === "expiry_receipts" ||
+      config.table === "expiry_claims"
+    ) {
+      query = query.neq("status", "cancelled");
+    }
+    if (sectorPartyIds) {
+      if (sectorPartyIds.length === 0) {
+        query = query.eq("party_id", "00000000-0000-0000-0000-000000000000");
+      } else {
+        query = query.in("party_id", sectorPartyIds);
+      }
+    }
+    query = applyDocumentSearch(query, term, config.docNoField, partyIds);
+    if (warehouseId && config.warehouseSelect) {
+      query = query.eq("warehouse_id", warehouseId);
+    }
+    if (
+      options?.showPaymentFilter &&
+      payment !== "all" &&
+      config.paymentField
+    ) {
+      query = query.eq(config.paymentField, payment);
+    }
+    query = applyDateRange(query, dateField, fromDate, toDate);
+    return query
+      .order(dateField, { ascending: false })
+      .order("created_at", { ascending: false })
+      .range(from, to);
+  });
+
+  return rows.map((row) => mapDocumentRow(row, config));
+}
+
+export function documentListExportRows(
+  rows: DocumentListRow[],
+  opts?: { partyColumnLabel?: string; purchaseRich?: boolean },
+): Record<string, unknown>[] {
+  const partyLabel = opts?.partyColumnLabel || "Party";
+  if (opts?.purchaseRich) {
+    return rows.map((r) => ({
+      "Doc #": r.docNo,
+      Date: r.date,
+      [partyLabel]: r.partyLabel,
+      Company: r.warehouseLabel || "",
+      "Company invoice #": r.supplierBillNo || "",
+      "Gate pass": r.gatePassNo || "",
+      "Company invoice date": r.companyInvoiceDate || "",
+      Discount:
+        Number(r.discountTotal || 0) + Number(r.extraDiscount || 0) || "",
+      "Amount difference":
+        r.amountDifference != null && Math.abs(r.amountDifference) > 0.005
+          ? r.amountDifference
+          : "",
+      Narration: r.narration || "",
+      Total: r.total,
+    }));
+  }
+  return rows.map((r) => ({
+    "Doc #": r.docNo,
+    Date: r.date,
+    [partyLabel]: r.partyLabel,
+    ...(r.sectorLabel != null ? { Sector: r.sectorLabel } : {}),
+    ...(r.warehouseLabel != null ? { Company: r.warehouseLabel } : {}),
+    ...(r.paymentType ? { Payment: r.paymentType } : {}),
+    Total: r.total,
+  }));
+}
