@@ -87,7 +87,6 @@ const CANCEL_RPC: Record<
 
 /** Cancel/delete is supported, but posted editor UI is not. */
 const CANCEL_WITHOUT_EDIT = new Set([
-  "gate_passes",
   "stock_transfers",
   "expiry_receipts",
   "expiry_claims",

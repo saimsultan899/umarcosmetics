@@ -2,6 +2,7 @@
 
 import { PartyCodePicker } from "@/components/forms/party-code-picker";
 import { SalesmanSelect } from "@/components/forms/salesman-select";
+import { GatePassForm } from "@/components/trading/gate-pass-form";
 import { PurchaseInvoiceForm } from "@/components/trading/purchase-invoice-form";
 import { ReturnForm } from "@/components/trading/return-form";
 import { SaleInvoiceForm } from "@/components/trading/sale-invoice-form";
@@ -30,6 +31,7 @@ const WIDE_TABLES = new Set([
   "purchase_invoices",
   "sale_returns",
   "purchase_returns",
+  "gate_passes",
 ]);
 
 export function postedEditIsWide(table: string) {
@@ -224,6 +226,50 @@ export function PostedDocumentEditor({
               : (doc.purchase_invoice_id as string | null),
           lines: toLines(items, kind === "sale"),
           grandTotal: Number(doc.grand_total || 0),
+        }}
+        onDone={onDone}
+      />
+    );
+  }
+
+  if (table === "gate_passes") {
+    const items = Array.isArray(doc.gate_pass_items)
+      ? [...(doc.gate_pass_items as Array<Record<string, unknown>>)].sort(
+          (a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0),
+        )
+      : [];
+    const companyMeta = doc.companies as
+      | { name?: string; city?: string | null; ntn?: string | null }
+      | null;
+    return (
+      <GatePassForm
+        companyId={companyId}
+        organizationId={organizationId}
+        companyName={String(companyMeta?.name || "Company")}
+        companyCity={companyMeta?.city ?? null}
+        companyNtn={companyMeta?.ntn ?? null}
+        parties={catalog.parties}
+        products={catalog.products}
+        warehouses={catalog.warehouses}
+        editing={{
+          id,
+          passNo: String(doc.pass_no || ""),
+          partyId: String(doc.party_id || ""),
+          warehouseId: String(doc.warehouse_id || ""),
+          passDate: asDate(doc.pass_date),
+          manufacturer: String(doc.manufacturer || ""),
+          vehicleNo: String(doc.vehicle_no || ""),
+          transporter: String(doc.transporter || ""),
+          poNo: String(doc.po_no || ""),
+          biltyNo: String(doc.bilty_no || ""),
+          remarks: String(doc.remarks || ""),
+          lines: items.map((row) => ({
+            key: crypto.randomUUID(),
+            product_id: String(row.product_id || ""),
+            product_code: String(row.product_code || ""),
+            product_name: String(row.product_name || ""),
+            qty: String(Number(row.qty || 0) || ""),
+          })),
         }}
         onDone={onDone}
       />
@@ -563,11 +609,13 @@ async function loadPostedDocument(table: string, id: string) {
           ? "*, sale_return_items(*)"
           : table === "purchase_returns"
             ? "*, purchase_return_items(*)"
-            : table === "vouchers"
-              ? "*, voucher_lines(*)"
-              : table === "recoveries"
-                ? "*"
-                : "*";
+            : table === "gate_passes"
+              ? "*, gate_pass_items(*), companies(name, city, ntn)"
+              : table === "vouchers"
+                ? "*, voucher_lines(*)"
+                : table === "recoveries"
+                  ? "*"
+                  : "*";
   const { data, error } = await (
     supabase.from(table as "sale_invoices") as unknown as {
       select: (columns: string) => {

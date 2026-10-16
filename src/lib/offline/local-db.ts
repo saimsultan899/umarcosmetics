@@ -36,7 +36,8 @@ export type OfflineMutationType =
   | "cash_receipt_update"
   | "cash_payment_update"
   | "journal_voucher_update"
-  | "recovery_update";
+  | "recovery_update"
+  | "gate_pass_update";
 
 // ── Mutation record (queued write) ──────────────────────────────────
 export type OfflineMutation = {

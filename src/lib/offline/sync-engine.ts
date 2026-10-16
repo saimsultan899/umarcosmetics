@@ -52,6 +52,7 @@ const RPC_MAP: Record<string, string> = {
   journal_voucher: "create_journal_voucher",
   stock_transfer: "create_stock_transfer",
   gate_pass: "create_gate_pass",
+  gate_pass_update: "update_gate_pass",
   load_sheet: "create_load_sheet",
   expense: "create_expenses",
   expiry_receipt: "create_expiry_receipt",

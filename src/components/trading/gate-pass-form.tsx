@@ -18,6 +18,21 @@ import type { Party, Product, Warehouse } from "@/lib/types/database";
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useRef, useState } from "react";
 
+export type GatePassEdit = {
+  id: string;
+  passNo: string;
+  partyId: string;
+  warehouseId: string;
+  passDate: string;
+  manufacturer: string;
+  vehicleNo: string;
+  transporter: string;
+  poNo: string;
+  biltyNo: string;
+  remarks: string;
+  lines: ProductQtyLine[];
+};
+
 export function GatePassForm({
   companyId,
   organizationId,
@@ -27,6 +42,7 @@ export function GatePassForm({
   parties,
   products,
   warehouses,
+  editing,
   onDone,
 }: {
   companyId: string;
@@ -37,6 +53,7 @@ export function GatePassForm({
   parties: Party[];
   products: Product[];
   warehouses: Warehouse[];
+  editing?: GatePassEdit;
   onDone?: () => void;
 }) {
   const router = useRouter();
@@ -67,16 +84,20 @@ export function GatePassForm({
     return out.sort((a, b) => a.localeCompare(b));
   }, [products]);
 
-  const [passDate, setPassDate] = useState(new Date().toISOString().slice(0, 10));
-  const [partyId, setPartyId] = useState("");
-  const [warehouseId, setWarehouseId] = useState(warehouses[0]?.id || "");
-  const [manufacturer, setManufacturer] = useState("");
-  const [vehicleNo, setVehicleNo] = useState("");
-  const [transporter, setTransporter] = useState("");
-  const [poNo, setPoNo] = useState("");
-  const [biltyNo, setBiltyNo] = useState("");
-  const [remarks, setRemarks] = useState("");
-  const [lines, setLines] = useState<ProductQtyLine[]>([]);
+  const [passDate, setPassDate] = useState(
+    editing?.passDate || new Date().toISOString().slice(0, 10),
+  );
+  const [partyId, setPartyId] = useState(editing?.partyId || "");
+  const [warehouseId, setWarehouseId] = useState(
+    editing?.warehouseId || warehouses[0]?.id || "",
+  );
+  const [manufacturer, setManufacturer] = useState(editing?.manufacturer || "");
+  const [vehicleNo, setVehicleNo] = useState(editing?.vehicleNo || "");
+  const [transporter, setTransporter] = useState(editing?.transporter || "");
+  const [poNo, setPoNo] = useState(editing?.poNo || "");
+  const [biltyNo, setBiltyNo] = useState(editing?.biltyNo || "");
+  const [remarks, setRemarks] = useState(editing?.remarks || "");
+  const [lines, setLines] = useState<ProductQtyLine[]>(editing?.lines || []);
   const [loading, setLoading] = useState(false);
   const singleSubmit = useSingleSubmit();
   const [error, setError] = useState<string | null>(null);
@@ -110,10 +131,17 @@ export function GatePassForm({
     setLoading(true);
     try {
       const res = await offlineAwareSubmit({
-        mutationType: "gate_pass",
+        mutationType: editing ? "gate_pass_update" : "gate_pass",
         companyId,
         organizationId,
         payload: {
+          ...(editing
+            ? {
+                id: editing.id,
+                gate_pass_id: editing.id,
+                pass_no: editing.passNo,
+              }
+            : {}),
           organization_id: organizationId,
           company_id: companyId,
           pass_date: passDate,
@@ -151,7 +179,7 @@ export function GatePassForm({
       setLoading(false);
       closeDialog?.();
       onDone?.();
-      if (res.source === "offline") {
+      if (editing || res.source === "offline") {
         router.refresh();
       } else {
         router.push(`/purchases/gate-passes/${res.id}`);
@@ -286,7 +314,13 @@ export function GatePassForm({
       ) : null}
 
       <Button type="submit" loading={loading}>
-        {loading ? "Saving..." : "Save & print gate pass"}
+        {loading
+          ? editing
+            ? "Updating..."
+            : "Saving..."
+          : editing
+            ? "Update gate pass"
+            : "Save & print gate pass"}
       </Button>
     </form>
   );
