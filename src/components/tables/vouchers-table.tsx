@@ -26,7 +26,11 @@ export function VouchersTable({
   showParty?: boolean;
   sectors?: string[];
 }) {
-  const filterKeys = showParty && sectors.length ? ["sector"] : [];
+  const filterKeys = [
+    "fromDate",
+    "toDate",
+    ...(showParty && sectors.length ? ["sector"] : []),
+  ];
   const { q, filters, isPending, setPage, setPageSize, setQuery, setFilter } =
     useUrlTableState(filterKeys);
   const search = useSearchInput(q, setQuery);
@@ -47,15 +51,39 @@ export function VouchersTable({
         resultCount={pagination.total}
         totalCount={pagination.total}
         filters={
-          showParty && sectors.length ? (
-            <TableFilterSelect
-              label="Sector"
-              value={filters.sector || ""}
-              options={stringOptions(sectors)}
-              loading={isPending}
-              onChange={(value) => setFilter("sector", value)}
-            />
-          ) : null
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="inline-flex items-center gap-1.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">
+                From
+              </span>
+              <input
+                type="date"
+                value={filters.fromDate || ""}
+                onChange={(e) => setFilter("fromDate", e.target.value || null)}
+                className="h-9 rounded-lg border border-[var(--border)] bg-white px-2 text-sm"
+              />
+            </label>
+            <label className="inline-flex items-center gap-1.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">
+                To
+              </span>
+              <input
+                type="date"
+                value={filters.toDate || ""}
+                onChange={(e) => setFilter("toDate", e.target.value || null)}
+                className="h-9 rounded-lg border border-[var(--border)] bg-white px-2 text-sm"
+              />
+            </label>
+            {showParty && sectors.length ? (
+              <TableFilterSelect
+                label="Sector"
+                value={filters.sector || ""}
+                options={stringOptions(sectors)}
+                loading={isPending}
+                onChange={(value) => setFilter("sector", value)}
+              />
+            ) : null}
+          </div>
         }
       />
       <div className="table-shell">

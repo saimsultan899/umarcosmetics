@@ -502,6 +502,12 @@ export function CashReceiptForm({
     }
 
     try {
+      const linesPayload = pending.map((line) => ({
+        party_id: line.partyId,
+        amount: line.amount,
+        narration: line.remarks || null,
+      }));
+      const totalAmount = pending.reduce((sum, line) => sum + line.amount, 0);
       await offlineAwareSubmit({
         mutationType: "cash_receipt",
         companyId,
@@ -510,12 +516,11 @@ export function CashReceiptForm({
           organization_id: organizationId,
           company_id: companyId,
           voucher_date: date,
+          voucher_type: "CR",
+          total_amount: totalAmount,
           narration: null,
-          lines: pending.map((line) => ({
-            party_id: line.partyId,
-            amount: line.amount,
-            narration: line.remarks || null,
-          })),
+          lines: linesPayload,
+          voucher_lines: linesPayload,
         },
       });
     } catch (err) {
@@ -526,7 +531,8 @@ export function CashReceiptForm({
     setLines([]);
     setSheetDrafts({});
     clearDraft(false);
-    onDone?.();
+    // Await list refresh before closing so the new row is visible immediately.
+    await Promise.resolve(onDone?.());
     closeDialog?.();
     router.refresh();
   }

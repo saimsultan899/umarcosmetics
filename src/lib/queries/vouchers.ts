@@ -54,6 +54,24 @@ function partyLabels(
   };
 }
 
+function isoDateParam(value: string | undefined) {
+  const raw = (value || "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : "";
+}
+
+function applyVoucherDateRange(query: any, fromDate: string, toDate: string) {
+  let from = fromDate;
+  let to = toDate;
+  if (from && to && from > to) {
+    const swap = from;
+    from = to;
+    to = swap;
+  }
+  if (from) query = query.gte("voucher_date", from);
+  if (to) query = query.lte("voucher_date", to);
+  return query;
+}
+
 export async function fetchVoucherList(
   supabase: SupabaseClient,
   companyId: string,
@@ -64,6 +82,8 @@ export async function fetchVoucherList(
   const { from, to } = toRange(paginationParams);
   const q = spString(searchParams, "q") || "";
   const sector = (spString(searchParams, "sector") || "").trim();
+  const fromDate = isoDateParam(spString(searchParams, "fromDate"));
+  const toDate = isoDateParam(spString(searchParams, "toDate"));
 
   const term = escapeIlike(q);
   let restrictIds: string[] | null = null;
@@ -148,6 +168,8 @@ export async function fetchVoucherList(
     .eq("company_id", companyId)
     .eq("voucher_type", voucherType)
     .neq("status", "cancelled");
+
+  query = applyVoucherDateRange(query, fromDate, toDate);
 
   if (restrictIds) {
     if (restrictIds.length === 0) {

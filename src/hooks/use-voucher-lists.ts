@@ -261,14 +261,28 @@ export function useVoucherList({
         const pts = partyRows as unknown as Party[];
         setParties(pts);
 
-        // Filter by voucher type
+        // Filter by voucher type (server uses CR/CP/JV; offline may use cash_receipt etc.)
         const filtered = voucherRows.filter((r) => {
-          const t = String(r.voucher_type || r.type || r.entity_type || "");
-          return entityTypes.some((et) => t === et || t.toUpperCase() === kind);
+          const t = String(
+            r.voucher_type || r.type || r.entity_type || "",
+          ).trim();
+          if (!t) return false;
+          const upper = t.toUpperCase();
+          return (
+            entityTypes.some((et) => t === et || upper === et.toUpperCase()) ||
+            upper === kind
+          );
         });
 
         const q = (searchParams.get("q") || "").toLowerCase().trim();
         const sector = (searchParams.get("sector") || "").trim().toLowerCase();
+        let fromDate = (searchParams.get("fromDate") || "").trim().slice(0, 10);
+        let toDate = (searchParams.get("toDate") || "").trim().slice(0, 10);
+        if (fromDate && toDate && fromDate > toDate) {
+          const swap = fromDate;
+          fromDate = toDate;
+          toDate = swap;
+        }
         const partyById = new Map(pts.map((p) => [p.id, p]));
 
         const allVouchers: VoucherRow[] = filtered.map((r) => {
@@ -290,7 +304,7 @@ export function useVoucherList({
           return {
             id: String(r.id),
             voucher_no: String(r.voucher_no || r.doc_no || r.id),
-            voucher_date: String(r.voucher_date || r.doc_date || ""),
+            voucher_date: String(r.voucher_date || r.doc_date || "").slice(0, 10),
             total_amount: Number(r.total_amount ?? r.amount ?? r.grand_total ?? 0),
             narration: r.narration == null ? null : String(r.narration),
             partyLabel: names.join(", ") || undefined,
@@ -299,6 +313,8 @@ export function useVoucherList({
         });
 
         const filteredVouchers = allVouchers.filter((v) => {
+          if (fromDate && v.voucher_date && v.voucher_date < fromDate) return false;
+          if (toDate && v.voucher_date && v.voucher_date > toDate) return false;
           if (sector) {
             const routes = (v.sectorLabel || "")
               .split(",")
@@ -324,8 +340,22 @@ export function useVoucherList({
     setLoading(true);
     try {
       const supabase = createClient();
-      const list = await fetchVoucherList(supabase, companyId, spRecord, kind);
+      const [list, partyRes] = await Promise.all([
+        fetchVoucherList(supabase, companyId, spRecord, kind),
+        kind === "CR"
+          ? supabase
+              .from("parties")
+              .select("*")
+              .eq("company_id", companyId)
+              .eq("is_active", true)
+              .order("name_en")
+              .limit(5000)
+          : Promise.resolve({ data: null as Party[] | null }),
+      ]);
       setData(list);
+      if (kind === "CR") {
+        setParties((partyRes.data as Party[]) || []);
+      }
     } catch (err) {
       console.error(`Failed to fetch online vouchers (${kind}):`, err);
     } finally {
@@ -336,10 +366,15 @@ export function useVoucherList({
   useEffect(() => {
     if (isFirstMount.current) {
       isFirstMount.current = false;
-      if (initialData && isOnline) return;
+      if (initialData) setData(initialData);
+      if (initialParties.length) setParties(initialParties);
+      // Always refresh after mount so a just-posted voucher is not stuck
+      // behind a stale SSR snapshot after dialog close / router.refresh().
     }
     void load();
-  }, [load, initialData, isOnline]);
+    // initialData / initialParties are seed-only on first mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
+  }, [load]);
 
   return { ...data, parties, loading, refetch: load };
 }

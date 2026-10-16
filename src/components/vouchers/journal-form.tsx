@@ -115,8 +115,8 @@ export function JournalVoucherForm({
       });
 
       setLoading(false);
+      await Promise.resolve(onDone?.());
       closeDialog?.();
-      onDone?.();
       if (editing || res.source === "offline") {
         router.refresh();
       } else {

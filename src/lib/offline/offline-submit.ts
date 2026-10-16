@@ -230,12 +230,12 @@ async function finalizeOnlineSubmit(
           await putCachedRow(
             cacheTarget,
             companyId,
-            {
-              ...(cacheRecord || payload),
-              id: serverId,
-              company_id: companyId,
-              status: "posted",
-            },
+            normalizeCachedMutationRow(
+              mutationType,
+              cacheRecord || payload,
+              serverId,
+              companyId,
+            ),
             "synced",
           );
         } catch {
@@ -403,12 +403,13 @@ async function runOfflineAwareSubmit(
       cacheTarget,
       companyId,
       {
-        ...(cacheRecord || payload),
-        id: documentId,
-        company_id: companyId,
-        invoice_no: localId,
-        doc_no: localId,
-        _localId: localId,
+        ...normalizeCachedMutationRow(
+          mutationType,
+          (cacheRecord || payload) as Record<string, unknown>,
+          documentId,
+          companyId,
+          localId,
+        ),
         party_name:
           (payload.party_name as string) ||
           (cacheRecord?.party_name as string) ||
@@ -418,7 +419,6 @@ async function runOfflineAwareSubmit(
           (cacheRecord?.party_code as string) ||
           null,
         parties: payload.parties || cacheRecord?.parties || null,
-        status: "posted",
       },
       "pending",
     );
@@ -537,6 +537,60 @@ function resolveCacheStore(
     salesman_update: "salesmen",
   };
   return (map[mutationType] as never) || null;
+}
+
+const VOUCHER_TYPE_BY_MUTATION: Partial<Record<OfflineMutationType, string>> = {
+  cash_receipt: "CR",
+  cash_receipt_update: "CR",
+  cash_payment: "CP",
+  cash_payment_update: "CP",
+  journal_voucher: "JV",
+  journal_voucher_update: "JV",
+  recovery: "CR",
+  recovery_update: "CR",
+};
+
+/** Keep voucher list filters working for offline/online cache rows. */
+function normalizeCachedMutationRow(
+  mutationType: OfflineMutationType,
+  row: Record<string, unknown>,
+  id: string,
+  companyId: string,
+  localId?: string,
+) {
+  const voucherType = VOUCHER_TYPE_BY_MUTATION[mutationType];
+  const lines = Array.isArray(row.voucher_lines)
+    ? row.voucher_lines
+    : Array.isArray(row.lines)
+      ? row.lines
+      : undefined;
+  return {
+    ...row,
+    id,
+    company_id: companyId,
+    status: row.status || "posted",
+    ...(localId
+      ? {
+          invoice_no: localId,
+          doc_no: localId,
+          voucher_no: row.voucher_no || localId,
+          _localId: localId,
+        }
+      : {}),
+    ...(voucherType
+      ? {
+          voucher_type: row.voucher_type || voucherType,
+          entity_type: row.entity_type || mutationType,
+          voucher_date: row.voucher_date || row.doc_date || null,
+          total_amount:
+            row.total_amount ??
+            row.amount ??
+            row.grand_total ??
+            0,
+          ...(lines ? { voucher_lines: lines, lines } : {}),
+        }
+      : {}),
+  };
 }
 
 async function persistMutationToSqlite(opts: {

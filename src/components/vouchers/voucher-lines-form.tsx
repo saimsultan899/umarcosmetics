@@ -146,8 +146,8 @@ export function CashVoucherForm({
       });
 
       setLoading(false);
+      await Promise.resolve(onDone?.());
       closeDialog?.();
-      onDone?.();
       const slug = kind === "CR" ? "cash-receipt" : "cash-payment";
       if (editing || res.source === "offline") {
         router.refresh();
