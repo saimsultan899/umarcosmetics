@@ -31,6 +31,8 @@ type GatePassOption = {
   pass_date: string;
   warehouse_id: string | null;
   party_id: string | null;
+  /** Stock company (warehouse) name — shown on the right in the picker. */
+  company_name: string;
 };
 
 export type PurchaseInvoiceEdit = {
@@ -199,18 +201,37 @@ export function PurchaseInvoiceForm({
       const rows: GatePassOption[] = [];
       const seen = new Set<string>();
 
+      function warehouseName(row: Record<string, unknown>, warehouseId: string | null) {
+        const nested = row.warehouses;
+        if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+          const name = String((nested as { name?: unknown }).name || "").trim();
+          if (name) return name;
+        }
+        if (Array.isArray(nested) && nested[0] && typeof nested[0] === "object") {
+          const name = String((nested[0] as { name?: unknown }).name || "").trim();
+          if (name) return name;
+        }
+        if (warehouseId) {
+          const wh = warehouses.find((w) => w.id === warehouseId);
+          if (wh?.name) return wh.name;
+        }
+        return "";
+      }
+
       function push(row: Record<string, unknown>) {
         const id = String(row.id || "");
         if (!id || seen.has(id)) return;
         const status = String(row.status || "posted").toLowerCase();
         if (status && status !== "posted") return;
         seen.add(id);
+        const warehouse_id = row.warehouse_id ? String(row.warehouse_id) : null;
         rows.push({
           id,
           pass_no: String(row.pass_no || ""),
           pass_date: String(row.pass_date || "").slice(0, 10),
-          warehouse_id: row.warehouse_id ? String(row.warehouse_id) : null,
+          warehouse_id,
           party_id: row.party_id ? String(row.party_id) : null,
+          company_name: warehouseName(row, warehouse_id),
         });
       }
 
@@ -219,7 +240,7 @@ export function PurchaseInvoiceForm({
           const supabase = createClient();
           const { data } = await supabase
             .from("gate_passes")
-            .select("id, pass_no, pass_date, warehouse_id, party_id, status")
+            .select("id, pass_no, pass_date, warehouse_id, party_id, status, warehouses(name)")
             .eq("company_id", companyId)
             .eq("status", "posted")
             .order("pass_date", { ascending: false })
@@ -247,7 +268,7 @@ export function PurchaseInvoiceForm({
     return () => {
       cancelled = true;
     };
-  }, [companyId]);
+  }, [companyId, warehouses]);
 
   function applyGatePass(id: string) {
     setGatePassId(id);
@@ -458,15 +479,18 @@ export function PurchaseInvoiceForm({
 
         <div className="sm:col-span-3">
           <Label>Gate pass #</Label>
-          <Select value={gatePassId} onChange={(e) => applyGatePass(e.target.value)}>
-            <option value="">Optional</option>
-            {gatePasses.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.pass_no}
-                {g.pass_date ? ` · ${g.pass_date}` : ""}
-              </option>
-            ))}
-          </Select>
+          <Select
+            value={gatePassId}
+            onChange={(e) => applyGatePass(e.target.value)}
+            options={[
+              { value: "", label: "Optional" },
+              ...gatePasses.map((g) => ({
+                value: g.id,
+                label: `${g.pass_no}${g.pass_date ? ` · ${g.pass_date}` : ""}`,
+                meta: g.company_name || undefined,
+              })),
+            ]}
+          />
         </div>
         <div className="sm:col-span-2">
           <Label>Company invoice #</Label>

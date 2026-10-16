@@ -74,7 +74,8 @@ function matches(option: SelectOption, query: string) {
   if (!q) return true;
   return (
     option.label.toLowerCase().includes(q) ||
-    option.value.toLowerCase().includes(q)
+    option.value.toLowerCase().includes(q) ||
+    (option.meta || "").toLowerCase().includes(q)
   );
 }
 
