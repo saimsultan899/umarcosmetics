@@ -59,6 +59,17 @@ function isoDateParam(value: string | undefined) {
   return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : "";
 }
 
+function nextDayIso(isoDate: string) {
+  const d = new Date(`${isoDate}T12:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Match vouchers whose document date OR save date falls in [from, to].
+ * Needed because Cash Receipt often keeps an older voucher_date while the
+ * row is posted later — filtering only voucher_date hides those entries.
+ */
 function applyVoucherDateRange(query: any, fromDate: string, toDate: string) {
   let from = fromDate;
   let to = toDate;
@@ -67,9 +78,30 @@ function applyVoucherDateRange(query: any, fromDate: string, toDate: string) {
     from = to;
     to = swap;
   }
-  if (from) query = query.gte("voucher_date", from);
-  if (to) query = query.lte("voucher_date", to);
-  return query;
+  if (!from && !to) return query;
+
+  const voucherParts: string[] = [];
+  const createdParts: string[] = [];
+  if (from) {
+    voucherParts.push(`voucher_date.gte.${from}`);
+    createdParts.push(`created_at.gte.${from}T00:00:00.000Z`);
+  }
+  if (to) {
+    voucherParts.push(`voucher_date.lte.${to}`);
+    // exclusive upper bound on the next calendar day
+    createdParts.push(`created_at.lt.${nextDayIso(to)}T00:00:00.000Z`);
+  }
+
+  const voucherClause =
+    voucherParts.length === 1
+      ? voucherParts[0]
+      : `and(${voucherParts.join(",")})`;
+  const createdClause =
+    createdParts.length === 1
+      ? createdParts[0]
+      : `and(${createdParts.join(",")})`;
+
+  return query.or(`${voucherClause},${createdClause}`);
 }
 
 export async function fetchVoucherList(
@@ -179,9 +211,11 @@ export async function fetchVoucherList(
     }
   }
 
+  // Newest posts first (created_at), so a receipt saved today with an older
+  // voucher date still appears at the top of Cash Receipt.
   const { data, count, error } = await query
-    .order("voucher_date", { ascending: false })
     .order("created_at", { ascending: false })
+    .order("voucher_date", { ascending: false })
     .range(from, to);
 
   if (error) throw new Error(error.message);

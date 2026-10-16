@@ -139,6 +139,7 @@ export function OfflineRecoverySheetPage({
               "cash_receipt",
               "receipt",
               "voucher",
+              "CR",
             ]),
             localListMaster("salesmen", companyId),
             localListMaster("warehouses", companyId),
@@ -281,25 +282,67 @@ export function OfflineRecoverySheetPage({
 
     const lastRecoveryByParty = new Map<
       string,
-      { id: string | null; date: string; amount: number }
+      { id: string | null; date: string; amount: number; created: string }
     >();
-    for (const v of vouchers) {
-      const type = String(v.voucher_type || v.type || v.entity_type || "");
-      const isRec =
-        type === "cash_receipt" || type === "recovery" || type === "receipt";
-      if (!isRec) continue;
-      const pid = String(v.party_id || "");
-      if (!pid) continue;
-      const d = String(v.voucher_date || v.doc_date || "");
-      if (d > to) continue;
-      const cur = lastRecoveryByParty.get(pid);
-      if (!cur || d > cur.date) {
-        lastRecoveryByParty.set(pid, {
-          id: v.id ? String(v.id) : null,
-          date: d,
-          amount: Number(v.amount ?? v.total_amount ?? v.grand_total ?? 0),
-        });
+    const considerRecovery = (
+      partyId: string,
+      date: string,
+      amount: number,
+      id: string | null,
+      created: string,
+    ) => {
+      if (!partyId || !(amount > 0) || !date || date > to) return;
+      const cur = lastRecoveryByParty.get(partyId);
+      if (
+        !cur ||
+        date > cur.date ||
+        (date === cur.date && created > cur.created)
+      ) {
+        lastRecoveryByParty.set(partyId, { id, date, amount, created });
       }
+    };
+
+    for (const v of vouchers) {
+      const type = String(v.voucher_type || v.type || v.entity_type || "")
+        .trim()
+        .toUpperCase();
+      const isRec =
+        type === "CASH_RECEIPT" ||
+        type === "RECOVERY" ||
+        type === "RECEIPT" ||
+        type === "CR";
+      if (!isRec) continue;
+      if (String(v.status || "").toLowerCase() === "cancelled") continue;
+
+      const d = String(v.voucher_date || v.doc_date || "").slice(0, 10);
+      const created = String(v.created_at || "");
+      const lines = Array.isArray(v.voucher_lines)
+        ? (v.voucher_lines as Array<Record<string, unknown>>)
+        : Array.isArray(v.lines)
+          ? (v.lines as Array<Record<string, unknown>>)
+          : [];
+
+      if (lines.length) {
+        for (const line of lines) {
+          considerRecovery(
+            String(line.party_id || ""),
+            d,
+            Number(line.amount || 0),
+            line.id ? String(line.id) : v.id ? String(v.id) : null,
+            created,
+          );
+        }
+        continue;
+      }
+
+      // Single-shop recovery / legacy row with party on the header.
+      considerRecovery(
+        String(v.party_id || ""),
+        d,
+        Number(v.amount ?? v.total_amount ?? v.grand_total ?? 0),
+        v.id ? String(v.id) : null,
+        created,
+      );
     }
 
     const customerParties = parties.filter((p) => {
@@ -429,10 +472,16 @@ export function OfflineRecoverySheetPage({
     for (const d of past7) map.set(d, 0);
 
     for (const v of vouchers) {
-      const type = String(v.voucher_type || v.type || v.entity_type || "");
+      const type = String(v.voucher_type || v.type || v.entity_type || "")
+        .trim()
+        .toUpperCase();
       const isRec =
-        type === "cash_receipt" || type === "recovery" || type === "receipt";
+        type === "CASH_RECEIPT" ||
+        type === "RECOVERY" ||
+        type === "RECEIPT" ||
+        type === "CR";
       if (!isRec) continue;
+      if (String(v.status || "").toLowerCase() === "cancelled") continue;
       const d = String(v.voucher_date || v.doc_date || "").slice(0, 10);
       if (map.has(d)) {
         map.set(d, (map.get(d) || 0) + Number(v.amount ?? v.total_amount ?? v.grand_total ?? 0));

@@ -285,7 +285,9 @@ export function useVoucherList({
         }
         const partyById = new Map(pts.map((p) => [p.id, p]));
 
-        const allVouchers: VoucherRow[] = filtered.map((r) => {
+        type OfflineVoucherRow = VoucherRow & { createdDate?: string };
+
+        const allVouchers: OfflineVoucherRow[] = filtered.map((r) => {
           const rawLines = Array.isArray(r.voucher_lines)
             ? (r.voucher_lines as Array<{ party_id?: string }>)
             : Array.isArray(r.lines)
@@ -309,12 +311,22 @@ export function useVoucherList({
             narration: r.narration == null ? null : String(r.narration),
             partyLabel: names.join(", ") || undefined,
             sectorLabel: [...sectors].join(", ") || undefined,
+            createdDate: String(r.created_at || "").slice(0, 10),
           };
         });
 
         const filteredVouchers = allVouchers.filter((v) => {
-          if (fromDate && v.voucher_date && v.voucher_date < fromDate) return false;
-          if (toDate && v.voucher_date && v.voucher_date > toDate) return false;
+          if (fromDate || toDate) {
+            const docDate = v.voucher_date || "";
+            const createdDate = v.createdDate || "";
+            const inDoc =
+              (!fromDate || (docDate && docDate >= fromDate)) &&
+              (!toDate || (docDate && docDate <= toDate));
+            const inCreated =
+              (!fromDate || (createdDate && createdDate >= fromDate)) &&
+              (!toDate || (createdDate && createdDate <= toDate));
+            if (!inDoc && !inCreated) return false;
+          }
           if (sector) {
             const routes = (v.sectorLabel || "")
               .split(",")
@@ -325,6 +337,16 @@ export function useVoucherList({
           return `${v.voucher_no} ${v.narration || ""} ${v.partyLabel || ""} ${v.sectorLabel || ""}`
             .toLowerCase()
             .includes(q);
+        });
+
+        filteredVouchers.sort((a, b) => {
+          const ca = a.createdDate || "";
+          const cb = b.createdDate || "";
+          if (ca !== cb) return cb.localeCompare(ca);
+          const da = String(a.voucher_date || "");
+          const db = String(b.voucher_date || "");
+          if (da !== db) return db.localeCompare(da);
+          return String(b.voucher_no).localeCompare(String(a.voucher_no));
         });
 
         const { paged, pagination } = offlinePaginate(filteredVouchers, spRecord);
