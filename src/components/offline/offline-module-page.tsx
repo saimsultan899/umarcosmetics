@@ -913,11 +913,21 @@ export function OfflineModulePage({
         id: String(r.id),
         recovery_date: String(r.recovery_date || r.doc_date || r.voucher_date || ""),
         amount: Number(r.amount ?? r.total_amount ?? r.grand_total ?? 0),
+        remaining: null,
         city: party?.city || null,
         route: party?.route || null,
         remarks: r.remarks == null && r.narration == null ? null : String(r.remarks || r.narration || ""),
         salesman_id: r.salesman_id ? String(r.salesman_id) : null,
-        parties: party ? { party_code: party.party_code, name_en: party.name_en } : null,
+        party_id: r.party_id ? String(r.party_id) : null,
+        parties: party
+          ? {
+              party_code: party.party_code,
+              name_en: party.name_en,
+              head: party.head || null,
+              route: party.route || null,
+              city: party.city || null,
+            }
+          : null,
         salesman: salesman ? { full_name: salesman.full_name } : null,
       };
     });
@@ -934,6 +944,17 @@ export function OfflineModulePage({
     });
 
     const { paged, meta: pagMeta } = paginate(filteredRecoveries, page, pageSize);
+    const amountTotal = filteredRecoveries.reduce(
+      (sum, r) => sum + Number(r.amount || 0),
+      0,
+    );
+    const headOptions = Array.from(
+      new Set(
+        partyList
+          .map((p) => (p.head || "").trim())
+          .filter(Boolean),
+      ),
+    ).sort((a, b) => a.localeCompare(b));
 
     body = (
       <RecoveriesTable
@@ -942,9 +963,15 @@ export function OfflineModulePage({
         pagination={pagMeta}
         cityOptions={cityOptions}
         sectorOptions={sectorOptions}
+        headOptions={headOptions}
         salesmanOptions={salesmen
           .filter((s) => s.full_name)
-          .map((s) => ({ value: s.full_name!, label: s.full_name! }))}
+          .map((s) => ({
+            value: String(s.user_id || s.full_name),
+            label: s.full_name!,
+          }))}
+        amountTotal={amountTotal}
+        remainingTotal={0}
         canCancel={false}
       />
     );

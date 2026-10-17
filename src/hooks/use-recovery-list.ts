@@ -52,6 +52,8 @@ export function useRecoveryList({
       sectorOptions: [],
       headOptions: [],
       salesmanOptions: [],
+      amountTotal: 0,
+      remainingTotal: 0,
     },
   );
   const [loading, setLoading] = useState(!initialData);
@@ -116,15 +118,19 @@ export function useRecoveryList({
             id: String(r.id),
             recovery_date: String(r.recovery_date || r.doc_date || r.voucher_date || ""),
             amount: Number(r.amount ?? r.total_amount ?? r.grand_total ?? 0),
+            remaining: null,
             city: party?.city || (r.city ? String(r.city) : null),
             route: party?.route || (r.route ? String(r.route) : null),
             remarks: r.remarks == null ? null : String(r.remarks),
             salesman_id: r.salesman_id ? String(r.salesman_id) : null,
+            party_id: r.party_id ? String(r.party_id) : null,
             parties: party
               ? {
                   party_code: party.party_code,
                   name_en: party.name_en,
                   head: party.head || null,
+                  route: party.route || null,
+                  city: party.city || null,
                 }
               : null,
             salesman: sm ? { full_name: sm.full_name } : null,
@@ -135,8 +141,8 @@ export function useRecoveryList({
           const day = (rec.recovery_date || "").slice(0, 10);
           if (fromDate && day && day < fromDate) return false;
           if (toDate && day && day > toDate) return false;
-          if (cityFilter && rec.city !== cityFilter) return false;
-          if (sectorFilter && rec.route !== sectorFilter) return false;
+          if (cityFilter && rec.city !== cityFilter && rec.parties?.city !== cityFilter) return false;
+          if (sectorFilter && rec.route !== sectorFilter && rec.parties?.route !== sectorFilter) return false;
           if (headFilter && (rec.parties?.head || "") !== headFilter) return false;
           if (salesmanFilter === "unassigned" && rec.salesman_id != null) return false;
           else if (salesmanFilter && salesmanFilter !== "unassigned" && rec.salesman_id !== salesmanFilter) return false;
@@ -161,13 +167,18 @@ export function useRecoveryList({
           .sort((a, b) => a.label.localeCompare(b.label));
         salesmanOptions.push({ value: "unassigned", label: "Unassigned" });
 
+        const amountTotal = filtered.reduce((sum, r) => sum + Number(r.amount || 0), 0);
+
         setData({
           rows: paged,
           pagination,
-          cityOptions: distinctSorted(allRows.map((r) => r.city)),
-          sectorOptions: distinctSorted(allRows.map((r) => r.route)),
-          headOptions: distinctSorted(allRows.map((r) => r.parties?.head)),
+          // Offline filters: full party master list (not only recoveries that stamped city/route).
+          cityOptions: distinctSorted(parties.map((p) => p.city)),
+          sectorOptions: distinctSorted(parties.map((p) => p.route)),
+          headOptions: distinctSorted(parties.map((p) => p.head)),
           salesmanOptions,
+          amountTotal,
+          remainingTotal: 0,
         });
       } catch (err) {
         console.error("Failed to load offline recoveries:", err);

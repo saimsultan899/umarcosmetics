@@ -8,6 +8,7 @@ import { useCreateDialogClose } from "@/components/ui/create-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { localDateIso } from "@/lib/dates";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { createClient } from "@/lib/supabase/client";
@@ -168,7 +169,7 @@ export function SaleInvoiceForm({
   const [salesmanId, setSalesmanId] = useState(editing?.salesmanId || "");
   const [warehouseId, setWarehouseId] = useState(editing?.warehouseId || "");
   const [invoiceDate, setInvoiceDate] = useState(
-    editing?.invoiceDate || new Date().toISOString().slice(0, 10),
+    editing?.invoiceDate || localDateIso(),
   );
   const [paymentType, setPaymentType] = useState<PaymentType>(
     editing?.paymentType === "partial" || editing?.paymentType === "cash"
@@ -233,7 +234,7 @@ export function SaleInvoiceForm({
           supabase.rpc("get_party_balance", {
             p_company_id: companyId,
             p_party_id: id,
-            p_as_of: invoiceDate || new Date().toISOString().slice(0, 10),
+            p_as_of: invoiceDate || localDateIso(),
           }),
           new Promise<null>((r) => setTimeout(() => r(null), 4000)),
         ]);
@@ -266,7 +267,7 @@ export function SaleInvoiceForm({
       const { data: balance } = await supabase.rpc("get_party_balance", {
         p_company_id: companyId,
         p_party_id: nextPartyId,
-        p_as_of: invoiceDate || new Date().toISOString().slice(0, 10),
+        p_as_of: invoiceDate || localDateIso(),
       });
       bal = Number(balance || 0);
     }

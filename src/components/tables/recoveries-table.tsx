@@ -19,7 +19,7 @@ import type { PaginationMeta } from "@/lib/pagination";
 import { createClient } from "@/lib/supabase/client";
 import { formatPkr } from "@/lib/utils";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 export function RecoveriesTable({
   companyId,
@@ -29,6 +29,8 @@ export function RecoveriesTable({
   sectorOptions = [],
   headOptions = [],
   salesmanOptions = [],
+  amountTotal = 0,
+  remainingTotal = 0,
   canCancel = true,
   onChanged,
 }: {
@@ -39,16 +41,44 @@ export function RecoveriesTable({
   sectorOptions?: string[];
   headOptions?: string[];
   salesmanOptions?: { value: string; label: string }[];
+  amountTotal?: number;
+  remainingTotal?: number;
   canCancel?: boolean;
   onChanged?: () => void;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { q, isPending, setPage, setPageSize, setQuery, setFilter, filters } =
-    useUrlTableState(["city", "sector", "head", "salesman", "fromDate", "toDate"]);
+    useUrlTableState([
+      "city",
+      "sector",
+      "head",
+      "salesman",
+      "fromDate",
+      "toDate",
+    ]);
   const search = useSearchInput(q, setQuery);
   const [exportRows, setExportRows] = useState<Record<string, unknown>[]>([]);
   const [exportLoading, setExportLoading] = useState(false);
+
+  const pageAmountTotal = useMemo(
+    () => rows.reduce((sum, r) => sum + Number(r.amount || 0), 0),
+    [rows],
+  );
+  const pageRemainingTotal = useMemo(() => {
+    const seen = new Set<string>();
+    let sum = 0;
+    for (const r of rows) {
+      const key = r.party_id || r.id;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      sum += Number(r.remaining || 0);
+    }
+    return sum;
+  }, [rows]);
+
+  const displayAmountTotal = amountTotal || pageAmountTotal;
+  const displayRemainingTotal = remainingTotal || pageRemainingTotal;
 
   const loadExport = useCallback(async () => {
     setExportLoading(true);
@@ -64,23 +94,37 @@ export function RecoveriesTable({
       );
       setExportRows(data);
     } catch {
-      setExportRows(
-        rows.map((r) => ({
-          Date: r.recovery_date,
-          Code: r.parties?.party_code || "",
-          Customer: r.parties?.name_en || "",
-          Head: r.parties?.head || "",
-          City: r.city || "",
-          Sector: r.route || "",
-          Salesman: r.salesman?.full_name || "",
-          Amount: r.amount,
-          Remarks: r.remarks || "",
-        })),
-      );
+      const fallback = rows.map((r) => ({
+        Date: r.recovery_date,
+        Code: r.parties?.party_code || "",
+        Customer: r.parties?.name_en || "",
+        Head: r.parties?.head || "",
+        City: r.city || "",
+        Sector: r.route || "",
+        Salesman: r.salesman?.full_name || "",
+        Amount: r.amount,
+        Remaining: r.remaining ?? "",
+        Remarks: r.remarks || "",
+      }));
+      if (fallback.length) {
+        fallback.push({
+          Date: "",
+          Code: "",
+          Customer: "TOTAL",
+          Head: "",
+          City: "",
+          Sector: "",
+          Salesman: "",
+          Amount: displayAmountTotal,
+          Remaining: displayRemainingTotal,
+          Remarks: "",
+        });
+      }
+      setExportRows(fallback);
     } finally {
       setExportLoading(false);
     }
-  }, [companyId, searchParams, rows]);
+  }, [companyId, searchParams, rows, displayAmountTotal, displayRemainingTotal]);
 
   useEffect(() => {
     void loadExport();
@@ -96,6 +140,8 @@ export function RecoveriesTable({
     }
     onChanged?.();
   }
+
+  const colSpan = 9;
 
   return (
     <div>
@@ -191,6 +237,7 @@ export function RecoveriesTable({
                 <th>Date</th>
                 <th>Customer</th>
                 <th>Amount</th>
+                <th>Remaining</th>
                 <th>Salesman</th>
                 <th>City / Sector</th>
                 <th>Head</th>
@@ -212,6 +259,11 @@ export function RecoveriesTable({
                     { label: "Date", value: r.recovery_date },
                     { label: "Customer", value: party },
                     { label: "Amount", value: formatPkr(r.amount) },
+                    {
+                      label: "Remaining",
+                      value:
+                        r.remaining == null ? "—" : formatPkr(r.remaining),
+                    },
                     { label: "Salesman", value: salesman },
                     {
                       label: "City / Sector",
@@ -227,6 +279,9 @@ export function RecoveriesTable({
                       <td>{party}</td>
                       <td className="font-semibold text-emerald-700">
                         {formatPkr(r.amount)}
+                      </td>
+                      <td className="font-medium text-[var(--ink)]">
+                        {r.remaining == null ? "—" : formatPkr(r.remaining)}
                       </td>
                       <td className="text-[var(--muted)]">{salesman}</td>
                       <td className="text-[var(--muted)]">
@@ -272,7 +327,7 @@ export function RecoveriesTable({
               ) : (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={colSpan}
                     className="py-8 text-center text-[var(--muted)]"
                   >
                     No recoveries match this filter.
@@ -280,6 +335,18 @@ export function RecoveriesTable({
                 </tr>
               )}
             </tbody>
+            {rows.length ? (
+              <tfoot>
+                <tr className="border-t-2 border-[var(--border)] bg-[var(--surface-2,var(--bg))] font-semibold">
+                  <td colSpan={2}>Total ({pagination.total} entries)</td>
+                  <td className="text-emerald-700">
+                    {formatPkr(displayAmountTotal)}
+                  </td>
+                  <td>{formatPkr(displayRemainingTotal)}</td>
+                  <td colSpan={5} />
+                </tr>
+              </tfoot>
+            ) : null}
           </table>
         </TableScroll>
         <TablePagination
@@ -302,7 +369,10 @@ export function RecoveriesTable({
         >
           <h1 className="mb-2 text-lg font-semibold">Recovery history</h1>
           <p className="mb-3 text-xs text-[var(--muted)]">
-            {exportRows.length} row(s) · printed {new Date().toLocaleString()}
+            {Math.max(exportRows.length - 1, 0)} row(s) · Amount total{" "}
+            {formatPkr(displayAmountTotal)} · Remaining total{" "}
+            {formatPkr(displayRemainingTotal)} · printed{" "}
+            {new Date().toLocaleString()}
           </p>
           <table className="w-full border-collapse text-xs">
             <thead>
@@ -318,20 +388,26 @@ export function RecoveriesTable({
               </tr>
             </thead>
             <tbody>
-              {exportRows.map((row, idx) => (
-                <tr key={idx}>
-                  {Object.keys(exportRows[0] || {}).map((key) => (
-                    <td
-                      key={key}
-                      className="border border-[var(--border)] px-1.5 py-1"
-                    >
-                      {row[key] == null || row[key] === ""
-                        ? "—"
-                        : String(row[key])}
-                    </td>
-                  ))}
-                </tr>
-              ))}
+              {exportRows.map((row, idx) => {
+                const isTotal = String(row.Customer || "") === "TOTAL";
+                return (
+                  <tr
+                    key={idx}
+                    className={isTotal ? "font-semibold" : undefined}
+                  >
+                    {Object.keys(exportRows[0] || {}).map((key) => (
+                      <td
+                        key={key}
+                        className="border border-[var(--border)] px-1.5 py-1"
+                      >
+                        {row[key] == null || row[key] === ""
+                          ? "—"
+                          : String(row[key])}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

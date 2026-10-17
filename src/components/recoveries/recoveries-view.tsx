@@ -26,6 +26,8 @@ export function RecoveriesView({
     sectorOptions,
     headOptions,
     salesmanOptions,
+    amountTotal,
+    remainingTotal,
     loading,
     refetch,
   } = useRecoveryList({
@@ -73,6 +75,8 @@ export function RecoveriesView({
         sectorOptions={sectorOptions}
         headOptions={headOptions}
         salesmanOptions={salesmanOptions}
+        amountTotal={amountTotal}
+        remainingTotal={remainingTotal}
         canCancel={Boolean(isOnline)}
         onChanged={() => void refetch()}
       />

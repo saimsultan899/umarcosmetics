@@ -256,6 +256,22 @@ function isoDateParam(value: string | undefined) {
   return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : "";
 }
 
+/** Start of a calendar day in Asia/Karachi, as UTC ISO for timestamptz filters. */
+function pktDayStartUtc(isoDate: string) {
+  return new Date(`${isoDate}T00:00:00+05:00`).toISOString();
+}
+
+function pktNextDayStartUtc(isoDate: string) {
+  const d = new Date(`${isoDate}T00:00:00+05:00`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString();
+}
+
+/**
+ * Match documents whose bill date OR save date falls in [from, to].
+ * Sale / purchase forms often keep an older invoice_date while posting later —
+ * filtering only invoice_date hides those rows when staff filter "today".
+ */
 function applyDateRange(
   query: any,
   dateField: string,
@@ -269,9 +285,27 @@ function applyDateRange(
     from = to;
     to = swap;
   }
-  if (from) query = query.gte(dateField, from);
-  if (to) query = query.lte(dateField, to);
-  return query;
+  if (!from && !to) return query;
+
+  const docParts: string[] = [];
+  const createdParts: string[] = [];
+  if (from) {
+    docParts.push(`${dateField}.gte.${from}`);
+    createdParts.push(`created_at.gte.${pktDayStartUtc(from)}`);
+  }
+  if (to) {
+    docParts.push(`${dateField}.lte.${to}`);
+    createdParts.push(`created_at.lt.${pktNextDayStartUtc(to)}`);
+  }
+
+  const docClause =
+    docParts.length === 1 ? docParts[0] : `and(${docParts.join(",")})`;
+  const createdClause =
+    createdParts.length === 1
+      ? createdParts[0]
+      : `and(${createdParts.join(",")})`;
+
+  return query.or(`${docClause},${createdClause}`);
 }
 
 function applyDocumentSearch(
