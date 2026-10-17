@@ -99,8 +99,13 @@ export function OfflineRecoverySheetPage({
     };
   }, [urlSp, initialSp]);
 
-  const from = sp.from || monthStart();
-  const to = sp.to || today();
+  let from = sp.from || monthStart();
+  let to = sp.to || today();
+  if (from && to && from > to) {
+    const swap = from;
+    from = to;
+    to = swap;
+  }
 
   const [loading, setLoading] = useState(true);
   const [parties, setParties] = useState<Record<string, unknown>[]>([]);
@@ -293,24 +298,18 @@ export function OfflineRecoverySheetPage({
     ) => {
       if (!partyId || !(amount > 0)) return;
       const createdDay = (created || "").slice(0, 10);
-      const billDay = (date || "").slice(0, 10);
-      // Same rule as get_last_received_by_party: bill date or save date.
-      const effective =
-        billDay && createdDay
-          ? billDay >= createdDay
-            ? billDay
-            : createdDay
-          : billDay || createdDay;
-      if (!effective || effective > to) return;
+      const billDay = (date || "").slice(0, 10) || createdDay;
+      // As-of To uses bill/voucher date (same as online RPC).
+      if (!billDay || billDay > to) return;
       const cur = lastRecoveryByParty.get(partyId);
       if (
         !cur ||
-        effective > cur.date ||
-        (effective === cur.date && created > cur.created)
+        billDay > cur.date ||
+        (billDay === cur.date && created > cur.created)
       ) {
         lastRecoveryByParty.set(partyId, {
           id,
-          date: effective,
+          date: billDay,
           amount,
           created,
         });

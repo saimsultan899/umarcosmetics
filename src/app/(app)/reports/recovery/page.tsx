@@ -56,8 +56,14 @@ export default async function RecoverySheetPage({
   const sp = await searchParams;
   const ctx = await requireCompanyContext();
   const { company, offline } = ctx;
-  const to = sp.to || today();
-  const from = sp.from || monthStart();
+  // Normalize if the user typed To before From (or browser swapped them).
+  let from = sp.from || monthStart();
+  let to = sp.to || today();
+  if (from && to && from > to) {
+    const swap = from;
+    from = to;
+    to = swap;
+  }
 
   if (offline) {
     const { OfflineRecoverySheetPage } = await import(

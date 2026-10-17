@@ -550,10 +550,26 @@ async function fetchLastRecoveriesByParty(
   // Single DB pass (DISTINCT ON) — avoids PostgREST page gaps and treats
   // max(bill date, PKT save date) as the collection date so wrong bill dates
   // still show under today's as-of filter.
-  const { data, error } = await supabase.rpc("get_last_received_by_party", {
-    p_company_id: companyId,
-    p_as_of: to,
-  });
+  let data: unknown = null;
+  let error: { message: string } | null = null;
+  {
+    const primary = await supabase.rpc("get_last_received_by_party", {
+      p_company_id: companyId,
+      p_as_of: to,
+      p_from: null,
+    });
+    if (primary.error) {
+      // Older 2-arg signature before from/to overload.
+      const fallbackRpc = await supabase.rpc("get_last_received_by_party", {
+        p_company_id: companyId,
+        p_as_of: to,
+      });
+      data = fallbackRpc.data;
+      error = fallbackRpc.error;
+    } else {
+      data = primary.data;
+    }
+  }
 
   if (error) {
     // Fallback if RPC not yet applied on a local DB.
