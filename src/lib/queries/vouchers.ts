@@ -194,7 +194,9 @@ export async function fetchVoucherList(
   let query = supabase
     .from("vouchers")
     .select(
-      "id, voucher_no, voucher_date, total_amount, narration, voucher_lines(party_id, parties(party_code, name_en, route))",
+      // Hint party_id FK — voucher_lines also has debit/credit_party_id → parties,
+      // so bare `parties(...)` makes PostgREST reject the whole list as empty.
+      "id, voucher_no, voucher_date, total_amount, narration, voucher_lines(party_id, parties!voucher_lines_party_id_fkey(party_code, name_en, route))",
       { count: "exact" },
     )
     .eq("company_id", companyId)

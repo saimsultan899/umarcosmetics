@@ -90,7 +90,8 @@ export function PurchaseInvoiceForm({
   });
   const [partyId, setPartyId] = useState(editing?.partyId || "");
   const [warehouseId, setWarehouseId] = useState(
-    editing?.warehouseId || warehouses[0]?.id || "",
+    // New bills start blank — do not auto-pick the first company (e.g. Amelia).
+    editing?.warehouseId || "",
   );
 
   const [invoiceDate, setInvoiceDate] = useState(

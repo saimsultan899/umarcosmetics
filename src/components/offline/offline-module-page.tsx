@@ -937,6 +937,7 @@ export function OfflineModulePage({
 
     body = (
       <RecoveriesTable
+        companyId={companyId}
         rows={paged}
         pagination={pagMeta}
         cityOptions={cityOptions}
