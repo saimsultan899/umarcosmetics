@@ -392,18 +392,27 @@ async function fetchLastSalesByParty(
   companyId: string,
   to: string,
 ) {
-  const { data, error } = await supabase
-    .from("sale_invoices")
-    .select("id, party_id, invoice_no, invoice_date, grand_total, created_at")
-    .eq("company_id", companyId)
-    .eq("status", "posted")
-    .lte("invoice_date", to)
-    .not("party_id", "is", null)
-    .order("invoice_date", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(50000);
-
-  if (error) throw new Error(error.message);
+  // Must page — PostgREST silently caps a bare .limit(50000) at ~1000 rows.
+  const data = await fetchAllPages<{
+    id: string;
+    party_id: string | null;
+    invoice_no: string;
+    invoice_date: string;
+    grand_total: number;
+    created_at: string;
+  }>((from, toIdx) =>
+    supabase
+      .from("sale_invoices")
+      .select("id, party_id, invoice_no, invoice_date, grand_total, created_at")
+      .eq("company_id", companyId)
+      .eq("status", "posted")
+      .lte("invoice_date", to)
+      .not("party_id", "is", null)
+      .order("invoice_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(from, toIdx),
+  );
 
   const map = new Map<
     string,
@@ -416,7 +425,7 @@ async function fetchLastSalesByParty(
     }
   >();
 
-  for (const row of data || []) {
+  for (const row of data) {
     const partyId = row.party_id as string;
     if (!partyId || map.has(partyId)) continue;
     map.set(partyId, {
@@ -538,38 +547,63 @@ async function fetchLastRecoveriesByParty(
 ) {
   const map = new Map<string, LastRecovery>();
 
-  type RecoveryRow = {
-    id: string;
-    party_id: string | null;
-    amount: number;
-    recovery_date: string;
-    created_at: string;
-  };
+  // Single DB pass (DISTINCT ON) — avoids PostgREST page gaps and treats
+  // max(bill date, PKT save date) as the collection date so wrong bill dates
+  // still show under today's as-of filter.
+  const { data, error } = await supabase.rpc("get_last_received_by_party", {
+    p_company_id: companyId,
+    p_as_of: to,
+  });
 
-  // Cash receipts now write recoveries rows (and legacy CRs were backfilled),
-  // so Last received only needs the recoveries table.
-  const data = await fetchAllPages<RecoveryRow>((from, toIdx) =>
-    supabase
-      .from("recoveries")
-      .select("id, party_id, amount, recovery_date, created_at")
-      .eq("company_id", companyId)
-      .lte("recovery_date", to)
-      .gt("amount", 0)
-      .not("party_id", "is", null)
-      .order("recovery_date", { ascending: false })
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: false })
-      .range(from, toIdx),
-  );
+  if (error) {
+    // Fallback if RPC not yet applied on a local DB.
+    type RecoveryRow = {
+      id: string;
+      party_id: string | null;
+      amount: number;
+      recovery_date: string;
+      created_at: string;
+    };
+    const rows = await fetchAllPages<RecoveryRow>((from, toIdx) =>
+      supabase
+        .from("recoveries")
+        .select("id, party_id, amount, recovery_date, created_at")
+        .eq("company_id", companyId)
+        .lte("recovery_date", to)
+        .gt("amount", 0)
+        .not("party_id", "is", null)
+        .order("recovery_date", { ascending: false })
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(from, toIdx),
+    );
+    for (const row of rows) {
+      const partyId = row.party_id;
+      if (!partyId || map.has(partyId)) continue;
+      map.set(partyId, {
+        id: String(row.id || ""),
+        amount: Number(row.amount || 0),
+        recovery_date: String(row.recovery_date || ""),
+        created_at: String(row.created_at || ""),
+      });
+    }
+    return map;
+  }
 
-  for (const row of data) {
-    const partyId = row.party_id;
+  for (const row of (data || []) as Array<{
+    party_id: string;
+    amount: number | string;
+    received_date: string;
+    received_at: string;
+    recovery_id: string | null;
+  }>) {
+    const partyId = String(row.party_id || "");
     if (!partyId || map.has(partyId)) continue;
     map.set(partyId, {
-      id: String(row.id || ""),
+      id: row.recovery_id ? String(row.recovery_id) : "",
       amount: Number(row.amount || 0),
-      recovery_date: String(row.recovery_date || ""),
-      created_at: String(row.created_at || ""),
+      recovery_date: String(row.received_date || "").slice(0, 10),
+      created_at: String(row.received_at || ""),
     });
   }
 

@@ -291,14 +291,29 @@ export function OfflineRecoverySheetPage({
       id: string | null,
       created: string,
     ) => {
-      if (!partyId || !(amount > 0) || !date || date > to) return;
+      if (!partyId || !(amount > 0)) return;
+      const createdDay = (created || "").slice(0, 10);
+      const billDay = (date || "").slice(0, 10);
+      // Same rule as get_last_received_by_party: bill date or save date.
+      const effective =
+        billDay && createdDay
+          ? billDay >= createdDay
+            ? billDay
+            : createdDay
+          : billDay || createdDay;
+      if (!effective || effective > to) return;
       const cur = lastRecoveryByParty.get(partyId);
       if (
         !cur ||
-        date > cur.date ||
-        (date === cur.date && created > cur.created)
+        effective > cur.date ||
+        (effective === cur.date && created > cur.created)
       ) {
-        lastRecoveryByParty.set(partyId, { id, date, amount, created });
+        lastRecoveryByParty.set(partyId, {
+          id,
+          date: effective,
+          amount,
+          created,
+        });
       }
     };
 
