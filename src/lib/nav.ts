@@ -75,6 +75,7 @@ export const mainNav: NavItem[] = [
     icon: Wallet,
     children: [
       { label: "Cash receipt", href: "/vouchers/cash-receipt" },
+      { label: "Recovery history", href: "/salesman/recoveries" },
       { label: "Cash payment", href: "/vouchers/cash-payment" },
       { label: "Daily expenses & salary", href: "/vouchers/expenses" },
       { label: "Journal voucher", href: "/vouchers/journal" },
@@ -85,7 +86,7 @@ export const mainNav: NavItem[] = [
     icon: Route,
     children: [
       { label: "Field dashboard", href: "/field" },
-      { label: "Recoveries", href: "/salesman/recoveries" },
+      { label: "Recovery history", href: "/salesman/recoveries" },
       { label: "Sector sheets", href: "/salesman/routes" },
     ],
   },
@@ -103,6 +104,7 @@ export const mainNav: NavItem[] = [
       { label: "Customer balances", href: "/reports/accounts?view=receivable" },
       { label: "Customer ledger", href: "/reports/accounts?view=ledger" },
       { label: "Customer receivables", href: "/reports/recovery" },
+      { label: "Recovery history", href: "/salesman/recoveries" },
       { label: "Aging report", href: "/reports/aging" },
       { label: "Salesman performance", href: "/sales/salesmen" },
       { label: "Salesman ledger", href: "/reports/salesman-ledger" },

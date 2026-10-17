@@ -24,6 +24,7 @@ export function RecoveriesView({
     pagination,
     cityOptions,
     sectorOptions,
+    headOptions,
     salesmanOptions,
     loading,
     refetch,
@@ -40,27 +41,37 @@ export function RecoveriesView({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold">
-            Field recoveries
+            Recovery history
           </h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            Collections from salesman / office recovery entry. Use the pencil to
-            edit a posted recovery (customer, amount, date, salesman) — same as
-            editing a sale invoice. Delete reverses the receivable.
+          <p className="mt-1 max-w-3xl text-sm text-[var(--muted)]">
+            Complete collection record from field recovery and cash receipt.
+            Filter by date, sector, city, head, or salesman. Search a customer,
+            then view / edit / delete any entry.
           </p>
         </div>
-        <Link
-          href="/sales/salesmen"
-          className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium text-[var(--muted)] hover:text-[var(--ink)]"
-        >
-          Salesman-wise report →
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/reports/recovery"
+            className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium text-[var(--muted)] hover:text-[var(--ink)]"
+          >
+            Customer receivables →
+          </Link>
+          <Link
+            href="/vouchers/cash-receipt"
+            className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium text-[var(--muted)] hover:text-[var(--ink)]"
+          >
+            Cash receipt →
+          </Link>
+        </div>
       </div>
 
       <RecoveriesTable
+        companyId={company.id}
         rows={rows}
         pagination={pagination}
         cityOptions={cityOptions}
         sectorOptions={sectorOptions}
+        headOptions={headOptions}
         salesmanOptions={salesmanOptions}
         canCancel={Boolean(isOnline)}
         onChanged={() => void refetch()}

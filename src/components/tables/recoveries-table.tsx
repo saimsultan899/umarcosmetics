@@ -1,5 +1,6 @@
 "use client";
 
+import { ExportButtons } from "@/components/reports/export-buttons";
 import { TableScroll } from "@/components/tables/table-scroll";
 import {
   stringOptions,
@@ -10,33 +11,80 @@ import { TableToolbar } from "@/components/tables/table-toolbar";
 import { PostedDocumentEditor } from "@/components/trading/posted-document-editor";
 import { DetailField, RowActions } from "@/components/ui/row-actions";
 import { useSearchInput, useUrlTableState } from "@/hooks/use-url-table-state";
-import type { RecoveryRow } from "@/lib/queries/recoveries";
+import {
+  fetchRecoveriesForExport,
+  type RecoveryRow,
+} from "@/lib/queries/recoveries";
 import type { PaginationMeta } from "@/lib/pagination";
 import { createClient } from "@/lib/supabase/client";
 import { formatPkr } from "@/lib/utils";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 
 export function RecoveriesTable({
+  companyId,
   rows,
   pagination,
   cityOptions = [],
   sectorOptions = [],
+  headOptions = [],
   salesmanOptions = [],
   canCancel = true,
   onChanged,
 }: {
+  companyId: string;
   rows: RecoveryRow[];
   pagination: PaginationMeta;
   cityOptions?: string[];
   sectorOptions?: string[];
+  headOptions?: string[];
   salesmanOptions?: { value: string; label: string }[];
   canCancel?: boolean;
   onChanged?: () => void;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { q, isPending, setPage, setPageSize, setQuery, setFilter, filters } =
-    useUrlTableState(["city", "sector", "salesman"]);
+    useUrlTableState(["city", "sector", "head", "salesman", "fromDate", "toDate"]);
   const search = useSearchInput(q, setQuery);
+  const [exportRows, setExportRows] = useState<Record<string, unknown>[]>([]);
+  const [exportLoading, setExportLoading] = useState(false);
+
+  const loadExport = useCallback(async () => {
+    setExportLoading(true);
+    try {
+      const sp: Record<string, string | string[] | undefined> = {};
+      searchParams.forEach((v, k) => {
+        sp[k] = v;
+      });
+      const data = await fetchRecoveriesForExport(
+        createClient(),
+        companyId,
+        sp,
+      );
+      setExportRows(data);
+    } catch {
+      setExportRows(
+        rows.map((r) => ({
+          Date: r.recovery_date,
+          Code: r.parties?.party_code || "",
+          Customer: r.parties?.name_en || "",
+          Head: r.parties?.head || "",
+          City: r.city || "",
+          Sector: r.route || "",
+          Salesman: r.salesman?.full_name || "",
+          Amount: r.amount,
+          Remarks: r.remarks || "",
+        })),
+      );
+    } finally {
+      setExportLoading(false);
+    }
+  }, [companyId, searchParams, rows]);
+
+  useEffect(() => {
+    void loadExport();
+  }, [loadExport]);
 
   async function cancelRecovery(row: RecoveryRow) {
     const supabase = createClient();
@@ -56,11 +104,33 @@ export function RecoveriesTable({
         onQueryChange={search.onQueryChange}
         onFocus={search.onFocus}
         onBlur={search.onBlur}
-        placeholder="Search party, city, sector, remarks..."
+        placeholder="Search customer, city, sector, head, remarks..."
         resultCount={pagination.total}
         totalCount={pagination.total}
         filters={
           <div className="flex flex-wrap items-center gap-2">
+            <label className="inline-flex items-center gap-1.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">
+                From
+              </span>
+              <input
+                type="date"
+                value={filters.fromDate || ""}
+                onChange={(e) => setFilter("fromDate", e.target.value || null)}
+                className="h-9 rounded-lg border border-[var(--border)] bg-white px-2 text-sm"
+              />
+            </label>
+            <label className="inline-flex items-center gap-1.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">
+                To
+              </span>
+              <input
+                type="date"
+                value={filters.toDate || ""}
+                onChange={(e) => setFilter("toDate", e.target.value || null)}
+                className="h-9 rounded-lg border border-[var(--border)] bg-white px-2 text-sm"
+              />
+            </label>
             {cityOptions.length ? (
               <TableFilterSelect
                 label="City"
@@ -79,6 +149,15 @@ export function RecoveriesTable({
                 onChange={(value) => setFilter("sector", value)}
               />
             ) : null}
+            {headOptions.length ? (
+              <TableFilterSelect
+                label="Head"
+                value={filters.head || ""}
+                options={stringOptions(headOptions)}
+                loading={isPending}
+                onChange={(value) => setFilter("head", value)}
+              />
+            ) : null}
             {salesmanOptions.length ? (
               <TableFilterSelect
                 label="Salesman"
@@ -88,6 +167,19 @@ export function RecoveriesTable({
                 onChange={(value) => setFilter("salesman", value)}
               />
             ) : null}
+            <div className="flex items-center gap-2">
+              {exportLoading ? (
+                <span className="text-[10px] text-[var(--muted)]">
+                  Preparing export…
+                </span>
+              ) : null}
+              <ExportButtons
+                rows={exportRows}
+                filename="recovery-history"
+                title="Recovery history"
+                printId="recovery-history-export"
+              />
+            </div>
           </div>
         }
       />
@@ -101,6 +193,7 @@ export function RecoveriesTable({
                 <th>Amount</th>
                 <th>Salesman</th>
                 <th>City / Sector</th>
+                <th>Head</th>
                 <th>Remarks</th>
                 <th className="text-right">Actions</th>
               </tr>
@@ -111,7 +204,10 @@ export function RecoveriesTable({
                   const party = r.parties
                     ? `${r.parties.party_code} — ${r.parties.name_en}`
                     : "—";
-                  const salesman = r.salesman?.full_name || (r.salesman_id ? "—" : "Unassigned");
+                  const salesman =
+                    r.salesman?.full_name ||
+                    (r.salesman_id ? "—" : "Unassigned");
+                  const head = (r.parties?.head || "").trim() || "—";
                   const fields: DetailField[] = [
                     { label: "Date", value: r.recovery_date },
                     { label: "Customer", value: party },
@@ -122,6 +218,7 @@ export function RecoveriesTable({
                       value:
                         [r.city, r.route].filter(Boolean).join(" · ") || "—",
                     },
+                    { label: "Head", value: head },
                     { label: "Remarks", value: r.remarks || "—" },
                   ];
                   return (
@@ -135,7 +232,10 @@ export function RecoveriesTable({
                       <td className="text-[var(--muted)]">
                         {[r.city, r.route].filter(Boolean).join(" · ") || "—"}
                       </td>
-                      <td className="text-[var(--muted)]">{r.remarks || "—"}</td>
+                      <td className="text-[var(--muted)]">{head}</td>
+                      <td className="text-[var(--muted)]">
+                        {r.remarks || "—"}
+                      </td>
                       <td>
                         <RowActions
                           viewTitle="Recovery details"
@@ -171,8 +271,11 @@ export function RecoveriesTable({
                 })
               ) : (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-[var(--muted)]">
-                    No recoveries yet.
+                  <td
+                    colSpan={8}
+                    className="py-8 text-center text-[var(--muted)]"
+                  >
+                    No recoveries match this filter.
                   </td>
                 </tr>
               )}
@@ -191,6 +294,48 @@ export function RecoveriesTable({
           onPageSizeChange={setPageSize}
         />
       </div>
+
+      {exportRows.length ? (
+        <div
+          className="print-sheet hidden print:block"
+          data-print-id="recovery-history-export"
+        >
+          <h1 className="mb-2 text-lg font-semibold">Recovery history</h1>
+          <p className="mb-3 text-xs text-[var(--muted)]">
+            {exportRows.length} row(s) · printed {new Date().toLocaleString()}
+          </p>
+          <table className="w-full border-collapse text-xs">
+            <thead>
+              <tr>
+                {Object.keys(exportRows[0] || {}).map((key) => (
+                  <th
+                    key={key}
+                    className="border border-[var(--border)] px-1.5 py-1 text-left"
+                  >
+                    {key}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {exportRows.map((row, idx) => (
+                <tr key={idx}>
+                  {Object.keys(exportRows[0] || {}).map((key) => (
+                    <td
+                      key={key}
+                      className="border border-[var(--border)] px-1.5 py-1"
+                    >
+                      {row[key] == null || row[key] === ""
+                        ? "—"
+                        : String(row[key])}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
     </div>
   );
 }

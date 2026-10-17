@@ -10,6 +10,7 @@ import { useVoucherList } from "@/hooks/use-voucher-lists";
 import { CatalogSlot, useTradingCatalog } from "@/lib/trading/catalog-client";
 import type { VoucherListResult } from "@/lib/queries/vouchers";
 import type { Company, Party } from "@/lib/types/database";
+import Link from "next/link";
 
 type VoucherKind = "CR" | "CP" | "JV";
 
@@ -28,7 +29,7 @@ const VOUCHER_META: Record<
   CR: {
     title: "Cash Receipt",
     description:
-      "Record money received from customers. Choose a sector to see those shops and each shop's previous balance.",
+      "Record money received from customers. Choose a sector to see those shops and each shop's previous balance. Open Recovery history for the full collection list with edit / delete.",
     addLabel: "New receipt",
     addTitle: "New cash receipt",
     addDescription:
@@ -104,41 +105,51 @@ export function VouchersView({
         title={meta.title}
         description={meta.description}
         actions={
-          <CreateDialogButton
-            label={meta.addLabel}
-            title={meta.addTitle}
-            description={meta.addDescription}
-            size="xl"
-          >
-            <CatalogSlot
-              ready={initialOffline || parties.length > 0 || catalog.ready}
-              error={catalog.error}
+          <div className="flex flex-wrap items-center gap-2">
+            {kind === "CR" ? (
+              <Link
+                href="/salesman/recoveries"
+                className="inline-flex h-10 items-center rounded-lg border border-[var(--border)] bg-white px-3 text-sm font-medium text-[var(--muted)] hover:text-[var(--ink)]"
+              >
+                Recovery history
+              </Link>
+            ) : null}
+            <CreateDialogButton
+              label={meta.addLabel}
+              title={meta.addTitle}
+              description={meta.addDescription}
+              size="xl"
             >
-              {kind === "JV" ? (
-                <JournalVoucherForm
-                  companyId={company.id}
-                  organizationId={company.organization_id}
-                  parties={formParties}
-                  onDone={refetch}
-                />
-              ) : kind === "CR" ? (
-                <CashReceiptForm
-                  companyId={company.id}
-                  organizationId={company.organization_id}
-                  parties={formParties}
-                  onDone={refetch}
-                />
-              ) : (
-                <CashVoucherForm
-                  kind={kind}
-                  companyId={company.id}
-                  organizationId={company.organization_id}
-                  parties={formParties}
-                  onDone={refetch}
-                />
-              )}
-            </CatalogSlot>
-          </CreateDialogButton>
+              <CatalogSlot
+                ready={initialOffline || parties.length > 0 || catalog.ready}
+                error={catalog.error}
+              >
+                {kind === "JV" ? (
+                  <JournalVoucherForm
+                    companyId={company.id}
+                    organizationId={company.organization_id}
+                    parties={formParties}
+                    onDone={refetch}
+                  />
+                ) : kind === "CR" ? (
+                  <CashReceiptForm
+                    companyId={company.id}
+                    organizationId={company.organization_id}
+                    parties={formParties}
+                    onDone={refetch}
+                  />
+                ) : (
+                  <CashVoucherForm
+                    kind={kind}
+                    companyId={company.id}
+                    organizationId={company.organization_id}
+                    parties={formParties}
+                    onDone={refetch}
+                  />
+                )}
+              </CatalogSlot>
+            </CreateDialogButton>
+          </div>
         }
       />
 
