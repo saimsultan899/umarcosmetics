@@ -6,6 +6,7 @@ import { StockReportFilters } from "@/components/reports/stock-report-filters";
 import { requireCompanyContext } from "@/lib/auth";
 import { effectivePermissions } from "@/lib/access/permissions";
 import { formatUomCompact } from "@/lib/pricing/uom";
+import { fetchAllPages } from "@/lib/supabase/fetch-all-pages";
 import { AlertTriangle, Boxes, Package } from "lucide-react";
 import Link from "next/link";
 
@@ -104,32 +105,91 @@ export default async function StockReportPage({
 
   const { supabase } = ctx;
 
-  const [{ data: rows }, { data: movements }, { data: products }, { data: warehouses }] =
-    await Promise.all([
+  type StockBalanceRow = {
+    qty: number | string | null;
+    warehouse_id: string | null;
+    product_id: string | null;
+    products:
+      | {
+          id?: string;
+          code?: string | null;
+          name_en?: string | null;
+          reorder_level?: number | null;
+          purchase_rate?: number | null;
+          retail_rate?: number | null;
+          packing?: number | null;
+          unit_type?: string | null;
+          base_unit?: string | null;
+        }
+      | Array<{
+          id?: string;
+          code?: string | null;
+          name_en?: string | null;
+          reorder_level?: number | null;
+          purchase_rate?: number | null;
+          retail_rate?: number | null;
+          packing?: number | null;
+          unit_type?: string | null;
+          base_unit?: string | null;
+        }>
+      | null;
+    warehouses: { id?: string; name?: string | null } | Array<{ id?: string; name?: string | null }> | null;
+  };
+
+  type ProductRow = {
+    id: string;
+    code: string | null;
+    name_en: string | null;
+    default_warehouse_id: string | null;
+    reorder_level: number | null;
+    opening_qty: number | null;
+    purchase_rate: number | null;
+    retail_rate: number | null;
+    packing: number | null;
+    unit_type: string | null;
+    base_unit: string | null;
+  };
+
+  const [rows, movementsRes, products, warehousesRes] = await Promise.all([
+    fetchAllPages<StockBalanceRow>((from, to) =>
       supabase
         .from("stock_balances")
-        .select("qty, warehouse_id, product_id, products(id, code, name_en, reorder_level, purchase_rate, retail_rate, packing, unit_type, base_unit), warehouses(id, name)")
+        .select(
+          "qty, warehouse_id, product_id, products(id, code, name_en, reorder_level, purchase_rate, retail_rate, packing, unit_type, base_unit), warehouses(id, name)",
+        )
         .eq("company_id", company.id)
         .order("qty", { ascending: false })
-        .limit(1000),
-      supabase
-        .from("stock_movements")
-        .select("created_at, move_type, qty, warehouse_id, product_id, ref_table, ref_id, products(id, code, name_en, packing, unit_type, base_unit), warehouses(id, name)")
-        .eq("company_id", company.id)
-        .order("created_at", { ascending: false })
-        .limit(200),
+        .order("product_id", { ascending: true })
+        .range(from, to),
+    ),
+    supabase
+      .from("stock_movements")
+      .select(
+        "created_at, move_type, qty, warehouse_id, product_id, ref_table, ref_id, products(id, code, name_en, packing, unit_type, base_unit), warehouses(id, name)",
+      )
+      .eq("company_id", company.id)
+      .order("created_at", { ascending: false })
+      .limit(500),
+    fetchAllPages<ProductRow>((from, to) =>
       supabase
         .from("products")
-        .select("id, code, name_en, default_warehouse_id, reorder_level, opening_qty, purchase_rate, retail_rate, packing, unit_type, base_unit")
+        .select(
+          "id, code, name_en, default_warehouse_id, reorder_level, opening_qty, purchase_rate, retail_rate, packing, unit_type, base_unit",
+        )
         .eq("company_id", company.id)
         .eq("is_active", true)
-        .order("code")
-        .limit(1000),
-      supabase
-        .from("warehouses")
-        .select("id, name")
-        .eq("company_id", company.id),
-    ]);
+        .order("code", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to),
+    ),
+    supabase
+      .from("warehouses")
+      .select("id, name")
+      .eq("company_id", company.id)
+      .order("name"),
+  ]);
+  const movements = movementsRes.data;
+  const warehouses = warehousesRes.data;
 
   const companyByWarehouse = new Map(
     (warehouses || []).map((w) => [w.id, w.name]),
@@ -171,7 +231,7 @@ export default async function StockReportPage({
     return !cancelledRefs.has(key);
   });
 
-  const balanceRows = (rows || []).map((r) => {
+  const balanceRowsFromStock = (rows || []).map((r) => {
     const product = Array.isArray(r.products) ? r.products[0] : r.products;
     const warehouse = Array.isArray(r.warehouses) ? r.warehouses[0] : r.warehouses;
     const qty = Number(r.qty);
@@ -180,6 +240,7 @@ export default async function StockReportPage({
     const packing = Number(product?.packing || 1);
     const reorder = Number(product?.reorder_level || 0);
     return {
+      _productId: String(product?.id || r.product_id || ""),
       _warehouseId: String(r.warehouse_id || warehouse?.id || ""),
       Company: warehouse?.name || "—",
       Code: product?.code || "—",
@@ -197,6 +258,46 @@ export default async function StockReportPage({
       Status: reorder > 0 && qty <= reorder ? "Low" : "OK",
       ...productActions(String(product?.id || r.product_id || "")),
     };
+  });
+
+  // Include active products that have no stock_balances row yet (qty 0),
+  // so Stock list shows every product — not only those with a balance row.
+  const productsWithBalance = new Set(
+    balanceRowsFromStock.map((r) => r._productId).filter(Boolean),
+  );
+  const zeroStockRows = (products || [])
+    .filter((p) => !productsWithBalance.has(p.id))
+    .map((p) => {
+      const qty = 0;
+      const purchaseRate = Number(p.purchase_rate || 0);
+      const retailRate = Number(p.retail_rate || 0);
+      const packing = Number(p.packing || 1);
+      const reorder = Number(p.reorder_level || 0);
+      return {
+        _productId: p.id,
+        _warehouseId: String(p.default_warehouse_id || ""),
+        Company: companyByWarehouse.get(p.default_warehouse_id || "") || "—",
+        Code: p.code || "—",
+        Product: p.name_en || "—",
+        Qty: qty,
+        Packing: formatUomCompact(qty, packing, {
+          unitType: p.unit_type,
+          baseUnit: p.base_unit,
+        }),
+        Reorder: reorder,
+        "Purchase rate": purchaseRate,
+        "Retail rate": retailRate,
+        "Value (purchase)": 0,
+        "Value (retail)": 0,
+        Status: reorder > 0 ? "Low" : "OK",
+        ...productActions(p.id),
+      };
+    });
+
+  const balanceRows = [...balanceRowsFromStock, ...zeroStockRows].sort((a, b) => {
+    const qtyDiff = Number(b.Qty) - Number(a.Qty);
+    if (qtyDiff !== 0) return qtyDiff;
+    return String(a.Code).localeCompare(String(b.Code));
   });
 
   const onHandByProduct = new Map<string, number>();
