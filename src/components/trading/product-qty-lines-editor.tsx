@@ -51,17 +51,32 @@ export const ProductQtyLinesEditor = forwardRef<
   ProductQtyLinesEditorHandle,
   {
     products: Product[];
+    /**
+     * Broader pool for code → product resolution when `products` is filtered
+     * (e.g. gate-pass brand). Dropdown still uses `products`; exact code match
+     * can pull from this list and notify the parent via onResolvedOutsideList.
+     */
+    codeLookupProducts?: Product[];
+    onResolvedOutsideList?: (product: Product) => void;
     lines: ProductQtyLine[];
     onChange: (lines: ProductQtyLine[]) => void;
     autoFocus?: boolean;
   }
 >(function ProductQtyLinesEditor(
-  { products, lines, onChange, autoFocus = true },
+  {
+    products,
+    codeLookupProducts,
+    onResolvedOutsideList,
+    lines,
+    onChange,
+    autoFocus = true,
+  },
   ref,
 ) {
   const [draft, setDraft] = useState<ProductQtyLine>(emptyProductQtyLine);
   const [hint, setHint] = useState<string | null>(null);
   const [productOpen, setProductOpen] = useState(false);
+  const [useLookupOptions, setUseLookupOptions] = useState(false);
 
   const linesRef = useRef(lines);
   const draftRef = useRef(draft);
@@ -82,11 +97,14 @@ export const ProductQtyLinesEditor = forwardRef<
     return () => cancelAnimationFrame(t);
   }, [autoFocus]);
 
+  const lookupPool = codeLookupProducts ?? products;
+
   const productById = useMemo(() => {
     const map = new Map<string, Product>();
+    for (const p of lookupPool) map.set(p.id, p);
     for (const p of products) map.set(p.id, p);
     return map;
-  }, [products]);
+  }, [products, lookupPool]);
 
   const productOptions = useMemo(
     () => [
@@ -98,6 +116,19 @@ export const ProductQtyLinesEditor = forwardRef<
       })),
     ],
     [products],
+  );
+
+  /** Options for the open dropdown when resolving a typed code outside the filter. */
+  const lookupOptions = useMemo(
+    () => [
+      { value: "", label: "Select product" },
+      ...lookupPool.map((p) => ({
+        value: p.id,
+        label: `${p.code} — ${p.name_en}`,
+        meta: productPieceRateMeta(p, "sale_rate"),
+      })),
+    ],
+    [lookupPool],
   );
 
   function patchDraft(patch: Partial<ProductQtyLine>) {
@@ -132,17 +163,34 @@ export const ProductQtyLinesEditor = forwardRef<
     const trimmed = raw.trim();
     if (!trimmed) {
       applyProduct(null);
+      setUseLookupOptions(false);
       return null;
     }
-    const local = products.find(
+    const inList = products.find(
       (p) => p.code.toLowerCase() === trimmed.toLowerCase(),
     );
-    if (local) {
-      applyProduct(local);
-      return local;
+    if (inList) {
+      applyProduct(inList);
+      setUseLookupOptions(false);
+      return inList;
+    }
+    const outside = lookupPool.find(
+      (p) => p.code.toLowerCase() === trimmed.toLowerCase(),
+    );
+    if (outside) {
+      applyProduct(outside);
+      setUseLookupOptions(false);
+      onResolvedOutsideList?.(outside);
+      setHint(
+        outside.manufacturer
+          ? `Found under brand ${outside.manufacturer} — brand filter updated`
+          : null,
+      );
+      return outside;
     }
     patchDraft({ product_code: trimmed });
     setHint("No product for this code");
+    setUseLookupOptions(true);
     return null;
   }
 
@@ -157,6 +205,7 @@ export const ProductQtyLinesEditor = forwardRef<
     setDraft(next);
     setHint(null);
     setProductOpen(false);
+    setUseLookupOptions(false);
   }
 
   function commitDraft(opts?: { silent?: boolean }) {
@@ -205,9 +254,18 @@ export const ProductQtyLinesEditor = forwardRef<
   }
 
   function onProductPicked(productId: string) {
-    const p = products.find((x) => x.id === productId) || null;
+    const p =
+      products.find((x) => x.id === productId) ||
+      lookupPool.find((x) => x.id === productId) ||
+      null;
     applyProduct(p);
-    if (p) requestAnimationFrame(() => focusField(qtyRef.current));
+    if (p) {
+      if (!products.some((x) => x.id === p.id)) {
+        onResolvedOutsideList?.(p);
+      }
+      setUseLookupOptions(false);
+      requestAnimationFrame(() => focusField(qtyRef.current));
+    }
   }
 
   function onQtyEnter(e: ReactKeyboardEvent<HTMLInputElement>) {
@@ -256,9 +314,12 @@ export const ProductQtyLinesEditor = forwardRef<
                   ref={productSelectRef}
                   size="sm"
                   value={draft.product_id}
-                  options={productOptions}
+                  options={useLookupOptions ? lookupOptions : productOptions}
                   open={productOpen}
-                  onOpenChange={setProductOpen}
+                  onOpenChange={(open) => {
+                    setProductOpen(open);
+                    if (!open) setUseLookupOptions(false);
+                  }}
                   onChange={(e) => onProductPicked(e.target.value)}
                 />
                 {hint ? (

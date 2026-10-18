@@ -89,7 +89,8 @@ export function GatePassForm({
   );
   const [partyId, setPartyId] = useState(editing?.partyId || "");
   const [warehouseId, setWarehouseId] = useState(
-    editing?.warehouseId || warehouses[0]?.id || "",
+    // New passes start blank — do not auto-pick the first company (e.g. Amelia).
+    editing?.warehouseId || "",
   );
   const [manufacturer, setManufacturer] = useState(editing?.manufacturer || "");
   const [vehicleNo, setVehicleNo] = useState(editing?.vehicleNo || "");
@@ -102,12 +103,16 @@ export function GatePassForm({
   const singleSubmit = useSingleSubmit();
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * Brand filter for the product picker. Soft: always include an exact code match
+   * from the full catalog so codes like 1749 still resolve when Brand is Soft Touch
+   * but the product sits under another manufacturer (or when editing an old pass).
+   */
   const catalog = useMemo(() => {
     if (!manufacturer) return products;
+    const brand = manufacturer.trim().toLowerCase();
     return products.filter(
-      (p) =>
-        (p.manufacturer || "").trim().toLowerCase() ===
-        manufacturer.trim().toLowerCase(),
+      (p) => (p.manufacturer || "").trim().toLowerCase() === brand,
     );
   }, [products, manufacturer]);
 
@@ -254,6 +259,9 @@ export function GatePassForm({
               </option>
             ))}
           </Select>
+          <p className="mt-1 text-[11px] text-[var(--muted)]">
+            Narrows the product list. Use All products if a code is missing.
+          </p>
         </div>
         <div className="sm:col-span-2 lg:col-span-4">
           <PartyCodePicker
@@ -303,6 +311,18 @@ export function GatePassForm({
       <ProductQtyLinesEditor
         ref={linesEditorRef}
         products={catalog}
+        codeLookupProducts={products}
+        onResolvedOutsideList={(product) => {
+          const brand = (product.manufacturer || "").trim();
+          if (
+            brand &&
+            brand.toLowerCase() !== manufacturer.trim().toLowerCase()
+          ) {
+            setManufacturer(brand);
+          } else if (!brand && manufacturer) {
+            setManufacturer("");
+          }
+        }}
         lines={lines}
         onChange={setLines}
       />

@@ -8,6 +8,7 @@ import {
   hasCartonPacking,
   perCartonRate,
   pieceShortLabel,
+  piecesPerCarton,
   toPieces,
   type QtyUnitMode,
 } from "@/lib/pricing/uom";
@@ -68,6 +69,7 @@ export const QtyUnitControl = forwardRef<HTMLInputElement, QtyUnitControlProps>(
     const canCarton = hasCartonPacking(packing);
     const [mode, setMode] = useState<QtyUnitMode>(defaultMode || "piece");
     const groupId = useId();
+    const ppc = piecesPerCarton(packing);
 
     useEffect(() => {
       if (!canCarton && mode === "carton") setMode("piece");
@@ -77,109 +79,108 @@ export const QtyUnitControl = forwardRef<HTMLInputElement, QtyUnitControlProps>(
     const pcsLabel = pieceShortLabel(baseUnit);
     const breakdown = fromPieces(qty, packing);
 
-    // Always derive CTN / loose from stored pieces so fields stay in sync
-    // when lines are added/remounted (no stale local loose state).
+    // CTN mode is whole cartons only — no leftover unit field.
     const displayQty =
-      mode === "carton" && canCarton ? String(breakdown.cartons) : qty;
-    const looseQty = String(breakdown.pieces || 0);
+      mode === "carton" && canCarton
+        ? breakdown.cartons > 0
+          ? String(breakdown.cartons)
+          : ""
+        : qty;
+
+    const packHint = canCarton
+      ? `1 ${ctnLabel} = ${ppc} ${pcsLabel}`
+      : pcsLabel;
+
+    const breakdownTitle = canCarton
+      ? `${formatUom(qty, packing, { unitType, baseUnit })} · ${packHint}`
+      : pcsLabel;
 
     function setModeSafe(next: QtyUnitMode) {
       if (next === "carton" && !canCarton) return;
+      if (next === "carton" && mode === "piece") {
+        // Drop leftover units (e.g. default qty 1) so CTN only shows cartons.
+        const { cartons } = fromPieces(qty, packing);
+        onQtyChange(cartons > 0 ? String(cartons * ppc) : "");
+      }
       setMode(next);
     }
 
     function onDisplayQtyChange(raw: string) {
       if (mode === "carton" && canCarton) {
+        if (raw.trim() === "") {
+          onQtyChange("");
+          return;
+        }
         const cartons = Math.max(0, Math.floor(Number(raw || 0)));
-        onQtyChange(String(toPieces(cartons, breakdown.pieces, packing)));
+        onQtyChange(cartons > 0 ? String(toPieces(cartons, 0, packing)) : "");
         return;
       }
       onQtyChange(raw);
     }
 
-    function onLooseChange(raw: string) {
-      const loosePcs = Math.max(0, Number(raw || 0));
-      onQtyChange(String(toPieces(breakdown.cartons, loosePcs, packing)));
-    }
-
-    const breakdownTitle = canCarton
-      ? `${formatUom(qty, packing, { unitType, baseUnit })}${
-          packing > 1 ? ` · ${packing}/${ctnLabel.toLowerCase()}` : ""
-        }`
-      : pcsLabel;
-
     if (compact) {
       return (
-        <div
-          className={cn("flex items-center gap-1", className)}
-          title={breakdownTitle}
-        >
-          {canCarton ? (
-            <div
-              className="inline-flex shrink-0 rounded-md border border-[var(--border)] p-0.5 text-[10px] font-semibold uppercase"
-              role="group"
-              aria-label="Quantity unit"
-            >
-              <button
-                type="button"
-                id={`${groupId}-pcs`}
-                disabled={disabled}
-                onClick={() => setModeSafe("piece")}
-                className={cn(
-                  "rounded px-1 py-0.5",
-                  mode === "piece"
-                    ? "bg-[var(--brand)] text-white"
-                    : "text-[var(--muted)] hover:text-[var(--ink)]",
-                )}
+        <div className={cn("min-w-0", className)} title={breakdownTitle}>
+          <div className="flex items-center gap-1">
+            {canCarton ? (
+              <div
+                className="inline-flex shrink-0 rounded-md border border-[var(--border)] p-0.5 text-[10px] font-semibold uppercase"
+                role="group"
+                aria-label="Quantity unit"
               >
-                {pcsLabel}
-              </button>
-              <button
-                type="button"
-                id={`${groupId}-ctn`}
-                disabled={disabled}
-                onClick={() => setModeSafe("carton")}
-                className={cn(
-                  "rounded px-1 py-0.5",
-                  mode === "carton"
-                    ? "bg-[var(--brand)] text-white"
-                    : "text-[var(--muted)] hover:text-[var(--ink)]",
-                )}
-              >
-                {ctnLabel}
-              </button>
-            </div>
-          ) : null}
-          <Input
-            ref={qtyInputRef}
-            type="number"
-            min="0"
-            step="1"
-            value={displayQty}
-            disabled={disabled}
-            onChange={(e) => onDisplayQtyChange(e.target.value)}
-            onKeyDown={onQtyKeyDown}
-            className={cn("h-8 w-16 px-1.5 text-sm", qtyClassName)}
-            title={breakdownTitle}
-            aria-label={
-              mode === "carton"
-                ? `Quantity (${ctnLabel})`
-                : `Quantity (${pcsLabel})`
-            }
-          />
-          {mode === "carton" && canCarton ? (
+                <button
+                  type="button"
+                  id={`${groupId}-pcs`}
+                  disabled={disabled}
+                  onClick={() => setModeSafe("piece")}
+                  className={cn(
+                    "rounded px-1 py-0.5",
+                    mode === "piece"
+                      ? "bg-[var(--brand)] text-white"
+                      : "text-[var(--muted)] hover:text-[var(--ink)]",
+                  )}
+                >
+                  {pcsLabel}
+                </button>
+                <button
+                  type="button"
+                  id={`${groupId}-ctn`}
+                  disabled={disabled}
+                  onClick={() => setModeSafe("carton")}
+                  className={cn(
+                    "rounded px-1 py-0.5",
+                    mode === "carton"
+                      ? "bg-[var(--brand)] text-white"
+                      : "text-[var(--muted)] hover:text-[var(--ink)]",
+                  )}
+                >
+                  {ctnLabel}
+                </button>
+              </div>
+            ) : null}
             <Input
+              ref={qtyInputRef}
               type="number"
               min="0"
               step="1"
-              value={looseQty}
+              value={displayQty}
               disabled={disabled}
-              onChange={(e) => onLooseChange(e.target.value)}
-              className="h-8 w-12 px-1 text-[11px]"
-              title={`Loose ${pcsLabel}`}
-              aria-label={`Loose ${pcsLabel}`}
-              placeholder={pcsLabel}
+              onChange={(e) => onDisplayQtyChange(e.target.value)}
+              onKeyDown={onQtyKeyDown}
+              className={cn("h-8 w-16 px-1.5 text-sm", qtyClassName)}
+              title={breakdownTitle}
+              placeholder={mode === "carton" ? ctnLabel : pcsLabel}
+              aria-label={
+                mode === "carton"
+                  ? `Quantity (${ctnLabel})`
+                  : `Quantity (${pcsLabel})`
+              }
             />
+          </div>
+          {canCarton ? (
+            <p className="mt-0.5 text-[10px] leading-tight text-[var(--muted)]">
+              {packHint}
+            </p>
           ) : null}
         </div>
       );
@@ -224,12 +225,7 @@ export const QtyUnitControl = forwardRef<HTMLInputElement, QtyUnitControlProps>(
           </div>
         ) : null}
 
-        <div
-          className={cn(
-            "flex items-center gap-1",
-            compact && "flex-col items-stretch",
-          )}
-        >
+        <div className="flex items-center gap-1">
           <Input
             ref={qtyInputRef}
             type="number"
@@ -240,9 +236,10 @@ export const QtyUnitControl = forwardRef<HTMLInputElement, QtyUnitControlProps>(
             onChange={(e) => onDisplayQtyChange(e.target.value)}
             onKeyDown={onQtyKeyDown}
             className={qtyClassName}
+            placeholder={mode === "carton" ? ctnLabel : pcsLabel}
             title={
               mode === "carton"
-                ? `${ctnLabel} — ${packing} ${pcsLabel}/${ctnLabel}`
+                ? `${ctnLabel} — ${packHint}`
                 : pcsLabel
             }
             aria-label={
@@ -251,26 +248,14 @@ export const QtyUnitControl = forwardRef<HTMLInputElement, QtyUnitControlProps>(
                 : `Quantity (${pcsLabel})`
             }
           />
-          {mode === "carton" && canCarton ? (
-            <Input
-              type="number"
-              min="0"
-              step="1"
-              value={looseQty}
-              disabled={disabled}
-              onChange={(e) => onLooseChange(e.target.value)}
-              className={cn(compact ? "h-7 text-[11px]" : "h-8 w-20 text-xs")}
-              title={`Loose ${pcsLabel}`}
-              aria-label={`Loose ${pcsLabel}`}
-              placeholder={pcsLabel}
-            />
-          ) : null}
         </div>
 
         {canCarton ? (
           <p className="text-[10px] text-[var(--muted)]">
-            {formatUom(qty, packing, { unitType, baseUnit })}
-            {packing > 1 ? ` · ${packing}/${ctnLabel.toLowerCase()}` : ""}
+            {packHint}
+            {Number(qty) > 0
+              ? ` · ${formatUom(qty, packing, { unitType, baseUnit })}`
+              : ""}
           </p>
         ) : null}
 
