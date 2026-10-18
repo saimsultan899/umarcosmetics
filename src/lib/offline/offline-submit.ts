@@ -67,7 +67,6 @@ export function isBusinessRuleError(message: string) {
     m.includes("unique constraint") ||
     m.includes("already cancelled") ||
     m.includes("already posted against") ||
-    m.includes("far above stock") ||
     m.includes("does not sell past stock") ||
     m.includes("must pay") ||
     m.includes("select a customer") ||

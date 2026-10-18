@@ -167,23 +167,20 @@ export function FieldSaleForm({
         ],
         policy,
       );
-      if (stockReview.mistakes.length > 0) {
+      if (
+        policy === "block" &&
+        (stockReview.shorts.length > 0 || stockReview.mistakes.length > 0)
+      ) {
         setError(
-          `${stockReview.mistakes.join(" ")}\nThis quantity is too far above the stock on hand. The sale was not saved.`,
-        );
-        return;
-      }
-      if (policy === "block" && stockReview.shorts.length > 0) {
-        setError(
-          `${stockReview.shorts.join(" ")}\nThis company does not sell more than the stock on hand.`,
+          `${[...stockReview.mistakes, ...stockReview.shorts].join(" ")}\nThis company does not sell more than the stock on hand.`,
         );
         return;
       }
       if (
         policy === "confirm" &&
-        stockReview.shorts.length > 0 &&
+        (stockReview.shorts.length > 0 || stockReview.mistakes.length > 0) &&
         !window.confirm(
-          `Out of stock:\n\n${stockReview.shorts.join("\n")}\n\nSave this sale anyway? Stock will go negative.`,
+          `Out of stock:\n\n${[...stockReview.shorts, ...stockReview.mistakes].join("\n")}\n\nSave this sale anyway? Stock will go negative.`,
         )
       ) {
         return;

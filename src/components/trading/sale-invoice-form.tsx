@@ -360,21 +360,19 @@ export function SaleInvoiceForm({
       }),
       stockPolicy,
     );
-    if (stockReview.mistakes.length > 0) {
+    if (stockPolicy === "block" && (stockReview.shorts.length > 0 || stockReview.mistakes.length > 0)) {
       setError(
-        `${stockReview.mistakes.join("\n")}\n\nThis quantity is too far above the stock on hand. The invoice was not saved.`,
-      );
-      return;
-    }
-    if (stockPolicy === "block" && stockReview.shorts.length > 0) {
-      setError(
-        `${stockReview.shorts.join("\n")}\n\nThis company does not sell more than the stock on hand.`,
+        `${[...stockReview.mistakes, ...stockReview.shorts].join("\n")}\n\nThis company does not sell more than the stock on hand.`,
       );
       return;
     }
     if (stockAlerts.length > 0 && stockPolicy === "confirm") {
+      const farAbove =
+        stockReview.mistakes.length > 0
+          ? `\n\nLarge quantity check:\n${stockReview.mistakes.join("\n")}`
+          : "";
       const proceed = window.confirm(
-        `Out of stock:\n\n${stockAlerts.join("\n")}\n\nSave this sale anyway? Stock will go negative, and the next receipt will clear that deficit.`,
+        `Out of stock:\n\n${stockAlerts.join("\n")}${farAbove}\n\nSave this sale anyway? Stock will go negative, and the next receipt will clear that deficit.`,
       );
       if (!proceed) return;
     }

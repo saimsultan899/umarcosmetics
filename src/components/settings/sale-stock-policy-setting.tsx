@@ -43,8 +43,9 @@ export function SaleStockPolicySetting({
         Sale stock check
       </h2>
       <p className="mt-1 text-sm text-[var(--muted)]">
-        A quantity far above the shelf is refused either way, so a mistyped
-        number cannot post. This choice is for the whole company.
+        Choose whether a short shelf stops the sale or only warns. A quantity
+        far above stock still warns, but can save when Warn is selected. This
+        choice is for the whole company.
       </p>
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
         <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-[var(--border)] p-3">
@@ -75,7 +76,7 @@ export function SaleStockPolicySetting({
           <span>
             <span className="block text-sm font-semibold">Warn, then allow</span>
             <span className="mt-0.5 block text-xs text-[var(--muted)]">
-              A short shelf asks before saving. Stock can go negative. A wild quantity is still refused.
+              A short shelf asks before saving. Stock can go negative. Large quantities warn but still allow save.
             </span>
           </span>
         </label>

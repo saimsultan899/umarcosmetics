@@ -369,12 +369,15 @@ export const LineItemsEditor = forwardRef<
     const need = Number(qty || 0) + Number(bonus || 0);
     if (!(need > avail)) return null;
     if (allowOversell) {
-      return `Out of stock in ${warehouseLabel(companyId)} (on hand ${formatStockQty(avail, productId)}, selling ${formatStockQty(need, productId)}). Invoice will still save and stock will go negative.`;
+      if (saleQtyIsMistake(need, avail)) {
+        return `Low stock ${formatStockQty(Math.max(0, avail), productId)} · selling ${formatStockQty(need, productId)} (will go negative)`;
+      }
+      return `Out of stock ${formatStockQty(avail, productId)} · selling ${formatStockQty(need, productId)} (will go negative)`;
     }
-    return `Only ${formatStockQty(avail, productId)} available in ${warehouseLabel(companyId)} (need ${formatStockQty(need, productId)})`;
+    return `Only ${formatStockQty(avail, productId)} available (need ${formatStockQty(need, productId)})`;
   }
 
-  /** Stop the line when stock policy blocks a short sale, or the qty is a wild mistype. */
+  /** Stop the line only when stock policy blocks a short sale. Large overselles warn, not refuse. */
   function refuseStock(
     productId: string,
     qty: string,
@@ -382,19 +385,6 @@ export const LineItemsEditor = forwardRef<
     exceptKey?: string,
   ): string | null {
     if (receiveStock || !productId) return null;
-    const productWh = productCompanyId(productId);
-    const companyId = productWh || effectiveWarehouseId;
-    const need = Number(qty || 0) + Number(bonus || 0);
-    if (companyId && stockByProduct) {
-      const onHand =
-        stockByProduct
-          .get(productId)
-          ?.find((e) => e.warehouseId === companyId)?.qty ?? 0;
-      const shelf = onHand - reservedQty(productId, exceptKey);
-      if (saleQtyIsMistake(need, shelf)) {
-        return `Entered ${formatStockQty(need, productId)}, stock on hand ${formatStockQty(Math.max(0, shelf), productId)} in ${warehouseLabel(companyId)}. This quantity is too far above the shelf. Check the number.`;
-      }
-    }
     const stockErr = overstockAlert(productId, qty, bonus, exceptKey);
     if (stockErr && !allowOversell) return stockErr;
     return null;

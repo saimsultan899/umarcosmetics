@@ -5,9 +5,8 @@ export function normalizeSaleStockPolicy(value: unknown): SaleStockPolicy {
 }
 
 /**
- * A quantity this far past the shelf is treated as a typing mistake
- * for every company, including those that allow a short sale.
- * On hand 406 and a sale of 82,944 is stopped. A sale of 12 against 6 is not.
+ * Flag a quantity far past the shelf for a stronger warning.
+ * Does not block save when the company allows oversell (confirm policy).
  */
 export function saleQtyIsMistake(need: number, onHand: number): boolean {
   const wanted = Number(need);
