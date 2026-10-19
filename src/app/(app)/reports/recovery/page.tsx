@@ -312,7 +312,7 @@ export default async function RecoverySheetPage({
             defaultValue={include}
             options={[
               { value: "all", label: "All shops" },
-              { value: "nonzero", label: "With ledger balance only" },
+              { value: "nonzero", label: "With balance only (Dr + Cr)" },
               { value: "dues", label: "Due only (Dr)" },
             ]}
           />

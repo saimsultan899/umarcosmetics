@@ -72,7 +72,6 @@ export function isBusinessRuleError(message: string) {
     m.includes("select a customer") ||
     m.includes("no amount due") ||
     m.includes("only owes") ||
-    m.includes("would create credit") ||
     m.includes("more than that invoice") ||
     m.includes("not on that sale") ||
     m.includes("belongs to a customer recovery") ||

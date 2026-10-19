@@ -292,6 +292,15 @@ export function ReturnForm({
   const editingRef = useRef(editing);
   editingRef.current = editing;
 
+  const grandTotalPreview = useMemo(() => {
+    const linesTotal = lines.reduce(
+      (sum, line) => sum + calcLineAmount(line.qty, line.rate, line.discount),
+      0,
+    );
+    const extra = Math.max(0, Number(extraDiscount) || 0);
+    return Math.max(0, linesTotal - extra);
+  }, [lines, extraDiscount]);
+
   // Edit open / late party list: fill Sector from the shop when still empty.
   useEffect(() => {
     if (kind !== "sale" || !partyId || sector) return;
@@ -518,27 +527,8 @@ export function ReturnForm({
     }
     const grand_total = Math.max(0, linesTotal - extra);
 
-    const dueForCheck =
-      partyDue == null
-        ? null
-        : partyDue +
-          (editing && partyId === editing.partyId ? editing.grandTotal : 0);
-    if (kind === "sale" && dueForCheck != null && grand_total > dueForCheck + 0.005) {
-      const recoveryNote =
-        recoveredTotal > 0.005
-          ? ` Recoveries already recorded: ${formatPkr(recoveredTotal)}.`
-          : "";
-      if (dueForCheck <= 0.005) {
-        setError(
-          `This customer has no amount due. A sale return would create credit. Cancel the recovery first if goods are coming back.${recoveryNote}`,
-        );
-      } else {
-        setError(
-          `This customer only owes ${formatPkr(dueForCheck)}. A return of ${formatPkr(grand_total)} would create credit. Cancel the recovery first, or return only the unpaid amount.${recoveryNote}`,
-        );
-      }
-      return;
-    }
+    // Sale returns may exceed due: leftover becomes customer credit (Cr)
+    // on ledger / receivables and offsets future sales as previous balance.
 
     setLoading(true);
     try {
@@ -810,16 +800,26 @@ export function ReturnForm({
         </p>
       ) : null}
 
-      {kind === "sale" && partyId && recoveredTotal > 0.005 ? (
-        <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          This customer already has recoveries totaling {formatPkr(recoveredTotal)}.
-          {partyDue == null
-            ? ""
-            : partyDue <= 0.005
-              ? " Balance is nil — a sale return would create credit and is blocked."
-              : ` Only ${formatPkr(partyDue)} is still due. Return more than that is blocked.`}
-        </p>
-      ) : null}
+      {kind === "sale" && partyId && partyDue != null && (() => {
+        const dueBeforeReturn =
+          partyDue +
+          (editing && partyId === editing.partyId ? editing.grandTotal : 0);
+        const creditAfter = grandTotalPreview - dueBeforeReturn;
+        if (creditAfter <= 0.005) {
+          return recoveredTotal > 0.005 ? (
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              This customer already has recoveries totaling {formatPkr(recoveredTotal)}.
+            </p>
+          ) : null;
+        }
+        return (
+          <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            {dueBeforeReturn <= 0.005
+              ? `Balance is nil${recoveredTotal > 0.005 ? ` (recoveries recorded: ${formatPkr(recoveredTotal)})` : ""}. This return will create a customer credit (Cr) of ${formatPkr(grandTotalPreview)}. It will show on receivables and reduce the previous balance on the next sale.`
+              : `Customer only owes ${formatPkr(dueBeforeReturn)}. Return of ${formatPkr(grandTotalPreview)} will leave credit (Cr) of ${formatPkr(creditAfter)} on receivables / next sale previous balance.`}
+          </p>
+        );
+      })()}
 
       <LineItemsEditor
         ref={linesEditorRef}
