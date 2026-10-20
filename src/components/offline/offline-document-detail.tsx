@@ -369,6 +369,56 @@ export function OfflineDocumentDetail({
     );
   }
 
+  if (kind === "expiry_receipt") {
+    const payload = asRecord(doc.payload) || doc;
+    const balanceOnly = Boolean(doc.balance_only ?? payload.balance_only);
+    const periodFrom = String(doc.period_from ?? payload.period_from ?? "");
+    const periodTo = String(doc.period_to ?? payload.period_to ?? "");
+    const total = Number(doc.grand_total ?? payload.grand_total ?? 0);
+    return (
+      <div className="animate-rise">
+        <PrintDocument
+          companyName={companyName || "Company"}
+          companyPhone={companyPhone || (doc.company_phone as string) || null}
+          title={
+            balanceOnly
+              ? "Expiry Return — Balance Only (Old/Manual Sale)"
+              : "Expiry Warehouse — Customer Return"
+          }
+          docNo={view.docNo}
+          date={view.date}
+          printedAt={(doc.created_at as string) || null}
+          partyName={view.partyName || null}
+          partyCode={view.partyCode || null}
+          partyPhone={view.partyPhone || null}
+          partyMobile={view.partyMobile || null}
+          extraMeta={[
+            ...(periodFrom && periodTo
+              ? [{ label: "Sold between", value: `${periodFrom} → ${periodTo}` }]
+              : []),
+            {
+              label: "Stock treatment",
+              value: balanceOnly
+                ? "Balance only — not added to expiry stock (no company claim from this receipt)"
+                : "Added to expiry stock (available for company claim)",
+            },
+          ]}
+          lines={lines}
+          totals={[
+            {
+              label: balanceOnly
+                ? "Amount cut from customer balance"
+                : "Customer credit",
+              value: formatPkr(total),
+              strong: true,
+            },
+          ]}
+          autoPrint={autoPrint}
+        />
+      </div>
+    );
+  }
+
   // Exact same sale invoice print layout as online
   if (kind === "sale_invoice") {
     return (

@@ -72,7 +72,11 @@ export default async function ExpiryReceiptDetailPage({
       companyName={company.name}
       companyAddress={[company.address, company.city].filter(Boolean).join(", ")}
       companyPhone={company.phone}
-      title="Expiry Warehouse — Customer Return"
+      title={
+        doc.balance_only
+          ? "Expiry Return — Balance Only (Old/Manual Sale)"
+          : "Expiry Warehouse — Customer Return"
+      }
       docNo={doc.receipt_no}
       date={doc.receipt_date}
       printedAt={doc.created_at}
@@ -80,16 +84,22 @@ export default async function ExpiryReceiptDetailPage({
       partyCode={party?.party_code}
       partyPhone={party?.phone}
       partyMobile={party?.mobile}
-      extraMeta={
-        doc.period_from && doc.period_to
+      extraMeta={[
+        ...(doc.period_from && doc.period_to
           ? [
               {
                 label: "Sold between",
                 value: `${formatPeriodShort(doc.period_from)} → ${formatPeriodShort(doc.period_to)}`,
               },
             ]
-          : []
-      }
+          : []),
+        {
+          label: "Stock treatment",
+          value: doc.balance_only
+            ? "Balance only — not added to expiry stock (no company claim from this receipt)"
+            : "Added to expiry stock (available for company claim)",
+        },
+      ]}
       lines={(items || []).map((i) => ({
         product_code: i.product_code,
         product_name: i.product_name,
@@ -98,7 +108,13 @@ export default async function ExpiryReceiptDetailPage({
         amount: Number(i.amount),
       }))}
       totals={[
-        { label: "Customer credit", value: formatPkr(doc.grand_total), strong: true },
+        {
+          label: doc.balance_only
+            ? "Amount cut from customer balance"
+            : "Customer credit",
+          value: formatPkr(doc.grand_total),
+          strong: true,
+        },
       ]}
       autoPrint={autoPrint}
     />

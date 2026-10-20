@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { useCreateDialogClose } from "@/components/ui/create-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
+import { Select, type SelectHandle } from "@/components/ui/select";
+import { findProductByCodeOrBarcode } from "@/lib/barcode/match-product";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
 import { useSingleSubmit } from "@/lib/forms/single-submit";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
@@ -13,8 +14,9 @@ import { productPieceRateMeta } from "@/lib/product-rate";
 import { createClient } from "@/lib/supabase/client";
 import type { Party, Product } from "@/lib/types/database";
 import { AMOUNT_PLACEHOLDER, AMOUNT_STEP, formatNumber, formatPkr } from "@/lib/utils";
+import { Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 
 type Line = {
   product_id: string;
@@ -64,9 +66,20 @@ export function ExpiryReceiptForm({
   const [periodTo, setPeriodTo] = useState(new Date().toISOString().slice(0, 10));
   const [narration, setNarration] = useState("");
   const [lines, setLines] = useState<Line[]>([]);
-  const [addProductId, setAddProductId] = useState("");
-  const [productQuery, setProductQuery] = useState("");
-  const [onlyEntered, setOnlyEntered] = useState(false);
+  const [draftCode, setDraftCode] = useState("");
+  const [draftProductId, setDraftProductId] = useState("");
+  const [draftQty, setDraftQty] = useState("1");
+  const [draftAmount, setDraftAmount] = useState("");
+  const [draftRate, setDraftRate] = useState<number>(0);
+  const [hint, setHint] = useState<string | null>(null);
+
+  const codeRef = useRef<HTMLInputElement>(null);
+  const qtyRef = useRef<HTMLInputElement>(null);
+  const amountRef = useRef<HTMLInputElement>(null);
+  const productSelectRef = useRef<SelectHandle>(null);
+
+  /** Old/manual sale: credit shop balance only — do not add to expiry stock for claim. */
+  const [balanceOnly, setBalanceOnly] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [loading, setLoading] = useState(false);
   const singleSubmit = useSingleSubmit();
@@ -77,8 +90,6 @@ export function ExpiryReceiptForm({
       setLines([]);
       return;
     }
-    setProductQuery("");
-    setOnlyEntered(false);
     const handle = window.setTimeout(async () => {
       setLoadingHistory(true);
       setError(null);
@@ -128,20 +139,6 @@ export function ExpiryReceiptForm({
     0,
   );
 
-  const visibleLines = useMemo(() => {
-    const q = productQuery.trim().toLowerCase();
-    return lines.filter((l) => {
-      if (onlyEntered && !(Number(l.qty) > 0 || Number(l.amount) > 0)) {
-        return false;
-      }
-      if (!q) return true;
-      return (
-        l.product_code.toLowerCase().includes(q) ||
-        l.product_name.toLowerCase().includes(q)
-      );
-    });
-  }, [lines, onlyEntered, productQuery]);
-
   function patchLine(productId: string, patch: Partial<Line>) {
     setLines((prev) =>
       prev.map((l) => (l.product_id === productId ? { ...l, ...patch } : l)),
@@ -161,28 +158,136 @@ export function ExpiryReceiptForm({
     patchLine(line.product_id, { qty: raw, amount });
   }
 
-  function addProduct() {
-    const product = products.find((p) => p.id === addProductId);
-    if (!product) return;
-    if (lines.some((l) => l.product_id === product.id)) {
-      setAddProductId("");
+  function applyProduct(p: Product | null) {
+    if (!p) {
+      setDraftProductId("");
+      setDraftCode("");
+      setDraftRate(0);
+      setDraftAmount("");
+      setHint(null);
       return;
     }
-    setLines((prev) => [
-      ...prev,
-      {
-        product_id: product.id,
-        product_code: product.code,
-        product_name: product.name_en,
-        history_qty: 0,
-        history_amount: 0,
-        qty: "1",
-        amount: String(Number(product.sale_rate || 0)),
-      },
-    ]);
-    setAddProductId("");
-    setProductQuery(product.code);
-    setOnlyEntered(false);
+    const inHistory = lines.find((l) => l.product_id === p.id);
+    const historyRate =
+      inHistory && inHistory.history_qty > 0
+        ? inHistory.history_amount / inHistory.history_qty
+        : 0;
+    const rate = historyRate > 0 ? historyRate : Number(p.sale_rate || 0);
+
+    setDraftProductId(p.id);
+    setDraftCode(p.code);
+    setDraftRate(rate);
+    const qty = Number(draftQty) > 0 ? Number(draftQty) : 1;
+    setDraftAmount(rate > 0 ? String(Math.round(qty * rate * 100) / 100) : "");
+    setHint(null);
+    requestAnimationFrame(() => {
+      qtyRef.current?.focus();
+      qtyRef.current?.select();
+    });
+  }
+
+  function onDraftQtyChange(raw: string) {
+    setDraftQty(raw);
+    const qty = Number(raw);
+    if (draftRate > 0 && Number.isFinite(qty) && qty > 0) {
+      setDraftAmount(String(Math.round(qty * draftRate * 100) / 100));
+    } else if (!raw) {
+      setDraftAmount("");
+    }
+  }
+
+  function commitDraft() {
+    const product =
+      products.find((p) => p.id === draftProductId) ||
+      (draftCode.trim() ? findProductByCodeOrBarcode(products, draftCode.trim()) : null);
+    if (!product) {
+      setHint("Select a product to add");
+      codeRef.current?.focus();
+      return;
+    }
+    const qty = draftQty.trim() ? draftQty.trim() : "1";
+    const numQty = Number(qty);
+    if (!(numQty > 0)) {
+      setHint("Enter a return qty");
+      qtyRef.current?.focus();
+      return;
+    }
+    const rate = draftRate > 0 ? draftRate : Number(product.sale_rate || 0);
+    const amount = draftAmount.trim()
+      ? draftAmount.trim()
+      : rate > 0
+        ? String(Math.round(numQty * rate * 100) / 100)
+        : "";
+
+    setLines((prev) => {
+      const idx = prev.findIndex((l) => l.product_id === product.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = {
+          ...next[idx],
+          qty,
+          amount,
+        };
+        return next;
+      }
+      return [
+        {
+          product_id: product.id,
+          product_code: product.code,
+          product_name: product.name_en,
+          history_qty: 0,
+          history_amount: 0,
+          qty,
+          amount,
+        },
+        ...prev,
+      ];
+    });
+
+    setDraftCode("");
+    setDraftProductId("");
+    setDraftQty("1");
+    setDraftAmount("");
+    setDraftRate(0);
+    setHint(null);
+    requestAnimationFrame(() => {
+      codeRef.current?.focus();
+    });
+  }
+
+  function onDraftCodeKeyDown(e: ReactKeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    e.stopPropagation();
+    const trimmed = draftCode.trim();
+    if (!trimmed) return;
+    const found = findProductByCodeOrBarcode(products, trimmed);
+    if (found) {
+      applyProduct(found);
+    } else {
+      setHint("No product for this code or barcode");
+      productSelectRef.current?.open(trimmed);
+    }
+  }
+
+  function onDraftQtyKeyDown(e: ReactKeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      e.stopPropagation();
+      commitDraft();
+    }
+  }
+
+  function onDraftAmountKeyDown(e: ReactKeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      e.stopPropagation();
+      commitDraft();
+    }
+  }
+
+  function removeLine(productId: string) {
+    setLines((prev) => prev.filter((l) => l.product_id !== productId));
   }
 
   async function onSubmit(e: FormEvent) {
@@ -194,6 +299,12 @@ export function ExpiryReceiptForm({
     );
     if (!partyId || valid.length === 0) {
       setError("Select a customer and at least one expired item (qty or amount).");
+      return;
+    }
+    if (balanceOnly && grandTotal <= 0.005) {
+      setError(
+        "Balance-only return needs a recover amount. Enter the rupees to cut from this shop’s balance.",
+      );
       return;
     }
 
@@ -208,6 +319,7 @@ export function ExpiryReceiptForm({
           company_id: companyId,
           receipt_date: receiptDate,
           party_id: partyId,
+          balance_only: balanceOnly,
           parties: (() => {
             const customer = parties.find((p) => p.id === partyId);
             return customer
@@ -319,63 +431,146 @@ export function ExpiryReceiptForm({
         {loadingHistory
           ? "Loading this customer’s billed items for the selected dates…"
           : partyId
-            ? "Search the billed list, then enter return qty. Recover amount is the rupees credited to this shop (it reduces their balance). It fills from the original bill rate — you can change it."
+            ? balanceOnly
+              ? "Old/manual sale mode: recover amount cuts this shop’s balance (Cr on ledger). Qty is for record only — nothing is added to expiry stock, so it will not appear for company claim."
+              : "Search the billed list, then enter return qty. Recover amount credits this shop (reduces their balance). Qty also goes into expiry stock for company claim."
             : "Pick a customer — billed items for these dates load automatically."}
       </p>
 
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="min-w-[16rem] flex-1">
-          <Label>Search products</Label>
-          <Input
-            value={productQuery}
-            onChange={(e) => setProductQuery(e.target.value)}
-            placeholder="Code or item name"
-          />
-        </div>
-        <label className="flex h-10 items-center gap-2 text-sm text-[var(--muted)]">
-          <input
-            type="checkbox"
-            checked={onlyEntered}
-            onChange={(e) => setOnlyEntered(e.target.checked)}
-            className="rounded border-[var(--border)]"
-          />
-          Only entered lines
-        </label>
-        <p className="text-xs text-[var(--muted)]">
-          Showing {visibleLines.length} of {lines.length}
-          {enteredCount ? ` · ${enteredCount} to post` : ""}
-        </p>
-      </div>
+      <label className="flex items-start gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-2,#f8f8f8)] px-3 py-2.5 text-sm">
+        <input
+          type="checkbox"
+          checked={balanceOnly}
+          onChange={(e) => setBalanceOnly(e.target.checked)}
+          className="mt-0.5 rounded border-[var(--border)]"
+        />
+        <span>
+          <span className="font-medium text-[var(--ink)]">
+            Old sale (no software invoice) — balance only
+          </span>
+          <span className="mt-0.5 block text-[var(--muted)]">
+            Cut customer balance by the recover amount. Do not put these items into
+            expiry stock. Use normal mode (unchecked) when goods should go to expiry
+            stock for company claim.
+          </span>
+        </span>
+      </label>
 
       <div className="table-grid table-grid--y-scroll">
-        <table className="w-full min-w-[720px] text-sm">
+        <table className="w-full min-w-[760px] text-sm">
           <thead>
             <tr>
-              <th>Item</th>
-              <th className="w-28">Sold qty</th>
-              <th className="w-32">Sold amount</th>
+              <th className="w-32 min-w-[7.5rem]">Code</th>
+              <th className="min-w-[14rem]">Product</th>
+              <th className="w-24">Sold qty</th>
+              <th className="w-28">Sold amount</th>
               <th className="w-28">Return qty</th>
-              <th className="w-36">Recover amount</th>
+              <th className="w-32">Recover amount</th>
+              <th className="w-12 text-center" />
             </tr>
           </thead>
           <tbody>
+            {/* In-row quick entry row */}
+            <tr className="bg-[var(--brand-soft)]/25">
+              <td>
+                <Input
+                  ref={codeRef}
+                  value={draftCode}
+                  placeholder="Code or scan"
+                  autoComplete="off"
+                  className="h-8 px-2 text-sm font-medium tabular-nums"
+                  onChange={(e) => {
+                    setDraftCode(e.target.value);
+                    if (hint) setHint(null);
+                  }}
+                  onKeyDown={onDraftCodeKeyDown}
+                />
+              </td>
+              <td>
+                <Select
+                  ref={productSelectRef}
+                  size="sm"
+                  value={draftProductId}
+                  onChange={(e) => {
+                    const p = products.find((x) => x.id === e.target.value);
+                    applyProduct(p || null);
+                  }}
+                  options={[
+                    { value: "", label: "Select product" },
+                    ...products.map((p) => ({
+                      value: p.id,
+                      label: `${p.code} — ${p.name_en}`,
+                      meta: productPieceRateMeta(p, "sale_rate"),
+                    })),
+                  ]}
+                />
+                {hint ? (
+                  <p className="mt-0.5 text-[10px] text-rose-600">{hint}</p>
+                ) : null}
+              </td>
+              <td className="px-3 py-2 text-center text-xs text-[var(--muted)] tabular-nums">
+                —
+              </td>
+              <td className="px-3 py-2 text-center text-xs text-[var(--muted)] tabular-nums">
+                —
+              </td>
+              <td>
+                <Input
+                  ref={qtyRef}
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="1"
+                  value={draftQty}
+                  className="h-8 px-2 text-sm"
+                  onChange={(e) => onDraftQtyChange(e.target.value)}
+                  onKeyDown={onDraftQtyKeyDown}
+                />
+              </td>
+              <td>
+                <Input
+                  ref={amountRef}
+                  type="number"
+                  min="0"
+                  step={AMOUNT_STEP}
+                  placeholder={AMOUNT_PLACEHOLDER}
+                  value={draftAmount}
+                  className="h-8 px-2 text-sm"
+                  onChange={(e) => setDraftAmount(e.target.value)}
+                  onKeyDown={onDraftAmountKeyDown}
+                />
+              </td>
+              <td className="text-center">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  className="h-8 px-2.5 text-xs"
+                  onClick={commitDraft}
+                  title="Add product (or press Enter on Return qty)"
+                >
+                  Add
+                </Button>
+              </td>
+            </tr>
+
             {lines.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-3 py-6 text-[var(--muted)]">
-                  No billed items in this date range. Add a product below if needed.
-                </td>
-              </tr>
-            ) : visibleLines.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-3 py-6 text-[var(--muted)]">
-                  No products match this search. Clear the filter or add a product below.
+                <td
+                  colSpan={7}
+                  className="py-4 text-center text-sm text-[var(--muted)]"
+                >
+                  Added products appear here. Keep using the top row to add more.
                 </td>
               </tr>
             ) : (
-              visibleLines.map((l) => (
+              lines.map((l) => (
                 <tr key={l.product_id}>
-                  <td className="px-3 py-2">
-                    {l.product_code} {l.product_name}
+                  <td className="px-3 py-2 font-medium tabular-nums text-[var(--muted)]">
+                    {l.product_code}
+                  </td>
+                  <td className="px-3 py-2 font-medium">
+                    {l.product_name}
                   </td>
                   <td className="px-3 py-2 tabular-nums text-[var(--muted)]">
                     {l.history_qty}
@@ -405,6 +600,18 @@ export function ExpiryReceiptForm({
                       }
                     />
                   </td>
+                  <td className="px-2 py-1 text-center">
+                    <button
+                      type="button"
+                      className="rounded-lg p-1 text-[var(--muted)] hover:bg-rose-50 hover:text-rose-600 transition-colors"
+                      onClick={() => removeLine(l.product_id)}
+                      title="Remove product"
+                      aria-label="Remove product"
+                      data-enter-skip
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </td>
                 </tr>
               ))
             )}
@@ -412,35 +619,15 @@ export function ExpiryReceiptForm({
         </table>
       </div>
 
-      <div className="flex flex-wrap items-end gap-2">
-        <div className="min-w-[16rem] flex-1">
-          <Label>Add another product</Label>
-          <Select
-            value={addProductId}
-            onChange={(e) => setAddProductId(e.target.value)}
-            options={[
-              { value: "", label: "Select product" },
-              ...products.map((p) => ({
-                value: p.id,
-                label: `${p.code} — ${p.name_en}`,
-                meta: productPieceRateMeta(p, "sale_rate"),
-              })),
-            ]}
-          />
-        </div>
-        <Button type="button" variant="secondary" onClick={addProduct}>
-          Add
-        </Button>
-        <span className="ml-auto text-sm">
-          <span className="font-semibold">
-            {formatNumber(enteredCount, 0)} products
-          </span>
-          <span className="ml-3 text-[var(--muted)]">
-            Total qty {formatNumber(enteredQty, 0)}
-          </span>
-          <span className="ml-3 font-semibold">
-            Credit customer {formatPkr(grandTotal)}
-          </span>
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+        <span className="font-semibold">
+          {formatNumber(enteredCount, 0)} products
+        </span>
+        <span className="text-[var(--muted)]">
+          Total qty {formatNumber(enteredQty, 0)}
+        </span>
+        <span className="font-semibold">
+          Credit customer {formatPkr(grandTotal)}
         </span>
       </div>
 

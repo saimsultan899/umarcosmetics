@@ -346,9 +346,26 @@ function daysBetween(fromIso: string, toIso: string) {
 
 /** Approximate party balances from local sales/purchases/receipts/payments. */
 export async function offlineAccountsBalances(companyId: string) {
-  const [parties, sales, purchases, saleReturns, purchaseReturns, vouchers] =
-    await loadMultipleRows(
-      ["parties", "sale_invoices", "purchase_invoices", "sale_returns", "purchase_returns", "vouchers"],
+  const [
+    parties,
+    sales,
+    purchases,
+    saleReturns,
+    purchaseReturns,
+    vouchers,
+    expiryReceipts,
+    expiryClaims,
+  ] = await loadMultipleRows(
+      [
+        "parties",
+        "sale_invoices",
+        "purchase_invoices",
+        "sale_returns",
+        "purchase_returns",
+        "vouchers",
+        "expiry_receipts",
+        "expiry_claims",
+      ],
       companyId,
     );
 
@@ -390,6 +407,12 @@ export async function offlineAccountsBalances(companyId: string) {
     bump(r.party_id, num(r.grand_total) - num(r.amount_paid));
   }
   for (const r of saleReturns) {
+    if (r.status && r.status !== "posted") continue;
+    bump(r.party_id, -num(r.grand_total));
+  }
+  for (const r of expiryReceipts) {
+    if (r.status && r.status !== "posted") continue;
+    // Customer credit (incl. balance-only old/manual expiry returns).
     bump(r.party_id, -num(r.grand_total));
   }
   for (const r of purchases) {
@@ -398,6 +421,12 @@ export async function offlineAccountsBalances(companyId: string) {
     bump(r.party_id, -num(r.grand_total));
   }
   for (const r of purchaseReturns) {
+    if (r.status && r.status !== "posted") continue;
+    bump(r.party_id, num(r.grand_total));
+  }
+  for (const r of expiryClaims) {
+    if (r.status && r.status !== "posted") continue;
+    // Vendor claim increases what the company owes / reduces vendor payable.
     bump(r.party_id, num(r.grand_total));
   }
 
@@ -465,9 +494,26 @@ export async function offlinePartyLedger(
   companyId: string,
   partyId: string,
 ) {
-  const [parties, sales, purchases, saleReturns, purchaseReturns, vouchers] =
-    await loadMultipleRows(
-      ["parties", "sale_invoices", "purchase_invoices", "sale_returns", "purchase_returns", "vouchers"],
+  const [
+    parties,
+    sales,
+    purchases,
+    saleReturns,
+    purchaseReturns,
+    vouchers,
+    expiryReceipts,
+    expiryClaims,
+  ] = await loadMultipleRows(
+      [
+        "parties",
+        "sale_invoices",
+        "purchase_invoices",
+        "sale_returns",
+        "purchase_returns",
+        "vouchers",
+        "expiry_receipts",
+        "expiry_claims",
+      ],
       companyId,
     );
 
@@ -531,6 +577,22 @@ export async function offlinePartyLedger(
       table: "sale_returns",
       id: String(r.id),
       title: `Sale return ${no}`,
+    });
+  }
+  for (const r of expiryReceipts) {
+    if (String(r.party_id) !== partyId) continue;
+    if (String(r.status || "posted") === "cancelled") continue;
+    const no =
+      formatReportInvNo(String(r.receipt_no || r.doc_no || r.id)) ||
+      String(r.receipt_no || r.id);
+    const balanceOnly = Boolean(r.balance_only);
+    const label = balanceOnly
+      ? `Expiry return (balance only — old/manual sale) ${no}`
+      : `Expiry return ${no}`;
+    push(r.receipt_date || r.doc_date, "EXR", label, 0, num(r.grand_total), {
+      table: "expiry_receipts",
+      id: String(r.id),
+      title: label,
     });
   }
   for (const r of purchases) {

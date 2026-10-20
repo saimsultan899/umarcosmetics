@@ -160,6 +160,9 @@ export function useExpiryWarehouse({
 
         for (const r of receiptRows) {
           const payload = (r.payload as Record<string, unknown> | undefined) || r;
+          if (Boolean(r.balance_only) || Boolean(payload.balance_only)) {
+            continue;
+          }
           const rawLines =
             (Array.isArray(payload.items) && payload.items) ||
             (Array.isArray(payload.lines) && payload.lines) ||
@@ -226,15 +229,24 @@ export function useExpiryWarehouse({
             table: "expiry_receipts",
             linesTable: "expiry_receipt_items",
             linesFk: "receipt_id",
-            extra:
-              r.period_from && r.period_to
+            extra: [
+              ...(r.period_from && r.period_to
                 ? [
                     {
                       label: "Sold between",
                       value: `${r.period_from} → ${r.period_to}`,
                     },
                   ]
-                : [],
+                : []),
+              ...(r.balance_only
+                ? [
+                    {
+                      label: "Type",
+                      value: "Balance only (old/manual sale — no expiry stock)",
+                    },
+                  ]
+                : []),
+            ],
           };
         });
 

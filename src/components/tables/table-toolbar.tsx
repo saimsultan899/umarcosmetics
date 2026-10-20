@@ -25,8 +25,8 @@ export function TableToolbar({
   onBlur?: () => void;
 }) {
   return (
-    <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-      <div className="relative w-full basis-full">
+    <div className="mb-3 flex flex-wrap items-end gap-x-3 gap-y-2">
+      <div className="relative min-w-[12rem] flex-1 basis-[14rem]">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
         <Input
           value={query}
@@ -39,11 +39,11 @@ export function TableToolbar({
         />
       </div>
       {filters ? (
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+        <div className="flex min-w-0 flex-wrap items-end gap-x-3 gap-y-2">
           {filters}
         </div>
       ) : null}
-      <span className="ml-auto shrink-0 rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-xs font-medium text-[var(--muted)]">
+      <span className="ml-auto shrink-0 self-center rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-xs font-medium text-[var(--muted)]">
         {resultCount === totalCount
           ? `${totalCount} total`
           : `${resultCount} of ${totalCount}`}

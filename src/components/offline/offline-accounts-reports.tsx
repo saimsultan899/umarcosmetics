@@ -3,6 +3,7 @@
 import { ChartCard } from "@/components/analytics/chart-card";
 import { DonutChart, RankBars } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
+import { AccountsSectorFilter } from "@/components/reports/accounts-sector-filter";
 import { ReportTable } from "@/components/reports/report-table";
 import { ReportFilterActions } from "@/components/reports/report-filters";
 import { UrlFilterForm } from "@/components/reports/url-filter-form";
@@ -22,6 +23,20 @@ function signedText(balance: number) {
   return `${formatPkr(Math.abs(balance))} Cr`;
 }
 
+function distinctSectors(values: Array<string | null | undefined>) {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of values) {
+    const v = (raw || "").trim();
+    if (!v) continue;
+    const key = v.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(v);
+  }
+  return out.sort((a, b) => a.localeCompare(b));
+}
+
 export function OfflineAccountsReportsPage({
   companyId,
   companyName,
@@ -35,7 +50,7 @@ export function OfflineAccountsReportsPage({
   organizationId: string;
   canEditParty?: boolean;
   canInactivate?: boolean;
-  searchParams?: { view?: string; party?: string };
+  searchParams?: { view?: string; party?: string; sector?: string };
 }) {
   const urlSp = useSearchParams();
 
@@ -43,10 +58,13 @@ export function OfflineAccountsReportsPage({
     return {
       view: urlSp.get("view") ?? initialSp?.view ?? "receivable",
       party: urlSp.get("party") ?? initialSp?.party ?? undefined,
+      sector: urlSp.get("sector") ?? initialSp?.sector ?? undefined,
     };
   }, [urlSp, initialSp]);
 
   const view = sp.view || "receivable";
+  const sector = (sp.sector || "").trim();
+  const sectorQs = sector ? `&sector=${encodeURIComponent(sector)}` : "";
 
   const [loading, setLoading] = useState(true);
   const [allBalances, setAllBalances] = useState<
@@ -60,7 +78,9 @@ export function OfflineAccountsReportsPage({
       credit_limit: number;
     }>
   >([]);
-  const [parties, setParties] = useState<Array<{ id: string; party_code: string; name_en: string }>>([]);
+  const [parties, setParties] = useState<
+    Array<{ id: string; party_code: string; name_en: string; route: string | null }>
+  >([]);
   const [ledgerData, setLedgerData] = useState<{ partyName: string; rows: Record<string, unknown>[] }>({
     partyName: "",
     rows: [],
@@ -83,6 +103,7 @@ export function OfflineAccountsReportsPage({
             id: String(p.id),
             party_code: String(p.party_code || ""),
             name_en: String(p.name_en || ""),
+            route: p.route == null ? null : String(p.route),
           })),
         );
 
@@ -103,15 +124,30 @@ export function OfflineAccountsReportsPage({
     };
   }, [companyId, view, sp.party]);
 
+  const sectorOptions = useMemo(
+    () =>
+      distinctSectors([
+        ...allBalances.map((r) => r.route),
+        ...parties.map((p) => p.route),
+      ]),
+    [allBalances, parties],
+  );
+
+  const ledgerParties = useMemo(() => {
+    if (!sector) return parties;
+    return parties.filter((p) => (p.route || "").trim() === sector);
+  }, [parties, sector]);
+
   const filtered = useMemo(() => {
     return allBalances.filter((r) => {
+      if (sector && (r.route || "").trim() !== sector) return false;
       const bal = Number(r.balance);
       if (view === "receivable") return bal > 0.005;
       if (view === "payable") return bal < -0.005;
       if (view === "all") return true;
       return true;
     });
-  }, [allBalances, view]);
+  }, [allBalances, view, sector]);
 
   const receivableTotal = useMemo(() => {
     return allBalances
@@ -211,10 +247,10 @@ export function OfflineAccountsReportsPage({
             key={key}
             href={
               key === "ledger"
-                ? `/reports/accounts?view=ledger${sp.party ? `&party=${sp.party}` : ""}`
+                ? `/reports/accounts?view=ledger${sp.party ? `&party=${sp.party}` : ""}${sectorQs}`
                 : key === "salesman"
                   ? "/reports/salesman-ledger"
-                  : `/reports/accounts?view=${key}`
+                  : `/reports/accounts?view=${key}${sectorQs}`
             }
             className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
               view === key
@@ -278,16 +314,26 @@ export function OfflineAccountsReportsPage({
             className="panel no-print flex flex-wrap items-end gap-3 p-4"
           >
             <input type="hidden" name="view" value="ledger" />
-            <div className="w-full max-w-md min-w-[200px] sm:w-[min(100%,28rem)]">
+            {sector ? <input type="hidden" name="sector" value={sector} /> : null}
+            <AccountsSectorFilter
+              options={sectorOptions}
+              keepKeys={["view"]}
+              clearPartyOnChange
+            />
+            <div className="min-w-[200px] flex-1 basis-[16rem] sm:max-w-md">
               <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
                 Select customer / vendor
               </label>
               <Select
                 name="party"
-                defaultValue={sp.party || ""}
+                defaultValue={
+                  sp.party && ledgerParties.some((p) => p.id === sp.party)
+                    ? sp.party
+                    : ""
+                }
                 options={[
                   { value: "", label: "— Choose party —" },
-                  ...parties.map((p) => ({
+                  ...ledgerParties.map((p) => ({
                     value: p.id,
                     label: `${p.party_code} — ${p.name_en}`,
                   })),
@@ -297,21 +343,24 @@ export function OfflineAccountsReportsPage({
             <ReportFilterActions
               submitLabel="Load ledger"
               nowrap
+              keepKeys={["view", "sector"]}
               className="shrink-0"
             />
           </UrlFilterForm>
 
-          {sp.party ? (
+          {sp.party && ledgerParties.some((p) => p.id === sp.party) ? (
             <ReportTable
               title={`Ledger — ${ledgerData.partyName || "Party"}`}
               companyName={companyName}
-              subtitle={`Running ledger with opening balance and running totals`}
+              subtitle={`Running ledger with opening balance and running totals${sector ? ` · Sector: ${sector}` : ""}`}
               rows={ledgerData.rows}
               filename={`ledger-${sp.party}`}
             />
           ) : (
             <p className="rounded-lg border border-dashed border-[var(--border)] p-6 text-center text-sm text-[var(--muted)]">
-              Select a customer or vendor above to load their running account ledger.
+              {sector
+                ? `Select a customer or vendor in ${sector} to load their running account ledger.`
+                : "Select a customer or vendor above to load their running account ledger."}
             </p>
           )}
         </>
@@ -325,9 +374,16 @@ export function OfflineAccountsReportsPage({
                 : "Customer receivables (Debit balances)"
           }
           companyName={companyName}
-          subtitle={`${filtered.length} parties · Receivables ${formatPkr(receivableTotal)} · Payables ${formatPkr(payableTotal)}`}
+          subtitle={`${filtered.length} parties · Receivables ${formatPkr(receivableTotal)} · Payables ${formatPkr(payableTotal)}${sector ? ` · Sector: ${sector}` : ""}`}
           rows={balanceRows}
           filename={`accounts-${view}`}
+          filters={
+            <AccountsSectorFilter
+              options={sectorOptions}
+              keepKeys={["view"]}
+              compact
+            />
+          }
         />
       )}
     </div>

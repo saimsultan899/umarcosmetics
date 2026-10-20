@@ -1,6 +1,7 @@
 import { ChartCard } from "@/components/analytics/chart-card";
 import { DonutChart, RankBars } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
+import { AccountsSectorFilter } from "@/components/reports/accounts-sector-filter";
 import { ReportTable } from "@/components/reports/report-table";
 import { ReportFilterActions } from "@/components/reports/report-filters";
 import { UrlFilterForm } from "@/components/reports/url-filter-form";
@@ -11,6 +12,20 @@ import { localDateIso } from "@/lib/dates";
 import { formatCompactPkr, formatPkr} from "@/lib/utils";
 import { ArrowDownLeft, ArrowUpRight, Scale } from "lucide-react";
 import Link from "next/link";
+
+function distinctSectors(values: Array<string | null | undefined>) {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of values) {
+    const v = (raw || "").trim();
+    if (!v) continue;
+    const key = v.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(v);
+  }
+  return out.sort((a, b) => a.localeCompare(b));
+}
 
 type BalanceRow = {
   party_id: string;
@@ -51,7 +66,7 @@ function ledgerDocHref(table: string, id: string) {
 export default async function AccountsReportPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; party?: string }>;
+  searchParams: Promise<{ view?: string; party?: string; sector?: string }>;
 }) {
   const sp = await searchParams;
   const { supabase, company, offline, membership, profile } =
@@ -63,6 +78,7 @@ export default async function AccountsReportPage({
   const canEditParty = permissions.includes("edit_customers");
   const canInactivate = permissions.includes("inactivate_records");
   const view = sp.view || "receivable";
+  const sector = (sp.sector || "").trim();
 
   if (offline) {
     const { OfflineAccountsReportsPage } = await import(
@@ -88,7 +104,9 @@ export default async function AccountsReportPage({
   });
 
   const all = (sheet || []) as BalanceRow[];
+  const sectorOptions = distinctSectors(all.map((r) => r.route));
   const filtered = all.filter((r) => {
+    if (sector && (r.route || "").trim() !== sector) return false;
     const bal = Number(r.balance);
     if (view === "receivable") return bal > 0.005;
     if (view === "payable") return bal < -0.005;
@@ -98,28 +116,39 @@ export default async function AccountsReportPage({
 
   const { data: parties } = await supabase
     .from("parties")
-    .select("id, party_code, name_en, party_subtype")
+    .select("id, party_code, name_en, party_subtype, route")
     .eq("company_id", company.id)
     .eq("is_active", true)
     .order("name_en");
 
+  const ledgerParties = (parties || []).filter((p) => {
+    if (!sector) return true;
+    return (p.route || "").trim() === sector;
+  });
+  const sectorQs = sector ? `&sector=${encodeURIComponent(sector)}` : "";
+
   let ledgerRows: Record<string, unknown>[] = [];
   let linkedCompanyNames: string[] = [];
-  const selectedParty = parties?.find((p) => p.id === sp.party);
+  const selectedParty = (parties || []).find(
+    (p) =>
+      p.id === sp.party &&
+      (!sector || (p.route || "").trim() === sector),
+  );
 
-  if (view === "ledger" && sp.party) {
+  if (view === "ledger" && selectedParty) {
+    const partyId = selectedParty.id;
     const [{ data: opening }, { data: ledger }, { data: partyRecoveries }, { data: linkedWh }] =
       await Promise.all([
         supabase
           .from("parties")
           .select("opening_balance")
-          .eq("id", sp.party)
+          .eq("id", partyId)
           .maybeSingle(),
         supabase
           .from("ledger_entries")
           .select("entry_date, debit, credit, narration, voucher_type, ref_table, ref_id")
           .eq("company_id", company.id)
-          .eq("party_id", sp.party)
+          .eq("party_id", partyId)
           .order("entry_date", { ascending: true })
           .order("created_at", { ascending: true })
           .limit(500),
@@ -127,7 +156,7 @@ export default async function AccountsReportPage({
           .from("recoveries")
           .select("id, voucher_id")
           .eq("company_id", company.id)
-          .eq("party_id", sp.party)
+          .eq("party_id", partyId)
           .order("recovery_date", { ascending: false })
           .limit(500),
         supabase
@@ -135,7 +164,7 @@ export default async function AccountsReportPage({
           .select("id, name")
           .eq("company_id", company.id)
           .eq("is_active", true)
-          .eq("default_supplier_id", sp.party)
+          .eq("default_supplier_id", partyId)
           .order("name"),
       ]);
 
@@ -295,7 +324,7 @@ export default async function AccountsReportPage({
                 _doc_table: "recoveries",
                 _doc_id: recoveryId,
                 _doc_title: e.narration || "Recovery",
-                _party_id: sp.party,
+                _party_id: partyId,
                 _party_label: partyLabel,
                 _company_id: company.id,
               }
@@ -380,10 +409,10 @@ export default async function AccountsReportPage({
             key={key}
             href={
               key === "ledger"
-                ? `/reports/accounts?view=ledger${sp.party ? `&party=${sp.party}` : ""}`
+                ? `/reports/accounts?view=ledger${sp.party ? `&party=${sp.party}` : ""}${sectorQs}`
                 : key === "salesman"
                   ? "/reports/salesman-ledger"
-                  : `/reports/accounts?view=${key}`
+                  : `/reports/accounts?view=${key}${sectorQs}`
             }
             className={`rounded-full px-3 py-1.5 text-sm font-medium ${
               view === key
@@ -453,16 +482,25 @@ export default async function AccountsReportPage({
       {view === "ledger" ? (
         <div className="space-y-4">
           <UrlFilterForm className="panel no-print flex flex-wrap items-end gap-3 p-4">
-            <div className="w-full max-w-md min-w-[200px] sm:w-[min(100%,28rem)]">
+            <AccountsSectorFilter
+              options={sectorOptions.length ? sectorOptions : distinctSectors((parties || []).map((p) => p.route))}
+              keepKeys={["view"]}
+              clearPartyOnChange
+            />
+            <div className="min-w-[200px] flex-1 basis-[16rem] sm:max-w-md">
               <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
                 Customer / vendor
               </label>
               <Select
                 name="party"
-                defaultValue={sp.party || ""}
+                defaultValue={
+                  sp.party && ledgerParties.some((p) => p.id === sp.party)
+                    ? sp.party
+                    : ""
+                }
                 options={[
                   { value: "", label: "Select customer / vendor" },
-                  ...(parties || []).map((p) => ({
+                  ...ledgerParties.map((p) => ({
                     value: p.id,
                     label: `${p.party_code} — ${p.name_en}`,
                   })),
@@ -470,9 +508,11 @@ export default async function AccountsReportPage({
               />
             </div>
             <input type="hidden" name="view" value="ledger" />
+            {sector ? <input type="hidden" name="sector" value={sector} /> : null}
             <ReportFilterActions
               submitLabel="Load ledger"
               nowrap
+              keepKeys={["view", "sector"]}
               className="shrink-0"
             />
           </UrlFilterForm>
@@ -486,8 +526,10 @@ export default async function AccountsReportPage({
                     linkedCompanyNames.length
                       ? ` · Companies: ${linkedCompanyNames.join(", ")}`
                       : ""
-                  }`
-                : "Select a customer / vendor"
+                  }${sector ? ` · Sector: ${sector}` : ""}`
+                : sector
+                  ? `Select a customer / vendor in ${sector}`
+                  : "Select a customer / vendor"
             }
             rows={selectedParty ? ledgerRows : []}
             filename={`party-ledger-${sp.party || "none"}`}
@@ -497,9 +539,16 @@ export default async function AccountsReportPage({
         <ReportTable
           title={`${view} balances`}
           companyName={company.name}
-          subtitle={`${balanceRows.length} parties`}
+          subtitle={`${balanceRows.length} parties${sector ? ` · Sector: ${sector}` : ""}`}
           rows={balanceRows}
           filename={`accounts-${view}`}
+          filters={
+            <AccountsSectorFilter
+              options={sectorOptions}
+              keepKeys={["view"]}
+              compact
+            />
+          }
         />
       )}
     </div>

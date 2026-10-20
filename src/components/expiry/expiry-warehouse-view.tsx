@@ -111,6 +111,7 @@ export function ExpiryWarehouseView({
                     organizationId={company.organization_id}
                     parties={formParties}
                     warehouses={formWarehouses}
+                    products={formProducts}
                     stock={stock}
                     onDone={refetch}
                   />

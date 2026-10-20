@@ -506,16 +506,26 @@ const EXPIRY_RECEIPT_CONFIG: DocumentTableConfig = {
   hrefPrefix: "/inventory/expiry/receipts",
   linesTable: "expiry_receipt_items",
   linesFk: "receipt_id",
-  columns: "id, receipt_no, receipt_date, grand_total, period_from, period_to",
-  mapExtra: (row) =>
-    row.period_from && row.period_to
+  columns:
+    "id, receipt_no, receipt_date, grand_total, period_from, period_to, balance_only",
+  mapExtra: (row) => [
+    ...(row.period_from && row.period_to
       ? [
           {
             label: "Sold between",
             value: `${row.period_from} → ${row.period_to}`,
           },
         ]
-      : [],
+      : []),
+    ...(row.balance_only
+      ? [
+          {
+            label: "Type",
+            value: "Balance only (old/manual sale — no expiry stock)",
+          },
+        ]
+      : []),
+  ],
 };
 
 const EXPIRY_CLAIM_CONFIG: DocumentTableConfig = {

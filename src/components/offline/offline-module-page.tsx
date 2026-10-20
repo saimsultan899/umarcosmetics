@@ -602,6 +602,7 @@ export function OfflineModulePage({
             organizationId={organizationId}
             parties={parties}
             warehouses={warehouses}
+            products={products}
             stock={[]}
             onDone={refetch}
           />

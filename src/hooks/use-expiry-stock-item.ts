@@ -75,9 +75,12 @@ export function useExpiryStockItem({
 
           let qty = 0;
 
-          // Sum receipts
+          // Sum receipts (skip balance-only — no expiry stock)
           for (const r of receipts) {
             const payload = (r.payload as Record<string, unknown> | undefined) || r;
+            if (Boolean(r.balance_only) || Boolean(payload.balance_only)) {
+              continue;
+            }
             const rawLines =
               (Array.isArray(payload.items) && payload.items) ||
               (Array.isArray(payload.lines) && payload.lines) ||
