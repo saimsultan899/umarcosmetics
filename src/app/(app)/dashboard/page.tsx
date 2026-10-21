@@ -18,7 +18,7 @@ import {
 import { amountClass, cn, formatNumber, formatCompactPkr, formatPkr} from "@/lib/utils";
 import {
   AlertTriangle,
-  Package,
+  Banknote,
   ShoppingCart,
   TrendingUp,
   Truck,
@@ -245,13 +245,13 @@ export default async function DashboardPage() {
           hint="Money you still owe vendors"
         />
         <StatCard
-          label="Low stock SKUs"
-          value={s.low_stock_count || 0}
-          format="number"
-          icon={Package}
-          tone={(s.low_stock_count || 0) > 0 ? "warn" : "ok"}
-          href="/reports/stock"
-          hint="Below reorder level — refill soon"
+          label="Today cash"
+          value={s.cash_sales_today || 0}
+          format="money"
+          icon={Banknote}
+          tone="ok"
+          href="/reports/sales?type=cash_sales"
+          hint="Paid at counter · walk-in & cash bills"
         />
         <StatCard
           label="Over credit limit"

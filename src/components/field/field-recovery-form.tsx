@@ -73,18 +73,7 @@ export function FieldRecoveryForm({
     const date = new Date().toISOString().slice(0, 10);
     const prior = await findSameDayRecoveries(companyId, partyId, date);
     setTodayRecoveries(prior);
-    const owed = selected?.balance ?? null;
     const shopName = selected?.name_en || "This customer";
-    if (owed != null && owed <= 0.005) {
-      setError(`${shopName} has no amount due. The recovery was not added.`);
-      return;
-    }
-    if (owed != null && Number(amount) > owed + 0.005) {
-      setError(
-        `${shopName} still owes ${formatPkr(owed)}. A higher recovery was not added.`,
-      );
-      return;
-    }
     let confirmed = false;
     if (prior.length > 0) {
       const listed = prior

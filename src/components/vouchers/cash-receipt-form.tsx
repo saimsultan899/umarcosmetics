@@ -354,23 +354,6 @@ export function CashReceiptForm({
     if (focusCodeField) focusCode();
   }
 
-  function dueBlock(
-    name: string,
-    amt: number,
-    owed: number | null,
-    reserved: number,
-  ) {
-    if (owed == null) return null;
-    const left = owed - reserved;
-    if (left <= 0.005) {
-      return `${name} has no amount due. The receipt was not added.`;
-    }
-    if (amt > left + 0.005) {
-      return `${name} still owes ${formatPkr(left)}. A higher receipt was not added.`;
-    }
-    return null;
-  }
-
   function commitLine() {
     setError(null);
     const amt = Number(amount);
@@ -378,15 +361,6 @@ export function CashReceiptForm({
       setError("Select customer and enter a receipt amount.");
       if (!partyId) focusCode();
       else focusField(amountRef.current);
-      return false;
-    }
-    const reserved = lines
-      .filter((line) => line.partyId === partyId)
-      .reduce((sum, line) => sum + line.amount, 0);
-    const blocked = dueBlock(party.name_en, amt, balance, reserved);
-    if (blocked) {
-      setError(blocked);
-      focusField(amountRef.current);
       return false;
     }
     const already = lines.some((line) => line.partyId === partyId);
@@ -488,17 +462,6 @@ export function CashReceiptForm({
       setError("Add at least one customer receipt.");
       focusCode();
       return;
-    }
-
-    const reserved = new Map<string, number>();
-    for (const line of pending) {
-      const used = reserved.get(line.partyId) || 0;
-      const blocked = dueBlock(line.partyName, line.amount, line.owed, used);
-      if (blocked) {
-        setError(blocked);
-        return;
-      }
-      reserved.set(line.partyId, used + line.amount);
     }
 
     try {

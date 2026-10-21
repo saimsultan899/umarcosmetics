@@ -243,11 +243,12 @@ export function PartiesTable({
       if (/organization admin/i.test(msg)) {
         throw new Error("Only the organization admin can delete customers.");
       }
-      if (/posted documents/i.test(msg) || error.code === "23503") {
+      if (/posted documents/i.test(msg)) {
+        throw new Error(msg);
+      }
+      if (error.code === "23503") {
         throw new Error(
-          msg.includes("posted documents")
-            ? msg
-            : "This account is still on a posted bill. Cancel those bills first, or mark the account inactive.",
+          "This account is still linked to a document. Cancel posted bills first, or mark the account inactive.",
         );
       }
       throw new Error(msg);

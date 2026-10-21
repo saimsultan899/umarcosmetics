@@ -26,7 +26,7 @@ import {
 import { amountClass, cn, formatNumber, formatCompactPkr, formatPkr} from "@/lib/utils";
 import {
   AlertTriangle,
-  Package,
+  Banknote,
   ShoppingCart,
   TrendingUp,
   Truck,
@@ -37,12 +37,12 @@ import { useEffect, useState } from "react";
 
 type DashState = {
   salesToday: number;
+  cashSalesToday: number;
   recoveriesToday: number;
   expenseToday: number;
   weekSalesTotal: number;
   weekRecoveryTotal: number;
   weekExpenseTotal: number;
-  lowStockCount: number;
   overLimitCount: number;
   receivableApprox: number;
   payableApprox: number;
@@ -68,12 +68,12 @@ type DashState = {
 
 const emptyDash: DashState = {
   salesToday: 0,
+  cashSalesToday: 0,
   recoveriesToday: 0,
   expenseToday: 0,
   weekSalesTotal: 0,
   weekRecoveryTotal: 0,
   weekExpenseTotal: 0,
-  lowStockCount: 0,
   overLimitCount: 0,
   receivableApprox: 0,
   payableApprox: 0,
@@ -119,9 +119,21 @@ export function OfflineDashboard({
           ]);
         if (cancelled) return;
 
-        const salesToday = sales14.rows
-          .filter((r) => String(r.invoice_date).slice(0, 10) === today)
-          .reduce((s, r) => s + Number(r.grand_total || 0), 0);
+        const todaySales = sales14.rows.filter(
+          (r) => String(r.invoice_date).slice(0, 10) === today,
+        );
+        const salesToday = todaySales.reduce(
+          (s, r) => s + Number(r.grand_total || 0),
+          0,
+        );
+        const cashSalesToday = todaySales.reduce((s, r) => {
+          const total = Number(r.grand_total || 0);
+          const paid = Number(
+            r.amount_paid ||
+              (String(r.payment_type).toLowerCase() === "cash" ? total : 0),
+          );
+          return s + Math.max(0, paid);
+        }, 0);
         const recoveriesToday = recovery14.rows
           .filter((r) =>
             String(r.voucher_date || r.doc_date || "").slice(0, 10) === today,
@@ -232,12 +244,12 @@ export function OfflineDashboard({
 
         setDash({
           salesToday,
+          cashSalesToday,
           recoveriesToday,
           expenseToday,
           weekSalesTotal,
           weekRecoveryTotal,
           weekExpenseTotal,
-          lowStockCount: lowWatch.length,
           overLimitCount: 0,
           receivableApprox: creditSales,
           payableApprox: purchases14.total,
@@ -334,13 +346,13 @@ export function OfflineDashboard({
           hint="Approx. from local purchases (14d)"
         />
         <StatCard
-          label="Low stock SKUs"
-          value={dash.lowStockCount}
-          format="number"
-          icon={Package}
-          tone={dash.lowStockCount > 0 ? "warn" : "ok"}
-          href="/reports/stock"
-          hint="Below reorder level — refill soon"
+          label="Today cash"
+          value={dash.cashSalesToday}
+          format="money"
+          icon={Banknote}
+          tone="ok"
+          href="/reports/sales?type=cash_sales"
+          hint="Paid at counter · walk-in & cash bills"
         />
         <StatCard
           label="Over credit limit"

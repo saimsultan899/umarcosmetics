@@ -467,16 +467,6 @@ function RecoveryEditForm({
       setError("Select the customer and enter the amount received.");
       return;
     }
-    if (dueBalance != null && dueBalance <= 0.005) {
-      setError("This customer has no amount due. The recovery was not saved.");
-      return;
-    }
-    if (dueBalance != null && value > dueBalance + 0.005) {
-      setError(
-        `Recovery is more than the amount due (${formatPkr(dueBalance)}). The recovery was not saved.`,
-      );
-      return;
-    }
     if (todayRecoveries.length) {
       const listed = todayRecoveries
         .map((row) => {

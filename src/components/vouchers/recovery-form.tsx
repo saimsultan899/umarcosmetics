@@ -363,23 +363,6 @@ export function RecoveryForm({
     if (focusCodeField) focusCode();
   }
 
-  function dueBlock(
-    name: string,
-    amt: number,
-    owed: number | null,
-    reserved: number,
-  ) {
-    if (owed == null) return null;
-    const left = owed - reserved;
-    if (left <= 0.005) {
-      return `${name} has no amount due. The recovery was not added.`;
-    }
-    if (amt > left + 0.005) {
-      return `${name} still owes ${formatPkr(left)}. A higher recovery was not added.`;
-    }
-    return null;
-  }
-
   function recoveryWarning(
     name: string,
     prior: SameDayRecovery[],
@@ -405,15 +388,6 @@ export function RecoveryForm({
       setError("Select customer and enter a recovery amount.");
       if (!partyId) focusCode();
       else focusField(amountRef.current);
-      return false;
-    }
-    const reserved = lines
-      .filter((line) => line.partyId === partyId)
-      .reduce((sum, line) => sum + line.amount, 0);
-    const blocked = dueBlock(party.name_en, amt, balance, reserved);
-    if (blocked) {
-      setError(blocked);
-      focusField(amountRef.current);
       return false;
     }
     setLines((prev) => [
@@ -513,25 +487,6 @@ export function RecoveryForm({
     const confirmedKeys = new Set<string>();
     for (let i = 0; i < pending.length; i += 1) {
       const line = pending[i];
-      let owed = line.owed;
-      if (owed == null && (typeof navigator === "undefined" || navigator.onLine)) {
-        const supabase = createClient();
-        const { data } = await supabase.rpc("get_party_balance", {
-          p_company_id: companyId,
-          p_party_id: line.partyId,
-          p_as_of: date,
-        });
-        owed = data == null ? null : Number(data);
-      }
-      const reserved = pending
-        .slice(0, i)
-        .filter((row) => row.partyId === line.partyId)
-        .reduce((sum, row) => sum + row.amount, 0);
-      const blocked = dueBlock(line.partyName, line.amount, owed, reserved);
-      if (blocked) {
-        setError(blocked);
-        return;
-      }
       const prior = await findSameDayRecoveries(companyId, line.partyId, date);
       const warning = recoveryWarning(
         line.partyName,
