@@ -113,7 +113,8 @@ export default async function RecoverySheetPage({
       rememberStats(`recovery-parties:${company.id}:${statsRevision}`, () =>
         fetchAllActiveParties(supabase, company.id, {
           subtypes: ["customer", "both"],
-          columns: "id, party_code, name_en, route",
+          columns:
+            "id, party_code, name_en, city, route, party_subtype, is_active, sort_order",
         }),
       ).catch(() => [] as Party[]),
       supabase
