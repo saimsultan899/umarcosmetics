@@ -8,6 +8,10 @@ import { Topbar } from "@/components/layout/topbar";
 import { OfflineBanner } from "@/components/offline/offline-banner";
 import { SyncProvider } from "@/components/offline/sync-provider";
 import { installDesktopPrint } from "@/lib/desktop-print";
+import {
+  readDeviceCompanyCookie,
+  writeDeviceCompanyCookie,
+} from "@/lib/device-company";
 import type { Company } from "@/lib/types/database";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -33,6 +37,11 @@ export function AppShell({
   const router = useRouter();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (!company?.id || readDeviceCompanyCookie()) return;
+    writeDeviceCompanyCookie(company.id);
+  }, [company?.id]);
 
   useEffect(() => {
     installDesktopPrint();

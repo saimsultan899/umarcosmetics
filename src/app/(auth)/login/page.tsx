@@ -12,6 +12,7 @@ import {
   getPreferredCompanyId,
   setPreferredCompanyId,
 } from "@/lib/company-preference";
+import { writeDeviceCompanyCookie } from "@/lib/device-company";
 import {
   cacheAuthTokens,
   adoptVaultAccountEmail,
@@ -257,6 +258,8 @@ function LoginForm() {
       setPicking(null);
       setOfflineSessionCookie(true);
     }
+
+    writeDeviceCompanyCookie(companyId);
 
     const supabase = createClient();
     let userId = "offline-user";
@@ -770,7 +773,7 @@ function LoginForm() {
     const online = await isAppOnline();
     if (online) {
       const supabase = createClient();
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: "local" });
     }
     setOfflineSessionCookie(false);
     setStep("credentials");

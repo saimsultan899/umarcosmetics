@@ -43,7 +43,7 @@ export function Topbar({
     setOfflineSessionCookie(false);
     clearOfflineShellCookie();
     try {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: "local" });
     } catch {
       /* offline sign-out */
     }
@@ -101,13 +101,7 @@ export function Topbar({
           loading={switching}
           onClick={async () => {
             setSwitching(true);
-            if (online) {
-              try {
-                await supabase.rpc("clear_active_company");
-              } catch {
-                /* network blip — still open picker */
-              }
-            } else {
+            if (!online) {
               const shell = readOfflineShellCookie();
               if (shell) {
                 writeOfflineShellCookie({

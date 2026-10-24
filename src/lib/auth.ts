@@ -10,6 +10,10 @@ import {
   OFFLINE_SHELL_COOKIE,
   type OfflineShellSnapshot,
 } from "@/lib/offline/offline-shell";
+import {
+  DEVICE_COMPANY_COOKIE,
+  pickWorkingCompanyId,
+} from "@/lib/device-company";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
@@ -261,6 +265,18 @@ export const getMemberships = cache(async function getMemberships() {
     if (org?.status === "suspended") return false;
     return true;
   });
+
+  if (profile) {
+    const jar = await cookies();
+    const workingId = pickWorkingCompanyId(
+      jar.get(DEVICE_COMPANY_COOKIE)?.value,
+      memberships.map((m) => m.company_id),
+      profile.active_company_id,
+    );
+    if (workingId && workingId !== profile.active_company_id) {
+      profile = { ...profile, active_company_id: workingId };
+    }
+  }
 
   return {
     supabase,

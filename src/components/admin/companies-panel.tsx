@@ -4,6 +4,7 @@ import { CompanyAdminForm } from "@/components/admin/company-admin-form";
 import { Button } from "@/components/ui/button";
 import { CreateDialogButton } from "@/components/ui/create-dialog";
 import { DetailField, RowActions } from "@/components/ui/row-actions";
+import { writeDeviceCompanyCookie } from "@/lib/device-company";
 import { createClient } from "@/lib/supabase/client";
 import type { Company, Organization } from "@/lib/types/database";
 import { useRouter } from "next/navigation";
@@ -40,6 +41,7 @@ export function CompaniesPanel({
       setError(rpcError.message);
       return;
     }
+    writeDeviceCompanyCookie(companyId);
     router.push("/dashboard");
     router.refresh();
   }

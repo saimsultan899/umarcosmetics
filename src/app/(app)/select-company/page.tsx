@@ -9,6 +9,7 @@ import {
   getPreferredCompanyId,
   setPreferredCompanyId,
 } from "@/lib/company-preference";
+import { writeDeviceCompanyCookie } from "@/lib/device-company";
 import { getCachedSessionData } from "@/lib/offline/cache-manager";
 import {
   isAppOnline,
@@ -166,6 +167,7 @@ function applyOfflinePick(
     savedAt: new Date().toISOString(),
   };
   writeOfflineShellCookie(snapshot);
+  writeDeviceCompanyCookie(companyId);
   setOfflineSessionCookie(true);
   return membership;
 }
@@ -261,8 +263,6 @@ export default function SelectCompanyPage() {
           router.replace("/super-admin");
           return;
         }
-
-        await supabase.rpc("clear_active_company");
 
         if (profile?.full_name) setUserLabel(profile.full_name);
 
@@ -369,7 +369,7 @@ export default function SelectCompanyPage() {
     clearOfflineShellCookie();
     try {
       const supabase = createClient();
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: "local" });
     } catch {
       /* offline sign-out */
     }
