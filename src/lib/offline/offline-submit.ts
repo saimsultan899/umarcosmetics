@@ -1248,28 +1248,43 @@ export async function migrateLegacyLocalDocNos(companyId: string): Promise<void>
  */
 export async function allocateNextPartyCode(companyId: string): Promise<string> {
   let maxCode = 1000;
-  if (hasLocalSqlite()) {
+  const companyIds = new Set<string>([companyId]);
+  try {
+    const { getCachedHubContext } = await import("@/lib/offline/cache-manager");
+    const ctx = await getCachedHubContext();
+    if (ctx?.mainCompanyId) companyIds.add(ctx.mainCompanyId);
+    if (ctx?.spokeCompanyId) companyIds.add(ctx.spokeCompanyId);
+  } catch {
+    // Local numbering still uses the companies already on this machine.
+  }
+  for (const id of companyIds) {
+    if (hasLocalSqlite()) {
+      try {
+        const res = await localListMaster("parties", id, 5000);
+        for (const p of res.rows || []) {
+          const code = String(p.code || p.party_code || "").trim();
+          if (/^\d+$/.test(code)) {
+            const n = parseInt(code, 10);
+            if (n > maxCode) maxCode = n;
+          }
+        }
+      } catch {
+        // This company's local list is optional.
+      }
+    }
     try {
-      const res = await localListMaster("parties", companyId, 5000);
-      for (const p of res.rows || []) {
-        const code = String(p.code || p.party_code || "").trim();
+      const cached = await getCachedRows("parties", id);
+      for (const p of cached) {
+        const code = String(p.party_code || p.code || "").trim();
         if (/^\d+$/.test(code)) {
           const n = parseInt(code, 10);
           if (n > maxCode) maxCode = n;
         }
       }
-    } catch {}
-  }
-  try {
-    const cached = await getCachedRows("parties", companyId);
-    for (const p of cached) {
-      const code = String(p.party_code || p.code || "").trim();
-      if (/^\d+$/.test(code)) {
-        const n = parseInt(code, 10);
-        if (n > maxCode) maxCode = n;
-      }
+    } catch {
+      // IndexedDB is optional.
     }
-  } catch {}
+  }
   return String(maxCode + 1);
 }
 

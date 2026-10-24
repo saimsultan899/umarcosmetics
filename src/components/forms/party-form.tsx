@@ -179,7 +179,7 @@ export function PartyForm({
     const supabase = createClient();
 
     let partyCode = form.party_code.trim();
-    if (!initial && autoCode && !partyCode) {
+    if (!initial && autoCode) {
       try {
         const { data: allocated } = await supabase.rpc(
           "next_party_code",

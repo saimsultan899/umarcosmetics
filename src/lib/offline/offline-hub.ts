@@ -476,10 +476,11 @@ export async function ensureHubParty(
     (p) => norm(p.party_code || p.code) && norm(p.party_code || p.code) === norm(code),
   );
   if (byCode?.id) {
-    const hubId = String(byCode.id);
-    await syncPartyFields(src, byCode, mainId);
-    await linkSpokePartyHub(spokeCompanyId, src, hubId);
-    return { ok: true, hubPartyId: hubId };
+    return {
+      ok: true,
+      skipped: true,
+      reason: "This code already belongs to another shop.",
+    };
   }
 
   const hubId = newId();
