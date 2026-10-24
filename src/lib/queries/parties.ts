@@ -1,3 +1,4 @@
+import { rememberStats } from "@/lib/list-stats-revision";
 import {
   buildPaginationMeta,
   escapeIlike,
@@ -226,33 +227,21 @@ export async function fetchPartiesForExport(
   });
 }
 
-export async function fetchPartyList(
+type PartyListExtras = Pick<
+  PartyListResult,
+  "stats" | "cityOptions" | "sectorOptions" | "headOptions"
+>;
+
+/** Charts and filter lists. Not tied to the current page of rows. */
+async function loadPartyListExtras(
   supabase: SupabaseClient,
   companyId: string,
-  searchParams: Record<string, string | string[] | undefined>,
-): Promise<PartyListResult> {
-  const paginationParams = parsePaginationParams(searchParams);
-  const { from, to } = toRange(paginationParams);
-  const q = spString(searchParams, "q") || "";
-  const rawView = spString(searchParams, "view");
-  const view: PartyViewFilter =
-    rawView === "ledger" || rawView === "trading" ? rawView : "all";
-  const subtype = (view === "ledger"
-    ? "all"
-    : spString(searchParams, "type") || "all") as PartySubtypeFilter;
-  const location = parsePartyLocationFilters(searchParams);
-
-  let listQuery = baseQuery(supabase, companyId);
-  listQuery = applyViewFilter(listQuery, view);
-  listQuery = applySubtypeFilter(listQuery, subtype);
-  listQuery = applySearch(listQuery, q);
-  listQuery = applyPartyLocationFilters(listQuery, location);
-
-  const [{ data, count, error }, activeRows, savedLocations] = await Promise.all([
-    listQuery
-      .order("sort_order", { ascending: true })
-      .order("party_code", { ascending: true })
-      .range(from, to),
+  view: PartyViewFilter,
+  subtype: PartySubtypeFilter,
+  q: string,
+  location: PartyLocationFilters,
+): Promise<PartyListExtras> {
+  const [activeRows, savedLocations] = await Promise.all([
     fetchAllPages<PartyStatRow>((fromPage, toPage) =>
       supabase
         .from("parties")
@@ -270,7 +259,6 @@ export async function fetchPartyList(
       .eq("company_id", companyId),
   ]);
 
-  if (error) throw new Error(error.message);
   const inView = (row: PartyStatRow, nextView: PartyViewFilter = view) =>
     matchesPartyView(row, nextView) &&
     matchesPartySearch(row, q) &&
@@ -311,9 +299,6 @@ export async function fetchPartyList(
     return true;
   });
 
-  const total = count ?? 0;
-  const meta = buildPaginationMeta(total, paginationParams);
-
   const subtypeMix = [
     { name: "Customers", value: customerOnly },
     { name: "Vendors", value: supplierOnly },
@@ -329,10 +314,8 @@ export async function fetchPartyList(
   ].filter((x) => x.value > 0);
 
   return {
-    parties: (data || []) as Party[],
-    pagination: meta,
     stats: {
-      total,
+      total: 0,
       customers,
       suppliers,
       withCreditLimit,
@@ -354,5 +337,62 @@ export async function fetchPartyList(
         .map((r) => r.name),
     ]),
     headOptions: [],
+  };
+}
+
+export async function fetchPartyList(
+  supabase: SupabaseClient,
+  companyId: string,
+  searchParams: Record<string, string | string[] | undefined>,
+  opts?: { statsRevision?: string },
+): Promise<PartyListResult> {
+  const paginationParams = parsePaginationParams(searchParams);
+  const { from, to } = toRange(paginationParams);
+  const q = spString(searchParams, "q") || "";
+  const rawView = spString(searchParams, "view");
+  const view: PartyViewFilter =
+    rawView === "ledger" || rawView === "trading" ? rawView : "all";
+  const subtype = (view === "ledger"
+    ? "all"
+    : spString(searchParams, "type") || "all") as PartySubtypeFilter;
+  const location = parsePartyLocationFilters(searchParams);
+
+  let listQuery = baseQuery(supabase, companyId);
+  listQuery = applyViewFilter(listQuery, view);
+  listQuery = applySubtypeFilter(listQuery, subtype);
+  listQuery = applySearch(listQuery, q);
+  listQuery = applyPartyLocationFilters(listQuery, location);
+
+  const summaryKey = JSON.stringify({
+    companyId,
+    rev: opts?.statsRevision || "",
+    view,
+    subtype,
+    q,
+    city: location.city || "",
+    sector: location.sector || "",
+    head: location.head || "",
+  });
+
+  const [{ data, count, error }, extras] = await Promise.all([
+    listQuery
+      .order("sort_order", { ascending: true })
+      .order("party_code", { ascending: true })
+      .range(from, to),
+    rememberStats(summaryKey, () =>
+      loadPartyListExtras(supabase, companyId, view, subtype, q, location),
+    ),
+  ]);
+
+  if (error) throw new Error(error.message);
+
+  const total = count ?? 0;
+  return {
+    parties: (data || []) as Party[],
+    pagination: buildPaginationMeta(total, paginationParams),
+    stats: { ...extras.stats, total },
+    cityOptions: extras.cityOptions,
+    sectorOptions: extras.sectorOptions,
+    headOptions: extras.headOptions,
   };
 }

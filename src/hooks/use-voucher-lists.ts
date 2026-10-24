@@ -14,7 +14,7 @@ import { fetchVoucherList, type VoucherRow, type VoucherListResult } from "@/lib
 import { createClient } from "@/lib/supabase/client";
 import type { Party, Warehouse } from "@/lib/types/database";
 import type { SalesmanOption } from "@/lib/queries/salesmen";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 // ── shared pagination helper ─────────────────────────────────────────────────
@@ -61,7 +61,8 @@ export function useExpensesList({
   const [warehouses, setWarehouses] = useState<Warehouse[]>(initialWarehouses);
   const [vendors, setVendors] = useState<Party[]>(initialVendors);
   const [loading, setLoading] = useState(!initialData);
-  const isFirstMount = useRef(true);
+  const router = useRouter();
+  const serverBacked = useRef(Boolean(initialData));
 
   const spRecord = useMemo(() => {
     const rec: Record<string, string | string[] | undefined> = {};
@@ -161,8 +162,23 @@ export function useExpensesList({
         fetchExpenseList(supabase, companyId, spRecord),
         fetchCompanySalesmen(supabase, companyId),
         supabase.from("warehouses").select("*").eq("company_id", companyId).eq("is_active", true).order("name"),
-        supabase.from("parties").select("*").eq("company_id", companyId).eq("is_active", true)
-          .or("party_subtype.in.(supplier,both),party_type.eq.PARTY").order("name_en").limit(500),
+        (async () => {
+          const { fetchAllPages } = await import("@/lib/supabase/fetch-all-pages");
+          const rows = await fetchAllPages<Party>((from, to) =>
+            supabase
+              .from("parties")
+              .select(
+                "id, party_code, name_en, name_ur, party_subtype, party_type, is_active, route, city",
+              )
+              .eq("company_id", companyId)
+              .eq("is_active", true)
+              .or("party_subtype.in.(supplier,both),party_type.eq.PARTY")
+              .order("name_en", { ascending: true })
+              .order("id", { ascending: true })
+              .range(from, to),
+          );
+          return { data: rows };
+        })(),
       ]);
       setData(list);
       setSalesmen(sms);
@@ -176,14 +192,26 @@ export function useExpensesList({
   }, [companyId, isOnline, searchParams, spRecord]);
 
   useEffect(() => {
-    if (isFirstMount.current) {
-      isFirstMount.current = false;
-      if (initialData && isOnline) return;
+    if (isOnline && initialData) {
+      setData(initialData);
+      setSalesmen(initialSalesmen);
+      setWarehouses(initialWarehouses);
+      setVendors(initialVendors);
+      setLoading(false);
+      return;
     }
     void load();
   }, [load, initialData, isOnline]);
 
-  return { ...data, salesmen, warehouses, vendors, loading, refetch: load };
+  const refetch = useCallback(async () => {
+    if (isOnline && serverBacked.current) {
+      router.refresh();
+      return;
+    }
+    await load();
+  }, [isOnline, load, router]);
+
+  return { ...data, salesmen, warehouses, vendors, loading, refetch };
 }
 
 // ── Cash vouchers hook (CR / CP / JV) ────────────────────────────────────────
@@ -223,7 +251,8 @@ export function useVoucherList({
   );
   const [parties, setParties] = useState<Party[]>(initialParties);
   const [loading, setLoading] = useState(!initialData);
-  const isFirstMount = useRef(true);
+  const router = useRouter();
+  const serverBacked = useRef(Boolean(initialData));
 
   const spRecord = useMemo(() => {
     const rec: Record<string, string | string[] | undefined> = {};
@@ -365,13 +394,22 @@ export function useVoucherList({
       const [list, partyRes] = await Promise.all([
         fetchVoucherList(supabase, companyId, spRecord, kind),
         kind === "CR"
-          ? supabase
-              .from("parties")
-              .select("*")
-              .eq("company_id", companyId)
-              .eq("is_active", true)
-              .order("name_en")
-              .limit(5000)
+          ? (async () => {
+              const { fetchAllPages } = await import("@/lib/supabase/fetch-all-pages");
+              const rows = await fetchAllPages<Party>((from, to) =>
+                supabase
+                  .from("parties")
+                  .select(
+                    "id, party_code, name_en, name_ur, party_subtype, party_type, is_active, route, city, sort_order",
+                  )
+                  .eq("company_id", companyId)
+                  .eq("is_active", true)
+                  .order("name_en", { ascending: true })
+                  .order("id", { ascending: true })
+                  .range(from, to),
+              );
+              return { data: rows };
+            })()
           : Promise.resolve({ data: null as Party[] | null }),
       ]);
       setData(list);
@@ -386,17 +424,22 @@ export function useVoucherList({
   }, [companyId, isOnline, kind, searchParams, spRecord, entityTypes]);
 
   useEffect(() => {
-    if (isFirstMount.current) {
-      isFirstMount.current = false;
-      if (initialData) setData(initialData);
+    if (isOnline && initialData) {
+      setData(initialData);
       if (initialParties.length) setParties(initialParties);
-      // Always refresh after mount so a just-posted voucher is not stuck
-      // behind a stale SSR snapshot after dialog close / router.refresh().
+      setLoading(false);
+      return;
     }
     void load();
-    // initialData / initialParties are seed-only on first mount.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
-  }, [load]);
+  }, [load, initialData, isOnline]);
 
-  return { ...data, parties, loading, refetch: load };
+  const refetch = useCallback(async () => {
+    if (isOnline && serverBacked.current) {
+      router.refresh();
+      return;
+    }
+    await load();
+  }, [isOnline, load, router]);
+
+  return { ...data, parties, loading, refetch };
 }

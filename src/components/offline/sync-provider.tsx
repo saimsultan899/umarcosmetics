@@ -186,11 +186,6 @@ export function SyncProvider({
           : `Synced ${result.success} · Failed ${result.failed}`,
       );
 
-      // Refresh cache after successful sync
-      if (result.success > 0) {
-        void autoRefreshStaleCaches(companyId);
-      }
-
       await refreshPending();
 
       // Update last sync time
@@ -245,9 +240,6 @@ export function SyncProvider({
         setOfflineSessionCookie(false);
         router.refresh();
       }
-      if (companyId) {
-        void autoRefreshStaleCaches(companyId);
-      }
       if (pending.total > 0) {
         void runSync();
       }
@@ -266,9 +258,7 @@ export function SyncProvider({
   useEffect(() => {
     if (online && companyId) {
       void autoRefreshStaleCaches(companyId);
-      void resolveAndCacheHubContext(companyId, organizationId).then(() =>
-        prefetchMainCompanyHubCaches(companyId),
-      );
+      void prefetchMainCompanyHubCaches(companyId);
     }
   }, [online, companyId, organizationId]);
 

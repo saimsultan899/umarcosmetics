@@ -23,6 +23,7 @@ import { amountClass, formatPkr } from "@/lib/utils";
 import { deleteCachedRow, putCachedRow } from "@/lib/offline/local-db";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { hasLocalSqlite, localUpsertMaster } from "@/lib/offline/sqlite-client";
+import { bumpListStatsRevision } from "@/lib/list-stats-revision";
 import { createClient } from "@/lib/supabase/client";
 import { Building2, FileText, Printer, Store, Truck, Users } from "lucide-react";
 import Link from "next/link";
@@ -254,6 +255,7 @@ export function PartiesTable({
       throw new Error(msg);
     }
     await deleteCachedRow("parties", id).catch(() => {});
+    bumpListStatsRevision();
     onChanged?.();
   }
 

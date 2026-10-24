@@ -16,7 +16,7 @@ import {
 } from "@/lib/queries/parties";
 import { createClient } from "@/lib/supabase/client";
 import type { Party, PartyType } from "@/lib/types/database";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const LEDGER_TYPES: PartyType[] = ["ASSETS", "CAPITAL", "EXPENSES", "INCOME"];
@@ -49,11 +49,12 @@ export function usePartiesList({
 }) {
   const sync = useSyncStatus();
   const isOnline = sync ? sync.online : !initialOffline;
+  const router = useRouter();
   const searchParams = useSearchParams();
+  const serverBacked = useRef(Boolean(initialData));
 
   const [data, setData] = useState<PartyListResult | null>(initialData || null);
   const [loading, setLoading] = useState<boolean>(!initialData);
-  const isFirstMount = useRef(true);
 
   // Convert searchParams to standard Record
   const spRecord = useMemo(() => {
@@ -221,19 +222,27 @@ export function usePartiesList({
   }, [companyId, fixedSubtype, isOnline, searchParams, spRecord]);
 
   useEffect(() => {
-    // If initialData was provided on the very first mount and online, keep it
-    if (isFirstMount.current) {
-      isFirstMount.current = false;
-      if (initialData && isOnline) {
-        return;
-      }
+    // The server page already queried Supabase for this URL. Repeating it
+    // here doubled every search, page change, and refresh.
+    if (isOnline && initialData) {
+      setData(initialData);
+      setLoading(false);
+      return;
     }
     void loadData();
   }, [loadData, initialData, isOnline]);
 
+  const refetch = useCallback(async () => {
+    if (isOnline && serverBacked.current) {
+      router.refresh();
+      return;
+    }
+    await loadData();
+  }, [isOnline, loadData, router]);
+
   return {
     data,
     loading,
-    refetch: loadData,
+    refetch,
   };
 }

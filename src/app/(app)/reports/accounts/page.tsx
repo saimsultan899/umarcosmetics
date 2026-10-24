@@ -9,6 +9,9 @@ import { Select } from "@/components/ui/select";
 import { requireCompanyContext } from "@/lib/auth";
 import { effectivePermissions } from "@/lib/access/permissions";
 import { localDateIso } from "@/lib/dates";
+import { LIST_STATS_COOKIE, rememberStats } from "@/lib/list-stats-revision";
+import { fetchAllPages } from "@/lib/supabase/fetch-all-pages";
+import { cookies } from "next/headers";
 import { formatCompactPkr, formatPkr} from "@/lib/utils";
 import { ArrowDownLeft, ArrowUpRight, Scale } from "lucide-react";
 import Link from "next/link";
@@ -114,12 +117,33 @@ export default async function AccountsReportPage({
     return true;
   });
 
-  const { data: parties } = await supabase
-    .from("parties")
-    .select("id, party_code, name_en, party_subtype, route")
-    .eq("company_id", company.id)
-    .eq("is_active", true)
-    .order("name_en");
+  const statsRevision = (await cookies()).get(LIST_STATS_COOKIE)?.value || "";
+  const parties = await rememberStats(
+    `account-parties:${company.id}:${statsRevision}`,
+    () =>
+      fetchAllPages<{
+        id: string;
+        party_code: string;
+        name_en: string;
+        party_subtype: string | null;
+        route: string | null;
+      }>((from, to) =>
+        supabase
+          .from("parties")
+          .select("id, party_code, name_en, party_subtype, route")
+          .eq("company_id", company.id)
+          .eq("is_active", true)
+          .order("name_en", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to),
+      ),
+  ).catch(() => [] as Array<{
+    id: string;
+    party_code: string;
+    name_en: string;
+    party_subtype: string | null;
+    route: string | null;
+  }>);
 
   const ledgerParties = (parties || []).filter((p) => {
     if (!sector) return true;

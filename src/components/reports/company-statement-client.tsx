@@ -228,32 +228,39 @@ export function CompanyStatementClient({
       return toOptions(rows);
     }
     (async () => {
-      if (online) {
-        try {
-          const supabase = createClient();
-          const { data, error } = await supabase
-            .from("parties")
-            .select("id, party_code, name_en, party_subtype, is_active")
-            .eq("company_id", companyId)
-            .eq("is_active", true)
-            .in("party_subtype", ["supplier", "both"])
-            .order("name_en")
-            .limit(10000);
-          if (cancelled) return;
-          if (!error && data) {
-            setSuppliers(
-              data.map((p) => ({
-                value: String(p.id),
-                label: `${p.party_code} — ${p.name_en}`,
-              })),
-            );
-            return;
-          }
-        } catch {
-          // Fall through to the local vendor list.
-        }
-      }
       const local = await loadLocalSuppliers();
+      if (cancelled) return;
+      if (local.length) {
+        setSuppliers(local);
+        return;
+      }
+      if (!online) {
+        setSuppliers(local);
+        return;
+      }
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from("parties")
+          .select("id, party_code, name_en, party_subtype, is_active")
+          .eq("company_id", companyId)
+          .eq("is_active", true)
+          .in("party_subtype", ["supplier", "both"])
+          .order("name_en")
+          .limit(10000);
+        if (cancelled) return;
+        if (!error && data?.length) {
+          setSuppliers(
+            data.map((p) => ({
+              value: String(p.id),
+              label: `${p.party_code} — ${p.name_en}`,
+            })),
+          );
+          return;
+        }
+      } catch {
+        // Keep the empty local list.
+      }
       if (!cancelled) setSuppliers(local);
     })();
     return () => {

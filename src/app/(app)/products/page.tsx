@@ -2,8 +2,10 @@ import { ProductsView } from "@/components/products/products-view";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { effectivePermissions } from "@/lib/access/permissions";
 import { requireCompanyContext } from "@/lib/auth";
+import { LIST_STATS_COOKIE } from "@/lib/list-stats-revision";
 import { fetchProductList, type ProductListResult } from "@/lib/queries/products";
 import type { Warehouse } from "@/lib/types/database";
+import { cookies } from "next/headers";
 import { Suspense } from "react";
 
 export default async function ProductsPage({
@@ -12,6 +14,7 @@ export default async function ProductsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
+  const statsRevision = (await cookies()).get(LIST_STATS_COOKIE)?.value || "";
   const { supabase, company, offline, membership, profile } =
     await requireCompanyContext();
   const permissions = effectivePermissions(
@@ -31,7 +34,7 @@ export default async function ProductsPage({
           .eq("company_id", company.id)
           .eq("is_active", true)
           .order("name"),
-        fetchProductList(supabase, company.id, sp),
+        fetchProductList(supabase, company.id, sp, { statsRevision }),
       ]);
       initialWarehouses = (warehouses as Warehouse[]) || [];
       initialData = list;

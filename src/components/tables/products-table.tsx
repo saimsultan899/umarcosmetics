@@ -23,6 +23,7 @@ import { formatNumber, formatPkr } from "@/lib/utils";
 import { deleteCachedRow, putCachedRow } from "@/lib/offline/local-db";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { hasLocalSqlite, localUpsertMaster } from "@/lib/offline/sqlite-client";
+import { bumpListStatsRevision } from "@/lib/list-stats-revision";
 import { createClient } from "@/lib/supabase/client";
 import { AlertTriangle, Package, Tags } from "lucide-react";
 import { useMemo } from "react";
@@ -173,6 +174,7 @@ export function ProductsTable({
       throw new Error(msg);
     }
     await deleteCachedRow("products", id).catch(() => {});
+    bumpListStatsRevision();
     onChanged?.();
   }
 

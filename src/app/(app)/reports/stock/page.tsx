@@ -5,8 +5,10 @@ import { ReportTable } from "@/components/reports/report-table";
 import { StockReportFilters } from "@/components/reports/stock-report-filters";
 import { requireCompanyContext } from "@/lib/auth";
 import { effectivePermissions } from "@/lib/access/permissions";
+import { LIST_STATS_COOKIE, rememberStats } from "@/lib/list-stats-revision";
 import { formatUomCompact } from "@/lib/pricing/uom";
 import { fetchAllPages } from "@/lib/supabase/fetch-all-pages";
+import { cookies } from "next/headers";
 import { AlertTriangle, Boxes, Package } from "lucide-react";
 import Link from "next/link";
 
@@ -150,7 +152,8 @@ export default async function StockReportPage({
     base_unit: string | null;
   };
 
-  const [rows, movementsRes, products, warehousesRes] = await Promise.all([
+  const statsRevision = (await cookies()).get(LIST_STATS_COOKIE)?.value || "";
+  const [rows, movementsRes, warehousesRes] = await Promise.all([
     fetchAllPages<StockBalanceRow>((from, to) =>
       supabase
         .from("stock_balances")
@@ -170,18 +173,6 @@ export default async function StockReportPage({
       .eq("company_id", company.id)
       .order("created_at", { ascending: false })
       .limit(500),
-    fetchAllPages<ProductRow>((from, to) =>
-      supabase
-        .from("products")
-        .select(
-          "id, code, name_en, default_warehouse_id, reorder_level, opening_qty, purchase_rate, retail_rate, packing, unit_type, base_unit",
-        )
-        .eq("company_id", company.id)
-        .eq("is_active", true)
-        .order("code", { ascending: true })
-        .order("id", { ascending: true })
-        .range(from, to),
-    ),
     supabase
       .from("warehouses")
       .select("id, name")
@@ -190,6 +181,29 @@ export default async function StockReportPage({
   ]);
   const movements = movementsRes.data;
   const warehouses = warehousesRes.data;
+  let products: ProductRow[] = [];
+  if (view !== "movements") {
+    try {
+      products = await rememberStats(
+        `stock-products:${company.id}:${statsRevision}`,
+        () =>
+          fetchAllPages<ProductRow>((from, to) =>
+            supabase
+              .from("products")
+              .select(
+                "id, code, name_en, default_warehouse_id, reorder_level, opening_qty, purchase_rate, retail_rate, packing, unit_type, base_unit",
+              )
+              .eq("company_id", company.id)
+              .eq("is_active", true)
+              .order("code", { ascending: true })
+              .order("id", { ascending: true })
+              .range(from, to),
+          ),
+      );
+    } catch {
+      products = [];
+    }
+  }
 
   const companyByWarehouse = new Map(
     (warehouses || []).map((w) => [w.id, w.name]),

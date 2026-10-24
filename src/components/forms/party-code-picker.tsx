@@ -160,6 +160,24 @@ export function PartyCodePicker({
     const gen = ++searchGen.current;
     const term = escapeIlike(raw).toLowerCase();
     if (!term) return;
+
+    // Search the catalog already on the form first. Exact code entry still
+    // calls get_party_by_code when the shop is not in this list.
+    if (parties.length) {
+      const known = parties
+        .filter((party) => {
+          if (!party?.id || party.is_active === false) return false;
+          const code = String(party.party_code || "").toLowerCase();
+          const name = String(party.name_en || "").toLowerCase();
+          return code.includes(term) || name.includes(term);
+        })
+        .slice(0, 80);
+      if (known.length) {
+        if (gen === searchGen.current) setFound(known);
+        return;
+      }
+    }
+
     const rows: Party[] = [];
     try {
       if (typeof navigator === "undefined" || navigator.onLine) {

@@ -286,6 +286,8 @@ async function runOfflineAwareSubmit(
       ]);
 
       const hubNote = await finalizeOnlineSubmit(submitParams, result.id);
+      const { bumpListStatsRevision } = await import("@/lib/list-stats-revision");
+      bumpListStatsRevision();
 
       return {
         id: result.id,
@@ -312,6 +314,10 @@ async function runOfflineAwareSubmit(
           );
           if (existingId) {
             const hubNote = await finalizeOnlineSubmit(submitParams, existingId);
+            const { bumpListStatsRevision } = await import(
+              "@/lib/list-stats-revision"
+            );
+            bumpListStatsRevision();
             return {
               id: existingId,
               source: "server",

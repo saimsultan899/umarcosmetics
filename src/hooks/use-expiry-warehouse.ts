@@ -16,7 +16,7 @@ import {
 import { fetchExpiryStock, type ExpiryStockRow } from "@/lib/queries/expiry";
 import { createClient } from "@/lib/supabase/client";
 import type { Company, Party, Product, Warehouse } from "@/lib/types/database";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export type ExpiryTab = "stock" | "receipts" | "claims";
@@ -101,7 +101,8 @@ export function useExpiryWarehouse({
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [warehouses, setWarehouses] = useState<Warehouse[]>(initialWarehouses);
   const [loading, setLoading] = useState(!initialData);
-  const isFirstMount = useRef(true);
+  const router = useRouter();
+  const serverBacked = useRef(Boolean(initialData));
 
   const spRecord = useMemo(() => {
     const rec: Record<string, string | string[] | undefined> = {};
@@ -445,12 +446,24 @@ export function useExpiryWarehouse({
   }, [company?.id, isOnline, searchParams, spRecord]);
 
   useEffect(() => {
-    if (isFirstMount.current) {
-      isFirstMount.current = false;
-      if (initialData && isOnline) return;
+    if (isOnline && initialData) {
+      setData(initialData);
+      setParties(initialParties);
+      setProducts(initialProducts);
+      setWarehouses(initialWarehouses);
+      setLoading(false);
+      return;
     }
     void load();
   }, [load, initialData, isOnline]);
+
+  const refetch = useCallback(async () => {
+    if (isOnline && serverBacked.current) {
+      router.refresh();
+      return;
+    }
+    await load();
+  }, [isOnline, load, router]);
 
   return {
     ...data,
@@ -459,6 +472,6 @@ export function useExpiryWarehouse({
     products,
     warehouses,
     loading,
-    refetch: load,
+    refetch,
   };
 }

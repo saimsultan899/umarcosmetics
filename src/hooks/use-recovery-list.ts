@@ -14,7 +14,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import type { Party } from "@/lib/types/database";
 import type { SalesmanOption } from "@/lib/queries/salesmen";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 function distinctSorted(values: Array<string | null | undefined>): string[] {
@@ -57,7 +57,8 @@ export function useRecoveryList({
     },
   );
   const [loading, setLoading] = useState(!initialData);
-  const isFirstMount = useRef(true);
+  const router = useRouter();
+  const serverBacked = useRef(Boolean(initialData));
 
   const spRecord = useMemo(() => {
     const rec: Record<string, string | string[] | undefined> = {};
@@ -202,13 +203,21 @@ export function useRecoveryList({
   }, [companyId, isOnline, searchParams, spRecord]);
 
   useEffect(() => {
-    if (isFirstMount.current) {
-      isFirstMount.current = false;
-      if (initialData) setData(initialData);
+    if (isOnline && initialData) {
+      setData(initialData);
+      setLoading(false);
+      return;
     }
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- seed once; reload on filter/online
-  }, [load]);
+  }, [load, initialData, isOnline]);
 
-  return { ...data, loading, refetch: load };
+  const refetch = useCallback(async () => {
+    if (isOnline && serverBacked.current) {
+      router.refresh();
+      return;
+    }
+    await load();
+  }, [isOnline, load, router]);
+
+  return { ...data, loading, refetch };
 }

@@ -4,6 +4,7 @@ import { useSyncStatus } from "@/components/offline/sync-provider";
 import type { SalesmanListRow } from "@/components/tables/salesmen-table";
 import { getCachedRows } from "@/lib/offline/local-db";
 import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export type SalesmanRecord = {
@@ -31,10 +32,13 @@ export type SalesmenListState = {
   loading: boolean;
 };
 
+const EMPTY_ROWS: SalesmanListRow[] = [];
+const EMPTY_INVITES: SalesmanInviteRow[] = [];
+
 export function useSalesmenList({
   companyId,
-  initialRows = [],
-  initialInvites = [],
+  initialRows = EMPTY_ROWS,
+  initialInvites = EMPTY_INVITES,
   initialOffline = false,
 }: {
   companyId: string;
@@ -48,7 +52,8 @@ export function useSalesmenList({
   const [rows, setRows] = useState<SalesmanListRow[]>(initialRows);
   const [invites, setInvites] = useState<SalesmanInviteRow[]>(initialInvites);
   const [loading, setLoading] = useState(!initialRows.length);
-  const isFirstMount = useRef(true);
+  const router = useRouter();
+  const serverBacked = useRef(initialRows.length > 0);
 
   const load = useCallback(async () => {
     if (!companyId) return;
@@ -220,17 +225,27 @@ export function useSalesmenList({
   }, [companyId, isOnline]);
 
   useEffect(() => {
-    if (isFirstMount.current) {
-      isFirstMount.current = false;
-      if (initialRows.length && isOnline) return;
+    if (isOnline && initialRows.length) {
+      setRows(initialRows);
+      setInvites(initialInvites);
+      setLoading(false);
+      return;
     }
     void load();
-  }, [load, initialRows.length, isOnline]);
+  }, [load, initialRows, initialInvites, isOnline]);
+
+  const refetch = useCallback(async () => {
+    if (isOnline && serverBacked.current) {
+      router.refresh();
+      return;
+    }
+    await load();
+  }, [isOnline, load, router]);
 
   return {
     rows,
     invites,
     loading,
-    refetch: load,
+    refetch,
   };
 }

@@ -1,5 +1,6 @@
 import { FieldSaleForm } from "@/components/field/field-sale-form";
 import { requireCompanyContext } from "@/lib/auth";
+import { fetchAllPages } from "@/lib/supabase/fetch-all-pages";
 import type { Product, Warehouse } from "@/lib/types/database";
 
 export default async function FieldSalePage() {
@@ -17,18 +18,24 @@ export default async function FieldSalePage() {
     );
   }
 
-  const [{ data: shops }, { data: products }, { data: warehouses }, { data: stockRows }] =
+  const [{ data: shops }, products, { data: warehouses }, { data: stockRows }] =
     await Promise.all([
       supabase.rpc("get_salesman_shops", {
         p_company_id: company.id,
         p_as_of: new Date().toISOString().slice(0, 10),
       }),
-      supabase
-        .from("products")
-        .select("*")
-        .eq("company_id", company.id)
-        .eq("is_active", true)
-        .order("code"),
+      fetchAllPages<Product>((from, to) =>
+        supabase
+          .from("products")
+          .select(
+            "id, code, name_en, default_warehouse_id, sale_rate, retail_rate, purchase_rate, wholesale_rate, is_active",
+          )
+          .eq("company_id", company.id)
+          .eq("is_active", true)
+          .order("code", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to),
+      ).catch(() => [] as Product[]),
       supabase
         .from("warehouses")
         .select("*")
@@ -62,7 +69,7 @@ export default async function FieldSalePage() {
             route: string | null;
             city: string | null;
           }>}
-          products={(products || []) as Product[]}
+          products={products}
           warehouses={(warehouses || []) as Warehouse[]}
           stockBalances={stockRows || []}
           saleStockPolicy={company.sale_stock_policy === "block" ? "block" : "confirm"}

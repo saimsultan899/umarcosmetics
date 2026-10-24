@@ -3,8 +3,12 @@ import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { requireCompanyContext } from "@/lib/auth";
 import { fetchExpenseList, type ExpenseListResult } from "@/lib/queries/expenses";
 import { fetchCompanySalesmen, type SalesmanOption } from "@/lib/queries/salesmen";
+import { fetchAllPages } from "@/lib/supabase/fetch-all-pages";
 import type { Party, Warehouse } from "@/lib/types/database";
 import { Suspense } from "react";
+
+const VENDOR_COLUMNS =
+  "id, party_code, name_en, name_ur, party_subtype, party_type, is_active, route, city";
 
 export default async function ExpensesPage({
   searchParams,
@@ -25,13 +29,22 @@ export default async function ExpensesPage({
         fetchExpenseList(supabase, company.id, sp),
         fetchCompanySalesmen(supabase, company.id),
         supabase.from("warehouses").select("*").eq("company_id", company.id).eq("is_active", true).order("name"),
-        supabase.from("parties").select("*").eq("company_id", company.id).eq("is_active", true)
-          .or("party_subtype.in.(supplier,both),party_type.eq.PARTY").order("name_en").limit(500),
+        fetchAllPages<Party>((from, to) =>
+          supabase
+            .from("parties")
+            .select(VENDOR_COLUMNS)
+            .eq("company_id", company.id)
+            .eq("is_active", true)
+            .or("party_subtype.in.(supplier,both),party_type.eq.PARTY")
+            .order("name_en", { ascending: true })
+            .order("id", { ascending: true })
+            .range(from, to),
+        ),
       ]);
       initialData = list;
       initialSalesmen = salesmen;
       initialWarehouses = (warehouses.data as Warehouse[]) || [];
-      initialVendors = (vendors.data as Party[]) || [];
+      initialVendors = vendors;
     } catch {
       initialData = null;
     }

@@ -26,7 +26,7 @@ import {
 } from "@/lib/queries/stock-transfers";
 import { createClient } from "@/lib/supabase/client";
 import type { Party, Product, Warehouse } from "@/lib/types/database";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatNumber } from "@/lib/utils";
 
@@ -80,7 +80,8 @@ export function useGatePassList({
   const [parties, setParties] = useState<Party[]>(initialParties);
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [loading, setLoading] = useState(!initialData);
-  const isFirstMount = useRef(true);
+  const router = useRouter();
+  const serverBacked = useRef(Boolean(initialData));
 
   const spRecord = useMemo(() => {
     const rec: Record<string, string | string[] | undefined> = {};
@@ -180,14 +181,26 @@ export function useGatePassList({
   }, [companyId, isOnline, searchParams, spRecord]);
 
   useEffect(() => {
-    if (isFirstMount.current) {
-      isFirstMount.current = false;
-      if (initialData && isOnline) return;
+    if (isOnline && initialData) {
+      setData(initialData);
+      setWarehouses(initialWarehouses);
+      setParties(initialParties);
+      setProducts(initialProducts);
+      setLoading(false);
+      return;
     }
     void load();
   }, [load, initialData, isOnline]);
 
-  return { ...data, warehouses, parties, products, loading, refetch: load };
+  const refetch = useCallback(async () => {
+    if (isOnline && serverBacked.current) {
+      router.refresh();
+      return;
+    }
+    await load();
+  }, [isOnline, load, router]);
+
+  return { ...data, warehouses, parties, products, loading, refetch };
 }
 
 // ── Load Sheets hook ─────────────────────────────────────────────────────────
@@ -225,7 +238,8 @@ export function useLoadSheetList({
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [salesmen, setSalesmen] = useState(initialSalesmen);
   const [loading, setLoading] = useState(!initialData);
-  const isFirstMount = useRef(true);
+  const router = useRouter();
+  const serverBacked = useRef(Boolean(initialData));
 
   const spRecord = useMemo(() => {
     const rec: Record<string, string | string[] | undefined> = {};
@@ -319,14 +333,26 @@ export function useLoadSheetList({
   }, [companyId, isOnline, searchParams, spRecord]);
 
   useEffect(() => {
-    if (isFirstMount.current) {
-      isFirstMount.current = false;
-      if (initialData && isOnline) return;
+    if (isOnline && initialData) {
+      setData(initialData);
+      setWarehouses(initialWarehouses);
+      setProducts(initialProducts);
+      setSalesmen(initialSalesmen);
+      setLoading(false);
+      return;
     }
     void load();
   }, [load, initialData, isOnline]);
 
-  return { ...data, warehouses, products, salesmen, loading, refetch: load };
+  const refetch = useCallback(async () => {
+    if (isOnline && serverBacked.current) {
+      router.refresh();
+      return;
+    }
+    await load();
+  }, [isOnline, load, router]);
+
+  return { ...data, warehouses, products, salesmen, loading, refetch };
 }
 
 // ── Stock Transfers hook ─────────────────────────────────────────────────────
@@ -360,7 +386,8 @@ export function useStockTransferList({
   const [warehouses, setWarehouses] = useState<Warehouse[]>(initialWarehouses);
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [loading, setLoading] = useState(!initialData);
-  const isFirstMount = useRef(true);
+  const router = useRouter();
+  const serverBacked = useRef(Boolean(initialData));
 
   const spRecord = useMemo(() => {
     const rec: Record<string, string | string[] | undefined> = {};
@@ -447,12 +474,23 @@ export function useStockTransferList({
   }, [companyId, isOnline, searchParams, spRecord]);
 
   useEffect(() => {
-    if (isFirstMount.current) {
-      isFirstMount.current = false;
-      if (initialData && isOnline) return;
+    if (isOnline && initialData) {
+      setData(initialData);
+      setWarehouses(initialWarehouses);
+      setProducts(initialProducts);
+      setLoading(false);
+      return;
     }
     void load();
   }, [load, initialData, isOnline]);
 
-  return { ...data, warehouses, products, loading, refetch: load };
+  const refetch = useCallback(async () => {
+    if (isOnline && serverBacked.current) {
+      router.refresh();
+      return;
+    }
+    await load();
+  }, [isOnline, load, router]);
+
+  return { ...data, warehouses, products, loading, refetch };
 }

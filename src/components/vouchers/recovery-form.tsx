@@ -199,24 +199,24 @@ export function RecoveryForm({
       setSheetLoading(true);
       try {
         const supabase = createClient();
-        const { fetchAllPages } = await import("@/lib/supabase/fetch-all-pages");
-
-        // Load every shop in this city/sector by paging — do not rely on the
-        // page's parties prop (still capped at ~1000 company-wide).
-        const sectorParties = await fetchAllPages<Party>((from, to) => {
-          let query = supabase
-            .from("parties")
-            .select("*")
-            .eq("company_id", companyId)
-            .eq("is_active", true)
-            .in("party_subtype", ["customer", "both"]);
-          if (city) query = query.eq("city", city);
-          if (sector) query = query.eq("route", sector);
-          return query
-            .order("sort_order", { ascending: true })
-            .order("party_code", { ascending: true })
-            .range(from, to);
-        });
+        let sectorParties = visibleParties;
+        if (!sectorParties.length) {
+          const { fetchAllPages } = await import("@/lib/supabase/fetch-all-pages");
+          sectorParties = await fetchAllPages<Party>((from, to) => {
+            let query = supabase
+              .from("parties")
+              .select("id, party_code, name_en, party_subtype, city, route, sort_order, is_active")
+              .eq("company_id", companyId)
+              .eq("is_active", true)
+              .in("party_subtype", ["customer", "both"]);
+            if (city) query = query.eq("city", city);
+            if (sector) query = query.eq("route", sector);
+            return query
+              .order("sort_order", { ascending: true })
+              .order("party_code", { ascending: true })
+              .range(from, to);
+          });
+        }
 
         const { data: balances } = await supabase.rpc("get_recovery_sheet", {
           p_company_id: companyId,

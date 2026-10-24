@@ -394,6 +394,7 @@ async function executeSyncPendingMutations(params: {
   let success = 0;
   let failed = 0;
   const errors: { id: string; type: string; message: string }[] = [];
+  const syncedTypes: string[] = [];
 
   for (let i = 0; i < pending.length; i++) {
     const mutation = pending[i];
@@ -413,6 +414,7 @@ async function executeSyncPendingMutations(params: {
         /* ignore */
       }
       success += 1;
+      syncedTypes.push(mutation.type);
       continue;
     }
 
@@ -476,6 +478,7 @@ async function executeSyncPendingMutations(params: {
       }
 
       success += 1;
+      syncedTypes.push(mutation.type);
 
       params.onProgress?.({
         current: i + 1,
@@ -514,15 +517,14 @@ async function executeSyncPendingMutations(params: {
     .eq("id", session.id);
 
   if (success > 0) {
+    const { bumpListStatsRevision } = await import("@/lib/list-stats-revision");
+    bumpListStatsRevision();
     await clearSyncedMeta(params.companyId);
     try {
-      const {
-        refreshAllCaches,
-        reconcileMainCompanyHubCaches,
-      } = await import("@/lib/offline/cache-manager");
-      void refreshAllCaches(params.companyId)
-        .then(() => reconcileMainCompanyHubCaches(params.companyId))
-        .then(async () => {
+      const { refreshCachesAfterSync } = await import(
+        "@/lib/offline/cache-manager"
+      );
+      void refreshCachesAfterSync(params.companyId, syncedTypes).then(async () => {
           const { pruneStaleDuplicateSaleInvoices } = await import(
             "@/lib/trading/sale-invoice-submit"
           );

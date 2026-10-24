@@ -6,6 +6,7 @@ import { getCachedRows } from "@/lib/offline/local-db";
 import { offlineStockSnapshot } from "@/lib/offline/offline-reports";
 import { createClient } from "@/lib/supabase/client";
 import type { Product, Warehouse } from "@/lib/types/database";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export type WarehousesListState = {
@@ -18,10 +19,13 @@ export type WarehousesListState = {
   totalStockValuation: number;
 };
 
+const EMPTY_WAREHOUSES: Warehouse[] = [];
+const EMPTY_STATS: Record<string, WarehouseListStats> = {};
+
 export function useWarehousesList({
   companyId,
-  initialWarehouses = [],
-  initialStats = {},
+  initialWarehouses = EMPTY_WAREHOUSES,
+  initialStats = EMPTY_STATS,
   initialOffline = false,
 }: {
   companyId: string;
@@ -36,7 +40,8 @@ export function useWarehousesList({
   const [statsByWarehouse, setStatsByWarehouse] =
     useState<Record<string, WarehouseListStats>>(initialStats);
   const [loading, setLoading] = useState(!initialWarehouses.length);
-  const isFirstMount = useRef(true);
+  const router = useRouter();
+  const serverBacked = useRef(initialWarehouses.length > 0);
 
   const load = useCallback(async () => {
     if (!companyId) return;
@@ -232,12 +237,14 @@ export function useWarehousesList({
   }, [companyId, isOnline]);
 
   useEffect(() => {
-    if (isFirstMount.current) {
-      isFirstMount.current = false;
-      if (initialWarehouses.length && isOnline) return;
+    if (isOnline && initialWarehouses.length) {
+      setWarehouses(initialWarehouses);
+      setStatsByWarehouse(initialStats);
+      setLoading(false);
+      return;
     }
     void load();
-  }, [load, initialWarehouses.length, isOnline]);
+  }, [load, initialWarehouses, initialStats, isOnline]);
 
   const summary = useMemo(() => {
     let totalManagedProducts = 0;
@@ -258,11 +265,19 @@ export function useWarehousesList({
     };
   }, [warehouses, statsByWarehouse]);
 
+  const refetch = useCallback(async () => {
+    if (isOnline && serverBacked.current) {
+      router.refresh();
+      return;
+    }
+    await load();
+  }, [isOnline, load, router]);
+
   return {
     warehouses,
     statsByWarehouse,
     loading,
     ...summary,
-    refetch: load,
+    refetch,
   };
 }

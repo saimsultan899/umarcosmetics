@@ -9,7 +9,10 @@ import { SaleCompanyProductFilters } from "@/components/reports/sale-company-pro
 import { FilterFlagPill } from "@/components/reports/report-type-pills";
 import { ReportTable } from "@/components/reports/report-table";
 import { requireCompanyContext } from "@/lib/auth";
+import { LIST_STATS_COOKIE, rememberStats } from "@/lib/list-stats-revision";
 import { parseReportList } from "@/lib/reports/filter-params";
+import { fetchAllPages } from "@/lib/supabase/fetch-all-pages";
+import { cookies } from "next/headers";
 import {
   buildSaleReport,
   SALE_REPORT_TYPES,
@@ -74,13 +77,14 @@ export default async function SaleReportsPage({
   }
 
   const { supabase } = ctx;
+  const statsRevision = (await cookies()).get(LIST_STATS_COOKIE)?.value || "";
   const selectedTypes = parseReportList(sp.type) as SaleReportType[];
   const types: SaleReportType[] = selectedTypes.length
     ? selectedTypes
     : ["date_wise"];
   const primaryType = types[0];
 
-  const [{ data: warehouses }, { data: parties }, { data: products }, { data: walkInParty }] =
+  const [{ data: warehouses }, catalogResult, { data: walkInParty }] =
     await Promise.all([
     supabase
       .from("warehouses")
@@ -88,20 +92,58 @@ export default async function SaleReportsPage({
       .eq("company_id", company.id)
       .eq("is_active", true)
       .order("name"),
-    supabase
-      .from("parties")
-      .select("id, party_code, name_en, city, route, head")
-      .eq("company_id", company.id)
-      .eq("is_active", true)
-      .order("name_en")
-      .limit(500),
-    supabase
-      .from("products")
-      .select("id, code, name_en, default_warehouse_id")
-      .eq("company_id", company.id)
-      .eq("is_active", true)
-      .order("code")
-      .limit(2000),
+    rememberStats(`sale-filters:${company.id}:${statsRevision}`, async () => {
+      const [parties, products] = await Promise.all([
+        fetchAllPages<{
+          id: string;
+          party_code: string;
+          name_en: string;
+          city: string | null;
+          route: string | null;
+          head: string | null;
+        }>((from, to) =>
+          supabase
+            .from("parties")
+            .select("id, party_code, name_en, city, route, head")
+            .eq("company_id", company.id)
+            .eq("is_active", true)
+            .order("name_en", { ascending: true })
+            .order("id", { ascending: true })
+            .range(from, to),
+        ),
+        fetchAllPages<{
+          id: string;
+          code: string | null;
+          name_en: string | null;
+          default_warehouse_id: string | null;
+        }>((from, to) =>
+          supabase
+            .from("products")
+            .select("id, code, name_en, default_warehouse_id")
+            .eq("company_id", company.id)
+            .eq("is_active", true)
+            .order("code", { ascending: true })
+            .order("id", { ascending: true })
+            .range(from, to),
+        ),
+      ]);
+      return { parties, products };
+    }).catch(() => ({
+      parties: [] as Array<{
+        id: string;
+        party_code: string;
+        name_en: string;
+        city: string | null;
+        route: string | null;
+        head: string | null;
+      }>,
+      products: [] as Array<{
+        id: string;
+        code: string | null;
+        name_en: string | null;
+        default_warehouse_id: string | null;
+      }>,
+    })),
     supabase
       .from("parties")
       .select("id")
@@ -109,6 +151,7 @@ export default async function SaleReportsPage({
       .eq("party_code", "WALKIN")
       .maybeSingle(),
   ]);
+  const { parties, products } = catalogResult;
 
   const warehouseIds = parseReportList(sp.warehouse);
   const partyIds = parseReportList(sp.party);

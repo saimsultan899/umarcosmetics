@@ -126,6 +126,18 @@ export function ExpenseForm({
     const term = raw.trim().toLowerCase().replace(/[%_,]/g, " ");
     if (!term) return;
     const rows: Party[] = [];
+    const localHits = vendors
+      .filter((vendor) => {
+        if (vendor.is_active === false) return false;
+        const code = String(vendor.party_code || "").toLowerCase();
+        const name = String(vendor.name_en || "").toLowerCase();
+        return code.includes(term) || name.includes(term);
+      })
+      .slice(0, 40);
+    if (localHits.length) {
+      if (gen === vendorSearchGen.current) setFoundVendors(localHits);
+      return;
+    }
     try {
       if (typeof navigator === "undefined" || navigator.onLine) {
         const pattern = `%${term}%`;

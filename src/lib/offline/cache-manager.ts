@@ -13,6 +13,25 @@ import {
 /** Maximum cache age before auto-refresh (1 hour). */
 const CACHE_MAX_AGE_MS = 60 * 60 * 1000;
 
+/** One refresh queue per company so startup and sync cannot download the same tables together. */
+const refreshTail = new Map<string, Promise<unknown>>();
+
+function enqueueCompanyWork<T>(companyId: string, job: () => Promise<T>): Promise<T> {
+  const previous = refreshTail.get(companyId) ?? Promise.resolve();
+  const run = previous.then(
+    () => job(),
+    () => job(),
+  );
+  refreshTail.set(
+    companyId,
+    run.then(
+      () => undefined,
+      () => undefined,
+    ),
+  );
+  return run;
+}
+
 /** Master data stores that should be eagerly cached. */
 const MASTER_STORES: CacheStoreName[] = [
   "parties",
@@ -56,7 +75,11 @@ export function getSnapshotStoreNames() {
  * 2. After a successful sync
  * 3. When cache is stale (> CACHE_MAX_AGE_MS)
  */
-export async function refreshAllCaches(companyId: string) {
+export function refreshAllCaches(companyId: string) {
+  return enqueueCompanyWork(companyId, () => refreshAllCachesUnlocked(companyId));
+}
+
+async function refreshAllCachesUnlocked(companyId: string) {
   const results: Array<{ store: CacheStoreName; count: number; error?: string }> = [];
 
   for (const store of ALL_SNAPSHOT_STORES) {
@@ -91,7 +114,7 @@ export async function refreshAllCaches(companyId: string) {
 
   // Prefetch main-company hub masters so spoke PCs can mirror offline.
   try {
-    await prefetchMainCompanyHubCaches(companyId);
+    await prefetchMainCompanyHubCachesUnlocked(companyId);
   } catch (err) {
     console.warn("[cache-manager] Hub prefetch failed:", err);
   }
@@ -185,8 +208,18 @@ export async function isMainHubCacheReady(
  * While online on a spoke company, also cache the main company's masters
  * so offline hub mirror has products/warehouses/stock to write into.
  */
-export async function prefetchMainCompanyHubCaches(
+export function prefetchMainCompanyHubCaches(
   activeCompanyId: string,
+  opts?: { force?: boolean; stores?: CacheStoreName[] },
+) {
+  return enqueueCompanyWork(activeCompanyId, () =>
+    prefetchMainCompanyHubCachesUnlocked(activeCompanyId, opts),
+  );
+}
+
+async function prefetchMainCompanyHubCachesUnlocked(
+  activeCompanyId: string,
+  opts?: { force?: boolean; stores?: CacheStoreName[] },
 ): Promise<{ mainCompanyId: string | null; prefetched: boolean }> {
   const ctx =
     (await resolveAndCacheHubContext(activeCompanyId)) ||
@@ -196,8 +229,14 @@ export async function prefetchMainCompanyHubCaches(
     return { mainCompanyId: mainId, prefetched: false };
   }
 
+  const wanted = opts?.stores?.length ? opts.stores : HUB_MASTER_STORES;
   const results: Array<{ store: CacheStoreName; error?: string }> = [];
-  for (const store of HUB_MASTER_STORES) {
+  for (const store of wanted) {
+    if (!HUB_MASTER_STORES.includes(store)) continue;
+    if (!opts?.force) {
+      const age = await getCacheAge(store, mainId);
+      if (age !== null && age <= CACHE_MAX_AGE_MS) continue;
+    }
     try {
       await refreshStoreCache(store, mainId);
       results.push({ store });
@@ -210,6 +249,9 @@ export async function prefetchMainCompanyHubCaches(
   }
 
   const ok = results.some((r) => !r.error);
+  if (!ok) {
+    return { mainCompanyId: mainId, prefetched: false };
+  }
   if (ok) {
     try {
       await cacheSession(`snapshot-ready:${mainId}`, {
@@ -225,7 +267,14 @@ export async function prefetchMainCompanyHubCaches(
       const { hasLocalSqlite, localClearHubMirrorMasters } = await import(
         "@/lib/offline/sqlite-client"
       );
-      if (hasLocalSqlite()) {
+      const replacedMasters = results.some(
+        (row) =>
+          !row.error &&
+          (row.store === "products" ||
+            row.store === "parties" ||
+            row.store === "warehouses"),
+      );
+      if (hasLocalSqlite() && replacedMasters) {
         await localClearHubMirrorMasters(mainId);
       }
       await bootstrapSqliteFromCaches(mainId);
@@ -373,7 +422,113 @@ export async function checkCacheFreshness(companyId: string): Promise<{
  * Auto-refresh stale or missing caches. Call this when the app detects
  * that it's online. Non-blocking — swallows errors.
  */
-export async function autoRefreshStaleCaches(companyId: string) {
+export function autoRefreshStaleCaches(companyId: string) {
+  return enqueueCompanyWork(companyId, () => autoRefreshStaleCachesUnlocked(companyId));
+}
+
+const STOCK_SYNC_TYPES = new Set([
+  "sale_invoice",
+  "sale_invoice_update",
+  "purchase_invoice",
+  "purchase_invoice_update",
+  "sale_return",
+  "sale_return_update",
+  "purchase_return",
+  "purchase_return_update",
+  "stock_transfer",
+  "expiry_receipt",
+  "expiry_claim",
+  "expiry_settle",
+  "load_sheet",
+  "gate_pass",
+  "gate_pass_update",
+]);
+
+function storeForSyncedMutation(type: string): CacheStoreName | null {
+  const map: Record<string, CacheStoreName> = {
+    sale_invoice: "sale_invoices",
+    sale_invoice_update: "sale_invoices",
+    purchase_invoice: "purchase_invoices",
+    purchase_invoice_update: "purchase_invoices",
+    sale_return: "sale_returns",
+    sale_return_update: "sale_returns",
+    purchase_return: "purchase_returns",
+    purchase_return_update: "purchase_returns",
+    recovery: "vouchers",
+    recovery_update: "vouchers",
+    cash_receipt: "vouchers",
+    cash_receipt_update: "vouchers",
+    cash_payment: "vouchers",
+    cash_payment_update: "vouchers",
+    journal_voucher: "vouchers",
+    journal_voucher_update: "vouchers",
+    expense: "expenses",
+    stock_transfer: "stock_transfers",
+    gate_pass: "gate_passes",
+    gate_pass_update: "gate_passes",
+    load_sheet: "load_sheets",
+    expiry_receipt: "expiry_receipts",
+    expiry_claim: "expiry_claims",
+    expiry_settle: "expiry_claims",
+    party_create: "parties",
+    party_update: "parties",
+    product_create: "products",
+    product_update: "products",
+    warehouse_create: "warehouses",
+    warehouse_update: "warehouses",
+    salesman_create: "salesmen",
+    salesman_update: "salesmen",
+  };
+  return map[type] || null;
+}
+
+/**
+ * After offline rows reach the server, refresh only those documents and stock.
+ * A full invoice history download is reserved for the hourly snapshot.
+ */
+export function refreshCachesAfterSync(companyId: string, types: string[]) {
+  return enqueueCompanyWork(companyId, async () => {
+    const stores = new Set<CacheStoreName>();
+    const hubStores = new Set<CacheStoreName>();
+    for (const type of types) {
+      const store = storeForSyncedMutation(type);
+      if (store) stores.add(store);
+      if (STOCK_SYNC_TYPES.has(type)) {
+        stores.add("stock_balances");
+        hubStores.add("stock_balances");
+      }
+      if (type === "purchase_invoice" || type === "purchase_invoice_update") {
+        stores.add("products");
+        hubStores.add("products");
+        hubStores.add("warehouses");
+        hubStores.add("stock_balances");
+      }
+      if (type === "product_create" || type === "product_update") {
+        hubStores.add("products");
+      }
+      if (type === "party_create" || type === "party_update") {
+        hubStores.add("parties");
+      }
+    }
+
+    for (const store of stores) {
+      try {
+        await refreshStoreCache(store, companyId);
+      } catch {
+        // The next hourly snapshot retries a store that failed.
+      }
+    }
+
+    if (hubStores.size) {
+      await prefetchMainCompanyHubCachesUnlocked(companyId, {
+        force: true,
+        stores: [...hubStores],
+      });
+    }
+  });
+}
+
+async function autoRefreshStaleCachesUnlocked(companyId: string) {
   try {
     const { stale, missing } = await checkCacheFreshness(companyId);
     const needRefresh = [...missing, ...stale];

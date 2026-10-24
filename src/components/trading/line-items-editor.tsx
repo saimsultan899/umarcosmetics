@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, type SelectHandle } from "@/components/ui/select";
 import { findProductByCodeOrBarcode } from "@/lib/barcode/match-product";
+import { productBarcodeValues } from "@/lib/barcode/product-barcodes";
 import { getCachedRows } from "@/lib/offline/local-db";
 import { isAppOnline } from "@/lib/offline/local-auth";
 import { useBarcodeWedge } from "@/lib/barcode/use-barcode-wedge";
@@ -940,6 +941,29 @@ export const LineItemsEditor = forwardRef<
     const term = raw.trim().toLowerCase().replace(/[%_,]/g, " ");
     if (!term || !companyId) return;
     const rows: Product[] = [];
+
+    // The sale screen already holds the company catalog. Use it before
+    // asking Supabase again on every keystroke. A code that is not in this
+    // list still falls through, and Enter still resolves through get_product_by_code.
+    if (products.length) {
+      const known: Product[] = [];
+      for (const product of products) {
+        if (!product?.id || product.is_active === false) continue;
+        const code = String(product.code || "").toLowerCase();
+        const name = String(product.name_en || "").toLowerCase();
+        const barcodeHit = productBarcodeValues(product).some((barcode) =>
+          barcode.toLowerCase().includes(term),
+        );
+        if (!code.includes(term) && !name.includes(term) && !barcodeHit) continue;
+        known.push(product);
+        if (known.length >= 40) break;
+      }
+      if (known.length) {
+        if (gen === productSearchGen.current) setFoundProducts(known);
+        return;
+      }
+    }
+
     const online = await isAppOnline().catch(() => false);
     if (online) {
       try {

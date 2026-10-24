@@ -14,7 +14,7 @@ import {
 } from "@/lib/queries/products";
 import { createClient } from "@/lib/supabase/client";
 import type { Product, Warehouse } from "@/lib/types/database";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export function useProductsList({
@@ -30,12 +30,13 @@ export function useProductsList({
 }) {
   const sync = useSyncStatus();
   const isOnline = sync ? sync.online : !initialOffline;
+  const router = useRouter();
   const searchParams = useSearchParams();
+  const serverBacked = useRef(Boolean(initialData));
 
   const [data, setData] = useState<ProductListResult | null>(initialData || null);
   const [warehouses, setWarehouses] = useState<Warehouse[]>(initialWarehouses || []);
   const [loading, setLoading] = useState<boolean>(!initialData);
-  const isFirstMount = useRef(true);
 
   // Convert searchParams to Record
   const spRecord = useMemo(() => {
@@ -213,12 +214,24 @@ export function useProductsList({
   }, [companyId, isOnline, searchParams, spRecord]);
 
   useEffect(() => {
-    if (isFirstMount.current) {
-      isFirstMount.current = false;
-      if (initialData && isOnline) return;
+    // The server page already queried Supabase for this URL. Repeating it
+    // here doubled every search, page change, and refresh.
+    if (isOnline && initialData) {
+      setData(initialData);
+      if (initialWarehouses) setWarehouses(initialWarehouses);
+      setLoading(false);
+      return;
     }
     void loadData();
-  }, [loadData, initialData, isOnline]);
+  }, [loadData, initialData, initialWarehouses, isOnline]);
 
-  return { data, warehouses, loading, refetch: loadData };
+  const refetch = useCallback(async () => {
+    if (isOnline && serverBacked.current) {
+      router.refresh();
+      return;
+    }
+    await loadData();
+  }, [isOnline, loadData, router]);
+
+  return { data, warehouses, loading, refetch };
 }

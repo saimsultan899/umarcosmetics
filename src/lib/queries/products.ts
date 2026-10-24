@@ -1,3 +1,4 @@
+import { rememberStats } from "@/lib/list-stats-revision";
 import {
   buildPaginationMeta,
   escapeIlike,
@@ -59,37 +60,38 @@ function applyProductSearch(query: any, q: string) {
   );
 }
 
-export async function fetchProductList(
+type ProductSummary = {
+  stockValue: number;
+  purchaseValue: number;
+  withReorder: number;
+  lowStock: number;
+  topStock: Array<{ name: string; value: number }>;
+};
+
+/**
+ * Company-wide stock totals. Cached by filter, not by page, so paging does not
+ * download the catalog again. The table's on-hand qty is loaded separately.
+ */
+async function loadProductSummary(
   supabase: SupabaseClient,
   companyId: string,
-  searchParams: Record<string, string | string[] | undefined>,
-): Promise<ProductListResult> {
-  const paginationParams = parsePaginationParams(searchParams);
-  const { from, to } = toRange(paginationParams);
-  const q = spString(searchParams, "q") || "";
-  const view = (spString(searchParams, "view") || "all") as ProductViewFilter;
-  const warehouseId = spString(searchParams, "warehouse") || "";
-
-  let listQuery = supabase
-    .from("products")
-    .select("*", { count: "exact" })
-    .eq("company_id", companyId);
-  listQuery = applyProductView(listQuery, view);
-  listQuery = applyProductWarehouse(listQuery, warehouseId);
-  listQuery = applyProductSearch(listQuery, q);
-
+  view: ProductViewFilter,
+  warehouseId: string,
+  q: string,
+): Promise<ProductSummary> {
   let valueQuery = supabase
     .from("products")
-    .select("id, code, name_en, retail_rate, purchase_rate, reorder_level, is_active, hub_product_id, default_warehouse_id")
+    .select(
+      "id, code, name_en, retail_rate, purchase_rate, reorder_level, is_active, hub_product_id, default_warehouse_id",
+    )
     .eq("company_id", companyId)
     .limit(10000);
   valueQuery = applyProductView(valueQuery, view);
   valueQuery = applyProductWarehouse(valueQuery, warehouseId);
   valueQuery = applyProductSearch(valueQuery, q);
 
-  const [{ data, count, error }, { data: balances }, { data: valued }, { data: warehouses }] =
+  const [{ data: balances }, { data: valued }, { data: warehouses }] =
     await Promise.all([
-      listQuery.order("code", { ascending: true }).range(from, to),
       supabase
         .from("stock_balances")
         .select("product_id, warehouse_id, qty, products(code, reorder_level)")
@@ -102,8 +104,6 @@ export async function fetchProductList(
         .eq("company_id", companyId)
         .eq("is_active", true),
     ]);
-
-  if (error) throw new Error(error.message);
 
   const productsForOverlay = (valued || []) as Product[];
   const { withHubStockOverlay } = await import("@/lib/trading/hub-stock");
@@ -161,19 +161,6 @@ export async function fetchProductList(
     if (product.code) stockValueByCode[product.code] = retail;
   }
 
-  const lowSet = new Set(lowStockCodes);
-  const products = (data || []) as Product[];
-  const total = count ?? 0;
-  const meta = buildPaginationMeta(total, paginationParams);
-
-  const lowCount = products.filter((p) => lowSet.has(p.code)).length;
-
-  const makers = new Map<string, number>();
-  for (const p of products) {
-    const key = p.default_warehouse_id || "unassigned";
-    makers.set(key, (makers.get(key) || 0) + 1);
-  }
-
   const topStock = (valued || [])
     .map((p) => ({
       name: `${p.code} — ${p.name_en}`,
@@ -183,14 +170,131 @@ export async function fetchProductList(
     .sort((a, b) => b.value - a.value)
     .slice(0, 5);
 
+  return {
+    stockValue,
+    purchaseValue,
+    withReorder: (valued || []).filter(
+      (product) => product.is_active && Number(product.reorder_level) > 0,
+    ).length,
+    lowStock: lowStockCodes.length,
+    topStock,
+  };
+}
+
+/** On-hand qty for the rows on this page, including hub stock for spoke companies. */
+async function loadPageStockQty(
+  supabase: SupabaseClient,
+  companyId: string,
+  products: Product[],
+): Promise<Map<string, number>> {
+  const qtyByProduct = new Map<string, number>();
+  if (!products.length) return qtyByProduct;
+
+  const [{ data: balances }, { data: warehouses }] = await Promise.all([
+    supabase
+      .from("stock_balances")
+      .select("product_id, warehouse_id, qty")
+      .eq("company_id", companyId)
+      .in(
+        "product_id",
+        products.map((product) => product.id),
+      ),
+    supabase
+      .from("warehouses")
+      .select("id, name")
+      .eq("company_id", companyId)
+      .eq("is_active", true),
+  ]);
+
+  const { withHubStockOverlay } = await import("@/lib/trading/hub-stock");
+  const overlaid = await withHubStockOverlay(
+    supabase,
+    companyId,
+    products,
+    (warehouses || []) as Warehouse[],
+    (balances || []).map((row) => ({
+      product_id: String(row.product_id || ""),
+      warehouse_id: String(row.warehouse_id || ""),
+      qty: Number(row.qty || 0),
+    })),
+  );
+
+  for (const row of overlaid) {
+    const productId = String(row.product_id || "");
+    if (!productId) continue;
+    qtyByProduct.set(productId, (qtyByProduct.get(productId) || 0) + Number(row.qty || 0));
+  }
+  return qtyByProduct;
+}
+
+export async function fetchProductList(
+  supabase: SupabaseClient,
+  companyId: string,
+  searchParams: Record<string, string | string[] | undefined>,
+  opts?: { statsRevision?: string },
+): Promise<ProductListResult> {
+  const paginationParams = parsePaginationParams(searchParams);
+  const { from, to } = toRange(paginationParams);
+  const q = spString(searchParams, "q") || "";
+  const view = (spString(searchParams, "view") || "all") as ProductViewFilter;
+  const warehouseId = spString(searchParams, "warehouse") || "";
+
+  let listQuery = supabase
+    .from("products")
+    .select("*", { count: "exact" })
+    .eq("company_id", companyId);
+  listQuery = applyProductView(listQuery, view);
+  listQuery = applyProductWarehouse(listQuery, warehouseId);
+  listQuery = applyProductSearch(listQuery, q);
+
+  const summaryKey = JSON.stringify({
+    companyId,
+    rev: opts?.statsRevision || "",
+    view,
+    warehouseId,
+    q,
+  });
+
+  const [{ data, count, error }, summary] = await Promise.all([
+    listQuery.order("code", { ascending: true }).range(from, to),
+    rememberStats(summaryKey, () =>
+      loadProductSummary(supabase, companyId, view, warehouseId, q),
+    ),
+  ]);
+
+  if (error) throw new Error(error.message);
+
+  const products = (data || []) as Product[];
+  const pageQty = await loadPageStockQty(supabase, companyId, products);
+  const total = count ?? 0;
+  const meta = buildPaginationMeta(total, paginationParams);
+
+  const lowStockCodes = products
+    .filter((product) => {
+      const reorder = Number(product.reorder_level || 0);
+      if (reorder <= 0) return false;
+      return (pageQty.get(product.id) || 0) <= reorder;
+    })
+    .map((product) => product.code);
+  const lowCount = lowStockCodes.length;
+
+  const makers = new Map<string, number>();
+  for (const product of products) {
+    const key = product.default_warehouse_id || "unassigned";
+    makers.set(key, (makers.get(key) || 0) + 1);
+  }
+
   const health = [
     { name: "Healthy", value: Math.max(products.length - lowCount, 0) },
     { name: "Low stock", value: lowCount },
   ].filter((x) => x.value > 0);
 
   const stockQtyById: Record<string, number> = {};
-  for (const [productId, qty] of qtyByProduct) {
-    stockQtyById[productId] = qty;
+  const stockValueByCode: Record<string, number> = {};
+  for (const product of products) {
+    const qty = pageQty.get(product.id) || 0;
+    stockQtyById[product.id] = qty;
+    if (product.code) stockValueByCode[product.code] = qty * Number(product.retail_rate || 0);
   }
 
   return {
@@ -198,17 +302,15 @@ export async function fetchProductList(
     pagination: meta,
     stats: {
       total,
-      stockValue,
-      purchaseValue,
-      withReorder: (valued || []).filter(
-        (product) => product.is_active && Number(product.reorder_level) > 0,
-      ).length,
-      lowStock: lowStockCodes.length,
+      stockValue: summary.stockValue,
+      purchaseValue: summary.purchaseValue,
+      withReorder: summary.withReorder,
+      lowStock: summary.lowStock,
       makerBars: [...makers.entries()]
         .map(([name, value]) => ({ name, value }))
         .sort((a, b) => b.value - a.value)
         .slice(0, 6),
-      topStock,
+      topStock: summary.topStock,
       health,
     },
     stockValueByCode,

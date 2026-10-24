@@ -12,10 +12,11 @@ import { lastNDates, sumByDay } from "@/lib/analytics/aggregate";
 import { requireCompanyContext } from "@/lib/auth";
 import { parseReportList } from "@/lib/reports/filter-params";
 import { buildRecoverySheet, parseScopeToken } from "@/lib/reports/recovery-data";
+import { LIST_STATS_COOKIE, rememberStats } from "@/lib/list-stats-revision";
 import { fetchAllActiveParties } from "@/lib/queries/parties";
 import { fetchCompanySalesmen } from "@/lib/queries/salesmen";
-import { fetchAllPages } from "@/lib/supabase/fetch-all-pages";
 import type { Party } from "@/lib/types/database";
+import { cookies } from "next/headers";
 import { localDateIso, monthStartLocal } from "@/lib/dates";
 import { Layers, Store, Wallet } from "lucide-react";
 
@@ -95,7 +96,8 @@ export default async function RecoverySheetPage({
         : `${sectors.length} sectors`;
 
   const from7 = lastNDates(7)[0];
-  const [sheet, parties, sectorRows, { data: weekRec }, salesmen] =
+  const statsRevision = (await cookies()).get(LIST_STATS_COOKIE)?.value || "";
+  const [sheet, parties, { data: weekRec }, salesmen] =
     await Promise.all([
       buildRecoverySheet(supabase, {
         companyId: company.id,
@@ -108,19 +110,12 @@ export default async function RecoverySheetPage({
         partyIds,
         include,
       }),
-      fetchAllActiveParties(supabase, company.id, {
-        subtypes: ["customer", "both"],
-      }),
-      fetchAllPages<{ route: string | null }>((fromPage, toPage) =>
-        supabase
-          .from("parties")
-          .select("route")
-          .eq("company_id", company.id)
-          .eq("is_active", true)
-          .not("route", "is", null)
-          .order("route")
-          .range(fromPage, toPage),
-      ),
+      rememberStats(`recovery-parties:${company.id}:${statsRevision}`, () =>
+        fetchAllActiveParties(supabase, company.id, {
+          subtypes: ["customer", "both"],
+          columns: "id, party_code, name_en, route",
+        }),
+      ).catch(() => [] as Party[]),
       supabase
         .from("recoveries")
         .select("recovery_date, amount, parties(name_en)")
@@ -129,9 +124,7 @@ export default async function RecoverySheetPage({
       fetchCompanySalesmen(supabase, company.id),
     ]);
 
-  const sectorOptions = distinctSorted(
-    sectorRows.map((r: { route: string | null }) => r.route),
-  );
+  const sectorOptions = distinctSorted(parties.map((p) => p.route));
 
   const sectorSet = new Set(sectors.map((s) => s.trim()).filter(Boolean));
   const partyOptions = (parties || [])
