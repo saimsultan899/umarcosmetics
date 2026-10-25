@@ -1,5 +1,6 @@
 import { comparePartyArrangement } from "@/lib/parties/arrangement-order";
 import { one } from "@/lib/reports/helpers";
+import { fetchSectorLastReceived } from "@/lib/reports/sector-last-received";
 import { fetchAllPages } from "@/lib/supabase/fetch-all-pages";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -40,7 +41,11 @@ export type RecoverySheetRow = {
   final_balance: number;
   /** parties.head (town / head office label). */
   head: string | null;
-  /** Latest posted recovery on or before `to`. */
+  /**
+   * Amount from the latest sector collection on or before To, when this
+   * shop paid that round. A later blank day keeps this amount. A dash
+   * means the sector was collected again and this shop was left out.
+   */
   last_received_amount: number | null;
   /** Id of that recovery — used for view/edit/delete on the sheet. */
   last_received_id: string | null;
@@ -132,7 +137,7 @@ export async function buildRecoverySheet(
   } = input;
 
   // Dropdown sources + balances + authoritative shop list + last sales, all in parallel.
-  const [manufacturers, warehouses, balanceSheet, partyRows, lastSales, lastRecoveries, saleReturns] =
+  const [manufacturers, warehouses, balanceSheet, partyRows, lastSales, lastRecoveries, lastPayments, saleReturns] =
     await Promise.all([
     supabase
       .from("products")
@@ -177,6 +182,19 @@ export async function buildRecoverySheet(
         .range(from, to);
     }).then((data) => ({ data, error: null })),
     fetchLastSalesByParty(supabase, companyId, to),
+    fetchSectorLastReceived(supabase, companyId, to).then((rows) => {
+      const map = new Map<string, LastRecovery>();
+      for (const row of rows) {
+        if (map.has(row.partyId)) continue;
+        map.set(row.partyId, {
+          id: row.recoveryId,
+          amount: row.amount,
+          recovery_date: row.receivedDate,
+          created_at: row.receivedAt,
+        });
+      }
+      return map;
+    }),
     fetchLastRecoveriesByParty(supabase, companyId, to),
     fetchSaleReturns(supabase, companyId, to),
   ]);
@@ -213,8 +231,9 @@ export async function buildRecoverySheet(
     const partyId = p.id as string;
     const balance = balanceByParty.get(partyId) ?? 0;
     const last = lastSales.get(partyId);
+    const lastPayment = lastPayments.get(partyId) ?? null;
     const lastReceived = lastRecoveries.get(partyId) ?? null;
-    const saleIsOpen = isLastSaleAfterRecovery(last, lastReceived);
+    const saleIsOpen = isLastSaleAfterRecovery(last, lastPayment);
     const lastSaleValue = saleIsOpen && last
       ? netLastSaleValue(last, saleReturns.get(partyId) || [])
       : null;

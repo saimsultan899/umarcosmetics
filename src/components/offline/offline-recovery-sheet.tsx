@@ -285,6 +285,11 @@ export function OfflineRecoverySheetPage({
       }
     }
 
+    const routeByParty = new Map<string, string>();
+    for (const p of parties) {
+      routeByParty.set(String(p.id), String(p.route || "").trim());
+    }
+    const sectorRoundDate = new Map<string, string>();
     const lastRecoveryByParty = new Map<
       string,
       { id: string | null; date: string; amount: number; created: string }
@@ -301,6 +306,9 @@ export function OfflineRecoverySheetPage({
       const billDay = (date || "").slice(0, 10) || createdDay;
       // As-of To uses bill/voucher date (same as online RPC).
       if (!billDay || billDay > to) return;
+      const sector = routeByParty.get(partyId) || "";
+      const round = sectorRoundDate.get(sector);
+      if (!round || billDay > round) sectorRoundDate.set(sector, billDay);
       const cur = lastRecoveryByParty.get(partyId);
       if (
         !cur ||
@@ -374,10 +382,13 @@ export function OfflineRecoverySheetPage({
       const partyId = String(p.id);
       const balance = balanceMap.get(partyId) ?? 0;
       const last = lastSaleByParty.get(partyId);
-      const lastRec = lastRecoveryByParty.get(partyId);
+      const paid = lastRecoveryByParty.get(partyId);
+      const sector = String(p.route || "").trim();
+      const round = sectorRoundDate.get(sector);
+      const lastRec = paid && round && paid.date === round ? paid : undefined;
 
       const saleIsOpen =
-        !lastRec || (last && last.date >= lastRec.date);
+        !paid || (last && last.date >= paid.date);
       const lastSaleValue = saleIsOpen && last
         ? Math.max(0, last.grand_total - returnCreditAfterSale(partyId, last, returns))
         : null;

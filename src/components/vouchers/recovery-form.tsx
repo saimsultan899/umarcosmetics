@@ -10,6 +10,7 @@ import { Select } from "@/components/ui/select";
 import { focusField, handleEnterAsNext } from "@/lib/keyboard/enter-nav";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { comparePartyArrangement } from "@/lib/parties/arrangement-order";
+import { fetchSectorLastReceived } from "@/lib/reports/sector-last-received";
 import { createClient } from "@/lib/supabase/client";
 import type { Party } from "@/lib/types/database";
 import type { SalesmanOption } from "@/lib/queries/salesmen";
@@ -246,23 +247,10 @@ export function RecoveryForm({
           }));
 
         const lastById = new Map<string, number>();
-        const ids = base.map((row) => row.id);
-        for (let i = 0; i < ids.length; i += 80) {
-          const chunk = ids.slice(i, i + 80);
-          const { data: recs } = await supabase
-            .from("recoveries")
-            .select("party_id, amount, recovery_date, created_at")
-            .eq("company_id", companyId)
-            .in("party_id", chunk)
-            .gt("amount", 0)
-            .lte("recovery_date", date)
-            .order("recovery_date", { ascending: false })
-            .order("created_at", { ascending: false });
-          for (const row of recs || []) {
-            const id = row.party_id as string;
-            if (!id || lastById.has(id)) continue;
-            lastById.set(id, Number(row.amount || 0));
-          }
+        const received = await fetchSectorLastReceived(supabase, companyId, date);
+        for (const row of received) {
+          if (lastById.has(row.partyId)) continue;
+          lastById.set(row.partyId, row.amount);
         }
 
         if (!cancelled) {
