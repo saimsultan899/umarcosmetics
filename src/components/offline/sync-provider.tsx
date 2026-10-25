@@ -204,13 +204,28 @@ export function SyncProvider({
   }, [companyId, organizationId, refreshPending, syncing]);
 
   // ── Online/offline detection ───────────────────────────────────
+  // Chrome fires online/offline many times during a brief drop. Waiting
+  // until the link stays one way avoids reloading the open page on each blink.
+  // A real drop still switches to the offline copy, and a real return still
+  // reloads the live page once.
   useEffect(() => {
-    setOnline(typeof navigator !== "undefined" ? navigator.onLine : true);
-    const onOnline = () => setOnline(true);
-    const onOffline = () => setOnline(false);
+    const settleMs = 3000;
+    let timer = 0;
+    const settle = (next: boolean) => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        setOnline((current) => (current === next ? current : next));
+      }, settleMs);
+    };
+    const onOnline = () => settle(true);
+    const onOffline = () => settle(false);
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      settle(false);
+    }
     return () => {
+      window.clearTimeout(timer);
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
     };
