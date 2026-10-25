@@ -408,8 +408,28 @@ export function RecoveryForm({
     commitLine();
   }
 
+  function onSheetAmountEnter(
+    e: ReactKeyboardEvent<HTMLInputElement>,
+    index: number,
+  ) {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    e.stopPropagation();
+    const next = e.currentTarget
+      .closest("tbody")
+      ?.querySelector<HTMLInputElement>(`[data-sheet-amount="${index + 1}"]`);
+    if (next) focusField(next);
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    const active = document.activeElement;
+    if (
+      active instanceof HTMLElement &&
+      active.closest("[data-recovery-sheet]")
+    ) {
+      return;
+    }
     if (savingRef.current) return;
     savingRef.current = true;
     setLoading(true);
@@ -825,7 +845,7 @@ export function RecoveryForm({
                 data-enter-skip
               />
             </div>
-            <div className="table-grid table-grid--y-scroll">
+            <div className="table-grid table-grid--y-scroll" data-recovery-sheet>
               <table className="w-full min-w-[720px] text-sm">
                 <thead>
                   <tr>
@@ -848,7 +868,7 @@ export function RecoveryForm({
                       </td>
                     </tr>
                   ) : (
-                    shownSheet.map((row) => {
+                    shownSheet.map((row, index) => {
                       const draft = sheetDrafts[row.id] || {
                         amount: "",
                         remarks: "",
@@ -899,7 +919,9 @@ export function RecoveryForm({
                               inputMode="decimal"
                               value={draft.amount}
                               placeholder={AMOUNT_PLACEHOLDER}
+                              data-sheet-amount={index}
                               className={over ? "border-rose-400" : undefined}
+                              onKeyDown={(e) => onSheetAmountEnter(e, index)}
                               onChange={(e) =>
                                 setSheetDrafts((prev) => ({
                                   ...prev,

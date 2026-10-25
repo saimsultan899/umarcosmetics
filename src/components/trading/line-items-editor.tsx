@@ -719,6 +719,18 @@ export const LineItemsEditor = forwardRef<
     setProductOpen(false);
   }
 
+  /** Search / code entry of a product already on the bill. Scanner does not use this. */
+  function confirmRepeatProduct(productId: string) {
+    const prior = linesRef.current.find((line) => line.product_id === productId);
+    if (!prior) return true;
+    const label = prior.product_code
+      ? `${prior.product_code} — ${prior.product_name}`
+      : prior.product_name || "This product";
+    return window.confirm(
+      `${label} is already on this bill.\n\nAdd it again as another line?`,
+    );
+  }
+
   function commitDraft(opts?: { silent?: boolean }) {
     const current = draftRef.current;
     if (!current.product_id || Number(current.qty) <= 0) {
@@ -737,6 +749,11 @@ export const LineItemsEditor = forwardRef<
     if (stockErr) {
       setHint(stockErr);
       if (!opts?.silent) focusField(qtyRef.current);
+      return false;
+    }
+
+    if (!confirmRepeatProduct(current.product_id)) {
+      if (!opts?.silent) focusField(codeRef.current);
       return false;
     }
 
