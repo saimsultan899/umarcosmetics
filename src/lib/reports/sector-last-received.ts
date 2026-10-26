@@ -35,9 +35,9 @@ function readRows(data: unknown): SectorLastReceived[] {
 
 /**
  * Last received as of `asOf`.
- * Shows the shop's amount from the latest collection of its sector on or
- * before that date. A day with no sector collection keeps the previous
- * amount. A shop left out of a later sector collection is omitted, and the
+ * A sector round is a day when more than one shop in that sector was paid.
+ * One shop alone does not clear the others. A shop's own later receipt still
+ * shows. A shop that missed the last multi-shop round is omitted, and the
  * sheet prints a dash. Balances are not changed.
  */
 export async function fetchSectorLastReceived(

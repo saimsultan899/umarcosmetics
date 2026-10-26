@@ -289,7 +289,7 @@ export function OfflineRecoverySheetPage({
     for (const p of parties) {
       routeByParty.set(String(p.id), String(p.route || "").trim());
     }
-    const sectorRoundDate = new Map<string, string>();
+    const sectorDayShops = new Map<string, Set<string>>();
     const lastRecoveryByParty = new Map<
       string,
       { id: string | null; date: string; amount: number; created: string }
@@ -307,8 +307,10 @@ export function OfflineRecoverySheetPage({
       // As-of To uses bill/voucher date (same as online RPC).
       if (!billDay || billDay > to) return;
       const sector = routeByParty.get(partyId) || "";
-      const round = sectorRoundDate.get(sector);
-      if (!round || billDay > round) sectorRoundDate.set(sector, billDay);
+      const dayKey = `${sector}|${billDay}`;
+      const shops = sectorDayShops.get(dayKey) || new Set<string>();
+      shops.add(partyId);
+      sectorDayShops.set(dayKey, shops);
       const cur = lastRecoveryByParty.get(partyId);
       if (
         !cur ||
@@ -367,6 +369,16 @@ export function OfflineRecoverySheetPage({
       );
     }
 
+    const sectorRoundDate = new Map<string, string>();
+    for (const [dayKey, shops] of sectorDayShops) {
+      if (shops.size < 2) continue;
+      const split = dayKey.lastIndexOf("|");
+      const sector = dayKey.slice(0, split);
+      const billDay = dayKey.slice(split + 1);
+      const round = sectorRoundDate.get(sector);
+      if (!round || billDay > round) sectorRoundDate.set(sector, billDay);
+    }
+
     const customerParties = parties.filter((p) => {
       const sub = String(p.party_subtype || p.party_type || "").toLowerCase();
       const isCust = sub === "customer" || sub === "both" || !sub;
@@ -385,7 +397,8 @@ export function OfflineRecoverySheetPage({
       const paid = lastRecoveryByParty.get(partyId);
       const sector = String(p.route || "").trim();
       const round = sectorRoundDate.get(sector);
-      const lastRec = paid && round && paid.date === round ? paid : undefined;
+      const lastRec =
+        paid && (!round || paid.date >= round) ? paid : undefined;
 
       const saleIsOpen =
         !paid || (last && last.date >= paid.date);
