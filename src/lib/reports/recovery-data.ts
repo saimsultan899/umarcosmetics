@@ -42,9 +42,9 @@ export type RecoverySheetRow = {
   /** parties.head (town / head office label). */
   head: string | null;
   /**
-   * Latest receipt that still belongs on the sheet. A sector round is a day
-   * when more than one shop in that sector was paid. One shop alone does not
-   * clear the others. A dash means the shop missed that round.
+   * Latest receipt that still belongs on the sheet. A one-shop day clears
+   * the others only when a later receipt exists after it. A dash means the
+   * shop missed that round.
    */
   last_received_amount: number | null;
   /** Id of that recovery — used for view/edit/delete on the sheet. */

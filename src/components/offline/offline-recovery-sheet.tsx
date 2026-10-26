@@ -369,14 +369,22 @@ export function OfflineRecoverySheetPage({
       );
     }
 
-    const sectorRoundDate = new Map<string, string>();
+    const sectorEdge = new Map<string, string>();
+    const sectorDays: { sector: string; billDay: string; count: number }[] = [];
     for (const [dayKey, shops] of sectorDayShops) {
-      if (shops.size < 2) continue;
       const split = dayKey.lastIndexOf("|");
       const sector = dayKey.slice(0, split);
       const billDay = dayKey.slice(split + 1);
-      const round = sectorRoundDate.get(sector);
-      if (!round || billDay > round) sectorRoundDate.set(sector, billDay);
+      const edge = sectorEdge.get(sector);
+      if (!edge || billDay > edge) sectorEdge.set(sector, billDay);
+      sectorDays.push({ sector, billDay, count: shops.size });
+    }
+    const sectorRoundDate = new Map<string, string>();
+    for (const day of sectorDays) {
+      const edge = sectorEdge.get(day.sector);
+      if (day.count < 2 && day.billDay === edge) continue;
+      const round = sectorRoundDate.get(day.sector);
+      if (!round || day.billDay > round) sectorRoundDate.set(day.sector, day.billDay);
     }
 
     const customerParties = parties.filter((p) => {

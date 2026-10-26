@@ -35,10 +35,10 @@ function readRows(data: unknown): SectorLastReceived[] {
 
 /**
  * Last received as of `asOf`.
- * A sector round is a day when more than one shop in that sector was paid.
- * One shop alone does not clear the others. A shop's own later receipt still
- * shows. A shop that missed the last multi-shop round is omitted, and the
- * sheet prints a dash. Balances are not changed.
+ * A one-shop day clears the rest of the sector only when a later receipt
+ * exists after it. The latest day, when it is a single shop, does not.
+ * A shop that missed that round is omitted, and the sheet prints a dash.
+ * Balances are not changed.
  */
 export async function fetchSectorLastReceived(
   supabase: SupabaseClient,
