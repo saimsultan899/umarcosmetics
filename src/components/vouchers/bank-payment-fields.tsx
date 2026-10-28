@@ -56,7 +56,7 @@ function PartyBankBlock({
 
   const summary = [bank, name, accountNo].filter(Boolean).join(" · ");
   const fields = (
-    <>
+    <div className="space-y-2.5">
       <div>
         <Label>Bank</Label>
         <Select
@@ -65,30 +65,28 @@ function PartyBankBlock({
           options={options}
         />
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <Label>Name</Label>
-          <Input
-            value={name}
-            onChange={(e) => onName(e.target.value)}
-            placeholder={`${title} name (optional)`}
-          />
-        </div>
-        <div>
-          <Label>Account no.</Label>
-          <Input
-            value={accountNo}
-            onChange={(e) => onAccountNo(e.target.value)}
-            placeholder="Account number (optional)"
-          />
-        </div>
+      <div>
+        <Label>Name</Label>
+        <Input
+          value={name}
+          onChange={(e) => onName(e.target.value)}
+          placeholder={`${title} name (optional)`}
+        />
       </div>
-    </>
+      <div>
+        <Label>Account no.</Label>
+        <Input
+          value={accountNo}
+          onChange={(e) => onAccountNo(e.target.value)}
+          placeholder="Account number (optional)"
+        />
+      </div>
+    </div>
   );
 
   if (!collapsible) {
     return (
-      <div className="space-y-3 rounded-lg border border-[var(--border)] p-3">
+      <div className="min-w-0 space-y-2 rounded-lg border border-[var(--border)] p-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
           {title}
         </p>
@@ -215,28 +213,36 @@ export function BankPaymentFields({
           Arrange banks
         </Button>
       </div>
-      <PartyBankBlock
-        title="Sender"
-        banks={names}
-        bank={senderBank}
-        name={senderName}
-        accountNo={senderNo}
-        onBank={onSenderBank}
-        onName={onSenderName}
-        onAccountNo={onSenderNo}
-        collapsible={collapsible}
-      />
-      <PartyBankBlock
-        title="Receiver"
-        banks={names}
-        bank={receiverBank}
-        name={receiverName}
-        accountNo={receiverNo}
-        onBank={onReceiverBank}
-        onName={onReceiverName}
-        onAccountNo={onReceiverNo}
-        collapsible={collapsible}
-      />
+      <div
+        className={
+          collapsible
+            ? "space-y-3"
+            : "grid gap-3 md:grid-cols-2"
+        }
+      >
+        <PartyBankBlock
+          title="Sender"
+          banks={names}
+          bank={senderBank}
+          name={senderName}
+          accountNo={senderNo}
+          onBank={onSenderBank}
+          onName={onSenderName}
+          onAccountNo={onSenderNo}
+          collapsible={collapsible}
+        />
+        <PartyBankBlock
+          title="Receiver"
+          banks={names}
+          bank={receiverBank}
+          name={receiverName}
+          accountNo={receiverNo}
+          onBank={onReceiverBank}
+          onName={onReceiverName}
+          onAccountNo={onReceiverNo}
+          collapsible={collapsible}
+        />
+      </div>
       <ArrangeBanksDialog
         open={arrangeOpen}
         onClose={() => setArrangeOpen(false)}

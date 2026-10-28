@@ -322,16 +322,12 @@ export function CashManagementView({
 
   function changePage(next: number) {
     pager.setPage(next);
-    tableShellRef.current
-      ?.querySelector(".table-scroll")
-      ?.scrollTo({ top: 0, behavior: "smooth" });
+    tableShellRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
   }
 
   function changePageSize(size: number) {
     pager.setPageSize(size);
-    tableShellRef.current
-      ?.querySelector(".table-scroll")
-      ?.scrollTo({ top: 0, behavior: "smooth" });
+    tableShellRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
   }
 
   const totals = useMemo(() => {
@@ -670,7 +666,7 @@ export function CashManagementView({
 
       <div
         ref={tableShellRef}
-        className="table-shell table-shell--y-scroll overflow-hidden rounded-xl border border-[var(--border)] bg-white"
+        className="table-shell overflow-hidden rounded-xl border border-[var(--border)] bg-white"
       >
         <TableScroll loading={tableBusy}>
           <table className="w-full min-w-[760px] text-sm">
