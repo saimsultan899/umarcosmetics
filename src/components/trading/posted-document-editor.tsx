@@ -120,7 +120,58 @@ export function PostedDocumentEditor({
   if (error) {
     return <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>;
   }
-  if (!doc || !catalog.ready) {
+  if (!doc) {
+    return <p className="py-8 text-center text-sm text-[var(--muted)]">Opening entry…</p>;
+  }
+
+  const organizationId = String(doc.organization_id || "");
+
+  // Brand / company-statement CP vouchers store amount on the header and may
+  // have zero voucher_lines. Edit without waiting on the trading catalog.
+  if (table === "vouchers" && String(doc.voucher_type || "") === "CP" && doc.warehouse_id) {
+    const lines = Array.isArray(doc.voucher_lines)
+      ? [...(doc.voucher_lines as Array<Record<string, unknown>>)].sort(
+          (a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0),
+        )
+      : [];
+    return (
+      <CashVoucherForm
+        kind="CP"
+        companyId={companyId}
+        organizationId={organizationId}
+        parties={catalog.ready ? catalog.parties : []}
+        editing={{
+          id,
+          voucherNo: String(doc.voucher_no || ""),
+          date: asDate(doc.voucher_date),
+          narration: String(doc.narration || ""),
+          paymentMethod: String(doc.payment_method || "cash"),
+          senderBank: String(doc.sender_bank_name || ""),
+          senderAccountName: String(doc.sender_account_name || ""),
+          senderAccountNo: String(doc.sender_account_no || ""),
+          receiverBank: String(
+            doc.receiver_bank_name || doc.bank_name || "",
+          ),
+          receiverAccountName: String(
+            doc.receiver_account_name || doc.bank_account_name || "",
+          ),
+          receiverAccountNo: String(
+            doc.receiver_account_no || doc.bank_account_no || "",
+          ),
+          warehouseId: String(doc.warehouse_id),
+          totalAmount: Number(doc.total_amount || 0),
+          lines: lines.map((line) => ({
+            party_id: String(line.party_id || ""),
+            amount: String(line.amount || ""),
+            narration: String(line.narration || ""),
+          })),
+        }}
+        onDone={onDone}
+      />
+    );
+  }
+
+  if (!catalog.ready) {
     return <p className="py-8 text-center text-sm text-[var(--muted)]">Opening entry…</p>;
   }
   if (catalog.error) {
@@ -128,8 +179,6 @@ export function PostedDocumentEditor({
       <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{catalog.error}</p>
     );
   }
-
-  const organizationId = String(doc.organization_id || "");
 
   if (table === "sale_invoices") {
     const items = Array.isArray(doc.sale_invoice_items)
@@ -368,6 +417,7 @@ export function PostedDocumentEditor({
             warehouseId: doc.warehouse_id
               ? String(doc.warehouse_id)
               : null,
+            totalAmount: Number(doc.total_amount || 0),
             lines: lines.map((line) => ({
               party_id: String(line.party_id || ""),
               amount: String(line.amount || ""),

@@ -21,6 +21,7 @@ import {
   buildLocalCashDesk,
 } from "@/lib/cash/local-cash-desk";
 import { TablePagination } from "@/components/tables/table-pagination";
+import { TableScroll } from "@/components/tables/table-scroll";
 import { useClientPagination } from "@/hooks/use-client-pagination";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { createClient } from "@/lib/supabase/client";
@@ -316,6 +317,22 @@ export function CashManagementView({
   }, [activity, desk, search, sector]);
 
   const pager = useClientPagination(rows);
+  const tableBusy = loading || pager.isPending;
+  const tableShellRef = useRef<HTMLDivElement>(null);
+
+  function changePage(next: number) {
+    pager.setPage(next);
+    tableShellRef.current
+      ?.querySelector(".table-scroll")
+      ?.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function changePageSize(size: number) {
+    pager.setPageSize(size);
+    tableShellRef.current
+      ?.querySelector(".table-scroll")
+      ?.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   const totals = useMemo(() => {
     const lines = desk?.lines || [];
@@ -651,104 +668,109 @@ export function CashManagementView({
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-[var(--border)] bg-white">
-        <table className="w-full min-w-[760px] text-sm">
-          <thead className="bg-[var(--paper)] text-left text-[var(--muted)]">
-            <tr>
-              <th className="px-3 py-2 font-medium">Date</th>
-              <th className="px-3 py-2 font-medium">Source</th>
-              <th className="px-3 py-2 font-medium">Detail</th>
-              <th className="px-3 py-2 text-right font-medium">In</th>
-              <th className="px-3 py-2 text-right font-medium">Out</th>
-              <th className="px-3 py-2 text-right font-medium">{filteredView ? "In this view" : "Balance"}</th>
-              <th className="px-3 py-2 text-right font-medium">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredView ? null : (
-              <tr className="border-t border-[var(--border)]">
-                <td className="px-3 py-2" colSpan={5}>Brought forward</td>
-                <td className="px-3 py-2 text-right">{formatPkr(Number(desk?.brought_forward || 0))}</td>
-                <td />
-              </tr>
-            )}
-            {loading ? (
+      <div
+        ref={tableShellRef}
+        className="table-shell table-shell--y-scroll overflow-hidden rounded-xl border border-[var(--border)] bg-white"
+      >
+        <TableScroll loading={tableBusy}>
+          <table className="w-full min-w-[760px] text-sm">
+            <thead className="bg-[var(--paper)] text-left text-[var(--muted)]">
               <tr>
-                <td className="px-3 py-6 text-[var(--muted)]" colSpan={7}>Loading cash book…</td>
+                <th className="px-3 py-2 font-medium">Date</th>
+                <th className="px-3 py-2 font-medium">Source</th>
+                <th className="px-3 py-2 font-medium">Detail</th>
+                <th className="px-3 py-2 text-right font-medium">In</th>
+                <th className="px-3 py-2 text-right font-medium">Out</th>
+                <th className="px-3 py-2 text-right font-medium">{filteredView ? "In this view" : "Balance"}</th>
+                <th className="px-3 py-2 text-right font-medium">Actions</th>
               </tr>
-            ) : rows.length === 0 ? (
-              <tr>
-                <td className="px-3 py-6 text-[var(--muted)]" colSpan={7}>
-                  {activity === "company"
-                    ? "No purchase payment in these dates. Only cash paid to a vendor is listed here."
-                    : activity === "recovery"
-                    ? "No recovery in these dates."
-                    : activity === "paid"
-                      ? "No paid bills in these dates."
-                      : activity === "persons"
-                        ? "No person borrow or return in these dates."
-                        : sector
-                          ? `No recovery or paid bills in ${sector}.`
-                          : "No cash movement in these dates."}
-                </td>
-              </tr>
-            ) : (
-              pager.slice.map((line, index) => {
-                const href = lineHref(line);
-                const mark = activityMark(line.source);
-                const moneyIn = line.direction === "in";
-                return (
-                  <tr key={`${line.movement_id || line.ref_id || index}-${line.source}`} className={cn("border-t border-[var(--border)]", mark.row)}>
-                    <td className="px-3 py-2 tabular-nums">{sheetDate(line.line_date)}</td>
-                    <td className="px-3 py-2">
-                      <span className={cn("inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold", mark.badge)}>
-                        {sourceLabel(line.source)}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex min-w-0 items-baseline gap-2">
-                        {line.code ? (
-                          <span className="shrink-0 rounded-md bg-[var(--paper)] px-1.5 py-0.5 font-mono text-[11px] font-semibold tracking-wide text-[var(--ink)]">
-                            {line.code}
-                          </span>
+            </thead>
+            <tbody>
+              {filteredView ? null : (
+                <tr className="border-t border-[var(--border)]">
+                  <td className="px-3 py-2" colSpan={5}>Brought forward</td>
+                  <td className="px-3 py-2 text-right">{formatPkr(Number(desk?.brought_forward || 0))}</td>
+                  <td />
+                </tr>
+              )}
+              {loading && !desk ? (
+                <tr>
+                  <td className="px-3 py-6 text-[var(--muted)]" colSpan={7}>Loading cash book…</td>
+                </tr>
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td className="px-3 py-6 text-[var(--muted)]" colSpan={7}>
+                    {activity === "company"
+                      ? "No purchase payment in these dates. Only cash paid to a vendor is listed here."
+                      : activity === "recovery"
+                      ? "No recovery in these dates."
+                      : activity === "paid"
+                        ? "No paid bills in these dates."
+                        : activity === "persons"
+                          ? "No person borrow or return in these dates."
+                          : sector
+                            ? `No recovery or paid bills in ${sector}.`
+                            : "No cash movement in these dates."}
+                  </td>
+                </tr>
+              ) : (
+                pager.slice.map((line, index) => {
+                  const href = lineHref(line);
+                  const mark = activityMark(line.source);
+                  const moneyIn = line.direction === "in";
+                  return (
+                    <tr key={`${line.movement_id || line.ref_id || index}-${line.source}`} className={cn("border-t border-[var(--border)]", mark.row)}>
+                      <td className="px-3 py-2 tabular-nums">{sheetDate(line.line_date)}</td>
+                      <td className="px-3 py-2">
+                        <span className={cn("inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold", mark.badge)}>
+                          {sourceLabel(line.source)}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex min-w-0 items-baseline gap-2">
+                          {line.code ? (
+                            <span className="shrink-0 rounded-md bg-[var(--paper)] px-1.5 py-0.5 font-mono text-[11px] font-semibold tracking-wide text-[var(--ink)]">
+                              {line.code}
+                            </span>
+                          ) : null}
+                          {href ? (
+                            <Link href={href} className="text-[var(--brand)]">
+                              {line.title}
+                            </Link>
+                          ) : (
+                            <span>{line.title}</span>
+                          )}
+                        </div>
+                        {line.sector ? (
+                          <p className="mt-0.5 text-xs text-[var(--muted)]">{line.sector}</p>
                         ) : null}
-                        {href ? (
-                          <Link href={href} className="text-[var(--brand)]">
-                            {line.title}
-                          </Link>
-                        ) : (
-                          <span>{line.title}</span>
-                        )}
-                      </div>
-                      {line.sector ? (
-                        <p className="mt-0.5 text-xs text-[var(--muted)]">{line.sector}</p>
-                      ) : null}
-                    </td>
-                    <td className={cn("px-3 py-2 text-right tabular-nums", moneyIn ? cn("font-semibold", mark.money) : "text-[var(--muted)]")}>
-                      {moneyIn ? formatPkr(line.amount) : "—"}
-                    </td>
-                    <td className={cn("px-3 py-2 text-right tabular-nums", !moneyIn ? cn("font-semibold", mark.money) : "text-[var(--muted)]")}>
-                      {moneyIn ? "—" : formatPkr(line.amount)}
-                    </td>
-                    <td className={cn("px-3 py-2 text-right font-medium tabular-nums", line.balance < -0.009 ? "text-rose-700" : "")}>
-                      {formatPkr(line.balance)}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      <CashLineActions
-                        line={line}
-                        canWrite={canWrite}
-                        isHub={Boolean(desk?.is_hub)}
-                        onDeleteMovement={deleteMovement}
-                        onDeleteCompany={deleteCompanyLoan}
-                        onUpdate={updateMovement}
-                      />
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+                      </td>
+                      <td className={cn("px-3 py-2 text-right tabular-nums", moneyIn ? cn("font-semibold", mark.money) : "text-[var(--muted)]")}>
+                        {moneyIn ? formatPkr(line.amount) : "—"}
+                      </td>
+                      <td className={cn("px-3 py-2 text-right tabular-nums", !moneyIn ? cn("font-semibold", mark.money) : "text-[var(--muted)]")}>
+                        {moneyIn ? "—" : formatPkr(line.amount)}
+                      </td>
+                      <td className={cn("px-3 py-2 text-right font-medium tabular-nums", line.balance < -0.009 ? "text-rose-700" : "")}>
+                        {formatPkr(line.balance)}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <CashLineActions
+                          line={line}
+                          canWrite={canWrite}
+                          isHub={Boolean(desk?.is_hub)}
+                          onDeleteMovement={deleteMovement}
+                          onDeleteCompany={deleteCompanyLoan}
+                          onUpdate={updateMovement}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </TableScroll>
         <TablePagination
           page={pager.page}
           totalPages={pager.totalPages}
@@ -756,9 +778,9 @@ export function CashManagementView({
           total={pager.total}
           from={pager.from}
           to={pager.to}
-          onPageChange={pager.setPage}
-          onPageSizeChange={pager.setPageSize}
-          loading={loading}
+          onPageChange={changePage}
+          onPageSizeChange={changePageSize}
+          loading={tableBusy}
         />
       </div>
 
