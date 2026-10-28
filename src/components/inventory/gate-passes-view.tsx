@@ -61,6 +61,7 @@ export function GatePassesView({
             title="New gate pass"
             description="List products on the arriving load. Does not update inventory."
             size="xl"
+            createKey="gate-pass"
             disabled={!canCreate}
             disabledHint="Add products first, then create a gate pass from the catalog."
           >

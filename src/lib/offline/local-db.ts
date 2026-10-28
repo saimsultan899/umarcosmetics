@@ -6,6 +6,7 @@ export type SyncStatus = "synced" | "pending" | "syncing" | "failed" | "conflict
 // ── Mutation types (all write operations the app supports) ──────────
 export type OfflineMutationType =
   | "recovery"
+  | "recovery_batch"
   | "sale_invoice"
   | "purchase_invoice"
   | "sale_return"

@@ -10,6 +10,25 @@ function num(v: unknown) {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** Cached CRs store shops as voucher_lines(*); local drafts use lines / payload.lines. */
+function voucherLinesOf(r: Record<string, unknown>): Record<string, unknown>[] {
+  const payload =
+    r.payload && typeof r.payload === "object"
+      ? (r.payload as Record<string, unknown>)
+      : null;
+  for (const candidate of [
+    payload?.lines,
+    payload?.voucher_lines,
+    r.lines,
+    r.voucher_lines,
+  ]) {
+    if (Array.isArray(candidate) && candidate.length) {
+      return candidate as Record<string, unknown>[];
+    }
+  }
+  return [];
+}
+
 function inDateRange(dateStr: unknown, from?: string | null, to?: string | null) {
   if (!dateStr || typeof dateStr !== "string") return false;
   const d = dateStr.slice(0, 10);
@@ -431,14 +450,12 @@ export async function offlineAccountsBalances(companyId: string) {
   }
 
   for (const r of vouchers) {
+    if (String(r.status || "posted") === "cancelled") continue;
     const type = String(r.voucher_type || r.type || r.entity_type || "");
     const amount = num(r.amount ?? r.total_amount ?? r.grand_total);
-    const payload = (r.payload as Record<string, unknown> | undefined) || r;
-    const lines = Array.isArray(payload.lines)
-      ? (payload.lines as Record<string, unknown>[])
-      : null;
+    const lines = voucherLinesOf(r);
 
-    if (lines?.length) {
+    if (lines.length) {
       for (const line of lines) {
         const lineAmt = num(line.amount);
         if (type === "cash_receipt" || type === "recovery" || type === "CR") {
@@ -618,30 +635,43 @@ export async function offlinePartyLedger(
   for (const r of vouchers) {
     if (String(r.status || "posted") === "cancelled") continue;
     const type = String(r.voucher_type || r.type || r.entity_type || "");
+    const voucherNo = String(r.voucher_no || r.doc_no || "Voucher");
     const voucherDoc = r.id
       ? {
           table: "vouchers",
           id: String(r.id),
-          title: String(r.voucher_no || r.doc_no || "Voucher"),
+          title: voucherNo,
         }
       : undefined;
-    const payload = (r.payload as Record<string, unknown> | undefined) || r;
-    const lines = Array.isArray(payload.lines)
-      ? (payload.lines as Record<string, unknown>[])
-      : null;
-    if (lines?.length) {
+    const lines = voucherLinesOf(r);
+    if (lines.length) {
       for (const line of lines) {
         const amt = num(line.amount);
+        if (!(amt > 0)) continue;
         if (
           (type === "cash_receipt" || type === "recovery" || type === "CR") &&
           String(line.party_id || r.party_id) === partyId
         ) {
-          push(r.voucher_date || r.doc_date, "CR", String(line.narration || r.narration || "Receipt"), 0, amt, voucherDoc);
+          push(
+            r.voucher_date || r.doc_date,
+            "CR",
+            String(line.narration || r.narration || `Cash receipt ${voucherNo}`),
+            0,
+            amt,
+            voucherDoc,
+          );
         } else if (
           (type === "cash_payment" || type === "CP") &&
           String(line.party_id || r.party_id) === partyId
         ) {
-          push(r.voucher_date || r.doc_date, "CP", String(line.narration || r.narration || "Payment"), amt, 0, voucherDoc);
+          push(
+            r.voucher_date || r.doc_date,
+            "CP",
+            String(line.narration || r.narration || `Cash payment ${voucherNo}`),
+            amt,
+            0,
+            voucherDoc,
+          );
         } else if (type === "journal_voucher" || type === "JV") {
           if (String(line.debit_party_id) === partyId) {
             push(r.voucher_date || r.doc_date, "JV", String(line.narration || "Journal"), amt, 0, voucherDoc);
@@ -654,9 +684,9 @@ export async function offlinePartyLedger(
     } else if (String(r.party_id) === partyId) {
       const amt = num(r.amount ?? r.total_amount ?? r.grand_total);
       if (type === "cash_receipt" || type === "recovery" || type === "CR") {
-        push(r.voucher_date || r.doc_date, "CR", String(r.narration || "Receipt"), 0, amt, voucherDoc);
+        push(r.voucher_date || r.doc_date, "CR", String(r.narration || `Cash receipt ${voucherNo}`), 0, amt, voucherDoc);
       } else if (type === "cash_payment" || type === "CP") {
-        push(r.voucher_date || r.doc_date, "CP", String(r.narration || "Payment"), amt, 0, voucherDoc);
+        push(r.voucher_date || r.doc_date, "CP", String(r.narration || `Cash payment ${voucherNo}`), amt, 0, voucherDoc);
       }
     }
   }

@@ -25,6 +25,7 @@ export function SaleInvoiceCreateButton({ company }: { company: Company }) {
       title="New sale invoice"
       description="Post a sale and deduct company stock"
       size="xl"
+      createKey="sale"
       disabled={!canCreate}
       disabledHint="Add at least one customer, product, and company first."
     >
@@ -53,6 +54,7 @@ export function PurchaseInvoiceCreateButton({ company }: { company: Company }) {
       title="New purchase invoice"
       description="Receive vendor stock into a company"
       size="xl"
+      createKey="purchase"
     >
       <CatalogSlot ready={catalog.ready} error={catalog.error}>
         <PurchaseInvoiceForm

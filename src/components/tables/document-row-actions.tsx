@@ -114,6 +114,8 @@ export function DocumentRowActions({
   linesFk,
   allowDelete = true,
   showPrint = false,
+  viewContent,
+  viewClassName,
 }: {
   title: string;
   fields: DetailField[];
@@ -124,6 +126,8 @@ export function DocumentRowActions({
   linesFk?: string;
   allowDelete?: boolean;
   showPrint?: boolean;
+  viewContent?: React.ReactNode;
+  viewClassName?: string;
 }) {
   const router = useRouter();
   const cancel = CANCEL_RPC[table];
@@ -207,6 +211,8 @@ export function DocumentRowActions({
     <RowActions
       viewTitle={title}
       viewFields={fields}
+      viewContent={viewContent}
+      viewClassName={viewClassName}
       href={href}
       printHref={showPrint ? href : undefined}
       editTitle={`Edit ${title}`}

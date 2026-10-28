@@ -67,3 +67,96 @@ export async function fetchSectorLastReceived(
   if (fallback.error) return [];
   return readRows(fallback.data);
 }
+
+/**
+ * Last received for the edit sheet: ignore the voucher being edited, and ignore
+ * any later same-day receipts so Received and Last received are not mixed.
+ */
+export async function fetchLastReceivedBeforeVoucher(
+  supabase: SupabaseClient,
+  companyId: string,
+  asOf: string,
+  exclude: { voucherId: string; at?: string | null },
+): Promise<SectorLastReceived[]> {
+  const asOfDay = asOf.slice(0, 10);
+  const { data, error } = await supabase
+    .from("recoveries")
+    .select("id, party_id, amount, recovery_date, created_at, voucher_id")
+    .eq("company_id", companyId)
+    .lte("recovery_date", asOfDay)
+    .gt("amount", 0)
+    .order("recovery_date", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(5000);
+
+  if (error || !data?.length) {
+    return fetchSectorLastReceived(supabase, companyId, asOfDay);
+  }
+
+  type Agg = {
+    partyId: string;
+    amount: number;
+    receivedDate: string;
+    receivedAt: string;
+    recoveryId: string;
+  };
+  const groups = new Map<string, Agg>();
+  for (const row of data) {
+    const partyId = String(row.party_id || "");
+    if (!partyId) continue;
+    const voucherKey = row.voucher_id
+      ? String(row.voucher_id)
+      : String(row.id);
+    if (voucherKey === exclude.voucherId) continue;
+
+    const receivedDate = String(row.recovery_date || "").slice(0, 10);
+    const receivedAt = String(row.created_at || "");
+    if (
+      exclude.at &&
+      receivedDate === asOfDay &&
+      receivedAt &&
+      receivedAt > exclude.at
+    ) {
+      continue;
+    }
+
+    const key = `${partyId}:${voucherKey}`;
+    const amount = Number(row.amount || 0);
+    if (!(amount > 0)) continue;
+    const prev = groups.get(key);
+    if (!prev) {
+      groups.set(key, {
+        partyId,
+        amount,
+        receivedDate,
+        receivedAt,
+        recoveryId: String(row.id),
+      });
+    } else {
+      prev.amount += amount;
+      if (receivedAt > prev.receivedAt) {
+        prev.receivedAt = receivedAt;
+        prev.recoveryId = String(row.id);
+        prev.receivedDate = receivedDate;
+      }
+    }
+  }
+
+  const byParty = new Map<string, SectorLastReceived>();
+  const sorted = [...groups.values()].sort((a, b) => {
+    const byDate = b.receivedDate.localeCompare(a.receivedDate);
+    if (byDate) return byDate;
+    return b.receivedAt.localeCompare(a.receivedAt);
+  });
+  for (const g of sorted) {
+    if (byParty.has(g.partyId)) continue;
+    byParty.set(g.partyId, {
+      partyId: g.partyId,
+      amount: g.amount,
+      receivedDate: g.receivedDate,
+      receivedAt: g.receivedAt,
+      recoveryId: g.recoveryId,
+    });
+  }
+  return [...byParty.values()];
+}

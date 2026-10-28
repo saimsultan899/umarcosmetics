@@ -55,6 +55,7 @@ export function ExpensesView({
               title="Daily expenses & salary"
               description="Post one or more costs for the day"
               size="xl"
+              createKey="expense"
             >
               <ExpenseForm
                 companyId={company.id}

@@ -904,6 +904,8 @@ export function OfflineModulePage({
         pagination={pagMeta}
         emptyLabel="No vouchers in local ledger yet."
         detailBasePath={base}
+        showParty={kind === "cash_receipt"}
+        companyId={companyId}
       />
     );
   } else if (kind === "recoveries") {

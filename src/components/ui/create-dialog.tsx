@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Plus } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createContext, useContext, useEffect, useState } from "react";
 
 const CreateDialogCloseContext = createContext<(() => void) | null>(null);
@@ -30,6 +31,8 @@ export function CreateDialogButton({
   size = "lg",
   variant = "accent",
   icon = true,
+  /** When `?create=` matches this key (e.g. from the floating shortcuts), open immediately. */
+  createKey,
 }: {
   label?: string;
   title: string;
@@ -40,7 +43,11 @@ export function CreateDialogButton({
   size?: "sm" | "md" | "lg" | "xl" | "2xl" | "full";
   variant?: "accent" | "secondary";
   icon?: boolean;
+  createKey?: string;
 }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
   const [documentNo, setDocumentNo] = useState<string | null>(null);
   const close = () => setOpen(false);
@@ -48,6 +55,16 @@ export function CreateDialogButton({
   useEffect(() => {
     if (!open) setDocumentNo(null);
   }, [open]);
+
+  useEffect(() => {
+    if (!createKey || disabled) return;
+    if (searchParams.get("create") !== createKey) return;
+    setOpen(true);
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete("create");
+    const qs = next.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [createKey, disabled, pathname, router, searchParams]);
 
   const sizeClass =
     size === "full"

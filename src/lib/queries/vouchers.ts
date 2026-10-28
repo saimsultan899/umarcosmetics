@@ -14,10 +14,14 @@ export type VoucherRow = {
   voucher_date: string;
   total_amount: number;
   narration: string | null;
-  /** Customers on the voucher (cash receipt list). */
+  /** Customers on the voucher (cash receipt list). Short when many shops. */
   partyLabel?: string;
-  /** Distinct shop sectors on those customers. */
+  /** Full customer list for hover / view. */
+  partyDetail?: string;
+  /** Distinct shop sectors on those customers. Short when many. */
   sectorLabel?: string;
+  /** Full sector list for hover / view. */
+  sectorDetail?: string;
 };
 
 export type VoucherListResult = {
@@ -48,9 +52,21 @@ function partyLabels(
     const route = String(party.route || "").trim();
     if (route) sectors.add(route);
   }
+  const sectorList = [...sectors];
+  const partyDetail = names.join(", ") || undefined;
+  const sectorDetail = sectorList.join(", ") || undefined;
   return {
-    partyLabel: names.join(", ") || undefined,
-    sectorLabel: [...sectors].join(", ") || undefined,
+    // One shop keeps the name. Many shops become a short count so the row stays readable.
+    partyLabel:
+      names.length <= 1
+        ? names[0]
+        : `${names.length} shops`,
+    partyDetail,
+    sectorLabel:
+      sectorList.length <= 1
+        ? sectorList[0]
+        : `${sectorList.length} sectors`,
+    sectorDetail,
   };
 }
 
@@ -239,7 +255,9 @@ export async function fetchVoucherList(
       total_amount: Number(record.total_amount || 0),
       narration: record.narration,
       partyLabel: labels.partyLabel,
+      partyDetail: labels.partyDetail,
       sectorLabel: labels.sectorLabel,
+      sectorDetail: labels.sectorDetail,
     };
   });
 

@@ -219,7 +219,7 @@ export function useExpensesList({
 type VoucherKind = "CR" | "CP" | "JV";
 
 const VOUCHER_ENTITY_MAP: Record<VoucherKind, string[]> = {
-  CR: ["cash_receipt", "recovery", "CR"],
+  CR: ["cash_receipt", "recovery", "recovery_batch", "CR"],
   CP: ["cash_payment", "payment", "CP"],
   JV: ["journal_voucher", "journal", "JV"],
 };
@@ -332,14 +332,22 @@ export function useVoucherList({
             const route = (party.route || "").trim();
             if (route) sectors.add(route);
           }
+          const sectorList = [...sectors];
+          const partyDetail = names.join(", ") || undefined;
+          const sectorDetail = sectorList.join(", ") || undefined;
           return {
             id: String(r.id),
             voucher_no: String(r.voucher_no || r.doc_no || r.id),
             voucher_date: String(r.voucher_date || r.doc_date || "").slice(0, 10),
             total_amount: Number(r.total_amount ?? r.amount ?? r.grand_total ?? 0),
             narration: r.narration == null ? null : String(r.narration),
-            partyLabel: names.join(", ") || undefined,
-            sectorLabel: [...sectors].join(", ") || undefined,
+            partyLabel: names.length <= 1 ? names[0] : `${names.length} shops`,
+            partyDetail,
+            sectorLabel:
+              sectorList.length <= 1
+                ? sectorList[0]
+                : `${sectorList.length} sectors`,
+            sectorDetail,
             createdDate: String(r.created_at || "").slice(0, 10),
           };
         });
@@ -357,13 +365,13 @@ export function useVoucherList({
             if (!inDoc && !inCreated) return false;
           }
           if (sector) {
-            const routes = (v.sectorLabel || "")
+            const routes = (v.sectorDetail || v.sectorLabel || "")
               .split(",")
               .map((part) => part.trim().toLowerCase());
             if (!routes.includes(sector)) return false;
           }
           if (!q) return true;
-          return `${v.voucher_no} ${v.narration || ""} ${v.partyLabel || ""} ${v.sectorLabel || ""}`
+          return `${v.voucher_no} ${v.narration || ""} ${v.partyLabel || ""} ${v.partyDetail || ""} ${v.sectorLabel || ""} ${v.sectorDetail || ""}`
             .toLowerCase()
             .includes(q);
         });

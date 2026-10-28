@@ -119,6 +119,15 @@ export function VouchersView({
               title={meta.addTitle}
               description={meta.addDescription}
               size="xl"
+              createKey={
+                kind === "CR"
+                  ? "cash-receipt"
+                  : kind === "CP"
+                    ? "cash-payment"
+                    : kind === "JV"
+                      ? "journal"
+                      : undefined
+              }
             >
               <CatalogSlot
                 ready={initialOffline || parties.length > 0 || catalog.ready}
@@ -160,6 +169,7 @@ export function VouchersView({
         detailBasePath={meta.detailBasePath}
         showParty={kind === "CR"}
         sectors={sectors}
+        companyId={company.id}
       />
     </div>
   );

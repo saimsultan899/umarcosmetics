@@ -5,10 +5,12 @@ import { TableScroll } from "@/components/tables/table-scroll";
 import { TablePagination } from "@/components/tables/table-pagination";
 import { TableToolbar } from "@/components/tables/table-toolbar";
 import { TableFilterSelect, stringOptions } from "@/components/tables/table-filter-select";
+import { CashReceiptView } from "@/components/vouchers/cash-receipt-view";
 import { useSearchInput, useUrlTableState } from "@/hooks/use-url-table-state";
 import type { VoucherRow } from "@/lib/queries/vouchers";
 import type { PaginationMeta } from "@/lib/pagination";
 import { formatPkr } from "@/lib/utils";
+import Link from "next/link";
 
 export function VouchersTable({
   vouchers,
@@ -17,6 +19,7 @@ export function VouchersTable({
   detailBasePath,
   showParty = false,
   sectors = [],
+  companyId,
 }: {
   vouchers: VoucherRow[];
   pagination: PaginationMeta;
@@ -25,6 +28,7 @@ export function VouchersTable({
   /** Customer and sector columns, plus sector filter (cash receipts). */
   showParty?: boolean;
   sectors?: string[];
+  companyId?: string;
 }) {
   const filterKeys = [
     "fromDate",
@@ -104,14 +108,31 @@ export function VouchersTable({
               {vouchers.length ? (
                 vouchers.map((v) => (
                   <tr key={v.id}>
-                    <td className="font-medium">{v.voucher_no}</td>
+                    <td className="font-medium">
+                      <Link
+                        href={`${detailBasePath}/${v.id}`}
+                        className="text-[var(--brand)] hover:underline"
+                      >
+                        {v.voucher_no}
+                      </Link>
+                    </td>
                     <td>{v.voucher_date}</td>
                     {showParty ? (
-                      <td className="max-w-[16rem] truncate" title={v.partyLabel}>
+                      <td
+                        className="max-w-[12rem] truncate"
+                        title={v.partyDetail || v.partyLabel}
+                      >
                         {v.partyLabel || "—"}
                       </td>
                     ) : null}
-                    {showParty ? <td>{v.sectorLabel || "—"}</td> : null}
+                    {showParty ? (
+                      <td
+                        className="max-w-[10rem] truncate"
+                        title={v.sectorDetail || v.sectorLabel}
+                      >
+                        {v.sectorLabel || "—"}
+                      </td>
+                    ) : null}
                     <td>{formatPkr(v.total_amount)}</td>
                     <td className="text-[var(--muted)]">{v.narration || "—"}</td>
                     <td>
@@ -127,13 +148,44 @@ export function VouchersTable({
                           { label: "Date", value: v.voucher_date },
                           ...(showParty
                             ? [
-                                { label: "Customer", value: v.partyLabel || "—" },
-                                { label: "Sector", value: v.sectorLabel || "—" },
+                                {
+                                  label: "Customer",
+                                  value: v.partyDetail || v.partyLabel || "—",
+                                },
+                                {
+                                  label: "Sector",
+                                  value: v.sectorDetail || v.sectorLabel || "—",
+                                },
                               ]
                             : []),
                           { label: "Total", value: formatPkr(v.total_amount) },
                           { label: "Narration", value: v.narration || "—" },
                         ]}
+                        viewClassName={
+                          showParty
+                            ? "max-w-[96vw] sm:max-w-4xl lg:max-w-5xl"
+                            : undefined
+                        }
+                        viewContent={
+                          showParty && companyId ? (
+                            <CashReceiptView
+                              voucherId={v.id}
+                              companyId={companyId}
+                              fields={[
+                                { label: "Voucher #", value: v.voucher_no },
+                                { label: "Date", value: v.voucher_date },
+                                {
+                                  label: "Total",
+                                  value: formatPkr(v.total_amount),
+                                },
+                                {
+                                  label: "Narration",
+                                  value: v.narration || "—",
+                                },
+                              ]}
+                            />
+                          ) : undefined
+                        }
                       />
                     </td>
                   </tr>

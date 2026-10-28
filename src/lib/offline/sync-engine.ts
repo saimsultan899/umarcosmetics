@@ -35,6 +35,7 @@ export type SyncProgressCallback = (progress: {
 
 const RPC_MAP: Record<string, string> = {
   recovery: "record_recovery",
+  recovery_batch: "record_recovery_batch",
   sale_invoice: "create_sale_invoice",
   purchase_invoice: "create_purchase_invoice",
   sale_return: "create_sale_return",

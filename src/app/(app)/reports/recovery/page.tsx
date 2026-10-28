@@ -189,6 +189,7 @@ export default async function RecoverySheetPage({
             title="Record recovery"
             description="Add one or more collections, then post them together"
             size="xl"
+            createKey="recovery"
           >
             <RecoveryForm
               companyId={company.id}

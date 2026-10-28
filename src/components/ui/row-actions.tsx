@@ -36,6 +36,8 @@ export function DetailGrid({ fields }: { fields: DetailField[] }) {
 export function RowActions({
   viewFields,
   viewTitle = "View details",
+  viewContent,
+  viewClassName,
   editTitle = "Edit",
   deleteTitle = "Delete",
   deleteDescription = "This will remove the record from this list. It can be restored later if needed.",
@@ -56,6 +58,9 @@ export function RowActions({
 }: {
   viewFields: DetailField[];
   viewTitle?: string;
+  /** Replaces the simple field grid in the View dialog. */
+  viewContent?: React.ReactNode;
+  viewClassName?: string;
   editTitle?: string;
   deleteTitle?: string;
   deleteDescription?: string;
@@ -177,8 +182,9 @@ export function RowActions({
         open={mode === "view"}
         onClose={() => setMode(null)}
         title={viewTitle}
+        className={viewClassName}
       >
-        <DetailGrid fields={viewFields} />
+        {viewContent || <DetailGrid fields={viewFields} />}
         {href ? (
           <div className="mt-5 flex flex-wrap gap-2">
             <Link

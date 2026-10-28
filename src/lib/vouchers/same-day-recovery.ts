@@ -58,42 +58,68 @@ export async function findSameDayRecoveries(
   partyId: string,
   date: string,
 ): Promise<SameDayRecovery[]> {
-  if (!companyId || !partyId || !date) return [];
-  const hits = new Map<string, SameDayRecovery>();
+  const map = await findSameDayRecoveriesByParties(companyId, [partyId], date);
+  return map.get(partyId) || [];
+}
+
+/**
+ * One query for every shop on a sector recording.
+ * Avoids 30–50 sequential network calls before Record.
+ */
+export async function findSameDayRecoveriesByParties(
+  companyId: string,
+  partyIdList: string[],
+  date: string,
+): Promise<Map<string, SameDayRecovery[]>> {
+  const out = new Map<string, SameDayRecovery[]>();
+  const partyIdsUnique = [...new Set(partyIdList.filter(Boolean))];
+  if (!companyId || !date || !partyIdsUnique.length) return out;
+
+  function push(partyId: string, hit: SameDayRecovery) {
+    const list = out.get(partyId) || [];
+    if (list.some((row) => row.id === hit.id)) return;
+    list.push(hit);
+    out.set(partyId, list);
+  }
 
   if (await isAppOnline()) {
     const supabase = createClient();
     const { data, error } = await supabase
       .from("recoveries")
-      .select("id, amount, remarks, created_at")
+      .select("id, party_id, amount, remarks, created_at")
       .eq("company_id", companyId)
-      .eq("party_id", partyId)
       .eq("recovery_date", date)
+      .in("party_id", partyIdsUnique)
       .order("created_at", { ascending: false })
-      .limit(20);
+      .limit(Math.min(5000, partyIdsUnique.length * 20));
     if (!error) {
       for (const row of data || []) {
+        const partyId = String(row.party_id || "");
+        if (!partyId) continue;
         const hit = toHit(row as Record<string, unknown>);
-        if (hit) hits.set(hit.id, hit);
+        if (hit) push(partyId, hit);
       }
     }
   }
 
   try {
+    const wanted = new Set(partyIdsUnique);
     const cached = await getCachedRows("vouchers", companyId);
     for (const row of cached) {
       if (isCancelled(row) || !isRecoveryRow(row)) continue;
-      if (!partyIds(row).has(partyId)) continue;
       const rowDay = day(row.recovery_date || row.voucher_date || row.doc_date);
       if (rowDay !== date) continue;
-      const hit = toHit(row);
-      if (hit && !hits.has(hit.id)) hits.set(hit.id, hit);
+      for (const partyId of partyIds(row)) {
+        if (!wanted.has(partyId)) continue;
+        const hit = toHit(row);
+        if (hit) push(partyId, hit);
+      }
     }
   } catch {
     // Cache is optional. The live query is enough when the app is online.
   }
 
-  return [...hits.values()];
+  return out;
 }
 
 export function formatRecoveryWhen(iso: string) {

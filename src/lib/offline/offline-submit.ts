@@ -27,6 +27,7 @@ import {
 
 const MUTATION_RPC_MAP: Record<string, string> = {
   recovery: "record_recovery",
+  recovery_batch: "record_recovery_batch",
   sale_invoice: "create_sale_invoice",
   purchase_invoice: "create_purchase_invoice",
   sale_return: "create_sale_return",
@@ -532,6 +533,7 @@ function resolveCacheStore(
     sale_return: "sale_returns",
     purchase_return: "purchase_returns",
     recovery: "vouchers",
+    recovery_batch: "vouchers",
     cash_receipt: "vouchers",
     cash_payment: "vouchers",
     journal_voucher: "vouchers",
@@ -562,6 +564,7 @@ const VOUCHER_TYPE_BY_MUTATION: Partial<Record<OfflineMutationType, string>> = {
   journal_voucher: "JV",
   journal_voucher_update: "JV",
   recovery: "CR",
+  recovery_batch: "CR",
   recovery_update: "CR",
 };
 
@@ -904,6 +907,7 @@ async function submitOnline(
 function getSuccessMessage(type: OfflineMutationType): string {
   const messages: Record<string, string> = {
     recovery: "Recovery posted successfully.",
+    recovery_batch: "Recovery posted successfully.",
     sale_invoice: "Sale invoice created.",
     sale_invoice_update: "Sale invoice updated.",
     purchase_invoice_update: "Purchase invoice updated.",
@@ -956,6 +960,7 @@ export const SERIES_CONFIG: Record<
   gate_pass: { prefix: "GP-", pad: 0, store: "gate_passes" },
   cash_receipt: { prefix: "CR-", pad: 0, store: "vouchers" },
   recovery: { prefix: "CR-", pad: 0, store: "vouchers" },
+  recovery_batch: { prefix: "CR-", pad: 0, store: "vouchers" },
   cash_payment: { prefix: "CP-", pad: 0, store: "vouchers" },
   journal_voucher: { prefix: "JV-", pad: 0, store: "vouchers" },
   expense: { prefix: "EXP-", pad: 0, store: "expenses" },

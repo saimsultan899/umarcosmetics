@@ -17,10 +17,12 @@ import type { SalesmanOption } from "@/lib/queries/salesmen";
 import { AMOUNT_PLACEHOLDER, AMOUNT_STEP, formatNumber, formatPkr } from "@/lib/utils";
 import {
   findSameDayRecoveries,
+  findSameDayRecoveriesByParties,
   formatRecoveryWhen,
   type SameDayRecovery,
 } from "@/lib/vouchers/same-day-recovery";
 import { Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   FormEvent,
@@ -105,6 +107,7 @@ export function RecoveryForm({
   const [loading, setLoading] = useState(false);
   const savingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
+  const [savedReceipt, setSavedReceipt] = useState<{ id: string; no: string } | null>(null);
   const [todayRecoveries, setTodayRecoveries] = useState<SameDayRecovery[]>([]);
   const [sheetRows, setSheetRows] = useState<SheetShop[]>([]);
   const [sheetParties, setSheetParties] = useState<Party[]>([]);
@@ -469,6 +472,7 @@ export function RecoveryForm({
 
   async function saveRecoveries() {
     setError(null);
+    setSavedReceipt(null);
 
     const fromSheet: RecoveryLine[] = sheetRows.flatMap((row) => {
       const draft = sheetDrafts[row.id];
@@ -518,9 +522,14 @@ export function RecoveryForm({
     }
 
     const confirmedKeys = new Set<string>();
-    for (let i = 0; i < pending.length; i += 1) {
-      const line = pending[i];
-      const prior = await findSameDayRecoveries(companyId, line.partyId, date);
+    // One query for the whole sector — not one round-trip per shop.
+    const sameDayByParty = await findSameDayRecoveriesByParties(
+      companyId,
+      pending.map((line) => line.partyId),
+      date,
+    );
+    for (const line of pending) {
+      const prior = sameDayByParty.get(line.partyId) || [];
       const warning = recoveryWarning(
         line.partyName,
         prior,
@@ -532,46 +541,52 @@ export function RecoveryForm({
       }
     }
 
-    const failedKeys = new Set<string>();
-    const failedMsgs: string[] = [];
-
-    for (const line of pending) {
-      const lineParty = parties.find((p) => p.id === line.partyId);
-      try {
-        await offlineAwareSubmit({
-          mutationType: "recovery",
-          companyId,
-          organizationId,
-          payload: {
-            organization_id: organizationId,
-            company_id: companyId,
-            party_id: line.partyId,
-            recovery_date: date,
-            amount: line.amount,
-            remarks: line.remarks,
-            salesman_id: salesmanId || null,
-            route: lineParty?.route || null,
-            city: lineParty?.city || null,
-            client_request_id: line.requestId,
-            confirm_duplicate: confirmedKeys.has(line.key),
-          },
-        });
-      } catch (err: any) {
-        failedKeys.add(line.key);
-        failedMsgs.push(
-          `${line.partyCode} — ${line.partyName}: ${err?.message || String(err)}`,
-        );
+    const place = (sector || city || "").trim();
+    try {
+      const result = await offlineAwareSubmit({
+        mutationType: "recovery_batch",
+        companyId,
+        organizationId,
+        payload: {
+          organization_id: organizationId,
+          company_id: companyId,
+          recovery_date: date,
+          salesman_id: salesmanId || null,
+          narration: place ? `Recovery ${place}` : "Recovery collection",
+          voucher_date: date,
+          total_amount: pending.reduce((sum, line) => sum + line.amount, 0),
+          lines: pending.map((line) => {
+            const lineParty = parties.find((p) => p.id === line.partyId);
+            return {
+              party_id: line.partyId,
+              amount: line.amount,
+              remarks: line.remarks,
+              route: lineParty?.route || null,
+              city: lineParty?.city || null,
+              client_request_id: line.requestId,
+              confirm_duplicate: confirmedKeys.has(line.key),
+              party_code: line.partyCode,
+              party_name: line.partyName,
+            };
+          }),
+        },
+      });
+      let receiptNo = "";
+      if (result.id) {
+        const supabase = createClient();
+        const { data } = await supabase
+          .from("vouchers")
+          .select("voucher_no")
+          .eq("id", result.id)
+          .maybeSingle();
+        receiptNo = String(data?.voucher_no || "");
       }
-    }
-
-    if (failedKeys.size) {
-      setError(
-        failedKeys.size === pending.length
-          ? failedMsgs.join("\n")
-          : `Saved ${pending.length - failedKeys.size} of ${pending.length}. Failed:\n${failedMsgs.join("\n")}`,
+      setSavedReceipt(
+        result.id ? { id: result.id, no: receiptNo || "Cash receipt" } : null,
       );
-      setLines(pending.filter((l) => failedKeys.has(l.key)));
-      if (failedKeys.size < pending.length) router.refresh();
+    } catch (err: any) {
+      setError(err?.message || String(err));
+      setLines(pending);
       return;
     }
 
@@ -579,7 +594,6 @@ export function RecoveryForm({
     setSheetDrafts({});
     clearDraft(false);
     onDone?.();
-    closeDialog?.();
     router.refresh();
   }
 
@@ -1026,6 +1040,18 @@ export function RecoveryForm({
         )}
       </div>
 
+      {savedReceipt ? (
+        <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          Saved as{" "}
+          <Link
+            href={`/vouchers/cash-receipt/${savedReceipt.id}`}
+            className="font-semibold underline"
+          >
+            {savedReceipt.no}
+          </Link>
+          . Open that number to see every shop on this recording and edit them.
+        </p>
+      ) : null}
       {error ? (
         <p className="whitespace-pre-wrap rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
           {error}

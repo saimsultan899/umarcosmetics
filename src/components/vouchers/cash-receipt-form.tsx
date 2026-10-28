@@ -3,13 +3,17 @@
 import { PartyCodePicker } from "@/components/forms/party-code-picker";
 import { Button } from "@/components/ui/button";
 import { useCreateDialogClose } from "@/components/ui/create-dialog";
+import { useDialogInvoiceNo } from "@/lib/trading/preview-document-no";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { focusField, handleEnterAsNext } from "@/lib/keyboard/enter-nav";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { comparePartyArrangement } from "@/lib/parties/arrangement-order";
-import { fetchSectorLastReceived } from "@/lib/reports/sector-last-received";
+import {
+  fetchLastReceivedBeforeVoucher,
+  fetchSectorLastReceived,
+} from "@/lib/reports/sector-last-received";
 import { createClient } from "@/lib/supabase/client";
 import type { Party } from "@/lib/types/database";
 import { AMOUNT_PLACEHOLDER, AMOUNT_STEP, formatNumber, formatPkr } from "@/lib/utils";
@@ -68,32 +72,78 @@ function distinctSorted(values: Array<string | null | undefined>) {
   return out.sort((a, b) => a.localeCompare(b));
 }
 
+/** One line per shop — top row + sheet (or duplicate DB lines) must not double-post. */
+function mergeReceiptLinesByParty(items: ReceiptLine[]): ReceiptLine[] {
+  const map = new Map<string, ReceiptLine>();
+  for (const line of items) {
+    if (!line.partyId || !(line.amount > 0)) continue;
+    const prev = map.get(line.partyId);
+    if (!prev) {
+      map.set(line.partyId, { ...line });
+      continue;
+    }
+    map.set(line.partyId, {
+      ...prev,
+      amount: prev.amount + line.amount,
+      remarks: line.remarks || prev.remarks,
+      owed: line.owed ?? prev.owed,
+    });
+  }
+  return [...map.values()];
+}
+
+export type CashReceiptEdit = {
+  id: string;
+  voucherNo: string;
+  date: string;
+  /** Used so Last received ignores later same-day receipts while editing. */
+  createdAt?: string;
+  narration?: string;
+  lines: Array<{
+    partyId: string;
+    partyCode: string;
+    partyName: string;
+    amount: number;
+    remarks: string;
+  }>;
+};
+
 export function CashReceiptForm({
   companyId,
   organizationId,
   parties,
+  editing,
   onDone,
 }: {
   companyId: string;
   organizationId: string;
   parties: Party[];
+  editing?: CashReceiptEdit;
   onDone?: () => void;
 }) {
   const router = useRouter();
   const closeDialog = useCreateDialogClose();
+  useDialogInvoiceNo(companyId, "cash_receipt", editing?.voucherNo);
   const amountId = useId();
   const remarksId = useId();
   const amountRef = useRef<HTMLInputElement>(null);
   const remarksRef = useRef<HTMLInputElement>(null);
 
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [city, setCity] = useState("");
-  const [sector, setSector] = useState("");
+  const [date, setDate] = useState(
+    editing?.date || new Date().toISOString().slice(0, 10),
+  );
+  const seedParty = editing?.lines[0]
+    ? parties.find((p) => p.id === editing.lines[0].partyId)
+    : null;
+  const [city, setCity] = useState(() => (seedParty?.city || "").trim());
+  const [sector, setSector] = useState(() => (seedParty?.route || "").trim());
+  const [shopScope, setShopScope] = useState<"balance" | "all">("all");
   const [partyId, setPartyId] = useState("");
   const [party, setParty] = useState<Party | null>(null);
   const [amount, setAmount] = useState("");
   const [remarks, setRemarks] = useState("");
   const [balance, setBalance] = useState<number | null>(null);
+  // Edit puts amounts in the sector sheet below, not the top added list.
   const [lines, setLines] = useState<ReceiptLine[]>([]);
   const [loading, setLoading] = useState(false);
   const savingRef = useRef(false);
@@ -103,7 +153,40 @@ export function CashReceiptForm({
   const [sheetParties, setSheetParties] = useState<Party[]>([]);
   const [sheetLoading, setSheetLoading] = useState(false);
   const [sheetQuery, setSheetQuery] = useState("");
-  const [sheetDrafts, setSheetDrafts] = useState<Record<string, SheetDraft>>({});
+  const [sheetDrafts, setSheetDrafts] = useState<Record<string, SheetDraft>>(() => {
+    const drafts: Record<string, SheetDraft> = {};
+    for (const line of editing?.lines || []) {
+      if (!line.partyId) continue;
+      const prev = drafts[line.partyId];
+      const sum =
+        (prev ? Number(prev.amount) || 0 : 0) +
+        (line.amount > 0 ? line.amount : 0);
+      drafts[line.partyId] = {
+        amount: sum > 0 ? String(sum) : "",
+        remarks: line.remarks || prev?.remarks || "",
+      };
+    }
+    return drafts;
+  });
+
+  function withEditingShops(rows: SheetShop[]): SheetShop[] {
+    if (!editing?.lines.length) return rows;
+    const have = new Set(rows.map((row) => row.id));
+    const extra: SheetShop[] = [];
+    for (const line of editing.lines) {
+      if (!line.partyId || have.has(line.partyId)) continue;
+      const party = parties.find((p) => p.id === line.partyId);
+      extra.push({
+        id: line.partyId,
+        code: line.partyCode || party?.party_code || "",
+        name: line.partyName || party?.name_en || "",
+        balance: null,
+        lastReceived: null,
+      });
+      have.add(line.partyId);
+    }
+    return extra.length ? [...rows, ...extra] : rows;
+  }
 
   const customers = useMemo(
     () =>
@@ -132,11 +215,35 @@ export function CashReceiptForm({
     });
   }, [customers, city, sector]);
   const locationFilterOn = Boolean(city || sector);
+  const balancesKnown = useMemo(
+    () => sheetRows.some((row) => row.balance != null),
+    [sheetRows],
+  );
+  const shopsWithBalance = useMemo(() => {
+    const ids = new Set<string>();
+    if (!balancesKnown) return ids;
+    for (const row of sheetRows) {
+      if (row.balance != null && Math.abs(row.balance) > 0.005) ids.add(row.id);
+    }
+    return ids;
+  }, [sheetRows, balancesKnown]);
   const pickerParties = useMemo(() => {
-    if (!locationFilterOn) return customers;
-    if (sheetParties.length) return sheetParties;
-    return visibleParties;
-  }, [locationFilterOn, sheetParties, visibleParties, customers]);
+    const base = !locationFilterOn
+      ? customers
+      : sheetParties.length
+        ? sheetParties
+        : visibleParties;
+    if (shopScope !== "balance" || !balancesKnown) return base;
+    return base.filter((p) => shopsWithBalance.has(p.id));
+  }, [
+    locationFilterOn,
+    sheetParties,
+    visibleParties,
+    customers,
+    shopScope,
+    balancesKnown,
+    shopsWithBalance,
+  ]);
 
   function onCityChange(next: string) {
     setCity(next);
@@ -165,22 +272,35 @@ export function CashReceiptForm({
 
   useEffect(() => {
     let cancelled = false;
-    if (!locationFilterOn) {
+    if (!locationFilterOn && shopScope !== "balance") {
+      if (editing?.lines.length) {
+        const onlyEdit = withEditingShops([]);
+        setSheetParties(
+          onlyEdit
+            .map((row) => parties.find((p) => p.id === row.id))
+            .filter((p): p is Party => Boolean(p)),
+        );
+        setSheetRows(onlyEdit);
+        setSheetLoading(false);
+        return;
+      }
       setSheetRows([]);
       setSheetParties([]);
       setSheetLoading(false);
       return;
     }
 
-    const offlineBase: SheetShop[] = [...visibleParties]
-      .sort(comparePartyArrangement)
-      .map((p) => ({
-        id: p.id,
-        code: p.party_code,
-        name: p.name_en,
-        balance: null,
-        lastReceived: null,
-      }));
+    const offlineBase: SheetShop[] = withEditingShops(
+      [...visibleParties]
+        .sort(comparePartyArrangement)
+        .map((p) => ({
+          id: p.id,
+          code: p.party_code,
+          name: p.name_en,
+          balance: null,
+          lastReceived: null,
+        })),
+    );
 
     async function loadSheet() {
       if (typeof navigator !== "undefined" && !navigator.onLine) {
@@ -240,19 +360,46 @@ export function CashReceiptForm({
           }));
 
         const lastById = new Map<string, number>();
-        const received = await fetchSectorLastReceived(supabase, companyId, date);
+        const received = editing
+          ? await fetchLastReceivedBeforeVoucher(supabase, companyId, date, {
+              voucherId: editing.id,
+              at: editing.createdAt || null,
+            })
+          : await fetchSectorLastReceived(supabase, companyId, date);
         for (const row of received) {
           if (lastById.has(row.partyId)) continue;
           lastById.set(row.partyId, row.amount);
         }
 
+        // While editing, show Previous bal as if this receipt were not posted yet.
+        const editAmtByParty = new Map<string, number>();
+        if (editing?.lines.length) {
+          for (const line of editing.lines) {
+            if (!line.partyId) continue;
+            editAmtByParty.set(
+              line.partyId,
+              (editAmtByParty.get(line.partyId) || 0) + Number(line.amount || 0),
+            );
+          }
+        }
+
         if (!cancelled) {
           setSheetParties(shopList);
           setSheetRows(
-            base.map((row) => ({
-              ...row,
-              lastReceived: lastById.get(row.id) ?? null,
-            })),
+            withEditingShops(
+              base.map((row) => {
+                const editAmt = editAmtByParty.get(row.id) || 0;
+                const bal =
+                  row.balance != null && editAmt > 0
+                    ? row.balance + editAmt
+                    : row.balance;
+                return {
+                  ...row,
+                  balance: bal,
+                  lastReceived: lastById.get(row.id) ?? null,
+                };
+              }),
+            ),
           );
         }
       } catch {
@@ -269,7 +416,7 @@ export function CashReceiptForm({
     return () => {
       cancelled = true;
     };
-  }, [companyId, date, city, sector, locationFilterOn, visibleParties]);
+  }, [companyId, date, city, sector, locationFilterOn, shopScope, visibleParties, editing, parties]);
 
   useEffect(() => {
     let cancelled = false;
@@ -353,7 +500,8 @@ export function CashReceiptForm({
       else focusField(amountRef.current);
       return false;
     }
-    const already = lines.some((line) => line.partyId === partyId);
+    const alreadyOnSheet = Number(sheetDrafts[partyId]?.amount) > 0;
+    const already = lines.some((line) => line.partyId === partyId) || alreadyOnSheet;
     if (todayRecoveries.length > 0 || already) {
       const listed = todayRecoveries
         .map((row) => {
@@ -362,25 +510,70 @@ export function CashReceiptForm({
         })
         .join(", ");
       const text = already
-        ? `${party.name_en} is already on this receipt list.`
+        ? `${party.name_en} is already on this receipt${alreadyOnSheet ? " (Received below)" : " list"}.`
         : `${party.name_en} already has a recovery today${listed ? `: ${listed}` : ""}.`;
-      if (!window.confirm(`${text}\n\nRecord this receipt anyway?`)) {
+      if (!window.confirm(`${text}\n\nAdd ${formatPkr(amt)} more anyway?`)) {
         focusField(amountRef.current);
         return false;
       }
     }
-    setLines((prev) => [
-      ...prev,
-      {
-        key: newKey(),
-        partyId,
-        partyCode: party.party_code,
-        partyName: party.name_en,
-        amount: amt,
-        remarks: remarks.trim(),
-        owed: balance,
-      },
-    ]);
+    // Edit mode keeps amounts in the sector sheet — bump Received there.
+    if (editing) {
+      setSheetDrafts((prev) => {
+        const existing = Number(prev[partyId]?.amount) || 0;
+        return {
+          ...prev,
+          [partyId]: {
+            amount: String(existing + amt),
+            remarks: remarks.trim() || prev[partyId]?.remarks || "",
+          },
+        };
+      });
+      setSheetRows((prev) => {
+        if (prev.some((row) => row.id === partyId)) return prev;
+        return [
+          ...prev,
+          {
+            id: partyId,
+            code: party.party_code,
+            name: party.name_en,
+            balance,
+            lastReceived: null,
+          },
+        ];
+      });
+      setSheetParties((prev) =>
+        prev.some((p) => p.id === partyId) ? prev : [...prev, party],
+      );
+      clearDraft(true);
+      return true;
+    }
+    setLines((prev) => {
+      const idx = prev.findIndex((line) => line.partyId === partyId);
+      if (idx >= 0) {
+        const next = [...prev];
+        const cur = next[idx];
+        next[idx] = {
+          ...cur,
+          amount: cur.amount + amt,
+          remarks: remarks.trim() || cur.remarks,
+          owed: balance ?? cur.owed,
+        };
+        return next;
+      }
+      return [
+        ...prev,
+        {
+          key: newKey(),
+          partyId,
+          partyCode: party.party_code,
+          partyName: party.name_en,
+          amount: amt,
+          remarks: remarks.trim(),
+          owed: balance,
+        },
+      ];
+    });
     clearDraft(true);
     return true;
   }
@@ -399,8 +592,28 @@ export function CashReceiptForm({
     commitLine();
   }
 
+  function onSheetAmountEnter(
+    e: ReactKeyboardEvent<HTMLInputElement>,
+    index: number,
+  ) {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    e.stopPropagation();
+    const next = e.currentTarget
+      .closest("tbody")
+      ?.querySelector<HTMLInputElement>(`[data-sheet-amount="${index + 1}"]`);
+    if (next) focusField(next);
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    const active = document.activeElement;
+    if (
+      active instanceof HTMLElement &&
+      active.closest("[data-cash-receipt-sheet]")
+    ) {
+      return;
+    }
     if (savingRef.current) return;
     savingRef.current = true;
     setLoading(true);
@@ -447,6 +660,7 @@ export function CashReceiptForm({
         },
       ];
     }
+    pending = mergeReceiptLinesByParty(pending);
 
     if (!pending.length) {
       setError("Add at least one customer receipt.");
@@ -461,23 +675,35 @@ export function CashReceiptForm({
         narration: line.remarks || null,
       }));
       const totalAmount = pending.reduce((sum, line) => sum + line.amount, 0);
+      const narration =
+        editing?.narration?.trim() ||
+        (sector || city
+          ? `Recovery ${[sector, city].filter(Boolean).join(" · ")}`
+          : null);
       await offlineAwareSubmit({
-        mutationType: "cash_receipt",
+        mutationType: editing ? "cash_receipt_update" : "cash_receipt",
         companyId,
         organizationId,
         payload: {
           organization_id: organizationId,
           company_id: companyId,
+          ...(editing ? { voucher_id: editing.id } : {}),
           voucher_date: date,
           voucher_type: "CR",
           total_amount: totalAmount,
-          narration: null,
+          narration,
           lines: linesPayload,
           voucher_lines: linesPayload,
         },
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not post the cash receipt.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : editing
+            ? "Could not update the cash receipt."
+            : "Could not post the cash receipt.",
+      );
       return;
     }
 
@@ -505,13 +731,20 @@ export function CashReceiptForm({
   const grand =
     total + (draftAmt > 0 && partyId ? draftAmt : 0) + sheetExtras.total;
   const sheetTerm = sheetQuery.trim().toLowerCase();
-  const shownSheet = sheetTerm
-    ? sheetRows.filter(
-        (row) =>
-          row.code.toLowerCase().includes(sheetTerm) ||
-          row.name.toLowerCase().includes(sheetTerm),
-      )
-    : sheetRows;
+  const shownSheet = sheetRows.filter((row) => {
+    if (
+      shopScope === "balance" &&
+      balancesKnown &&
+      (row.balance == null || Math.abs(row.balance) <= 0.005)
+    ) {
+      return false;
+    }
+    if (!sheetTerm) return true;
+    return (
+      row.code.toLowerCase().includes(sheetTerm) ||
+      row.name.toLowerCase().includes(sheetTerm)
+    );
+  });
 
   return (
     <form
@@ -520,7 +753,7 @@ export function CashReceiptForm({
       data-enter-root
       onKeyDown={(e) => handleEnterAsNext(e)}
     >
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <Label>Date</Label>
           <Input
@@ -539,6 +772,18 @@ export function CashReceiptForm({
                 {name}
               </option>
             ))}
+          </Select>
+        </div>
+        <div>
+          <Label>Show</Label>
+          <Select
+            value={shopScope}
+            onChange={(e) =>
+              setShopScope(e.target.value === "balance" ? "balance" : "all")
+            }
+          >
+            <option value="balance">With balance</option>
+            <option value="all">All</option>
           </Select>
         </div>
         <div>
@@ -600,9 +845,13 @@ export function CashReceiptForm({
                     confineCity={city}
                     maxVisible={80}
                     emptyLabel={
-                      locationFilterOn && pickerParties.length === 0
-                        ? "No shops in this sector"
-                        : "Select customer"
+                      shopScope === "balance" &&
+                      balancesKnown &&
+                      pickerParties.length === 0
+                        ? "No shops with a balance"
+                        : locationFilterOn && pickerParties.length === 0
+                          ? "No shops in this sector"
+                          : "Select customer"
                     }
                     onChange={(id, next) => {
                       setPartyId(id);
@@ -745,7 +994,7 @@ export function CashReceiptForm({
           <span className="font-semibold">Total {formatPkr(grand)}</span>
         </div>
 
-        {locationFilterOn ? (
+        {locationFilterOn || (editing && sheetRows.length > 0) ? (
           <div className="space-y-2">
             <div className="flex flex-wrap items-end justify-between gap-2">
               <div>
@@ -756,10 +1005,13 @@ export function CashReceiptForm({
                   {sheetLoading
                     ? "Loading shops…"
                     : `${shownSheet.length} shop${shownSheet.length === 1 ? "" : "s"}`}
+                  {shopScope === "balance" ? " with a balance" : ""}
                   {sheetTerm && shownSheet.length !== sheetRows.length
                     ? ` of ${sheetRows.length}`
                     : ""}
-                  . Type the amount on the row. Customer search above matches this city/sector.
+                  .{editing
+                    ? " Change Received below, then save to update this receipt."
+                    : " Type the amount on the row. Enter moves to the next shop. Customer search above matches this city/sector."}
                 </p>
               </div>
               <Input
@@ -776,12 +1028,11 @@ export function CashReceiptForm({
                 data-enter-skip
               />
             </div>
-            <div className="table-grid table-grid--y-scroll">
+            <div className="table-grid table-grid--y-scroll" data-cash-receipt-sheet>
               <table className="w-full min-w-[720px] text-sm">
                 <thead>
                   <tr>
-                    <th className="w-24">Acc ID</th>
-                    <th>Customer name</th>
+                    <th>Customer</th>
                     <th className="w-28">Last received</th>
                     <th className="w-28">Previous bal.</th>
                     <th className="w-28">Received</th>
@@ -792,14 +1043,16 @@ export function CashReceiptForm({
                   {shownSheet.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={6}
+                        colSpan={5}
                         className="py-6 text-center text-sm text-[var(--muted)]"
                       >
-                        No shops in this city and sector.
+                        {shopScope === "balance" && balancesKnown
+                          ? "No shops with a balance in this city and sector."
+                          : "No shops in this city and sector."}
                       </td>
                     </tr>
                   ) : (
-                    shownSheet.map((row) => {
+                    shownSheet.map((row, index) => {
                       const draft = sheetDrafts[row.id] || {
                         amount: "",
                         remarks: "",
@@ -811,9 +1064,15 @@ export function CashReceiptForm({
                         (row.balance <= 0.005 || typed > row.balance + 0.005);
                       return (
                         <tr key={row.id} className="border-t border-[var(--border)]">
-                          <td className="font-medium tabular-nums">{row.code}</td>
-                          <td className="max-w-[16rem] truncate" title={row.name}>
-                            {row.name}
+                          <td className="max-w-[18rem]" title={`${row.code} ${row.name}`}>
+                            <span className="flex min-w-0 items-center gap-2">
+                              {row.code ? (
+                                <span className="shrink-0 rounded-md bg-[var(--paper)] px-1.5 py-0.5 font-mono text-[11px] font-semibold tracking-wide">
+                                  {row.code}
+                                </span>
+                              ) : null}
+                              <span className="truncate">{row.name}</span>
+                            </span>
                           </td>
                           <td className="tabular-nums text-[var(--muted)]">
                             {row.lastReceived != null && row.lastReceived > 0.005
@@ -847,7 +1106,9 @@ export function CashReceiptForm({
                               inputMode="decimal"
                               value={draft.amount}
                               placeholder={AMOUNT_PLACEHOLDER}
+                              data-sheet-amount={index}
                               className={over ? "border-rose-400" : undefined}
+                              onKeyDown={(e) => onSheetAmountEnter(e, index)}
                               onChange={(e) =>
                                 setSheetDrafts((prev) => ({
                                   ...prev,
@@ -863,6 +1124,18 @@ export function CashReceiptForm({
                             <Input
                               value={draft.remarks}
                               placeholder="Collected note"
+                              data-enter-skip
+                              onKeyDown={(e) => {
+                                if (e.key !== "Enter") return;
+                                e.preventDefault();
+                                e.stopPropagation();
+                                const next = e.currentTarget
+                                  .closest("tbody")
+                                  ?.querySelector<HTMLInputElement>(
+                                    `[data-sheet-amount="${index + 1}"]`,
+                                  );
+                                if (next) focusField(next);
+                              }}
                               onChange={(e) =>
                                 setSheetDrafts((prev) => ({
                                   ...prev,
@@ -898,10 +1171,16 @@ export function CashReceiptForm({
 
       <Button type="submit" loading={loading} className="w-full sm:w-auto">
         {loading
-          ? "Posting..."
-          : pendingCount > 0
-            ? `Post ${pendingCount} receipt${pendingCount === 1 ? "" : "s"}`
-            : "Post cash receipt"}
+          ? editing
+            ? "Updating..."
+            : "Posting..."
+          : editing
+            ? pendingCount > 0
+              ? `Update ${pendingCount} shop${pendingCount === 1 ? "" : "s"}`
+              : "Update cash receipt"
+            : pendingCount > 0
+              ? `Post ${pendingCount} receipt${pendingCount === 1 ? "" : "s"}`
+              : "Post cash receipt"}
       </Button>
     </form>
   );

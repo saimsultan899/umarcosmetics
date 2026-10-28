@@ -113,6 +113,7 @@ export function ReturnsView({
               title={meta.addTitle}
               description={meta.addDescription}
               size="xl"
+              createKey={kind === "sale" ? "sale-return" : "purchase-return"}
             >
               <CatalogSlot
                 ready={initialOffline || parties.length > 0 || catalog.ready}

@@ -13,6 +13,7 @@ const DEFAULTS = {
   gate_pass: { prefix: "GP-", pad: 4 },
   expiry_receipt: { prefix: "EXR-", pad: 4 },
   expiry_claim: { prefix: "CLM-", pad: 4 },
+  cash_receipt: { prefix: "CR-", pad: 4 },
 } as const;
 
 export type PreviewSeries = keyof typeof DEFAULTS;

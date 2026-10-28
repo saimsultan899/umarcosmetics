@@ -9,6 +9,7 @@ import { SaleInvoiceForm } from "@/components/trading/sale-invoice-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CashReceiptForm } from "@/components/vouchers/cash-receipt-form";
 import { JournalVoucherForm } from "@/components/vouchers/journal-form";
 import { CashVoucherForm } from "@/components/vouchers/voucher-lines-form";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
@@ -32,6 +33,7 @@ const WIDE_TABLES = new Set([
   "sale_returns",
   "purchase_returns",
   "gate_passes",
+  "vouchers",
 ]);
 
 export function postedEditIsWide(table: string) {
@@ -283,7 +285,62 @@ export function PostedDocumentEditor({
           (a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0),
         )
       : [];
-    if (kind === "CR" || kind === "CP") {
+    if (kind === "CR") {
+      const partyById = new Map(
+        catalog.parties.map((p) => [p.id, p] as const),
+      );
+      // Sum amounts when the same shop appears twice (e.g. top-row add + sheet).
+      const mergedLines = new Map<
+        string,
+        {
+          partyId: string;
+          partyCode: string;
+          partyName: string;
+          amount: number;
+          remarks: string;
+        }
+      >();
+      for (const line of lines) {
+        const partyId = String(line.party_id || "");
+        if (!partyId) continue;
+        const party = partyById.get(partyId);
+        const amount = Number(line.amount || 0);
+        const remarks = String(line.narration || "");
+        const prev = mergedLines.get(partyId);
+        if (!prev) {
+          mergedLines.set(partyId, {
+            partyId,
+            partyCode: party?.party_code || "",
+            partyName: party?.name_en || "",
+            amount,
+            remarks,
+          });
+        } else {
+          mergedLines.set(partyId, {
+            ...prev,
+            amount: prev.amount + amount,
+            remarks: remarks || prev.remarks,
+          });
+        }
+      }
+      return (
+        <CashReceiptForm
+          companyId={companyId}
+          organizationId={organizationId}
+          parties={catalog.parties}
+          editing={{
+            id,
+            voucherNo: String(doc.voucher_no || ""),
+            date: asDate(doc.voucher_date),
+            createdAt: doc.created_at ? String(doc.created_at) : undefined,
+            narration: String(doc.narration || ""),
+            lines: [...mergedLines.values()],
+          }}
+          onDone={onDone}
+        />
+      );
+    }
+    if (kind === "CP") {
       return (
         <CashVoucherForm
           kind={kind}
