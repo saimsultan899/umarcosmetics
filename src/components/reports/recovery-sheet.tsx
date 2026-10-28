@@ -1,6 +1,7 @@
 "use client";
 
 import { ExportButtons } from "@/components/reports/export-buttons";
+import { ReportSectionHead } from "@/components/reports/report-section-head";
 import { TablePagination } from "@/components/tables/table-pagination";
 import { TableScroll } from "@/components/tables/table-scroll";
 import { TableToolbar } from "@/components/tables/table-toolbar";
@@ -320,23 +321,23 @@ export function RecoverySheet({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold">
-            Customer receivables
-          </h2>
-          <p className="text-sm text-[var(--muted)]">
+      <ReportSectionHead
+        title="Customer receivables"
+        subtitle={
+          <>
             {formatReportDate(from)} to {formatReportDate(to)}
             {showScope ? ` · ${scopeLabel}` : ""} · {viewTotals.count}
             {viewTotals.count === 1 ? " shop" : " shops"}
-          </p>
-        </div>
-        <ExportButtons
-          rows={exportRows}
-          filename={`customer-receivables-${to}`}
-          title="Customer receivables"
-        />
-      </div>
+          </>
+        }
+        actions={
+          <ExportButtons
+            rows={exportRows}
+            filename={`customer-receivables-${to}`}
+            title="Customer receivables"
+          />
+        }
+      />
 
       <div className="no-print">
         <TableToolbar

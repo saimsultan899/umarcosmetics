@@ -1,5 +1,6 @@
 import { PrintOrgCompany } from "@/components/print/print-org-company";
 import { ExportButtons } from "@/components/reports/export-buttons";
+import { ReportSectionHead } from "@/components/reports/report-section-head";
 import {
   formatReportNumber,
   formatReportRange,
@@ -135,24 +136,21 @@ export function CashFlowSalesPrint({
 
   return (
     <div className="space-y-3">
-      <div className="no-print flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold">
-            Cash flow (sales) — company top customers
-          </h2>
-          <p className="text-sm text-[var(--muted)]">
-            {companyName} · {formatReportRange(from, to)} · {groups.length}{" "}
-            {groups.length === 1 ? "company" : "companies"} · {rows.length}{" "}
-            invoices
-          </p>
-        </div>
-        <ExportButtons
-          rows={exportRows(rows)}
-          filename={filename}
-          title="Cash flow (company top customers)"
-          printId={filename}
-        />
-      </div>
+      <ReportSectionHead
+        className="no-print"
+        title="Cash flow (sales) — company top customers"
+        subtitle={`${companyName} · ${formatReportRange(from, to)} · ${groups.length} ${
+          groups.length === 1 ? "company" : "companies"
+        } · ${rows.length} invoices`}
+        actions={
+          <ExportButtons
+            rows={exportRows(rows)}
+            filename={filename}
+            title="Cash flow (company top customers)"
+            printId={filename}
+          />
+        }
+      />
 
       {!groups.length ? (
         <p className="no-print rounded-lg border border-dashed border-[var(--border)] bg-white px-4 py-6 text-center text-sm text-[var(--muted)]">

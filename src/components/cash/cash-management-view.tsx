@@ -20,6 +20,7 @@ import {
   type CashSister,
   buildLocalCashDesk,
 } from "@/lib/cash/local-cash-desk";
+import { ReportSectionHead } from "@/components/reports/report-section-head";
 import { TablePagination } from "@/components/tables/table-pagination";
 import { TableScroll } from "@/components/tables/table-scroll";
 import { useClientPagination } from "@/hooks/use-client-pagination";
@@ -597,21 +598,25 @@ export function CashManagementView({
         <StatCard label="Borrowed" value={totals.borrowed} format="money" icon={Building2} hint={`Returned ${formatPkr(totals.returned)}`} />
       </StatsGrid>
 
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-semibold">Cash book</h2>
-          <p className="text-sm text-[var(--muted)]">Recoveries, paid bills, expenses, and borrows in these dates.</p>
-          <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-medium">
-            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-800">In · received</span>
-            <span className="rounded-full bg-rose-50 px-2 py-0.5 text-rose-800">Out · paid</span>
-            <span className="rounded-full bg-violet-100 px-2 py-0.5 text-violet-800">Borrow</span>
-            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-900">Return</span>
+      <ReportSectionHead
+        title="Cash book"
+        subtitle={
+          <>
+            <p className="m-0">Recoveries, paid bills, expenses, and borrows in these dates.</p>
+            <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-medium">
+              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-800">In · received</span>
+              <span className="rounded-full bg-rose-50 px-2 py-0.5 text-rose-800">Out · paid</span>
+              <span className="rounded-full bg-violet-100 px-2 py-0.5 text-violet-800">Borrow</span>
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-900">Return</span>
+            </div>
+          </>
+        }
+        actions={
+          <div className="no-print">
+            <PrintButton label="Print" printId="cash-management" />
           </div>
-        </div>
-        <div className="no-print">
-          <PrintButton label="Print" printId="cash-management" />
-        </div>
-      </div>
+        }
+      />
 
       <div className="grid gap-3 rounded-xl border border-[var(--border)] bg-white p-4 sm:grid-cols-2 lg:grid-cols-5">
         <div>

@@ -1,5 +1,6 @@
 import { PrintOrgCompany } from "@/components/print/print-org-company";
 import { ExportButtons } from "@/components/reports/export-buttons";
+import { ReportSectionHead } from "@/components/reports/report-section-head";
 import {
   formatReportNumber,
   formatReportRange,
@@ -110,22 +111,19 @@ export function PartyWiseSalesPrint({
 
   return (
     <div className="space-y-3">
-      <div className="no-print flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold">
-            Item, Customer Wise Sales Detail
-          </h2>
-          <p className="text-sm text-[var(--muted)]">
-            {companyName} · {formatReportRange(from, to)} · {rows.length} lines
-          </p>
-        </div>
-        <ExportButtons
-          rows={exportRows(rows)}
-          filename={filename}
-          title="Item, Customer Wise Sales Detail"
-          printId={filename}
-        />
-      </div>
+      <ReportSectionHead
+        className="no-print"
+        title="Item, Customer Wise Sales Detail"
+        subtitle={`${companyName} · ${formatReportRange(from, to)} · ${rows.length} lines`}
+        actions={
+          <ExportButtons
+            rows={exportRows(rows)}
+            filename={filename}
+            title="Item, Customer Wise Sales Detail"
+            printId={filename}
+          />
+        }
+      />
 
       {!groups.length ? (
         <p className="no-print rounded-lg border border-dashed border-[var(--border)] bg-white px-4 py-6 text-center text-sm text-[var(--muted)]">

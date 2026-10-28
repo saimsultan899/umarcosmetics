@@ -5,6 +5,7 @@ import { PrintOrgCompany } from "@/components/print/print-org-company";
 import { PartyBalanceActions } from "@/components/reports/party-balance-actions";
 import { ProductReportActions } from "@/components/reports/product-report-actions";
 import { ExportButtons } from "@/components/reports/export-buttons";
+import { ReportSectionHead } from "@/components/reports/report-section-head";
 import { DocumentRowActions } from "@/components/tables/document-row-actions";
 import { TableScroll } from "@/components/tables/table-scroll";
 import { TablePagination } from "@/components/tables/table-pagination";
@@ -211,22 +212,18 @@ export function ReportTable({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold">
-            {title}
-          </h2>
-          {subtitle ? (
-            <p className="text-sm text-[var(--muted)]">{subtitle}</p>
-          ) : null}
-        </div>
-        <ExportButtons
-          rows={filteredExport.length ? filteredExport : exportable}
-          filename={filename}
-          title={title}
-          printId={filename}
-        />
-      </div>
+      <ReportSectionHead
+        title={title}
+        subtitle={subtitle}
+        actions={
+          <ExportButtons
+            rows={filteredExport.length ? filteredExport : exportable}
+            filename={filename}
+            title={title}
+            printId={filename}
+          />
+        }
+      />
 
       <TableToolbar
         query={query}
