@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/create-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { PrintButton } from "@/components/ui/print-button";
 import { RowActions } from "@/components/ui/row-actions";
 import {
@@ -185,6 +186,8 @@ function readLine(line: CashLine): CashLine {
     direction: line.direction === "out" ? "out" : "in",
     amount: Number(line.amount || 0),
     title: String(line.title || ""),
+    sector: line.sector ? String(line.sector) : null,
+    code: line.code ? String(line.code) : null,
     ref_id: line.ref_id ? String(line.ref_id) : null,
     movement_id: line.movement_id ? String(line.movement_id) : null,
     pair_id: line.pair_id ? String(line.pair_id) : null,
@@ -206,6 +209,8 @@ export function CashManagementView({
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
   const [search, setSearch] = useState("");
+  const [activity, setActivity] = useState<"all" | "recovery" | "paid" | "persons">("all");
+  const [sector, setSector] = useState("");
   const [desk, setDesk] = useState<CashDesk | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -272,6 +277,17 @@ export function CashManagementView({
     void load();
   }, [load]);
 
+  const sectorOptions = useMemo(() => {
+    const names = new Set<string>();
+    if (sector) names.add(sector);
+    for (const line of desk?.lines || []) {
+      if (line.sector) names.add(line.sector);
+    }
+    return [...names].sort((a, b) => a.localeCompare(b));
+  }, [desk, sector]);
+
+  const filteredView = activity !== "all" || Boolean(sector);
+
   const rows = useMemo(() => {
     const lines = desk?.lines || [];
     let running = Number(desk?.brought_forward || 0);
@@ -280,9 +296,21 @@ export function CashManagementView({
       return { ...line, balance: running };
     });
     const q = search.trim().toLowerCase();
-    if (!q) return withBalance;
-    return withBalance.filter((line) => line.title.toLowerCase().includes(q));
-  }, [desk, search]);
+    const narrowed = withBalance.filter((line) => {
+      if (activity === "recovery" && line.source !== "recovery" && line.source !== "cash_receipt") return false;
+      if (activity === "paid" && line.source !== "sale") return false;
+      if (activity === "persons" && line.source !== "person_borrow" && line.source !== "person_repay") return false;
+      if (sector && activity !== "persons" && line.sector !== sector) return false;
+      if (!q) return true;
+      return [line.title, line.code, line.sector, sourceLabel(line.source)].join(" ").toLowerCase().includes(q);
+    });
+    if (activity === "all" && !sector) return narrowed;
+    let viewRunning = 0;
+    return narrowed.map((line) => {
+      viewRunning += line.direction === "in" ? line.amount : -line.amount;
+      return { ...line, balance: viewRunning };
+    });
+  }, [activity, desk, search, sector]);
 
   const totals = useMemo(() => {
     const lines = desk?.lines || [];
@@ -567,7 +595,7 @@ export function CashManagementView({
         </div>
       </div>
 
-      <div className="grid gap-3 rounded-xl border border-[var(--border)] bg-white p-4 sm:grid-cols-4">
+      <div className="grid gap-3 rounded-xl border border-[var(--border)] bg-white p-4 sm:grid-cols-2 lg:grid-cols-5">
         <div>
           <Label>From</Label>
           <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
@@ -576,7 +604,32 @@ export function CashManagementView({
           <Label>To</Label>
           <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
         </div>
-        <div className="sm:col-span-2">
+        <div>
+          <Label>Show</Label>
+          <Select
+            value={activity}
+            onChange={(e) => setActivity(e.target.value as "all" | "recovery" | "paid" | "persons")}
+            options={[
+              { value: "all", label: "All activity" },
+              { value: "recovery", label: "Recovery" },
+              { value: "paid", label: "Paid bills" },
+              { value: "persons", label: "Persons" },
+            ]}
+          />
+        </div>
+        <div>
+          <Label>Sector</Label>
+          <Select
+            value={activity === "persons" ? "" : sector}
+            disabled={activity === "persons"}
+            onChange={(e) => setSector(e.target.value)}
+            options={[
+              { value: "", label: activity === "persons" ? "Not used for persons" : "All sectors" },
+              ...sectorOptions.map((name) => ({ value: name, label: name })),
+            ]}
+          />
+        </div>
+        <div className="sm:col-span-2 lg:col-span-1">
           <Label>Search</Label>
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name" />
         </div>
@@ -591,23 +644,35 @@ export function CashManagementView({
               <th className="px-3 py-2 font-medium">Detail</th>
               <th className="px-3 py-2 text-right font-medium">In</th>
               <th className="px-3 py-2 text-right font-medium">Out</th>
-              <th className="px-3 py-2 text-right font-medium">Balance</th>
+              <th className="px-3 py-2 text-right font-medium">{filteredView ? "In this view" : "Balance"}</th>
               <th className="px-3 py-2 text-right font-medium">Actions</th>
             </tr>
           </thead>
           <tbody>
-            <tr className="border-t border-[var(--border)]">
-              <td className="px-3 py-2" colSpan={5}>Brought forward</td>
-              <td className="px-3 py-2 text-right">{formatPkr(Number(desk?.brought_forward || 0))}</td>
-              <td />
-            </tr>
+            {filteredView ? null : (
+              <tr className="border-t border-[var(--border)]">
+                <td className="px-3 py-2" colSpan={5}>Brought forward</td>
+                <td className="px-3 py-2 text-right">{formatPkr(Number(desk?.brought_forward || 0))}</td>
+                <td />
+              </tr>
+            )}
             {loading ? (
               <tr>
                 <td className="px-3 py-6 text-[var(--muted)]" colSpan={7}>Loading cash book…</td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td className="px-3 py-6 text-[var(--muted)]" colSpan={7}>No cash movement in these dates.</td>
+                <td className="px-3 py-6 text-[var(--muted)]" colSpan={7}>
+                  {activity === "recovery"
+                    ? "No recovery in these dates."
+                    : activity === "paid"
+                      ? "No paid bills in these dates."
+                      : activity === "persons"
+                        ? "No person borrow or return in these dates."
+                        : sector
+                          ? `No recovery or paid bills in ${sector}.`
+                          : "No cash movement in these dates."}
+                </td>
               </tr>
             ) : (
               rows.map((line, index) => {
@@ -623,13 +688,23 @@ export function CashManagementView({
                       </span>
                     </td>
                     <td className="px-3 py-2">
-                      {href ? (
-                        <Link href={href} className="text-[var(--brand)]">
-                          {line.title}
-                        </Link>
-                      ) : (
-                        line.title
-                      )}
+                      <div className="flex min-w-0 items-baseline gap-2">
+                        {line.code ? (
+                          <span className="shrink-0 rounded-md bg-[var(--paper)] px-1.5 py-0.5 font-mono text-[11px] font-semibold tracking-wide text-[var(--ink)]">
+                            {line.code}
+                          </span>
+                        ) : null}
+                        {href ? (
+                          <Link href={href} className="text-[var(--brand)]">
+                            {line.title}
+                          </Link>
+                        ) : (
+                          <span>{line.title}</span>
+                        )}
+                      </div>
+                      {line.sector ? (
+                        <p className="mt-0.5 text-xs text-[var(--muted)]">{line.sector}</p>
+                      ) : null}
                     </td>
                     <td className={cn("px-3 py-2 text-right tabular-nums", moneyIn ? cn("font-semibold", mark.money) : "text-[var(--muted)]")}>
                       {moneyIn ? formatPkr(line.amount) : "—"}
@@ -686,6 +761,21 @@ export function CashManagementView({
             </div>
             <div className="recovery-sheet-dates">
               <p>
+                <span>Show</span>{" "}
+                {activity === "recovery"
+                  ? "Recovery"
+                  : activity === "paid"
+                    ? "Paid bills"
+                    : activity === "persons"
+                      ? "Persons"
+                      : "All activity"}
+              </p>
+              {sector && activity !== "persons" ? (
+                <p>
+                  <span>Sector</span> {sector}
+                </p>
+              ) : null}
+              <p>
                 <span>From</span> {sheetDate(from)}
                 <span className="recovery-sheet-dates__to">To</span> {sheetDate(to)}
               </p>
@@ -711,13 +801,15 @@ export function CashManagementView({
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td className="num" />
-              <td colSpan={3}>Brought forward</td>
-              <td />
-              <td />
-              <td className="num">{formatPkr(Number(desk?.brought_forward || 0))}</td>
-            </tr>
+            {filteredView ? null : (
+              <tr>
+                <td className="num" />
+                <td colSpan={3}>Brought forward</td>
+                <td />
+                <td />
+                <td className="num">{formatPkr(Number(desk?.brought_forward || 0))}</td>
+              </tr>
+            )}
             {rows.length === 0 ? (
               <tr>
                 <td colSpan={7}>No cash movement in these dates.</td>
@@ -728,7 +820,7 @@ export function CashManagementView({
                   <td className="num">{index + 1}</td>
                   <td>{sheetDate(line.line_date)}</td>
                   <td>{sourceLabel(line.source)}</td>
-                  <td>{line.title}</td>
+                  <td>{[line.code, line.title, line.sector].filter(Boolean).join(" · ")}</td>
                   <td className="num">{line.direction === "in" ? formatPkr(line.amount) : ""}</td>
                   <td className="num">{line.direction === "out" ? formatPkr(line.amount) : ""}</td>
                   <td className="num">{formatPkr(line.balance)}</td>
@@ -775,7 +867,9 @@ function CashLineActions({
       viewFields={[
         { label: "Date", value: sheetDate(line.line_date) },
         { label: "Source", value: sourceLabel(line.source) },
+        { label: "Code", value: line.code || "—" },
         { label: "Detail", value: line.title },
+        { label: "Sector", value: line.sector || "—" },
         { label: "In", value: line.direction === "in" ? formatPkr(line.amount) : "—" },
         { label: "Out", value: line.direction === "out" ? formatPkr(line.amount) : "—" },
         { label: "Balance", value: formatPkr(line.balance) },

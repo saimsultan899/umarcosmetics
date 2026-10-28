@@ -7,6 +7,8 @@ export type CashLine = {
   direction: "in" | "out";
   amount: number;
   title: string;
+  sector: string | null;
+  code: string | null;
   ref_id: string | null;
   movement_id: string | null;
   pair_id: string | null;
@@ -48,13 +50,29 @@ function day(value: unknown) {
   return String(value || "").slice(0, 10);
 }
 
-function partyName(row: Record<string, unknown>) {
+function partyRecord(row: Record<string, unknown>) {
   const parties = row.parties;
   if (parties && typeof parties === "object" && !Array.isArray(parties)) {
-    const name = (parties as { name_en?: string }).name_en;
-    if (name) return String(name);
+    return parties as { name_en?: string; route?: string; party_code?: string };
   }
-  return "";
+  return null;
+}
+
+function partyName(row: Record<string, unknown>) {
+  const name = partyRecord(row)?.name_en;
+  return name ? String(name) : "";
+}
+
+function partySector(row: Record<string, unknown>) {
+  const route = partyRecord(row)?.route;
+  const sector = route ? String(route).trim() : "";
+  return sector || null;
+}
+
+function partyCode(row: Record<string, unknown>) {
+  const code = partyRecord(row)?.party_code;
+  const value = code ? String(code).trim() : "";
+  return value || null;
 }
 
 type Move = {
@@ -176,6 +194,8 @@ export async function buildLocalCashDesk(
       direction: "in",
       amount,
       title: [row.invoice_no, name].filter(Boolean).join(" — ") || "Paid sale",
+      sector: partySector(row),
+      code: partyCode(row),
       ref_id: row.id ? String(row.id) : null,
       movement_id: null,
       pair_id: null,
@@ -203,6 +223,8 @@ export async function buildLocalCashDesk(
             direction: "in",
             amount,
             title: partyName(line) || String(row.narration || row.voucher_no || "Cash receipt"),
+            sector: partySector(line),
+            code: partyCode(line),
             ref_id: row.id ? String(row.id) : null,
             movement_id: null,
             pair_id: null,
@@ -218,6 +240,8 @@ export async function buildLocalCashDesk(
             direction: "in",
             amount,
             title: String(row.narration || row.voucher_no || "Cash receipt"),
+            sector: null,
+            code: null,
             ref_id: row.id ? String(row.id) : null,
             movement_id: null,
             pair_id: null,
@@ -238,6 +262,8 @@ export async function buildLocalCashDesk(
         direction: "out",
         amount,
         title: String(row.narration || row.voucher_no || "Cash payment"),
+        sector: null,
+        code: null,
         ref_id: row.id ? String(row.id) : null,
         movement_id: null,
         pair_id: null,
@@ -256,6 +282,8 @@ export async function buildLocalCashDesk(
       direction: "out",
       amount,
       title: String(row.category || row.remarks || "Expense"),
+      sector: null,
+      code: null,
       ref_id: row.id ? String(row.id) : null,
       movement_id: null,
       pair_id: null,
@@ -280,6 +308,8 @@ export async function buildLocalCashDesk(
       direction: move.direction,
       amount: move.amount,
       title,
+      sector: null,
+      code: null,
       ref_id: move.id,
       movement_id: move.id,
       pair_id: move.pair_id,

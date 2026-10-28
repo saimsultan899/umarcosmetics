@@ -82,7 +82,9 @@ returns table (
   title text,
   ref_id uuid,
   movement_id uuid,
-  pair_id uuid
+  pair_id uuid,
+  sector text,
+  code text
 )
 language sql
 stable
@@ -98,7 +100,9 @@ as $$
     trim(both ' —' from concat_ws(' — ', nullif(s.invoice_no, ''), nullif(p.name_en, ''))),
     s.id,
     null::uuid,
-    null::uuid
+    null::uuid,
+    nullif(btrim(p.route), ''),
+    nullif(btrim(p.party_code), '')
   from public.sale_invoices s
   left join public.parties p on p.id = s.party_id
   where s.company_id = p_company_id
@@ -117,7 +121,9 @@ as $$
     coalesce(nullif(btrim(p.name_en), ''), 'Recovery'),
     coalesce(r.voucher_id, r.id),
     null::uuid,
-    null::uuid
+    null::uuid,
+    nullif(btrim(p.route), ''),
+    nullif(btrim(p.party_code), '')
   from public.recoveries r
   left join public.parties p on p.id = r.party_id
   where r.company_id = p_company_id
@@ -135,7 +141,9 @@ as $$
     coalesce(nullif(btrim(p.name_en), ''), nullif(btrim(v.narration), ''), v.voucher_no, 'Cash receipt'),
     v.id,
     null::uuid,
-    null::uuid
+    null::uuid,
+    nullif(btrim(p.route), ''),
+    nullif(btrim(p.party_code), '')
   from public.vouchers v
   join public.voucher_lines vl on vl.voucher_id = v.id
   left join public.parties p on p.id = vl.party_id
@@ -163,7 +171,9 @@ as $$
     btrim(concat_ws(' — ', initcap(replace(e.category::text, '_', ' ')), nullif(btrim(e.remarks), ''))),
     e.id,
     null::uuid,
-    null::uuid
+    null::uuid,
+    null::text,
+    null::text
   from public.expenses e
   where e.company_id = p_company_id
     and coalesce(e.amount, 0) > 0
@@ -183,7 +193,9 @@ as $$
     coalesce(nullif(btrim(v.narration), ''), v.voucher_no, 'Cash payment'),
     v.id,
     null::uuid,
-    null::uuid
+    null::uuid,
+    null::text,
+    null::text
   from public.vouchers v
   where v.company_id = p_company_id
     and v.voucher_type = 'CP'
@@ -220,7 +232,9 @@ as $$
     end,
     m.id,
     m.id,
-    m.pair_id
+    m.pair_id,
+    null::text,
+    null::text
   from public.cash_movements m
   left join public.cash_lenders l on l.id = m.lender_id
   left join public.companies c on c.id = m.counterparty_company_id
@@ -312,7 +326,7 @@ begin
   select coalesce(jsonb_agg(row_to_json(x)::jsonb order by x.line_date, x.sort_at nulls last), '[]'::jsonb)
     into v_lines
   from (
-    select line_date, sort_at, source, direction, amount, title, ref_id, movement_id, pair_id
+    select line_date, sort_at, source, direction, amount, title, ref_id, movement_id, pair_id, sector, code
     from private.cash_events(p_company_id, v_as_of) e
     where e.line_date >= v_from
   ) x;
