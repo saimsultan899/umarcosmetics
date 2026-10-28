@@ -20,6 +20,8 @@ export function CreateDialogButton({
   disabled,
   disabledHint,
   size = "lg",
+  variant = "accent",
+  icon = true,
 }: {
   label?: string;
   title: string;
@@ -28,6 +30,8 @@ export function CreateDialogButton({
   disabled?: boolean;
   disabledHint?: string;
   size?: "sm" | "md" | "lg" | "xl" | "2xl" | "full";
+  variant?: "accent" | "secondary";
+  icon?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const close = () => setOpen(false);
@@ -49,13 +53,13 @@ export function CreateDialogButton({
     <>
       <Button
         type="button"
-        variant="accent"
+        variant={variant}
         size="sm"
         disabled={disabled}
         onClick={() => setOpen(true)}
         title={disabled ? disabledHint : undefined}
       >
-        <Plus className="h-4 w-4" />
+        {icon ? <Plus className="h-4 w-4" /> : null}
         {label}
       </Button>
 

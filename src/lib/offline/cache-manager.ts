@@ -55,6 +55,8 @@ const DOCUMENT_STORES: CacheStoreName[] = [
   "load_sheets",
   "expiry_receipts",
   "expiry_claims",
+  "cash_lenders",
+  "cash_movements",
 ];
 
 const ALL_SNAPSHOT_STORES: CacheStoreName[] = [
@@ -463,6 +465,10 @@ function storeForSyncedMutation(type: string): CacheStoreName | null {
     journal_voucher: "vouchers",
     journal_voucher_update: "vouchers",
     expense: "expenses",
+    cash_lender: "cash_lenders",
+    cash_opening: "cash_movements",
+    person_cash: "cash_movements",
+    cash_movement_delete: "cash_movements",
     stock_transfer: "stock_transfers",
     gate_pass: "gate_passes",
     gate_pass_update: "gate_passes",
@@ -892,6 +898,18 @@ const STORE_FETCH_CONFIG: Record<string, FetchConfig> = {
         .eq("company_id", cid)
         .order("expense_date", { ascending: false })
         .limit(1000),
+  },
+  cash_lenders: {
+    fetch: (s, cid) =>
+      s.from("cash_lenders").select("*").eq("company_id", cid).order("name"),
+  },
+  cash_movements: {
+    fetch: (s, cid) =>
+      s.from("cash_movements")
+        .select("*")
+        .eq("company_id", cid)
+        .order("movement_date", { ascending: false })
+        .limit(2000),
   },
   stock_transfers: {
     fetch: (s, cid) =>

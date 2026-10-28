@@ -118,6 +118,12 @@ export default async function DashboardPage() {
     { data: recoveryRows },
     { data: expenseRows },
   ] = cloud;
+
+  const { data: onHandRaw } = await supabase.rpc("get_cash_on_hand", {
+    p_company_id: company.id,
+    p_as_of: today,
+  });
+  const onHand = Number(onHandRaw || 0);
   const paymentMix = salesRows;
 
   const s = (snap || {}) as Record<string, number>;
@@ -252,6 +258,15 @@ export default async function DashboardPage() {
           tone="ok"
           href="/reports/sales?type=cash_sales"
           hint="Paid at counter · walk-in & cash bills"
+        />
+        <StatCard
+          label="On-hand cash"
+          value={onHand}
+          format="money"
+          icon={Banknote}
+          tone={onHand < 0 ? "danger" : "ok"}
+          href="/vouchers/cash-management"
+          hint="Drawer after recoveries, paid bills, expenses, and cash payments"
         />
         <StatCard
           label="Over credit limit"

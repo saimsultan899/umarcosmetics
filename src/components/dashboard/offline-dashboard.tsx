@@ -33,6 +33,7 @@ import {
   Wallet,
 } from "lucide-react";
 import Link from "next/link";
+import { buildLocalCashDesk } from "@/lib/cash/local-cash-desk";
 import { useEffect, useState } from "react";
 
 type DashState = {
@@ -99,6 +100,22 @@ export function OfflineDashboard({
   const { pending, lastSync } = useSyncStatus();
   const [loading, setLoading] = useState(true);
   const [dash, setDash] = useState<DashState>(emptyDash);
+  const [onHand, setOnHand] = useState(0);
+
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    let cancelled = false;
+    void buildLocalCashDesk(companyId, today, today)
+      .then((desk) => {
+        if (!cancelled) setOnHand(desk.on_hand);
+      })
+      .catch(() => {
+        if (!cancelled) setOnHand(0);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId]);
 
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -353,6 +370,15 @@ export function OfflineDashboard({
           tone="ok"
           href="/reports/sales?type=cash_sales"
           hint="Paid at counter · walk-in & cash bills"
+        />
+        <StatCard
+          label="On-hand cash"
+          value={onHand}
+          format="money"
+          icon={Banknote}
+          tone={onHand < 0 ? "danger" : "ok"}
+          href="/vouchers/cash-management"
+          hint="From this computer’s saved bills"
         />
         <StatCard
           label="Over credit limit"

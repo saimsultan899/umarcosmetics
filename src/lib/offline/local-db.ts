@@ -37,7 +37,11 @@ export type OfflineMutationType =
   | "cash_payment_update"
   | "journal_voucher_update"
   | "recovery_update"
-  | "gate_pass_update";
+  | "gate_pass_update"
+  | "cash_opening"
+  | "cash_lender"
+  | "person_cash"
+  | "cash_movement_delete";
 
 // ── Mutation record (queued write) ──────────────────────────────────
 export type OfflineMutation = {
@@ -180,6 +184,16 @@ interface UmarOfflineDB extends DBSchema {
     value: CachedRow;
     indexes: { "by-company": string };
   };
+  cash_lenders: {
+    key: string;
+    value: CachedRow;
+    indexes: { "by-company": string };
+  };
+  cash_movements: {
+    key: string;
+    value: CachedRow;
+    indexes: { "by-company": string };
+  };
 
   // ── Stock deltas (offline stock tracking) ──────────────────────
   stock_deltas: {
@@ -206,7 +220,7 @@ const DB_NAME = "umar-offline";
 // Upgrade steps MUST be additive — never delete the `mutations` outbox or
 // locally-modified cache rows. App-shell updates (service worker / Electron)
 // must not bump this unless the new code needs a new store.
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 let dbPromise: Promise<IDBPDatabase<UmarOfflineDB>> | null = null;
 
@@ -293,6 +307,13 @@ export function getDb() {
           // Session cache
           db.createObjectStore("session", { keyPath: "key" });
         }
+
+        if (oldVersion < 3) {
+          const cashLenders = db.createObjectStore("cash_lenders", { keyPath: "id" });
+          cashLenders.createIndex("by-company", "_companyId");
+          const cashMoves = db.createObjectStore("cash_movements", { keyPath: "id" });
+          cashMoves.createIndex("by-company", "_companyId");
+        }
       },
     });
   }
@@ -318,7 +339,9 @@ export type CacheStoreName =
   | "gate_passes"
   | "load_sheets"
   | "expiry_receipts"
-  | "expiry_claims";
+  | "expiry_claims"
+  | "cash_lenders"
+  | "cash_movements";
 
 // ── Mutation queue helpers ──────────────────────────────────────────
 

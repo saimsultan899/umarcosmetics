@@ -51,6 +51,10 @@ const MUTATION_RPC_MAP: Record<string, string> = {
   cash_payment_update: "update_cash_payment",
   journal_voucher_update: "update_journal_voucher",
   recovery_update: "update_recovery",
+  cash_opening: "save_cash_opening",
+  cash_lender: "save_cash_lender",
+  person_cash: "save_person_cash",
+  cash_movement_delete: "delete_cash_movement",
 };
 
 /** Server rejected the write for a real business reason — do not queue offline. */
@@ -79,7 +83,14 @@ export function isBusinessRuleError(message: string) {
     m.includes("does not match") ||
     m.includes("was just saved") ||
     m.includes("was not saved again") ||
-    m.includes("this sale was just saved")
+    m.includes("this sale was just saved") ||
+    m.includes("more than owed") ||
+    m.includes("that much cash") ||
+    m.includes("main company") ||
+    m.includes("enter the person") ||
+    m.includes("enter an amount") ||
+    m.includes("choose another company") ||
+    m.includes("both companies together")
   );
 }
 
