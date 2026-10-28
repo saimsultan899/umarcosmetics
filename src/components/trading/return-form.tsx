@@ -8,6 +8,7 @@ import {
 import { PartyCodePicker } from "@/components/forms/party-code-picker";
 import { Button } from "@/components/ui/button";
 import { useCreateDialogClose } from "@/components/ui/create-dialog";
+import { useDialogInvoiceNo } from "@/lib/trading/preview-document-no";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -220,6 +221,11 @@ export function ReturnForm({
 }) {
   const router = useRouter();
   const closeDialog = useCreateDialogClose();
+  useDialogInvoiceNo(
+    companyId,
+    kind === "sale" ? "sale_return" : "purchase_return",
+    editing?.returnNo,
+  );
   const linesEditorRef = useRef<LineItemsEditorHandle>(null);
   const partyOptions = useMemo(() => {
     if (kind === "purchase") {

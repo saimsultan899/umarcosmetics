@@ -8,7 +8,14 @@ import { useEffect } from "react";
 const DEFAULTS = {
   sale_invoice: { prefix: "SI-", pad: 4 },
   purchase_invoice: { prefix: "PI-", pad: 4 },
+  sale_return: { prefix: "SR-", pad: 4 },
+  purchase_return: { prefix: "PR-", pad: 4 },
+  gate_pass: { prefix: "GP-", pad: 4 },
+  expiry_receipt: { prefix: "EXR-", pad: 4 },
+  expiry_claim: { prefix: "CLM-", pad: 4 },
 } as const;
+
+export type PreviewSeries = keyof typeof DEFAULTS;
 
 function formatNo(prefix: string, next: number, pad: number) {
   const body = pad > 0 ? String(next).padStart(pad, "0") : String(next);
@@ -18,7 +25,7 @@ function formatNo(prefix: string, next: number, pad: number) {
 /** Next invoice number the save will generate. Does not use up the number. */
 export async function previewDocumentNo(
   companyId: string,
-  series: "sale_invoice" | "purchase_invoice",
+  series: PreviewSeries,
 ): Promise<string> {
   const fallback = DEFAULTS[series];
   try {
@@ -55,7 +62,7 @@ export async function previewDocumentNo(
 /** Puts the next (or existing) invoice number in the dialog header. */
 export function useDialogInvoiceNo(
   companyId: string,
-  series: "sale_invoice" | "purchase_invoice",
+  series: PreviewSeries,
   existingNo?: string | null,
 ) {
   const setDocumentNo = useDialogDocumentNo();

@@ -3,6 +3,7 @@
 import { PartyCodePicker } from "@/components/forms/party-code-picker";
 import { Button } from "@/components/ui/button";
 import { useCreateDialogClose } from "@/components/ui/create-dialog";
+import { useDialogInvoiceNo } from "@/lib/trading/preview-document-no";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, type SelectHandle } from "@/components/ui/select";
@@ -48,6 +49,7 @@ export function ExpiryClaimForm({
 }) {
   const router = useRouter();
   const closeDialog = useCreateDialogClose();
+  useDialogInvoiceNo(companyId, "expiry_claim");
   const vendors = useMemo(
     () =>
       parties.filter(

@@ -8,6 +8,7 @@ import {
 } from "@/components/trading/product-qty-lines-editor";
 import { Button } from "@/components/ui/button";
 import { useCreateDialogClose } from "@/components/ui/create-dialog";
+import { useDialogInvoiceNo } from "@/lib/trading/preview-document-no";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -58,6 +59,7 @@ export function GatePassForm({
 }) {
   const router = useRouter();
   const closeDialog = useCreateDialogClose();
+  useDialogInvoiceNo(companyId, "gate_pass", editing?.passNo);
   const linesEditorRef = useRef<ProductQtyLinesEditorHandle>(null);
   const suppliers = useMemo(
     () =>
