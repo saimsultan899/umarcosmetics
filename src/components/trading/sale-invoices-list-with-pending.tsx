@@ -8,6 +8,7 @@ import type {
   DocumentListSummary,
 } from "@/lib/queries/documents";
 import type { PaginationMeta } from "@/lib/pagination";
+import type { EditedSaleRef } from "@/lib/trading/edited-sales";
 import { formatPkr } from "@/lib/utils";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -19,6 +20,7 @@ export function SaleInvoicesListWithPending({
   summary,
   warehouses,
   sectors = [],
+  editedSales = [],
 }: {
   companyId: string;
   serverRows: DocumentListRow[];
@@ -26,6 +28,7 @@ export function SaleInvoicesListWithPending({
   summary: DocumentListSummary;
   warehouses: Array<{ id: string; name: string }>;
   sectors?: string[];
+  editedSales?: EditedSaleRef[];
 }) {
   const sync = useSyncStatus();
   const [pendingRows, setPendingRows] = useState<DocumentListRow[]>([]);
@@ -93,6 +96,7 @@ export function SaleInvoicesListWithPending({
         showSectorColumn
         warehouses={warehouses}
         sectors={sectors}
+        editedSales={editedSales}
       />
     </div>
   );

@@ -13,6 +13,11 @@ import {
   type DocumentListSummary,
 } from "@/lib/queries/documents";
 import { createClient } from "@/lib/supabase/client";
+import {
+  pickEditedDocuments,
+  wasEdited,
+  type EditedSaleRef,
+} from "@/lib/trading/edited-sales";
 import type { Party, Product, Warehouse } from "@/lib/types/database";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -52,6 +57,7 @@ export type ReturnsListState = ReturnListResult & {
   parties: Party[];
   products: Product[];
   warehouses: Warehouse[];
+  editedSales: EditedSaleRef[];
   loading: boolean;
 };
 
@@ -62,6 +68,7 @@ export function useReturnsList({
   initialParties = [],
   initialProducts = [],
   initialWarehouses = [],
+  initialEdited = [],
   initialOffline = false,
 }: {
   companyId: string;
@@ -70,6 +77,7 @@ export function useReturnsList({
   initialParties?: Party[];
   initialProducts?: Product[];
   initialWarehouses?: Warehouse[];
+  initialEdited?: EditedSaleRef[];
   initialOffline?: boolean;
 }): ReturnsListState & { refetch: () => Promise<void> } {
   const sync = useSyncStatus();
@@ -86,6 +94,7 @@ export function useReturnsList({
   const [parties, setParties] = useState<Party[]>(initialParties);
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [warehouses, setWarehouses] = useState<Warehouse[]>(initialWarehouses);
+  const [editedSales, setEditedSales] = useState<EditedSaleRef[]>(initialEdited);
   const [loading, setLoading] = useState(!initialData);
   const router = useRouter();
   const serverBacked = useRef(Boolean(initialData));
@@ -157,6 +166,7 @@ export function useReturnsList({
             table: CACHE_STORE[kind],
             linesTable: "",
             linesFk: "",
+            edited: wasEdited(r.created_at, r.updated_at),
           };
         });
 
@@ -179,6 +189,24 @@ export function useReturnsList({
 
         const totalAmount = filtered.reduce((s, r) => s + r.total, 0);
 
+        setEditedSales(
+          pickEditedDocuments(
+            docRows.map((row) => {
+              const party = pts.find((p) => p.id === String(row.party_id));
+              return {
+                ...row,
+                parties: party
+                  ? { party_code: party.party_code, name_en: party.name_en }
+                  : null,
+              };
+            }),
+            {
+              hrefPrefix,
+              noField: "return_no",
+              dateField: "return_date",
+            },
+          ),
+        );
         setData({
           rows: paged,
           pagination,
@@ -206,7 +234,35 @@ export function useReturnsList({
         kind === "sale"
           ? documentListConfigs.saleReturn
           : documentListConfigs.purchaseReturn;
-      const list = await fetchDocumentList(supabase, companyId, spRecord, config);
+      const editedQuery =
+        kind === "sale"
+          ? supabase
+              .from("sale_returns")
+              .select(
+                "id, return_no, return_date, grand_total, created_at, updated_at, status, parties(party_code, name_en)",
+              )
+              .eq("company_id", companyId)
+              .order("updated_at", { ascending: false })
+              .limit(40)
+          : supabase
+              .from("purchase_returns")
+              .select(
+                "id, return_no, return_date, grand_total, created_at, updated_at, status, parties(party_code, name_en)",
+              )
+              .eq("company_id", companyId)
+              .order("updated_at", { ascending: false })
+              .limit(40);
+      const [list, editedRes] = await Promise.all([
+        fetchDocumentList(supabase, companyId, spRecord, config),
+        editedQuery,
+      ]);
+      setEditedSales(
+        pickEditedDocuments(editedRes.data || [], {
+          hrefPrefix: HREF_PREFIX[kind],
+          noField: "return_no",
+          dateField: "return_date",
+        }),
+      );
       setData(list);
     } catch (err) {
       console.error(`Failed to fetch online ${kind} returns:`, err);
@@ -218,6 +274,7 @@ export function useReturnsList({
   useEffect(() => {
     if (isOnline && initialData) {
       setData(initialData);
+      setEditedSales(initialEdited);
       setParties(initialParties);
       setProducts(initialProducts);
       setWarehouses(initialWarehouses);
@@ -225,7 +282,7 @@ export function useReturnsList({
       return;
     }
     void load();
-  }, [load, initialData, isOnline]);
+  }, [load, initialData, initialEdited, isOnline]);
 
   const refetch = useCallback(async () => {
     if (isOnline && serverBacked.current) {
@@ -235,5 +292,5 @@ export function useReturnsList({
     await load();
   }, [isOnline, load, router]);
 
-  return { ...data, parties, products, warehouses, loading, refetch };
+  return { ...data, parties, products, warehouses, editedSales, loading, refetch };
 }

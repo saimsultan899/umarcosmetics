@@ -9,6 +9,7 @@ import {
   documentListConfigs,
   fetchDocumentList,
 } from "@/lib/queries/documents";
+import { pickEditedSales } from "@/lib/trading/edited-sales";
 
 export default async function SaleInvoicesPage({
   searchParams,
@@ -28,7 +29,8 @@ export default async function SaleInvoicesPage({
     );
   }
 
-  const [{ data: warehouses }, { data: sectorRows }, list] = await Promise.all([
+  const [{ data: warehouses }, { data: sectorRows }, { data: editedRows }, list] =
+    await Promise.all([
     supabase
       .from("warehouses")
       .select("id, name")
@@ -43,6 +45,14 @@ export default async function SaleInvoicesPage({
       .in("party_subtype", ["customer", "both"])
       .not("route", "is", null)
       .limit(20000),
+    supabase
+      .from("sale_invoices")
+      .select(
+        "id, invoice_no, invoice_date, grand_total, created_at, updated_at, status, parties(party_code, name_en)",
+      )
+      .eq("company_id", company.id)
+      .order("updated_at", { ascending: false })
+      .limit(40),
     fetchDocumentList(
       supabase,
       company.id,
@@ -75,6 +85,7 @@ export default async function SaleInvoicesPage({
         summary={list.summary}
         warehouses={warehouses || []}
         sectors={sectors}
+        editedSales={pickEditedSales(editedRows || [])}
       />
     </div>
   );

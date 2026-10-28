@@ -7,6 +7,7 @@ import {
   documentListConfigs,
   fetchDocumentList,
 } from "@/lib/queries/documents";
+import { pickEditedDocuments } from "@/lib/trading/edited-sales";
 
 export default async function PurchaseInvoicesPage({
   searchParams,
@@ -26,13 +27,21 @@ export default async function PurchaseInvoicesPage({
     );
   }
 
-  const [{ data: warehouses }, list] = await Promise.all([
+  const [{ data: warehouses }, { data: editedRows }, list] = await Promise.all([
     supabase
       .from("warehouses")
       .select("id, name")
       .eq("company_id", company.id)
       .eq("is_active", true)
       .order("name"),
+    supabase
+      .from("purchase_invoices")
+      .select(
+        "id, invoice_no, invoice_date, grand_total, created_at, updated_at, status, parties(party_code, name_en)",
+      )
+      .eq("company_id", company.id)
+      .order("updated_at", { ascending: false })
+      .limit(40),
     fetchDocumentList(supabase, company.id, sp, documentListConfigs.purchase),
   ]);
 
@@ -58,6 +67,9 @@ export default async function PurchaseInvoicesPage({
         exportFilename="purchase-invoices"
         exportConfigKey="purchase"
         companyId={company.id}
+        editedSales={pickEditedDocuments(editedRows || [], {
+          hrefPrefix: "/purchases/invoices",
+        })}
       />
     </div>
   );

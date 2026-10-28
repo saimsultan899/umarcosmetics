@@ -2,6 +2,7 @@
 
 import { ChartCard } from "@/components/analytics/chart-card";
 import { DonutChart, TrendAreaChart } from "@/components/analytics/charts";
+import { EditedSaleList } from "@/components/trading/edited-sale-list";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { ExportButtons } from "@/components/reports/export-buttons";
 import { DocumentRowActions } from "@/components/tables/document-row-actions";
@@ -25,6 +26,7 @@ import {
   fetchDocumentsForExport,
 } from "@/lib/queries/documents";
 import type { PaginationMeta } from "@/lib/pagination";
+import type { EditedSaleRef } from "@/lib/trading/edited-sales";
 import { createClient } from "@/lib/supabase/client";
 import { formatCompactPkr, formatPkr } from "@/lib/utils";
 import {
@@ -59,6 +61,7 @@ export function DocumentListTable({
   exportFilename = "documents",
   exportConfigKey,
   companyId,
+  editedSales,
 }: {
   title?: string;
   rows: DocumentListRow[];
@@ -89,6 +92,8 @@ export function DocumentListTable({
   /** Which documentListConfigs key to use when exporting all filtered rows. */
   exportConfigKey?: keyof typeof documentListConfigs;
   companyId?: string;
+  /** Sale invoices changed after the first save. Replaces the payment-mix card. */
+  editedSales?: EditedSaleRef[];
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -298,7 +303,7 @@ export function DocumentListTable({
         )}
       </StatsGrid>
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className={editedSales ? "grid gap-4 lg:grid-cols-4" : "grid gap-4 lg:grid-cols-3"}>
         <ChartCard
           className="lg:col-span-2"
           title="Daily total"
@@ -327,6 +332,11 @@ export function DocumentListTable({
             </div>
           </ChartCard>
         )}
+        {editedSales ? (
+          <ChartCard title="Edited bills" subtitle="Newest change first">
+            <EditedSaleList rows={editedSales} />
+          </ChartCard>
+        ) : null}
       </div>
 
       <div>
@@ -515,6 +525,14 @@ export function DocumentListTable({
                               title="Saved on this device; waiting to sync"
                             >
                               Pending sync
+                            </span>
+                          ) : null}
+                          {inv.edited ? (
+                            <span
+                              className="ml-2 inline-flex items-center rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-800 dark:text-sky-200"
+                              title="Changed after it was first saved"
+                            >
+                              Edited
                             </span>
                           ) : null}
                           {showPurchaseColumns && inv.narration ? (

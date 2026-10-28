@@ -7,6 +7,7 @@ import {
   type PaginationMeta,
 } from "@/lib/pagination";
 import { fetchAllPages } from "@/lib/supabase/fetch-all-pages";
+import { wasEdited } from "@/lib/trading/edited-sales";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type DocumentListRow = {
@@ -26,6 +27,8 @@ export type DocumentListRow = {
   extraFields?: Array<{ label: string; value: string }>;
   /** Saved locally; waiting for sync to the server. */
   syncPending?: boolean;
+  /** Changed after the bill was first saved. */
+  edited?: boolean;
   /** Purchase invoice — vendor / company bill number. */
   supplierBillNo?: string;
   /** Purchase invoice — linked gate pass number. */
@@ -71,7 +74,7 @@ const SALE_CONFIG: DocumentTableConfig = {
   hrefPrefix: "/sales/invoices",
   linesTable: "sale_invoice_items",
   linesFk: "sale_invoice_id",
-  columns: "id, invoice_no, invoice_date, payment_type, grand_total",
+  columns: "id, invoice_no, invoice_date, payment_type, grand_total, created_at, updated_at",
 };
 
 const PURCHASE_CONFIG: DocumentTableConfig = {
@@ -84,7 +87,7 @@ const PURCHASE_CONFIG: DocumentTableConfig = {
   linesTable: "purchase_invoice_items",
   linesFk: "purchase_invoice_id",
   columns:
-    "id, invoice_no, invoice_date, grand_total, supplier_bill_no, company_invoice_date, discount_total, extra_discount, amount_difference, narration, gate_passes(pass_no)",
+    "id, invoice_no, invoice_date, grand_total, supplier_bill_no, company_invoice_date, discount_total, extra_discount, amount_difference, narration, created_at, updated_at, gate_passes(pass_no)",
   mapExtra: (inv) => {
     const gate = Array.isArray(inv.gate_passes)
       ? inv.gate_passes[0]
@@ -131,7 +134,7 @@ const SALE_RETURN_CONFIG: DocumentTableConfig = {
   hrefPrefix: "/sales/returns",
   linesTable: "sale_return_items",
   linesFk: "sale_return_id",
-  columns: "id, return_no, return_date, grand_total",
+  columns: "id, return_no, return_date, grand_total, created_at, updated_at",
 };
 
 const PURCHASE_RETURN_CONFIG: DocumentTableConfig = {
@@ -143,7 +146,7 @@ const PURCHASE_RETURN_CONFIG: DocumentTableConfig = {
   hrefPrefix: "/purchases/returns",
   linesTable: "purchase_return_items",
   linesFk: "purchase_return_id",
-  columns: "id, return_no, return_date, grand_total",
+  columns: "id, return_no, return_date, grand_total, created_at, updated_at",
 };
 
 function mapDocumentRow(
@@ -187,6 +190,7 @@ function mapDocumentRow(
     linesTable: config.linesTable,
     linesFk: config.linesFk,
     extraFields: config.mapExtra?.(inv),
+    edited: wasEdited(inv.created_at, inv.updated_at),
     supplierBillNo: inv.supplier_bill_no
       ? String(inv.supplier_bill_no)
       : undefined,

@@ -10,6 +10,7 @@ import { CatalogSlot, useTradingCatalog } from "@/lib/trading/catalog-client";
 import type { DocumentListRow, DocumentListSummary } from "@/lib/queries/documents";
 import type { PaginationMeta } from "@/lib/pagination";
 import type { Company, Party, Product, Warehouse } from "@/lib/types/database";
+import type { EditedSaleRef } from "@/lib/trading/edited-sales";
 import Link from "next/link";
 
 type ReturnListResult = {
@@ -63,6 +64,7 @@ export function ReturnsView({
   initialParties = [],
   initialProducts = [],
   initialWarehouses = [],
+  initialEdited = [],
   initialOffline = false,
 }: {
   company: Company;
@@ -71,9 +73,10 @@ export function ReturnsView({
   initialParties?: Party[];
   initialProducts?: Product[];
   initialWarehouses?: Warehouse[];
+  initialEdited?: EditedSaleRef[];
   initialOffline?: boolean;
 }) {
-  const { rows, pagination, summary, parties, products, warehouses, loading, refetch } =
+  const { rows, pagination, summary, parties, products, warehouses, editedSales, loading, refetch } =
     useReturnsList({
       companyId: company.id,
       kind,
@@ -81,6 +84,7 @@ export function ReturnsView({
       initialParties,
       initialProducts,
       initialWarehouses,
+      initialEdited,
       initialOffline,
     });
   const catalog = useTradingCatalog(company.id, { enabled: !initialOffline });
@@ -136,6 +140,7 @@ export function ReturnsView({
         warehouses={formWarehouses}
         showPrint={meta.showPrint}
         partyColumnLabel={meta.partyColumnLabel}
+        editedSales={editedSales}
       />
     </div>
   );

@@ -15,6 +15,7 @@ import { offlineStockSnapshot } from "@/lib/offline/offline-reports";
 import { migrateLegacyLocalDocNos } from "@/lib/offline/offline-submit";
 import { formatReportInvNo } from "@/lib/reports/helpers";
 import { dedupeSaleInvoiceRows } from "@/lib/trading/dedupe-sale-invoices";
+import { pickEditedDocuments, wasEdited } from "@/lib/trading/edited-sales";
 import { pruneStaleDuplicateSaleInvoices } from "@/lib/trading/sale-invoice-submit";
 import type { CacheStoreName } from "@/lib/offline/local-db";
 import type { DocumentListRow } from "@/lib/queries/documents";
@@ -173,6 +174,12 @@ export function OfflineTradingListPage({
     })();
   }, [companyId, kind, refetchInvoices]);
 
+  const editedSales = useMemo(() => {
+    return pickEditedDocuments(invoiceRows as Parameters<typeof pickEditedDocuments>[0], {
+      hrefPrefix: kind === "sale" ? "/sales/invoices" : "/purchases/invoices",
+    });
+  }, [invoiceRows, kind]);
+
   const listRows: (DocumentListRow & { warehouseId?: string })[] = useMemo(
     () => {
       const active = invoiceRows.filter((r) => {
@@ -251,6 +258,7 @@ export function OfflineTradingListPage({
                 ? Number(r.amount_difference)
                 : undefined,
             narration: r.narration ? String(r.narration) : undefined,
+            edited: wasEdited(r.created_at, r.updated_at),
           };
         });
     },
@@ -399,6 +407,7 @@ export function OfflineTradingListPage({
         exportFilename="purchase-invoices"
         warehouses={warehouses}
         sectors={kind === "sale" ? sectors : []}
+        editedSales={editedSales}
         partyColumnLabel={kind === "purchase" ? "Vendor" : "Customer"}
         companyId={companyId}
       />
