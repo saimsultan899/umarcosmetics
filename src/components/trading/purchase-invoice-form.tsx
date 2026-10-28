@@ -16,6 +16,7 @@ import { getCachedRows } from "@/lib/offline/local-db";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import type { Party, Product, Warehouse } from "@/lib/types/database";
 import { useSingleSubmit } from "@/lib/forms/single-submit";
+import { useDialogInvoiceNo } from "@/lib/trading/preview-document-no";
 import { type LineItemDraft, calcLineDiscount } from "@/lib/types/trading";
 import { createClient } from "@/lib/supabase/client";
 import { loadWarehousePayableOutstanding } from "@/lib/reports/company-statement";
@@ -70,6 +71,7 @@ export function PurchaseInvoiceForm({
 }) {
   const router = useRouter();
   const closeDialog = useCreateDialogClose();
+  useDialogInvoiceNo(companyId, "purchase_invoice", editing?.invoiceNo);
   const linesEditorRef = useRef<LineItemsEditorHandle>(null);
   const suppliers = useMemo(
     () =>

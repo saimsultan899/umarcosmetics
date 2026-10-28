@@ -124,6 +124,7 @@ export function useExpiryStockItem({
             product_id: product.id,
             product_code: product.code,
             product_name: product.name_en || (product as Record<string, unknown>).name as string || "",
+            warehouse_id: product.default_warehouse_id || null,
             qty: onHand,
             rate,
             amount,
@@ -154,7 +155,7 @@ export function useExpiryStockItem({
         const supabase = createClient();
         const { data, error } = await supabase
           .from("expiry_stock_balances")
-          .select("product_id, qty, products(code, name_en, purchase_rate)")
+          .select("product_id, qty, products(code, name_en, purchase_rate, default_warehouse_id)")
           .eq("company_id", companyId)
           .eq("product_id", productId)
           .maybeSingle();
@@ -175,6 +176,7 @@ export function useExpiryStockItem({
           product_id: data.product_id,
           product_code: product?.code || "",
           product_name: product?.name_en || "",
+          warehouse_id: product?.default_warehouse_id || null,
           qty,
           rate,
           amount: qty * rate,

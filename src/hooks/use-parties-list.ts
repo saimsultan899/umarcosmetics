@@ -129,9 +129,11 @@ export function usePartiesList({
           }
 
           // Location filters
-          if (cityFilter && (p.city || p.head) !== cityFilter) return false;
-          if (sectorFilter && p.route !== sectorFilter) return false;
-          if (headFilter && (p.head || p.city) !== headFilter) return false;
+          const same = (a?: string | null, b?: string | null) =>
+            (a || "").trim().toLowerCase() === (b || "").trim().toLowerCase();
+          if (cityFilter && !same(p.city, cityFilter) && !same(p.head, cityFilter)) return false;
+          if (sectorFilter && !same(p.route, sectorFilter)) return false;
+          if (headFilter && !same(p.head, headFilter)) return false;
 
           // Search query
           if (q) {

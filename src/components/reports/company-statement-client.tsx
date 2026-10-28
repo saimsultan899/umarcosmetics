@@ -27,6 +27,7 @@ import { AMOUNT_PLACEHOLDER, AMOUNT_STEP, formatPkr } from "@/lib/utils";
 import {
   Banknote,
   Boxes,
+  Gift,
   Package,
   ShoppingCart,
   Truck,
@@ -126,6 +127,7 @@ export function CompanyStatementClient({
   const [vendorError, setVendorError] = useState<string | null>(null);
 
   const [payOpen, setPayOpen] = useState(false);
+  const [payMode, setPayMode] = useState<"payment" | "incentive">("payment");
   const [payWarehouseId, setPayWarehouseId] = useState("");
   const [payDate, setPayDate] = useState(localDateIso());
   const [payAmount, setPayAmount] = useState("");
@@ -461,14 +463,21 @@ export function CompanyStatementClient({
       return;
     }
     const amount = Number(payAmount);
+    const incentive = payMode === "incentive";
     if (!(amount > 0)) {
-      setPayError("Enter a payment amount.");
+      setPayError(incentive ? "Enter the incentive amount." : "Enter a payment amount.");
       return;
     }
     const outstanding = Number(statement.payableStats.outstanding || 0);
     const selectedBill = payPurchaseInvoiceId
       ? statement.purchaseBills.find((b) => b.id === payPurchaseInvoiceId)
       : null;
+    if (incentive && selectedBill && amount > selectedBill.remaining + 0.005) {
+      setPayError(
+        `Incentive cannot be more than the ${formatPkr(selectedBill.remaining)} still due on ${selectedBill.invoiceNo}.`,
+      );
+      return;
+    }
     // Overpay is allowed: clear the bill (if any), then leave the rest on
     // account as company credit (company owes this distributor).
     const billAlloc =
@@ -490,7 +499,7 @@ export function CompanyStatementClient({
           organization_id: organizationId,
           company_id: companyId,
           voucher_date: payDate,
-          payment_method: payMethod,
+          payment_method: incentive ? "incentive" : payMethod,
           sender_bank_name: payMethod === "bank_transfer" ? senderBank.trim() : null,
           sender_account_name: payMethod === "bank_transfer" ? senderName.trim() : null,
           sender_account_no: payMethod === "bank_transfer" ? senderNo.trim() : null,
@@ -503,7 +512,11 @@ export function CompanyStatementClient({
           amount,
           narration:
             payRemarks.trim() ||
-            (overpay > 0.05
+            (incentive
+              ? selectedBill
+                ? `Incentive from ${companyLabel} on ${selectedBill.invoiceNo}`
+                : `Incentive from ${companyLabel} on the overall amount`
+              : overpay > 0.05
               ? `Payment for ${companyLabel} (incl. company credit ${formatPkr(overpay)})`
               : `Payment for ${companyLabel}`),
           lines: statement.supplier?.id
@@ -513,7 +526,7 @@ export function CompanyStatementClient({
                   amount,
                   narration:
                     payRemarks.trim() ||
-                    `${statement.warehouseName} · ${paymentMethodLabel(payMethod)}`,
+                    `${statement.warehouseName} · ${paymentMethodLabel(incentive ? "incentive" : payMethod)}`,
                 },
               ]
             : [],
@@ -533,6 +546,7 @@ export function CompanyStatementClient({
       setPayRemarks("");
       setPayPurchaseInvoiceId("");
       setPayMethod("cash");
+      setPayMode("payment");
       setSenderBank("");
       setSenderName("");
       setSenderNo("");
@@ -643,6 +657,7 @@ export function CompanyStatementClient({
               { value: "cash", label: "Cash" },
               { value: "bank_transfer", label: "Bank transfer" },
               { value: "other", label: "Other" },
+              { value: "incentive", label: "Incentive" },
             ]}
           />
         </div>
@@ -714,12 +729,35 @@ export function CompanyStatementClient({
                 }
                 onClick={() => {
                   setPayError(null);
+                  setPayMode("payment");
+                  setPayMethod("cash");
                   setPayDate(localDateIso());
                   setPayPurchaseInvoiceId("");
                   setPayOpen(true);
                 }}
               >
                 Record payment
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={
+                  view === "vendor" && !statement.linkedCompanies?.length
+                }
+                onClick={() => {
+                  setPayError(null);
+                  setPayMode("incentive");
+                  setPayMethod("incentive");
+                  setPayDate(localDateIso());
+                  setPayAmount("");
+                  setPayPurchaseInvoiceId("");
+                  setPayRemarks("");
+                  setPayOpen(true);
+                }}
+              >
+                <Gift className="h-4 w-4" />
+                Record incentive
               </Button>
             </div>
           </div>
@@ -750,6 +788,14 @@ export function CompanyStatementClient({
               icon={Banknote}
               tone="ok"
               hint={`${from} to ${to}`}
+            />
+            <StatCard
+              label="Incentive"
+              value={statement.payableStats.incentives || 0}
+              format="money"
+              icon={Gift}
+              tone="ok"
+              hint="Given by the company · off one bill, or the overall amount"
             />
             <StatCard
               label={
@@ -790,13 +836,14 @@ export function CompanyStatementClient({
             <ReportTable
               title={`${statement.warehouseName} — purchase bills`}
               companyName={companyName}
-              subtitle={`Posted purchase invoices for this brand · paid vs remaining as of ${to}.`}
+              subtitle={`Posted purchase invoices for this brand · paid, incentive, and remaining as of ${to}.`}
               rows={statement.purchaseBills.map((bill) => ({
                 "Purchase #": bill.invoiceNo,
                 Date: bill.date,
                 "Vendor bill": bill.supplierBill || "—",
                 Total: bill.total,
                 Paid: bill.paid,
+                Incentive: bill.incentive || 0,
                 Remaining: bill.remaining,
                 Status:
                   bill.status === "paid"
@@ -814,7 +861,7 @@ export function CompanyStatementClient({
           <ReportTable
             title={`${statement.warehouseName} — payable ledger`}
             companyName={companyName}
-            subtitle={`Vendor payments and purchases for this company · ${from} to ${to}.${
+            subtitle={`Purchases, payments, and incentives for this company · ${from} to ${to}.${
               usingLocal
                 ? " Offline copy — brand-tagged payments need online sync to appear."
                 : ""
@@ -884,10 +931,12 @@ export function CompanyStatementClient({
       <Dialog
         open={payOpen}
         onClose={() => setPayOpen(false)}
-        title="Record payment"
+        title={payMode === "incentive" ? "Record incentive" : "Record payment"}
         description={
           statement
-            ? (() => {
+            ? payMode === "incentive"
+              ? `Incentive from ${statement.warehouseName} to this distributor. Leave the bill blank to take it off the overall amount, or pick one purchase bill. Cash on hand does not change.`
+              : (() => {
                 const due = Number(statement.payableStats.outstanding || 0);
                 const balanceNote =
                   due < -0.005
@@ -914,6 +963,7 @@ export function CompanyStatementClient({
               />
             </div>
           ) : null}
+          {payMode === "payment" ? (
           <div>
             <Label>Method</Label>
             <Select
@@ -926,7 +976,8 @@ export function CompanyStatementClient({
               ]}
             />
           </div>
-          {payMethod === "bank_transfer" ? (
+          ) : null}
+          {payMode === "payment" && payMethod === "bank_transfer" ? (
             <BankPaymentFields
               companyId={companyId}
               organizationId={organizationId}
@@ -946,7 +997,11 @@ export function CompanyStatementClient({
             />
           ) : null}
           <div>
-            <Label>Apply to purchase bill (optional)</Label>
+            <Label>
+              {payMode === "incentive"
+                ? "Purchase bill (optional)"
+                : "Apply to purchase bill (optional)"}
+            </Label>
             <Select
               value={payPurchaseInvoiceId}
               onChange={(e) => {
@@ -958,7 +1013,13 @@ export function CompanyStatementClient({
                 }
               }}
               options={[
-                { value: "", label: "On account (no bill selected)" },
+                {
+                  value: "",
+                  label:
+                    payMode === "incentive"
+                      ? "Overall amount (no bill selected)"
+                      : "On account (no bill selected)",
+                },
                 ...(statement?.purchaseBills || [])
                   .filter((b) => b.remaining > 0.005)
                   .map((b) => ({
@@ -967,6 +1028,11 @@ export function CompanyStatementClient({
                   })),
               ]}
             />
+            {payMode === "incentive" ? (
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                Leave this on overall amount, or choose one purchase bill to take the incentive off that bill.
+              </p>
+            ) : null}
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
@@ -980,7 +1046,7 @@ export function CompanyStatementClient({
               />
             </div>
             <div>
-              <Label>Paid date</Label>
+              <Label>{payMode === "incentive" ? "Incentive date" : "Paid date"}</Label>
               <Input
                 type="date"
                 value={payDate}
@@ -988,7 +1054,9 @@ export function CompanyStatementClient({
                 required
               />
               <p className="mt-1 text-xs text-[var(--muted)]">
-                Date this amount was paid to the company. Starts as today.
+                {payMode === "incentive"
+                  ? "Date the company gave this incentive."
+                  : "Date this amount was paid to the company. Starts as today."}
               </p>
             </div>
           </div>
@@ -1003,7 +1071,7 @@ export function CompanyStatementClient({
                 onChange={(e) => setPayAmount(e.target.value)}
                 required
               />
-            {(() => {
+            {payMode === "payment" ? (() => {
               const amount = Number(payAmount);
               if (!(amount > 0) || !statement) return null;
               const outstanding = Number(
@@ -1017,7 +1085,7 @@ export function CompanyStatementClient({
                   owes this distributor.
                 </p>
               );
-            })()}
+            })() : null}
           </div>
           <div>
             <Label>Remarks</Label>
@@ -1033,7 +1101,7 @@ export function CompanyStatementClient({
             </p>
           ) : null}
           <Button type="submit" loading={paySaving}>
-            Save payment
+            {payMode === "incentive" ? "Save incentive" : "Save payment"}
           </Button>
         </form>
       </Dialog>

@@ -47,7 +47,7 @@ export function PartyInsightsView({
       initialOffline,
     });
 
-  if (loading) {
+  if (loading && !party) {
     return (
       <div className="animate-rise space-y-6">
         <PageSkeleton />

@@ -95,6 +95,7 @@ export function RecoveryForm({
   const [salesmanId, setSalesmanId] = useState("");
   const [city, setCity] = useState("");
   const [sector, setSector] = useState("");
+  const [shopScope, setShopScope] = useState<"balance" | "all">("all");
   const [partyId, setPartyId] = useState("");
   const [party, setParty] = useState<Party | null>(null);
   const [amount, setAmount] = useState("");
@@ -138,12 +139,36 @@ export function RecoveryForm({
     });
   }, [customers, city, sector]);
   const locationFilterOn = Boolean(city || sector);
+  const balancesKnown = useMemo(
+    () => sheetRows.some((row) => row.balance != null),
+    [sheetRows],
+  );
+  const shopsWithBalance = useMemo(() => {
+    const ids = new Set<string>();
+    if (!balancesKnown) return ids;
+    for (const row of sheetRows) {
+      if (row.balance != null && Math.abs(row.balance) > 0.005) ids.add(row.id);
+    }
+    return ids;
+  }, [sheetRows, balancesKnown]);
   // Prefer the sector sheet list (paged past the API 1000-row cap) for the code picker.
   const pickerParties = useMemo(() => {
-    if (!locationFilterOn) return customers;
-    if (sheetParties.length) return sheetParties;
-    return visibleParties;
-  }, [locationFilterOn, sheetParties, visibleParties, customers]);
+    const base = !locationFilterOn
+      ? customers
+      : sheetParties.length
+        ? sheetParties
+        : visibleParties;
+    if (shopScope !== "balance" || !balancesKnown) return base;
+    return base.filter((p) => shopsWithBalance.has(p.id));
+  }, [
+    locationFilterOn,
+    sheetParties,
+    visibleParties,
+    customers,
+    shopScope,
+    balancesKnown,
+    shopsWithBalance,
+  ]);
 
   function onCityChange(next: string) {
     setCity(next);
@@ -172,7 +197,7 @@ export function RecoveryForm({
 
   useEffect(() => {
     let cancelled = false;
-    if (!locationFilterOn) {
+    if (!locationFilterOn && shopScope !== "balance") {
       setSheetRows([]);
       setSheetParties([]);
       setSheetLoading(false);
@@ -276,7 +301,7 @@ export function RecoveryForm({
     return () => {
       cancelled = true;
     };
-  }, [companyId, date, city, sector, locationFilterOn, visibleParties]);
+  }, [companyId, date, city, sector, locationFilterOn, shopScope, visibleParties]);
 
   useEffect(() => {
     let cancelled = false;
@@ -573,13 +598,20 @@ export function RecoveryForm({
   const grand =
     total + (draftAmt > 0 && partyId ? draftAmt : 0) + sheetExtras.total;
   const sheetTerm = sheetQuery.trim().toLowerCase();
-  const shownSheet = sheetTerm
-    ? sheetRows.filter(
-        (row) =>
-          row.code.toLowerCase().includes(sheetTerm) ||
-          row.name.toLowerCase().includes(sheetTerm),
-      )
-    : sheetRows;
+  const shownSheet = sheetRows.filter((row) => {
+    if (
+      shopScope === "balance" &&
+      balancesKnown &&
+      (row.balance == null || Math.abs(row.balance) <= 0.005)
+    ) {
+      return false;
+    }
+    if (!sheetTerm) return true;
+    return (
+      row.code.toLowerCase().includes(sheetTerm) ||
+      row.name.toLowerCase().includes(sheetTerm)
+    );
+  });
 
   return (
     <form
@@ -588,7 +620,7 @@ export function RecoveryForm({
       data-enter-root
       onKeyDown={(e) => handleEnterAsNext(e)}
     >
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <div>
           <Label>Date</Label>
           <Input
@@ -614,6 +646,18 @@ export function RecoveryForm({
                 {name}
               </option>
             ))}
+          </Select>
+        </div>
+        <div>
+          <Label>Show</Label>
+          <Select
+            value={shopScope}
+            onChange={(e) =>
+              setShopScope(e.target.value === "balance" ? "balance" : "all")
+            }
+          >
+            <option value="balance">With balance</option>
+            <option value="all">All</option>
           </Select>
         </div>
         <div>
@@ -675,9 +719,13 @@ export function RecoveryForm({
                     confineCity={city}
                     maxVisible={80}
                     emptyLabel={
-                      locationFilterOn && pickerParties.length === 0
-                        ? "No shops in this sector"
-                        : "Select customer"
+                      shopScope === "balance" &&
+                      balancesKnown &&
+                      pickerParties.length === 0
+                        ? "No shops with a balance"
+                        : locationFilterOn && pickerParties.length === 0
+                          ? "No shops in this sector"
+                          : "Select customer"
                     }
                     onChange={(id, next) => {
                       setPartyId(id);
@@ -777,8 +825,16 @@ export function RecoveryForm({
               ) : (
                 lines.map((line) => (
                   <tr key={line.key} className="border-t border-[var(--border)]">
-                    <td className="font-medium tabular-nums">{line.partyCode}</td>
-                    <td className="max-w-[16rem] truncate">{line.partyName}</td>
+                    <td colSpan={2}>
+                      <span className="flex min-w-0 items-center gap-2">
+                        {line.partyCode ? (
+                          <span className="shrink-0 rounded-md bg-[var(--paper)] px-1.5 py-0.5 font-mono text-[11px] font-semibold tracking-wide">
+                            {line.partyCode}
+                          </span>
+                        ) : null}
+                        <span className="truncate font-medium">{line.partyName}</span>
+                      </span>
+                    </td>
                     <td className="text-right font-semibold tabular-nums text-emerald-700">
                       {formatPkr(line.amount)}
                     </td>
@@ -825,6 +881,7 @@ export function RecoveryForm({
                   {sheetLoading
                     ? "Loading shops…"
                     : `${shownSheet.length} shop${shownSheet.length === 1 ? "" : "s"}`}
+                  {shopScope === "balance" ? " with a balance" : ""}
                   {sheetTerm && shownSheet.length !== sheetRows.length
                     ? ` of ${sheetRows.length}`
                     : ""}
@@ -849,8 +906,7 @@ export function RecoveryForm({
               <table className="w-full min-w-[720px] text-sm">
                 <thead>
                   <tr>
-                    <th className="w-24">Acc ID</th>
-                    <th>Customer name</th>
+                    <th>Customer</th>
                     <th className="w-28">Last received</th>
                     <th className="w-28">Final bal.</th>
                     <th className="w-28">Received</th>
@@ -861,7 +917,7 @@ export function RecoveryForm({
                   {shownSheet.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={6}
+                        colSpan={5}
                         className="py-6 text-center text-sm text-[var(--muted)]"
                       >
                         No shops in this city and sector.
@@ -883,9 +939,15 @@ export function RecoveryForm({
                           key={row.id}
                           className="border-t border-[var(--border)]"
                         >
-                          <td className="font-medium tabular-nums">{row.code}</td>
-                          <td className="max-w-[16rem] truncate" title={row.name}>
-                            {row.name}
+                          <td className="max-w-[18rem]" title={`${row.code} ${row.name}`}>
+                            <span className="flex min-w-0 items-center gap-2">
+                              {row.code ? (
+                                <span className="shrink-0 rounded-md bg-[var(--paper)] px-1.5 py-0.5 font-mono text-[11px] font-semibold tracking-wide">
+                                  {row.code}
+                                </span>
+                              ) : null}
+                              <span className="truncate">{row.name}</span>
+                            </span>
                           </td>
                           <td className="tabular-nums text-[var(--muted)]">
                             {row.lastReceived != null && row.lastReceived > 0.005

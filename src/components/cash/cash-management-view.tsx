@@ -20,6 +20,8 @@ import {
   type CashSister,
   buildLocalCashDesk,
 } from "@/lib/cash/local-cash-desk";
+import { TablePagination } from "@/components/tables/table-pagination";
+import { useClientPagination } from "@/hooks/use-client-pagination";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { createClient } from "@/lib/supabase/client";
 import { cn, formatPkr } from "@/lib/utils";
@@ -84,7 +86,7 @@ function sourceLabel(source: string) {
     case "expense":
       return "Expense";
     case "cash_payment":
-      return "Cash payment";
+      return "Company";
     case "opening":
       return "Opening";
     case "person_borrow":
@@ -209,7 +211,7 @@ export function CashManagementView({
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
   const [search, setSearch] = useState("");
-  const [activity, setActivity] = useState<"all" | "recovery" | "paid" | "persons">("all");
+  const [activity, setActivity] = useState<"all" | "company" | "recovery" | "paid" | "persons">("all");
   const [sector, setSector] = useState("");
   const [desk, setDesk] = useState<CashDesk | null>(null);
   const [loading, setLoading] = useState(true);
@@ -297,10 +299,11 @@ export function CashManagementView({
     });
     const q = search.trim().toLowerCase();
     const narrowed = withBalance.filter((line) => {
+      if (activity === "company" && line.source !== "cash_payment") return false;
       if (activity === "recovery" && line.source !== "recovery" && line.source !== "cash_receipt") return false;
       if (activity === "paid" && line.source !== "sale") return false;
       if (activity === "persons" && line.source !== "person_borrow" && line.source !== "person_repay") return false;
-      if (sector && activity !== "persons" && line.sector !== sector) return false;
+      if (sector && activity !== "persons" && activity !== "company" && line.sector !== sector) return false;
       if (!q) return true;
       return [line.title, line.code, line.sector, sourceLabel(line.source)].join(" ").toLowerCase().includes(q);
     });
@@ -311,6 +314,8 @@ export function CashManagementView({
       return { ...line, balance: viewRunning };
     });
   }, [activity, desk, search, sector]);
+
+  const pager = useClientPagination(rows);
 
   const totals = useMemo(() => {
     const lines = desk?.lines || [];
@@ -608,8 +613,11 @@ export function CashManagementView({
           <Label>Show</Label>
           <Select
             value={activity}
-            onChange={(e) => setActivity(e.target.value as "all" | "recovery" | "paid" | "persons")}
+            onChange={(e) =>
+              setActivity(e.target.value as "all" | "company" | "recovery" | "paid" | "persons")
+            }
             options={[
+              { value: "company", label: "Company" },
               { value: "all", label: "All activity" },
               { value: "recovery", label: "Recovery" },
               { value: "paid", label: "Paid bills" },
@@ -620,11 +628,19 @@ export function CashManagementView({
         <div>
           <Label>Sector</Label>
           <Select
-            value={activity === "persons" ? "" : sector}
-            disabled={activity === "persons"}
+            value={activity === "persons" || activity === "company" ? "" : sector}
+            disabled={activity === "persons" || activity === "company"}
             onChange={(e) => setSector(e.target.value)}
             options={[
-              { value: "", label: activity === "persons" ? "Not used for persons" : "All sectors" },
+              {
+                value: "",
+                label:
+                  activity === "persons"
+                    ? "Not used for persons"
+                    : activity === "company"
+                      ? "Not used for company"
+                      : "All sectors",
+              },
               ...sectorOptions.map((name) => ({ value: name, label: name })),
             ]}
           />
@@ -663,7 +679,9 @@ export function CashManagementView({
             ) : rows.length === 0 ? (
               <tr>
                 <td className="px-3 py-6 text-[var(--muted)]" colSpan={7}>
-                  {activity === "recovery"
+                  {activity === "company"
+                    ? "No purchase payment in these dates. Only cash paid to a vendor is listed here."
+                    : activity === "recovery"
                     ? "No recovery in these dates."
                     : activity === "paid"
                       ? "No paid bills in these dates."
@@ -675,7 +693,7 @@ export function CashManagementView({
                 </td>
               </tr>
             ) : (
-              rows.map((line, index) => {
+              pager.slice.map((line, index) => {
                 const href = lineHref(line);
                 const mark = activityMark(line.source);
                 const moneyIn = line.direction === "in";
@@ -731,6 +749,17 @@ export function CashManagementView({
             )}
           </tbody>
         </table>
+        <TablePagination
+          page={pager.page}
+          totalPages={pager.totalPages}
+          pageSize={pager.pageSize}
+          total={pager.total}
+          from={pager.from}
+          to={pager.to}
+          onPageChange={pager.setPage}
+          onPageSizeChange={pager.setPageSize}
+          loading={loading}
+        />
       </div>
 
       <div data-print-id="cash-management" className="print-only print-sheet report-print">
@@ -762,7 +791,9 @@ export function CashManagementView({
             <div className="recovery-sheet-dates">
               <p>
                 <span>Show</span>{" "}
-                {activity === "recovery"
+                {activity === "company"
+                  ? "Company"
+                  : activity === "recovery"
                   ? "Recovery"
                   : activity === "paid"
                     ? "Paid bills"

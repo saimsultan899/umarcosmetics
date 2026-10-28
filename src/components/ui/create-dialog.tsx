@@ -3,9 +3,17 @@
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Plus } from "lucide-react";
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 
 const CreateDialogCloseContext = createContext<(() => void) | null>(null);
+const DialogDocumentNoContext = createContext<
+  ((value: string | null) => void) | null
+>(null);
+
+/** Show the invoice number in the dialog header. Pass null when the dialog closes. */
+export function useDialogDocumentNo() {
+  return useContext(DialogDocumentNoContext);
+}
 
 /** Call inside a form mounted in CreateDialogButton to close after save. */
 export function useCreateDialogClose() {
@@ -34,7 +42,12 @@ export function CreateDialogButton({
   icon?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [documentNo, setDocumentNo] = useState<string | null>(null);
   const close = () => setOpen(false);
+
+  useEffect(() => {
+    if (!open) setDocumentNo(null);
+  }, [open]);
 
   const sizeClass =
     size === "full"
@@ -68,6 +81,7 @@ export function CreateDialogButton({
         onClose={close}
         title={title}
         description={description}
+        badge={documentNo}
         className={sizeClass}
       >
         {disabled ? (
@@ -76,7 +90,9 @@ export function CreateDialogButton({
           </p>
         ) : (
           <CreateDialogCloseContext.Provider value={close}>
-            {children}
+            <DialogDocumentNoContext.Provider value={setDocumentNo}>
+              {children}
+            </DialogDocumentNoContext.Provider>
           </CreateDialogCloseContext.Provider>
         )}
       </Dialog>

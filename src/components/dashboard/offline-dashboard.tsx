@@ -25,7 +25,6 @@ import {
 } from "@/lib/offline/offline-reports";
 import { amountClass, cn, formatNumber, formatCompactPkr, formatPkr} from "@/lib/utils";
 import {
-  AlertTriangle,
   Banknote,
   ShoppingCart,
   TrendingUp,
@@ -381,15 +380,6 @@ export function OfflineDashboard({
           hint="From this computer’s saved bills"
         />
         <StatCard
-          label="Over credit limit"
-          value={dash.overLimitCount}
-          format="number"
-          icon={AlertTriangle}
-          tone={dash.overLimitCount > 0 ? "danger" : "ok"}
-          href="/reports/accounts?view=receivable"
-          hint="Needs online balances for full accuracy"
-        />
-        <StatCard
           label="Today expenses"
           value={dash.expenseToday}
           format="money"
@@ -453,6 +443,7 @@ export function OfflineDashboard({
             data={dash.recoveryTrend}
             valueLabel="Recovery"
             height={240}
+            tone="ok"
           />
         </ChartCard>
       </div>
@@ -478,17 +469,28 @@ export function OfflineDashboard({
         >
           <div className="space-y-2">
             {dash.lowWatch.length ? (
-              dash.lowWatch.map((r, idx) => (
-                <div key={idx} className="panel-note">
-                  <p className="font-medium">
-                    {r.code} — {r.name}
-                  </p>
-                  <p className="text-xs text-amber-800">
-                    {r.warehouse}: {formatNumber(r.qty, 0)} / reorder{" "}
-                    {formatNumber(r.reorder, 0)}
-                  </p>
-                </div>
-              ))
+              dash.lowWatch.map((r, idx) => {
+                const width = r.reorder > 0 ? Math.min(100, (r.qty / r.reorder) * 100) : 0;
+                return (
+                  <div key={idx} className="panel-note">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="min-w-0 font-medium">
+                        <span className="mr-1.5 rounded-md bg-white px-1.5 py-0.5 font-mono text-[11px]">
+                          {r.code}
+                        </span>
+                        {r.name}
+                      </p>
+                      <p className="shrink-0 text-xs font-semibold text-amber-800">
+                        {formatNumber(r.qty, 0)} / {formatNumber(r.reorder, 0)}
+                      </p>
+                    </div>
+                    <p className="mt-1 text-xs text-[var(--muted)]">{r.warehouse}</p>
+                    <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-amber-100">
+                      <div className="h-full rounded-full bg-amber-500" style={{ width: `${width}%` }} />
+                    </div>
+                  </div>
+                );
+              })
             ) : (
               <p className="text-sm text-[var(--muted)]">
                 Stock levels look healthy.

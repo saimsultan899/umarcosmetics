@@ -10,6 +10,7 @@ export function Dialog({
   onClose,
   title,
   description,
+  badge,
   children,
   className,
 }: {
@@ -17,6 +18,8 @@ export function Dialog({
   onClose: () => void;
   title: string;
   description?: string;
+  /** Document number shown in the header while the dialog is open. */
+  badge?: string | null;
   children: React.ReactNode;
   className?: string;
 }) {
@@ -72,9 +75,14 @@ export function Dialog({
           <div className="min-w-0">
             <h2
               id={titleId}
-              className="text-lg font-semibold text-[var(--ink)]"
+              className="flex flex-wrap items-center gap-2 text-lg font-semibold text-[var(--ink)]"
             >
-              {title}
+              <span>{title}</span>
+              {badge ? (
+                <span className="rounded-md bg-white px-2 py-0.5 font-mono text-base tabular-nums text-[var(--brand)] ring-1 ring-[var(--border)]">
+                  {badge}
+                </span>
+              ) : null}
             </h2>
             {description ? (
               <p className="mt-0.5 text-sm text-[var(--muted)]">{description}</p>

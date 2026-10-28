@@ -364,9 +364,12 @@ export async function buildOfflineCompanyStatement(input: {
   const setupOpeningPayable = num(warehouseRow?.opening_payable);
 
   const paidByInvoiceId = new Map<string, number>();
+  const incentiveByInvoiceId = new Map<string, number>();
   for (const row of vouchers) {
     if (!posted(row)) continue;
     if (String(row.warehouse_id || "") !== warehouseId) continue;
+    const incentive = String(row.payment_method || "") === "incentive";
+    const bucket = incentive ? incentiveByInvoiceId : paidByInvoiceId;
     const sources = [row];
     if (row.payload && typeof row.payload === "object") {
       sources.push(row.payload as Row);
@@ -378,7 +381,7 @@ export async function buildOfflineCompanyStatement(input: {
         const piId = String((alloc as Row).purchase_invoice_id || "");
         const amt = num((alloc as Row).amount);
         if (!piId || amt <= 0) continue;
-        paidByInvoiceId.set(piId, (paidByInvoiceId.get(piId) || 0) + amt);
+        bucket.set(piId, (bucket.get(piId) || 0) + amt);
       }
     }
   }
@@ -396,15 +399,18 @@ export async function buildOfflineCompanyStatement(input: {
       })),
     paidByInvoiceId,
     to,
+    incentiveByInvoiceId,
   );
 
   // Offline payable ledger: purchases / returns / brand-tagged CP when cached.
   let periodPurchases = 0;
   let periodReturns = 0;
   let periodPaid = 0;
+  let periodIncentive = 0;
   let openingPurchases = 0;
   let openingReturns = 0;
   let openingPaid = 0;
+  let openingIncentive = 0;
   type PayEv = {
     sort: string;
     date: string;
@@ -476,16 +482,19 @@ export async function buildOfflineCompanyStatement(input: {
     if (String(row.warehouse_id || "") !== warehouseId) continue;
     const date = day(row.voucher_date || row.doc_date);
     const amount = num(row.total_amount);
+    const incentive = String(row.payment_method || "") === "incentive";
     if (!date || date > to) continue;
     if (date < from) {
-      openingPaid += amount;
+      if (incentive) openingIncentive += amount;
+      else openingPaid += amount;
       continue;
     }
-    periodPaid += amount;
+    if (incentive) periodIncentive += amount;
+    else periodPaid += amount;
     payEvents.push({
-      sort: `${date}|3|${row.voucher_no || ""}`,
+      sort: `${date}|${incentive ? "4" : "3"}|${row.voucher_no || ""}`,
       date,
-      type: "Payment",
+      type: incentive ? "Incentive" : "Payment",
       document: String(row.voucher_no || "—"),
       party: String(row.narration || "").trim() || "—",
       method: paymentMethodLabel(String(row.payment_method || "cash")),
@@ -501,7 +510,8 @@ export async function buildOfflineCompanyStatement(input: {
     });
   }
   payEvents.sort((a, b) => a.sort.localeCompare(b.sort));
-  const broughtForward = openingPurchases - openingReturns - openingPaid;
+  const broughtForward =
+    openingPurchases - openingReturns - openingPaid - openingIncentive;
   const openingPayable = setupOpeningPayable + broughtForward;
   let running = openingPayable;
   const payableLedger: Row[] = [];
@@ -567,6 +577,7 @@ export async function buildOfflineCompanyStatement(input: {
       purchases: periodPurchases,
       returns: periodReturns,
       paid: periodPaid,
+      incentives: periodIncentive,
       outstanding: running,
       openingPayable,
       setupOpeningPayable,

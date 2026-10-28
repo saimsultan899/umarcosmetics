@@ -74,6 +74,8 @@ export function usePartyInsights({
     let cancelled = false;
 
     async function load() {
+      if (initialParty) setLoading(false);
+
       if (!isOnline) {
         // Offline: read from local SQLite / IndexedDB
         try {
@@ -195,12 +197,11 @@ export function usePartyInsights({
         return;
       }
 
-      // Online: if initial props were not provided, fetch from Supabase
-      if (!initialParty) {
-        try {
-          const supabase = createClient();
-          const today = new Date().toISOString().slice(0, 10);
+      try {
+        const supabase = createClient();
+        const today = new Date().toISOString().slice(0, 10);
 
+        if (!initialParty) {
           const { data: pData } = await supabase
             .from("parties")
             .select("*")
@@ -210,83 +211,89 @@ export function usePartyInsights({
 
           if (cancelled) return;
           if (pData) setParty(pData as Party);
-
-          const [
-            { data: balData },
-            { data: sData },
-            { data: rData },
-            { data: topProdsData },
-          ] = await Promise.all([
-            supabase.rpc("get_party_balance", {
-              p_company_id: companyId,
-              p_party_id: partyId,
-              p_as_of: today,
-            }),
-            supabase
-              .from("sale_invoices")
-              .select("id, invoice_no, invoice_date, grand_total, amount_paid, payment_type")
-              .eq("company_id", companyId)
-              .eq("party_id", partyId)
-              .eq("status", "posted")
-              .order("invoice_date", { ascending: false })
-              .limit(12),
-            supabase
-              .from("recoveries")
-              .select("id, recovery_date, amount, receipt_no, narration")
-              .eq("company_id", companyId)
-              .eq("party_id", partyId)
-              .order("recovery_date", { ascending: false })
-              .limit(10),
-            supabase
-              .from("sale_invoice_items")
-              .select(
-                "product_code, product_name, qty, rate, amount, sale_invoices!inner(company_id, party_id, status)",
-              )
-              .eq("sale_invoices.company_id", companyId)
-              .eq("sale_invoices.party_id", partyId)
-              .eq("sale_invoices.status", "posted")
-              .limit(200),
-          ]);
-
-          if (cancelled) return;
-
-          setBalance(Number(balData || 0));
-          setSales((sData || []) as PartyInsightSale[]);
-          setRecoveries((rData || []) as PartyInsightRecovery[]);
-
-          const prodMap = new Map<string, PartyInsightProduct>();
-          for (const row of (topProdsData || []) as Array<{
-            product_code: string;
-            product_name: string;
-            qty: number;
-            rate: number;
-            amount: number;
-          }>) {
-            const key = row.product_code || row.product_name;
-            const prev = prodMap.get(key) || {
-              code: row.product_code,
-              name: row.product_name,
-              qty: 0,
-              amount: 0,
-              lastRate: Number(row.rate || 0),
-            };
-            prev.qty += Number(row.qty || 0);
-            prev.amount += Number(row.amount || 0);
-            prev.lastRate = Number(row.rate || 0);
-            prodMap.set(key, prev);
+          else {
+            setLoading(false);
+            return;
           }
-          setProducts(
-            Array.from(prodMap.values())
-              .sort((a, b) => b.amount - a.amount)
-              .slice(0, 8),
-          );
-        } catch (err) {
-          console.error("Failed to load online party insights:", err);
-        } finally {
-          if (!cancelled) setLoading(false);
         }
-      } else {
+
+        const balancePromise = supabase.rpc("get_party_balance", {
+          p_company_id: companyId,
+          p_party_id: partyId,
+          p_as_of: today,
+        });
+        const [{ data: sData }, { data: rData }] = await Promise.all([
+          supabase
+            .from("sale_invoices")
+            .select("id, invoice_no, invoice_date, grand_total, amount_paid, payment_type")
+            .eq("company_id", companyId)
+            .eq("party_id", partyId)
+            .eq("status", "posted")
+            .order("invoice_date", { ascending: false })
+            .limit(12),
+          supabase
+            .from("recoveries")
+            .select("id, recovery_date, amount, receipt_no, narration")
+            .eq("company_id", companyId)
+            .eq("party_id", partyId)
+            .order("recovery_date", { ascending: false })
+            .limit(10),
+        ]);
+
+        if (cancelled) return;
+
+        const saleRows = (sData || []) as PartyInsightSale[];
+        setSales(saleRows);
+        setRecoveries((rData || []) as PartyInsightRecovery[]);
         setLoading(false);
+        void balancePromise.then(({ data: balData }) => {
+          if (!cancelled) setBalance(Number(balData || 0));
+        });
+
+        const invoiceIds = saleRows.map((s) => s.id).filter(Boolean);
+        if (!invoiceIds.length) {
+          setProducts([]);
+          return;
+        }
+
+        const { data: topProdsData } = await supabase
+          .from("sale_invoice_items")
+          .select("product_code, product_name, qty, rate, amount, sale_invoice_id")
+          .eq("company_id", companyId)
+          .in("sale_invoice_id", invoiceIds);
+
+        if (cancelled) return;
+
+        const prodMap = new Map<string, PartyInsightProduct>();
+        for (const row of (topProdsData || []) as Array<{
+          product_code: string;
+          product_name: string;
+          qty: number;
+          rate: number;
+          amount: number;
+        }>) {
+          const key = row.product_code || row.product_name;
+          const prev = prodMap.get(key) || {
+            code: row.product_code,
+            name: row.product_name,
+            qty: 0,
+            amount: 0,
+            lastRate: Number(row.rate || 0),
+          };
+          prev.qty += Number(row.qty || 0);
+          prev.amount += Number(row.amount || 0);
+          prev.lastRate = Number(row.rate || 0);
+          prodMap.set(key, prev);
+        }
+        setProducts(
+          Array.from(prodMap.values())
+            .sort((a, b) => b.amount - a.amount)
+            .slice(0, 8),
+        );
+      } catch (err) {
+        console.error("Failed to load online party insights:", err);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     }
 
@@ -294,16 +301,7 @@ export function usePartyInsights({
     return () => {
       cancelled = true;
     };
-  }, [
-    companyId,
-    partyId,
-    isOnline,
-    initialParty,
-    initialBalance,
-    initialSales,
-    initialRecoveries,
-    initialProducts,
-  ]);
+  }, [companyId, partyId, isOnline, initialParty]);
 
   return {
     party,

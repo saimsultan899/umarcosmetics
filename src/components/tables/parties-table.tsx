@@ -177,8 +177,10 @@ export function PartiesTable({
         if (subtype === "both" && p.party_subtype !== "both") return false;
         if (subtype === "other" && p.party_subtype !== "other") return false;
         if (subtype === "credit" && Number(p.credit_limit || 0) <= 0) return false;
-        if (city && (p.city || p.head) !== city) return false;
-        if (sector && p.route !== sector) return false;
+        const same = (a?: string | null, b?: string | null) =>
+          (a || "").trim().toLowerCase() === (b || "").trim().toLowerCase();
+        if (city && !same(p.city, city) && !same(p.head, city)) return false;
+        if (sector && !same(p.route, sector)) return false;
         if (search) {
           const haystack = `${p.party_code || ""} ${p.name_en || ""} ${p.city || ""} ${p.route || ""} ${p.mobile || ""} ${p.phone || ""}`.toLowerCase();
           if (!haystack.includes(search)) return false;
@@ -425,6 +427,8 @@ export function PartiesTable({
                   <th>Code</th>
                   <th>Name</th>
                   <th>City / Head · Sector</th>
+                  {!isLedger ? <th>Shop number</th> : null}
+                  {!isLedger ? <th>Owner number</th> : null}
                   <th>{isLedger ? "Ledger type" : "Type"}</th>
                   <th>Op. Balance</th>
                   {!isLedger ? <th>Credit Limit</th> : null}
@@ -457,6 +461,8 @@ export function PartiesTable({
                       <td className="text-[var(--muted)]">
                         {[p.city || p.head, p.route].filter(Boolean).join(" · ") || "—"}
                       </td>
+                      {!isLedger ? <td>{p.mobile || "—"}</td> : null}
+                      {!isLedger ? <td>{p.phone || "—"}</td> : null}
                       <td>
                         <span className="rounded-full bg-[var(--surface-2)] px-2 py-1 text-xs font-semibold uppercase">
                           {partyTypeLabel(p)}
@@ -514,7 +520,7 @@ export function PartiesTable({
                 ) : (
                   <tr>
                     <td
-                      colSpan={isLedger ? 6 : 7}
+                      colSpan={isLedger ? 6 : 9}
                       className="py-8 text-center text-[var(--muted)]"
                     >
                       No parties match this filter.

@@ -255,15 +255,16 @@ export async function buildLocalCashDesk(
         num(row.total_amount) ||
         lines.reduce((sum, line) => sum + num(line.amount), 0);
       if (!(amount > 0)) continue;
+      const vendorLine = lines.find((line) => partyName(line) || partyCode(line));
       events.push({
         line_date: date,
         sort_at: String(row.created_at || ""),
         source: "cash_payment",
         direction: "out",
         amount,
-        title: String(row.narration || row.voucher_no || "Cash payment"),
+        title: (vendorLine && partyName(vendorLine)) || String(row.narration || row.voucher_no || "Cash payment"),
         sector: null,
-        code: null,
+        code: vendorLine ? partyCode(vendorLine) : null,
         ref_id: row.id ? String(row.id) : null,
         movement_id: null,
         pair_id: null,

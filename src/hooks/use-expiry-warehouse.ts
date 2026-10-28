@@ -203,6 +203,7 @@ export function useExpiryWarehouse({
               product_id: productId,
               product_code: prod?.code || "",
               product_name: prod?.name_en || "",
+              warehouse_id: prod?.default_warehouse_id || null,
               qty,
               rate,
               amount: qty * rate,

@@ -1,15 +1,16 @@
 import { rememberStats } from "@/lib/list-stats-revision";
 import {
   buildPaginationMeta,
-  escapeIlike,
   parsePaginationParams,
   spString,
   toRange,
   type PaginationMeta,
 } from "@/lib/pagination";
 import {
-  applyPartyLocationFilters,
+  applyPartyQueryFilters,
+  matchesPartyLocation,
   parsePartyLocationFilters,
+  partyPlace,
   type PartyLocationFilters,
 } from "@/lib/queries/party-filters";
 import { fetchAllPages } from "@/lib/supabase/fetch-all-pages";
@@ -106,24 +107,6 @@ function applySubtypeFilter(query: any, subtype: PartySubtypeFilter) {
   return query;
 }
 
-function applySearch(query: any, q: string) {
-  const term = escapeIlike(q);
-  if (!term) return query;
-  const pattern = `%${term}%`;
-  return query.or(
-    [
-      `party_code.ilike.${pattern}`,
-      `name_en.ilike.${pattern}`,
-      `name_ur.ilike.${pattern}`,
-      `city.ilike.${pattern}`,
-      `route.ilike.${pattern}`,
-      `head.ilike.${pattern}`,
-      `mobile.ilike.${pattern}`,
-      `phone.ilike.${pattern}`,
-    ].join(","),
-  );
-}
-
 function baseQuery(supabase: SupabaseClient, companyId: string) {
   return supabase
     .from("parties")
@@ -160,10 +143,15 @@ function matchesPartySearch(row: PartyStatRow, q: string) {
   ].some((value) => (value || "").toLowerCase().includes(needle));
 }
 
-function matchesPartyLocation(row: PartyStatRow, location: PartyLocationFilters) {
-  if (location.city && row.city !== location.city) return false;
-  if (location.sector && row.route !== location.sector) return false;
-  if (location.head && row.head !== location.head) return false;
+function matchesSubtype(row: PartyStatRow, subtype: PartySubtypeFilter) {
+  if (subtype === "credit") return Number(row.credit_limit) > 0;
+  if (subtype === "customer") {
+    return row.party_subtype === "customer" || row.party_subtype === "both";
+  }
+  if (subtype === "supplier") {
+    return row.party_subtype === "supplier" || row.party_subtype === "both";
+  }
+  if (subtype === "both" || subtype === "other") return row.party_subtype === subtype;
   return true;
 }
 
@@ -218,8 +206,7 @@ export async function fetchPartiesForExport(
     let query = supabase.from("parties").select("*").eq("company_id", companyId);
     query = applyViewFilter(query, view);
     query = applySubtypeFilter(query, subtype);
-    query = applySearch(query, q);
-    query = applyPartyLocationFilters(query, location);
+    query = applyPartyQueryFilters(query, q, location);
     return query
       .order("sort_order", { ascending: true })
       .order("party_code", { ascending: true })
@@ -249,7 +236,6 @@ async function loadPartyListExtras(
           "party_type, party_subtype, credit_limit, city, route, head, party_code, name_en, name_ur, mobile, phone",
         )
         .eq("company_id", companyId)
-        .eq("is_active", true)
         .order("party_code", { ascending: true })
         .range(fromPage, toPage),
     ),
@@ -325,13 +311,13 @@ async function loadPartyListExtras(
       mode: view,
     },
     cityOptions: distinctSorted([
-      ...activeRows.map((r) => r.city),
+      ...activeRows.filter((row) => matchesPartyView(row, view) && matchesSubtype(row, subtype)).map((r) => partyPlace(r)),
       ...((savedLocations.data || []) as Array<{ kind: string; name: string }>)
         .filter((r) => r.kind === "city")
         .map((r) => r.name),
     ]),
     sectorOptions: distinctSorted([
-      ...activeRows.map((r) => r.route),
+      ...activeRows.filter((row) => matchesPartyView(row, view) && matchesSubtype(row, subtype)).map((r) => r.route),
       ...((savedLocations.data || []) as Array<{ kind: string; name: string }>)
         .filter((r) => r.kind === "sector")
         .map((r) => r.name),
@@ -360,8 +346,7 @@ export async function fetchPartyList(
   let listQuery = baseQuery(supabase, companyId);
   listQuery = applyViewFilter(listQuery, view);
   listQuery = applySubtypeFilter(listQuery, subtype);
-  listQuery = applySearch(listQuery, q);
-  listQuery = applyPartyLocationFilters(listQuery, location);
+  listQuery = applyPartyQueryFilters(listQuery, q, location);
 
   const summaryKey = JSON.stringify({
     companyId,

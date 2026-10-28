@@ -13,6 +13,8 @@ export type CompanyPayableStats = {
   purchases: number;
   returns: number;
   paid: number;
+  /** Incentive the company gave this distributor. Reduces the purchase bill. */
+  incentives: number;
   outstanding: number;
   openingPayable: number;
   /** Opening payable set on the brand company (warehouse) at setup. */
@@ -26,6 +28,7 @@ export type PurchaseInvoicePayable = {
   supplierBill: string;
   total: number;
   paid: number;
+  incentive: number;
   remaining: number;
   status: "open" | "partial" | "paid";
   href: string;
@@ -73,6 +76,7 @@ export function buildPurchaseInvoicePayables(
   }>,
   paidByInvoiceId: Map<string, number>,
   toDate: string,
+  incentiveByInvoiceId?: Map<string, number>,
 ): PurchaseInvoicePayable[] {
   const rows: PurchaseInvoicePayable[] = [];
   for (const row of purchases) {
@@ -80,7 +84,9 @@ export function buildPurchaseInvoicePayables(
     if (date && date > toDate) continue;
     const total = Number(row.grand_total || 0);
     const paid = paidByInvoiceId.get(String(row.id)) || 0;
-    const remaining = Math.max(0, total - paid);
+    const incentive = incentiveByInvoiceId?.get(String(row.id)) || 0;
+    const settled = paid + incentive;
+    const remaining = Math.max(0, total - settled);
     rows.push({
       id: String(row.id),
       invoiceNo: String(row.invoice_no || "—"),
@@ -88,8 +94,9 @@ export function buildPurchaseInvoicePayables(
       supplierBill: String(row.supplier_bill_no || "").trim(),
       total,
       paid,
+      incentive,
       remaining,
-      status: purchaseBillPayStatus(total, paid),
+      status: purchaseBillPayStatus(total, settled),
       href: `/purchases/invoices/${row.id}`,
     });
   }
@@ -149,6 +156,7 @@ export function mergeCompanyStatements(
         purchases: 0,
         returns: 0,
         paid: 0,
+        incentives: 0,
         outstanding: 0,
         openingPayable: 0,
         setupOpeningPayable: 0,
@@ -285,6 +293,7 @@ export function mergeCompanyStatements(
       purchases: parts.reduce((s, p) => s + p.payableStats.purchases, 0),
       returns: parts.reduce((s, p) => s + p.payableStats.returns, 0),
       paid: parts.reduce((s, p) => s + p.payableStats.paid, 0),
+      incentives: parts.reduce((s, p) => s + (p.payableStats.incentives || 0), 0),
       outstanding: running,
       openingPayable,
       setupOpeningPayable,
@@ -298,6 +307,7 @@ export function mergeCompanyStatements(
 export function paymentMethodLabel(value: string | null | undefined) {
   const v = String(value || "cash").toLowerCase();
   if (v === "bank_transfer") return "Bank transfer";
+  if (v === "incentive") return "Incentive";
   if (v === "other") return "Other";
   return "Cash";
 }
@@ -880,19 +890,22 @@ async function buildPayableLedger(
   if (payError) throw new Error(payError.message);
   if (allocError) throw new Error(allocError.message);
 
-  const postedVoucherIds = new Set(
-    (payments || [])
-      .filter((v) => String(v.id))
-      .map((v) => String(v.id)),
+  const methodByVoucher = new Map(
+    (payments || []).map((v) => [String(v.id), String(v.payment_method || "")]),
   );
   const paidByInvoiceId = new Map<string, number>();
+  const incentiveByInvoiceId = new Map<string, number>();
   for (const row of allocationRows || []) {
     const voucherId = String(row.voucher_id || "");
-    if (!postedVoucherIds.has(voucherId)) continue;
+    if (!methodByVoucher.has(voucherId)) continue;
     const piId = String(row.purchase_invoice_id || "");
     if (!piId) continue;
     const amt = Number(row.amount || 0);
-    paidByInvoiceId.set(piId, (paidByInvoiceId.get(piId) || 0) + amt);
+    const bucket =
+      methodByVoucher.get(voucherId) === "incentive"
+        ? incentiveByInvoiceId
+        : paidByInvoiceId;
+    bucket.set(piId, (bucket.get(piId) || 0) + amt);
   }
 
   const purchaseBills = buildPurchaseInvoicePayables(
@@ -905,6 +918,7 @@ async function buildPayableLedger(
     })),
     paidByInvoiceId,
     to,
+    incentiveByInvoiceId,
   );
 
   type Ev = {
@@ -925,9 +939,11 @@ async function buildPayableLedger(
   let openingPurchases = 0;
   let openingReturns = 0;
   let openingPaid = 0;
+  let openingIncentive = 0;
   let periodPurchases = 0;
   let periodReturns = 0;
   let periodPaid = 0;
+  let periodIncentive = 0;
 
   for (const row of purchases || []) {
     const date = String(row.invoice_date || "");
@@ -985,16 +1001,19 @@ async function buildPayableLedger(
   for (const row of payments || []) {
     const date = String(row.voucher_date || "");
     const amount = Number(row.total_amount || 0);
+    const incentive = String(row.payment_method || "") === "incentive";
     if (date < from) {
-      openingPaid += amount;
+      if (incentive) openingIncentive += amount;
+      else openingPaid += amount;
       continue;
     }
     if (date > to) continue;
-    periodPaid += amount;
+    if (incentive) periodIncentive += amount;
+    else periodPaid += amount;
     events.push({
-      sort: `${date}|3|${row.voucher_no || ""}`,
+      sort: `${date}|${incentive ? "4" : "3"}|${row.voucher_no || ""}`,
       date,
-      type: "Payment",
+      type: incentive ? "Incentive" : "Payment",
       document: String(row.voucher_no || "—"),
       party: String(row.narration || "").trim() || "—",
       method: paymentMethodLabel(row.payment_method as string),
@@ -1016,7 +1035,8 @@ async function buildPayableLedger(
 
   events.sort((a, b) => a.sort.localeCompare(b.sort));
 
-  const broughtForward = openingPurchases - openingReturns - openingPaid;
+  const broughtForward =
+    openingPurchases - openingReturns - openingPaid - openingIncentive;
   const openingPayable = setupOpeningPayable + broughtForward;
   let running = openingPayable;
   const rows: Record<string, unknown>[] = [];
@@ -1065,6 +1085,7 @@ async function buildPayableLedger(
       purchases: periodPurchases,
       returns: periodReturns,
       paid: periodPaid,
+      incentives: periodIncentive,
       outstanding: running,
       openingPayable,
       setupOpeningPayable,

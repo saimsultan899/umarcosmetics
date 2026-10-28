@@ -26,6 +26,7 @@ import {
   type SaleStockPolicy,
 } from "@/lib/trading/sale-stock-policy";
 import { useSingleSubmit } from "@/lib/forms/single-submit";
+import { useDialogInvoiceNo } from "@/lib/trading/preview-document-no";
 import {
   createSaleClientRequestId,
 } from "@/lib/trading/sale-invoice-submit";
@@ -97,6 +98,7 @@ export function SaleInvoiceForm({
 }) {
   const router = useRouter();
   const closeDialog = useCreateDialogClose();
+  useDialogInvoiceNo(companyId, "sale_invoice", editing?.invoiceNo);
   const linesEditorRef = useRef<LineItemsEditorHandle>(null);
   const clientRequestIdRef = useRef<string | null>(
     editing ? null : createSaleClientRequestId(),

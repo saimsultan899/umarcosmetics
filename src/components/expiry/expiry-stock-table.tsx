@@ -1,6 +1,9 @@
 "use client";
 
+import { TableFilterSelect } from "@/components/tables/table-filter-select";
+import { TablePagination } from "@/components/tables/table-pagination";
 import { TableScroll } from "@/components/tables/table-scroll";
+import { TableToolbar } from "@/components/tables/table-toolbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +14,9 @@ import { createClient } from "@/lib/supabase/client";
 import { formatNumber, formatPkr } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { useSingleSubmit } from "@/lib/forms/single-submit";
-import { FormEvent, useEffect, useState } from "react";
+import { useClientPagination } from "@/hooks/use-client-pagination";
+import type { Warehouse } from "@/lib/types/database";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
 async function setExpiryQty(
   companyId: string,
@@ -115,14 +120,46 @@ export function ExpiryStockTable({
   companyId,
   companyName,
   rows,
+  warehouses = [],
 }: {
   companyId: string;
   companyName: string;
   rows: ExpiryStockRow[];
+  warehouses?: Array<Pick<Warehouse, "id" | "name">>;
 }) {
   const [printedAt, setPrintedAt] = useState("");
-  const totalQty = rows.reduce((s, r) => s + r.qty, 0);
-  const totalValue = rows.reduce((s, r) => s + r.amount, 0);
+  const [query, setQuery] = useState("");
+  const [companyFilter, setCompanyFilter] = useState("");
+
+  const companyLabel = useMemo(() => {
+    const names = new Map(warehouses.map((w) => [w.id, w.name]));
+    return (id: string | null) => (id ? names.get(id) || "—" : "—");
+  }, [warehouses]);
+
+  const companyOptions = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const row of rows) {
+      if (!row.warehouse_id) continue;
+      names.set(row.warehouse_id, companyLabel(row.warehouse_id));
+    }
+    return [...names.entries()]
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [rows, companyLabel]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return rows.filter((row) => {
+      if (companyFilter && row.warehouse_id !== companyFilter) return false;
+      if (!q) return true;
+      const company = companyLabel(row.warehouse_id).toLowerCase();
+      return [row.product_code, row.product_name, company].join(" ").toLowerCase().includes(q);
+    });
+  }, [rows, query, companyFilter, companyLabel]);
+
+  const pager = useClientPagination(filtered);
+  const totalQty = filtered.reduce((s, r) => s + r.qty, 0);
+  const totalValue = filtered.reduce((s, r) => s + r.amount, 0);
 
   useEffect(() => {
     setPrintedAt(new Date().toLocaleString());
@@ -134,7 +171,26 @@ export function ExpiryStockTable({
         <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
           On-hand
         </h2>
-        <PrintButton label="Print list" />
+        <PrintButton label="Print list" printId="expiry-on-hand" />
+      </div>
+
+      <div className="no-print">
+        <TableToolbar
+          query={query}
+          onQueryChange={setQuery}
+          placeholder="Search code or item..."
+          resultCount={filtered.length}
+          totalCount={rows.length}
+          filters={
+            <TableFilterSelect
+              label="Company"
+              value={companyFilter}
+              allLabel="All companies"
+              options={companyOptions}
+              onChange={(value) => setCompanyFilter(value || "")}
+            />
+          }
+        />
       </div>
 
       <div className="table-shell table-shell--y-scroll no-print">
@@ -144,6 +200,7 @@ export function ExpiryStockTable({
               <tr>
                 <th>Code</th>
                 <th>Item</th>
+                <th>Company</th>
                 <th className="text-right">Qty</th>
                 <th className="text-right">Rate</th>
                 <th className="text-right">Value</th>
@@ -151,11 +208,12 @@ export function ExpiryStockTable({
               </tr>
             </thead>
             <tbody>
-              {rows.length ? (
-                rows.map((row) => (
+              {pager.slice.length ? (
+                pager.slice.map((row) => (
                   <tr key={row.product_id}>
                     <td className="tabular-nums">{row.product_code}</td>
                     <td>{row.product_name}</td>
+                    <td>{companyLabel(row.warehouse_id)}</td>
                     <td className="text-right tabular-nums">
                       {formatNumber(row.qty, 2)}
                     </td>
@@ -171,6 +229,7 @@ export function ExpiryStockTable({
                         viewFields={[
                           { label: "Code", value: row.product_code },
                           { label: "Item", value: row.product_name },
+                          { label: "Company", value: companyLabel(row.warehouse_id) },
                           { label: "Qty", value: formatNumber(row.qty, 2) },
                           { label: "Rate", value: formatPkr(row.rate) },
                           { label: "Value", value: formatPkr(row.amount) },
@@ -201,30 +260,43 @@ export function ExpiryStockTable({
               ) : (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="py-10 text-center text-[var(--muted)]"
                   >
-                    No expired stock on hand.
+                    {rows.length
+                      ? "No products match this search or company."
+                      : "No expired stock on hand."}
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </TableScroll>
+        <TablePagination
+          page={pager.page}
+          totalPages={pager.totalPages}
+          pageSize={pager.pageSize}
+          total={pager.total}
+          from={pager.from}
+          to={pager.to}
+          onPageChange={pager.setPage}
+          onPageSizeChange={pager.setPageSize}
+        />
       </div>
 
-      <div className="print-only print-sheet report-print">
+      <div data-print-id="expiry-on-hand" className="print-only print-sheet report-print">
         <div className="report-print-head">
           <div>
             <p className="report-print-title">Expiry warehouse — on-hand</p>
             <p className="report-print-co">{companyName}</p>
           </div>
           <p className="report-print-meta">
-            {rows.length} items
+            {filtered.length} items
+            {companyFilter ? ` · ${companyLabel(companyFilter)}` : ""}
             {printedAt ? ` · Printed ${printedAt}` : ""}
           </p>
         </div>
-        {rows.length ? (
+        {filtered.length ? (
           <table>
             <thead>
               <tr>
@@ -233,17 +305,19 @@ export function ExpiryStockTable({
                 </th>
                 <th>Code</th>
                 <th>Item</th>
+                <th>Company</th>
                 <th className="num">Qty</th>
                 <th className="num">Rate</th>
                 <th className="num">Value</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, idx) => (
+              {filtered.map((row, idx) => (
                 <tr key={row.product_id}>
                   <td className="num">{idx + 1}</td>
                   <td>{row.product_code}</td>
                   <td>{row.product_name}</td>
+                  <td>{companyLabel(row.warehouse_id)}</td>
                   <td className="num">{formatNumber(row.qty, 2)}</td>
                   <td className="num">{formatPkr(row.rate)}</td>
                   <td className="num">{formatPkr(row.amount)}</td>
@@ -252,6 +326,7 @@ export function ExpiryStockTable({
             </tbody>
             <tfoot>
               <tr>
+                <td />
                 <td />
                 <td />
                 <td>Total</td>

@@ -1,6 +1,7 @@
 "use client";
 
 import { formatNumber, formatPkr, cn } from "@/lib/utils";
+import { useId } from "react";
 import {
   Area,
   AreaChart,
@@ -49,11 +50,16 @@ export function TrendAreaChart({
   data,
   valueLabel = "Amount",
   height = 220,
+  tone = "brand",
 }: {
   data: Point[];
   valueLabel?: string;
   height?: number;
+  /** Green for a second trend so it does not look like the sales chart. */
+  tone?: "brand" | "ok";
 }) {
+  const fillId = useId().replace(/:/g, "");
+  const stroke = tone === "ok" ? "#059669" : BRAND_CHART;
   if (!data.length) {
     return <EmptyChart />;
   }
@@ -62,9 +68,9 @@ export function TrendAreaChart({
       <ResponsiveContainer>
         <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
           <defs>
-            <linearGradient id="brandFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={BRAND_CHART} stopOpacity={0.35} />
-              <stop offset="100%" stopColor={BRAND_CHART} stopOpacity={0.02} />
+            <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={stroke} stopOpacity={0.35} />
+              <stop offset="100%" stopColor={stroke} stopOpacity={0.02} />
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8e4" vertical={false} />
@@ -86,9 +92,9 @@ export function TrendAreaChart({
             type="monotone"
             dataKey="value"
             name={valueLabel}
-            stroke={BRAND_CHART}
+            stroke={stroke}
             strokeWidth={2.5}
-            fill="url(#brandFill)"
+            fill={`url(#${fillId})`}
           />
         </AreaChart>
       </ResponsiveContainer>
@@ -228,22 +234,30 @@ export function RankBars({
 
   return (
     <div className="space-y-3">
-      {data.map((row) => (
-        <div key={row.name}>
-          <div className="mb-1 flex items-center justify-between gap-2 text-xs">
-            <span className="truncate font-medium text-[var(--ink)]">{row.name}</span>
-            <span className="shrink-0 text-[var(--muted)]">
-              {money ? formatPkr(row.value) : formatNumber(row.value, 0)}
+      {data.map((row, index) => {
+        const width = Math.max(8, (row.value / max) * 100);
+        return (
+          <div key={row.name} className="grid grid-cols-[1.25rem_minmax(0,1fr)] items-center gap-2">
+            <span className="text-xs font-semibold tabular-nums text-[var(--muted)]">
+              {index + 1}
             </span>
+            <div className="min-w-0">
+              <div className="mb-1 flex items-center justify-between gap-2 text-xs">
+                <span className="truncate font-medium text-[var(--ink)]">{row.name}</span>
+                <span className="shrink-0 font-semibold tabular-nums text-[var(--ink)]">
+                  {money ? formatPkr(row.value) : formatNumber(row.value, 0)}
+                </span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-[var(--surface-2)]">
+                <div
+                  className="h-full rounded-full bg-[var(--brand)]"
+                  style={{ width: `${width}%`, opacity: index === 0 ? 1 : 0.72 }}
+                />
+              </div>
+            </div>
           </div>
-          <div className="h-2.5 overflow-hidden rounded-full bg-[var(--surface-2)]">
-            <div
-              className="h-full rounded-full bg-[var(--brand)] transition-all"
-              style={{ width: `${Math.max(6, (row.value / max) * 100)}%` }}
-            />
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

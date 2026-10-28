@@ -180,6 +180,7 @@ export function ExpiryWarehouseView({
           companyId={company.id}
           companyName={company.name}
           rows={stock}
+          warehouses={formWarehouses}
         />
       ) : null}
 

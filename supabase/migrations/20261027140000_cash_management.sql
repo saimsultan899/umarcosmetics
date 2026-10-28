@@ -190,12 +190,29 @@ as $$
       nullif(v.total_amount, 0),
       (select coalesce(sum(vl.amount), 0) from public.voucher_lines vl where vl.voucher_id = v.id)
     ),
-    coalesce(nullif(btrim(v.narration), ''), v.voucher_no, 'Cash payment'),
+    coalesce(
+      (
+        select nullif(btrim(p.name_en), '')
+        from public.voucher_lines vl
+        join public.parties p on p.id = vl.party_id
+        where vl.voucher_id = v.id
+        limit 1
+      ),
+      nullif(btrim(v.narration), ''),
+      v.voucher_no,
+      'Cash payment'
+    ),
     v.id,
     null::uuid,
     null::uuid,
     null::text,
-    null::text
+    (
+      select nullif(btrim(p.party_code), '')
+      from public.voucher_lines vl
+      join public.parties p on p.id = vl.party_id
+      where vl.voucher_id = v.id
+      limit 1
+    )
   from public.vouchers v
   where v.company_id = p_company_id
     and v.voucher_type = 'CP'

@@ -26,12 +26,17 @@ function formatNow(now: Date) {
 }
 
 export function HeaderClock() {
-  const [now, setNow] = useState(() => new Date());
+  const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
+    setNow(new Date());
     const id = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(id);
   }, []);
+
+  if (!now) {
+    return <div className="min-w-[7.5rem]" aria-hidden />;
+  }
 
   const { date, time } = formatNow(now);
 

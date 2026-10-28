@@ -985,6 +985,7 @@ function parseNumberForPrefix(value: unknown, prefix: string): number | null {
 export async function allocateSequentialDocNo(
   mutationType: OfflineMutationType,
   companyId: string,
+  opts?: { reserve?: boolean },
 ): Promise<string> {
   const cfg = SERIES_CONFIG[mutationType] || {
     prefix: "DOC-",
@@ -1096,7 +1097,7 @@ export async function allocateSequentialDocNo(
   }
 
   const nextNum = maxFound + 1;
-  if (typeof window !== "undefined" && window.localStorage) {
+  if (opts?.reserve !== false && typeof window !== "undefined" && window.localStorage) {
     try {
       window.localStorage.setItem(storageKey, String(nextNum));
       window.localStorage.setItem(padKey, String(padWidth));

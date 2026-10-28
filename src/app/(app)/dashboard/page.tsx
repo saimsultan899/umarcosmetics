@@ -17,7 +17,6 @@ import {
 } from "@/lib/analytics/aggregate";
 import { amountClass, cn, formatNumber, formatCompactPkr, formatPkr} from "@/lib/utils";
 import {
-  AlertTriangle,
   Banknote,
   ShoppingCart,
   TrendingUp,
@@ -269,15 +268,6 @@ export default async function DashboardPage() {
           hint="Drawer after recoveries, paid bills, expenses, and cash payments"
         />
         <StatCard
-          label="Over credit limit"
-          value={s.over_limit_count || 0}
-          format="number"
-          icon={AlertTriangle}
-          tone={(s.over_limit_count || 0) > 0 ? "danger" : "ok"}
-          href="/reports/accounts?view=receivable"
-          hint="Shops exceeding credit — chase first"
-        />
-        <StatCard
           label="Today expenses"
           value={expenseToday}
           format="money"
@@ -331,7 +321,7 @@ export default async function DashboardPage() {
           title="Recovery momentum"
           subtitle="Cash collected from shops (last 7 days)"
         >
-          <TrendAreaChart data={recoveryTrend} valueLabel="Recovery" height={240} />
+          <TrendAreaChart data={recoveryTrend} valueLabel="Recovery" height={240} tone="ok" />
         </ChartCard>
       </div>
 
@@ -341,23 +331,39 @@ export default async function DashboardPage() {
         </ChartCard>
 
         <ChartCard title="Top debtors" subtitle="Highest outstanding balances">
-          <div className="space-y-2">
+          <div className="space-y-3">
             {debtors.length ? (
-              debtors.map((d) => (
-                <Link
-                  key={d.party_id}
-                  href={`/parties/insights/${d.party_id}`}
-                  className="panel-list-item"
-                >
-                  <div>
-                    <p className="font-medium">{d.name_en}</p>
-                    <p className="text-xs text-[var(--muted)]">{d.party_code}</p>
-                  </div>
-                  <p className={cn("font-semibold text-rose-700", amountClass)}>
-                    {formatPkr(d.balance)}
-                  </p>
-                </Link>
-              ))
+              debtors.map((d, index) => {
+                const top = Math.max(...debtors.map((row) => Number(row.balance) || 0), 1);
+                const width = Math.max(8, (Number(d.balance) / top) * 100);
+                return (
+                  <Link
+                    key={d.party_id}
+                    href={`/parties/insights/${d.party_id}`}
+                    className="block rounded-lg px-1 py-1 hover:bg-[var(--surface-2)]"
+                  >
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <p className="flex min-w-0 items-center gap-2">
+                        <span className="w-4 shrink-0 text-xs font-semibold tabular-nums text-[var(--muted)]">
+                          {index + 1}
+                        </span>
+                        {d.party_code ? (
+                          <span className="shrink-0 rounded-md bg-[var(--paper)] px-1.5 py-0.5 font-mono text-[11px] font-semibold">
+                            {d.party_code}
+                          </span>
+                        ) : null}
+                        <span className="truncate text-sm font-medium">{d.name_en}</span>
+                      </p>
+                      <p className={cn("shrink-0 font-semibold text-rose-700", amountClass)}>
+                        {formatPkr(d.balance)}
+                      </p>
+                    </div>
+                    <div className="ml-6 h-1.5 overflow-hidden rounded-full bg-[var(--surface-2)]">
+                      <div className="h-full rounded-full bg-rose-500" style={{ width: `${width}%` }} />
+                    </div>
+                  </Link>
+                );
+              })
             ) : (
               <p className="text-sm text-[var(--muted)]">No receivables yet.</p>
             )}
@@ -367,17 +373,29 @@ export default async function DashboardPage() {
         <ChartCard title="Low stock watch" subtitle="SKUs at or below reorder level">
           <div className="space-y-2">
             {low.length ? (
-              low.map((r, idx) => (
-                <div key={idx} className="panel-note">
-                  <p className="font-medium">
-                    {r.product?.code} — {r.product?.name_en}
-                  </p>
-                  <p className="text-xs text-amber-800">
-                    {r.warehouse?.name}: {formatNumber(r.qty, 0)} / reorder{" "}
-                    {formatNumber(r.product?.reorder_level || 0, 0)}
-                  </p>
-                </div>
-              ))
+              low.map((r, idx) => {
+                const reorder = Number(r.product?.reorder_level || 0);
+                const width = reorder > 0 ? Math.min(100, (r.qty / reorder) * 100) : 0;
+                return (
+                  <div key={idx} className="panel-note">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="min-w-0 font-medium">
+                        <span className="mr-1.5 rounded-md bg-white px-1.5 py-0.5 font-mono text-[11px]">
+                          {r.product?.code}
+                        </span>
+                        {r.product?.name_en}
+                      </p>
+                      <p className="shrink-0 text-xs font-semibold text-amber-800">
+                        {formatNumber(r.qty, 0)} / {formatNumber(reorder, 0)}
+                      </p>
+                    </div>
+                    <p className="mt-1 text-xs text-[var(--muted)]">{r.warehouse?.name}</p>
+                    <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-amber-100">
+                      <div className="h-full rounded-full bg-amber-500" style={{ width: `${width}%` }} />
+                    </div>
+                  </div>
+                );
+              })
             ) : (
               <p className="text-sm text-[var(--muted)]">Stock levels look healthy.</p>
             )}
