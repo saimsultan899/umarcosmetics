@@ -1,6 +1,7 @@
 import { ChartCard } from "@/components/analytics/chart-card";
 import { DonutChart, RankBars } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
+import { ReportSectionHead } from "@/components/reports/report-section-head";
 import { ReportTable } from "@/components/reports/report-table";
 import { StockReportFilters } from "@/components/reports/stock-report-filters";
 import { requireCompanyContext } from "@/lib/auth";
@@ -406,14 +407,11 @@ export default async function StockReportPage({
 
   return (
     <div className="animate-rise space-y-6">
-      <div>
-        <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold">
-          Stock Reports
-        </h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">
-          Balances, analysis, and movement history — {company.name}
-        </p>
-      </div>
+      <ReportSectionHead
+        size="page"
+        title="Stock Reports"
+        subtitle={`Balances, analysis, and movement history — ${company.name}`}
+      />
 
       <div className="no-print flex flex-wrap gap-2">
         {[

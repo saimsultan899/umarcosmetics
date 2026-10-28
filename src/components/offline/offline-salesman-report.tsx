@@ -8,6 +8,7 @@ import {
 } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { FilterMultiSelect, ReportFilters } from "@/components/reports/report-filters";
+import { ReportSectionHead } from "@/components/reports/report-section-head";
 import { ReportTable } from "@/components/reports/report-table";
 import { OfflineBanner } from "@/components/offline/offline-banner";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
@@ -387,36 +388,33 @@ export function OfflineSalesmanReportPage({
   return (
     <div className="animate-rise space-y-6">
       <OfflineBanner companyId={companyId} />
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold">
-            Salesman Report
-          </h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            Sales, collections & field recovery by salesman — {companyName} (offline)
-          </p>
-        </div>
-        <div className="no-print flex flex-wrap items-center gap-2">
-          <Link
-            href="/salesman/recoveries"
-            className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium text-[var(--muted)] hover:text-[var(--ink)]"
-          >
-            Field recoveries
-          </Link>
-          <Link
-            href="/reports/salesman-ledger"
-            className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium text-[var(--muted)] hover:text-[var(--ink)]"
-          >
-            Salesman ledger
-          </Link>
-          <Link
-            href="/salesman"
-            className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium text-[var(--muted)] hover:text-[var(--ink)]"
-          >
-            Manage salesmen
-          </Link>
-        </div>
-      </div>
+      <ReportSectionHead
+        size="page"
+        title="Salesman Report"
+        subtitle={`Sales, collections & field recovery by salesman — ${companyName} (offline)`}
+        actions={
+          <div className="no-print flex flex-wrap items-center gap-2">
+            <Link
+              href="/salesman/recoveries"
+              className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium text-[var(--muted)] hover:text-[var(--ink)]"
+            >
+              Field recoveries
+            </Link>
+            <Link
+              href="/reports/salesman-ledger"
+              className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium text-[var(--muted)] hover:text-[var(--ink)]"
+            >
+              Salesman ledger
+            </Link>
+            <Link
+              href="/salesman"
+              className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium text-[var(--muted)] hover:text-[var(--ink)]"
+            >
+              Manage salesmen
+            </Link>
+          </div>
+        }
+      />
 
       <div className="no-print space-y-6">
         <StatsGrid>

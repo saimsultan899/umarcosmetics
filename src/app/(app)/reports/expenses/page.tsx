@@ -2,6 +2,7 @@ import { ChartCard } from "@/components/analytics/chart-card";
 import { DonutChart, RankBars, TrendAreaChart } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { FilterMultiSelect, ReportFilters } from "@/components/reports/report-filters";
+import { ReportSectionHead } from "@/components/reports/report-section-head";
 import { ReportTable } from "@/components/reports/report-table";
 import { requireCompanyContext } from "@/lib/auth";
 import { fetchExpenseCategories } from "@/lib/queries/expense-categories";
@@ -70,22 +71,19 @@ export default async function ExpenseReportPage({
 
   return (
     <div className="animate-rise space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold">
-            Expense report
-          </h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            Salary and daily costs by type, salesman, and day — {company.name}
-          </p>
-        </div>
-        <Link
-          href="/vouchers/expenses"
-          className="no-print rounded-lg bg-[var(--brand)] px-3 py-2 text-sm font-medium text-white"
-        >
-          Add expense
-        </Link>
-      </div>
+      <ReportSectionHead
+        size="page"
+        title="Expense report"
+        subtitle={`Salary and daily costs by type, salesman, and day — ${company.name}`}
+        actions={
+          <Link
+            href="/vouchers/expenses"
+            className="no-print rounded-lg bg-[var(--brand)] px-3 py-2 text-sm font-medium text-white"
+          >
+            Add expense
+          </Link>
+        }
+      />
 
       <StatsGrid>
         <StatCard

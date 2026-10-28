@@ -2,6 +2,7 @@ import { ChartCard } from "@/components/analytics/chart-card";
 import { DonutChart, RankBars } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { AccountsSectorFilter } from "@/components/reports/accounts-sector-filter";
+import { ReportSectionHead } from "@/components/reports/report-section-head";
 import { ReportTable } from "@/components/reports/report-table";
 import { ReportFilterActions } from "@/components/reports/report-filters";
 import { UrlFilterForm } from "@/components/reports/url-filter-form";
@@ -412,14 +413,11 @@ export default async function AccountsReportPage({
 
   return (
     <div className="animate-rise space-y-6">
-      <div>
-        <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold">
-          Accounts Reports
-        </h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">
-          Receivables, payables, and customer ledger — export ready
-        </p>
-      </div>
+      <ReportSectionHead
+        size="page"
+        title="Accounts Reports"
+        subtitle="Receivables, payables, and customer ledger — export ready"
+      />
 
       <div className="no-print flex flex-wrap gap-2">
         {[
@@ -561,7 +559,13 @@ export default async function AccountsReportPage({
         </div>
       ) : (
         <ReportTable
-          title={`${view} balances`}
+          title={
+            view === "payable"
+              ? "Vendor payables"
+              : view === "all"
+                ? "All party balances"
+                : "Customer balances"
+          }
           companyName={company.name}
           subtitle={`${balanceRows.length} parties${sector ? ` · Sector: ${sector}` : ""}`}
           rows={balanceRows}

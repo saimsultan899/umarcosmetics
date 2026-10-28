@@ -1,6 +1,7 @@
 "use client";
 
 import { FilterMultiSelect, ReportFilters } from "@/components/reports/report-filters";
+import { ReportSectionHead } from "@/components/reports/report-section-head";
 import { ReportTable } from "@/components/reports/report-table";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { parseReportList } from "@/lib/reports/filter-params";
@@ -369,14 +370,11 @@ export function OfflinePurchaseReportsPage({
   if (loading) {
     return (
       <div className="animate-rise space-y-6">
-        <div>
-          <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold">
-            Purchase Reports
-          </h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            Vendor and item purchase analytics with export
-          </p>
-        </div>
+        <ReportSectionHead
+          size="page"
+          title="Purchase Reports"
+          subtitle="Vendor and item purchase analytics with export"
+        />
         <PageSkeleton />
       </div>
     );
@@ -384,14 +382,11 @@ export function OfflinePurchaseReportsPage({
 
   return (
     <div className="animate-rise space-y-6">
-      <div>
-        <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold">
-          Purchase Reports
-        </h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">
-          Vendor and item purchase analytics with export
-        </p>
-      </div>
+      <ReportSectionHead
+        size="page"
+        title="Purchase Reports"
+        subtitle="Vendor and item purchase analytics with export"
+      />
 
       <ReportFilters
         action="/reports/purchases"

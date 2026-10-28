@@ -2,7 +2,7 @@
 
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { Button } from "@/components/ui/button";
-import { PageHeading } from "@/components/ui/create-dialog";
+import { ReportSectionHead } from "@/components/reports/report-section-head";
 import { ReportTable } from "@/components/reports/report-table";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
 import {
@@ -388,7 +388,11 @@ export function OfflineReportPanel({
   if (loading) {
     return (
       <div className="animate-rise space-y-6">
-        <PageHeading title={meta.title} description={meta.description} />
+        <ReportSectionHead
+          size="page"
+          title={meta.title}
+          subtitle={meta.description}
+        />
         <PageSkeleton />
       </div>
     );
@@ -396,7 +400,11 @@ export function OfflineReportPanel({
 
   return (
     <div className="animate-rise space-y-6">
-      <PageHeading title={meta.title} description={meta.description} />
+      <ReportSectionHead
+        size="page"
+        title={meta.title}
+        subtitle={meta.description}
+      />
 
       {kind === "accounts" ? (
         <div className="no-print flex flex-wrap gap-2 text-sm">

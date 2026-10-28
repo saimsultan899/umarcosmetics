@@ -6,6 +6,7 @@ import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { RecoverySheet } from "@/components/reports/recovery-sheet";
 import { FilterMultiSelect, ReportFilterActions } from "@/components/reports/report-filters";
 import { UrlFilterForm } from "@/components/reports/url-filter-form";
+import { ReportSectionHead } from "@/components/reports/report-section-head";
 import { CreateDialogButton } from "@/components/ui/create-dialog";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { PrintButton } from "@/components/ui/print-button";
@@ -563,14 +564,11 @@ export function OfflineRecoverySheetPage({
   if (loading) {
     return (
       <div className="animate-rise space-y-6">
-        <div>
-          <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold">
-            Customer Receivables / Recovery Sheet
-          </h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            Printable recovery sheet grouped by sector with collection entry
-          </p>
-        </div>
+        <ReportSectionHead
+          size="page"
+          title="Customer Receivables / Recovery Sheet"
+          subtitle="Printable recovery sheet grouped by sector with collection entry"
+        />
         <PageSkeleton />
       </div>
     );
@@ -578,36 +576,33 @@ export function OfflineRecoverySheetPage({
 
   return (
     <div className="animate-rise space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold">
-            Customer Receivables / Recovery Sheet
-          </h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            {from} → {to} · {townLabel} · {sheet.scopeLabel}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <CreateDialogButton
-            label="Record recovery"
-            title="Record recovery"
-            description="Add one or more collections, then post them together"
-            size="xl"
-          >
-            <RecoveryForm
-              companyId={companyId}
-              organizationId={organizationId || companyId}
-              parties={parties as Party[]}
-              salesmen={salesmen.map((s) => ({
-                id: s.id,
-                full_name: s.full_name,
-                user_id: (s as unknown as { user_id?: string }).user_id || s.id,
-              }))}
-            />
-          </CreateDialogButton>
-          <PrintButton label="Print / Download PDF" />
-        </div>
-      </div>
+      <ReportSectionHead
+        size="page"
+        title="Customer Receivables / Recovery Sheet"
+        subtitle={`${from} → ${to} · ${townLabel} · ${sheet.scopeLabel}`}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <CreateDialogButton
+              label="Record recovery"
+              title="Record recovery"
+              description="Add one or more collections, then post them together"
+              size="xl"
+            >
+              <RecoveryForm
+                companyId={companyId}
+                organizationId={organizationId || companyId}
+                parties={parties as Party[]}
+                salesmen={salesmen.map((s) => ({
+                  id: s.id,
+                  full_name: s.full_name,
+                  user_id: (s as unknown as { user_id?: string }).user_id || s.id,
+                }))}
+              />
+            </CreateDialogButton>
+            <PrintButton label="Print / Download PDF" />
+          </div>
+        }
+      />
 
       <StatsGrid>
         <StatCard

@@ -4,6 +4,7 @@ import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { RecoverySheet } from "@/components/reports/recovery-sheet";
 import { FilterMultiSelect, ReportFilterActions } from "@/components/reports/report-filters";
 import { UrlFilterForm } from "@/components/reports/url-filter-form";
+import { ReportSectionHead } from "@/components/reports/report-section-head";
 import { CreateDialogButton } from "@/components/ui/create-dialog";
 import { PrintButton } from "@/components/ui/print-button";
 import { Select } from "@/components/ui/select";
@@ -172,41 +173,36 @@ export default async function RecoverySheetPage({
 
   return (
     <div className="animate-rise space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold">
-            Customer receivables
-          </h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            Shop balances (Dr/Cr) for field collection — {company.name}. Use
-            View / Edit / Delete on each row. Edit lists every recovery for that
-            shop so a duplicate can be searched and deleted.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <CreateDialogButton
-            label="Record recovery"
-            title="Record recovery"
-            description="Add one or more collections, then post them together"
-            size="xl"
-            createKey="recovery"
-          >
-            <RecoveryForm
-              companyId={company.id}
-              organizationId={company.organization_id}
-              parties={(parties || []) as Party[]}
-              salesmen={salesmen}
-            />
-          </CreateDialogButton>
-          <a
-            href="/salesman/recoveries"
-            className="inline-flex h-10 items-center rounded-lg border border-[var(--border)] bg-white px-3 text-sm font-medium text-[var(--muted)] hover:text-[var(--ink)]"
-          >
-            Recovery history
-          </a>
-          <PrintButton label="Print / Download PDF" />
-        </div>
-      </div>
+      <ReportSectionHead
+        size="page"
+        title="Customer receivables"
+        subtitle={`Shop balances (Dr/Cr) for field collection — ${company.name}. Use View / Edit / Delete on each row. Edit lists every recovery for that shop so a duplicate can be searched and deleted.`}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <CreateDialogButton
+              label="Record recovery"
+              title="Record recovery"
+              description="Add one or more collections, then post them together"
+              size="xl"
+              createKey="recovery"
+            >
+              <RecoveryForm
+                companyId={company.id}
+                organizationId={company.organization_id}
+                parties={(parties || []) as Party[]}
+                salesmen={salesmen}
+              />
+            </CreateDialogButton>
+            <a
+              href="/salesman/recoveries"
+              className="inline-flex h-10 items-center rounded-lg border border-[var(--border)] bg-white px-3 text-sm font-medium text-[var(--muted)] hover:text-[var(--ink)]"
+            >
+              Recovery history
+            </a>
+            <PrintButton label="Print / Download PDF" />
+          </div>
+        }
+      />
 
       <StatsGrid>
         <StatCard

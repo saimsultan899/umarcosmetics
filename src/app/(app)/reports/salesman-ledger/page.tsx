@@ -1,5 +1,6 @@
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { FilterSelect, ReportFilters } from "@/components/reports/report-filters";
+import { ReportSectionHead } from "@/components/reports/report-section-head";
 import { ReportTable } from "@/components/reports/report-table";
 import { requireCompanyContext } from "@/lib/auth";
 import { fetchCompanySalesmen } from "@/lib/queries/salesmen";
@@ -62,31 +63,27 @@ export default async function SalesmanLedgerPage({
 
   return (
     <div className="animate-rise space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold">
-            Salesman ledger
-          </h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            Running book of this salesman&apos;s sales, recoveries, salary, and
-            tagged daily expenses — {company.name}
-          </p>
-        </div>
-        <div className="no-print flex flex-wrap gap-2">
-          <Link
-            href="/vouchers/expenses"
-            className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium"
-          >
-            Add salary / expense
-          </Link>
-          <Link
-            href="/reports/accounts?view=ledger"
-            className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium"
-          >
-            Customer ledger
-          </Link>
-        </div>
-      </div>
+      <ReportSectionHead
+        size="page"
+        title="Salesman ledger"
+        subtitle={`Running book of this salesman's sales, recoveries, salary, and tagged daily expenses — ${company.name}`}
+        actions={
+          <div className="no-print flex flex-wrap gap-2">
+            <Link
+              href="/vouchers/expenses"
+              className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium"
+            >
+              Add salary / expense
+            </Link>
+            <Link
+              href="/reports/accounts?view=ledger"
+              className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium"
+            >
+              Customer ledger
+            </Link>
+          </div>
+        }
+      />
 
       <ReportFilters
         action="/reports/salesman-ledger"

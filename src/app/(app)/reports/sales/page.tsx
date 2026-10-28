@@ -7,6 +7,7 @@ import { PartyWiseSalesPrint } from "@/components/reports/party-wise-sales-print
 import { FilterMultiSelect, ReportFilters } from "@/components/reports/report-filters";
 import { SaleCompanyProductFilters } from "@/components/reports/sale-company-product-filters";
 import { FilterFlagPill } from "@/components/reports/report-type-pills";
+import { ReportSectionHead } from "@/components/reports/report-section-head";
 import { ReportTable } from "@/components/reports/report-table";
 import { requireCompanyContext } from "@/lib/auth";
 import { LIST_STATS_COOKIE, rememberStats } from "@/lib/list-stats-revision";
@@ -246,14 +247,11 @@ export default async function SaleReportsPage({
 
   return (
     <div className="animate-rise space-y-6">
-      <div>
-        <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold">
-          Sale Reports
-        </h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">
-          Filtered sales analytics with print / Excel / PDF export
-        </p>
-      </div>
+      <ReportSectionHead
+        size="page"
+        title="Sale Reports"
+        subtitle="Filtered sales analytics with print / Excel / PDF export"
+      />
 
       <StatsGrid>
         <StatCard

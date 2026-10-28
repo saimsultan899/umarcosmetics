@@ -1,5 +1,5 @@
-import { PageHeading } from "@/components/ui/create-dialog";
 import { FilterSelect, ReportFilters } from "@/components/reports/report-filters";
+import { ReportSectionHead } from "@/components/reports/report-section-head";
 import { ReportTable } from "@/components/reports/report-table";
 import { requireCompanyContext } from "@/lib/auth";
 import { localDateIso, monthStartLocal } from "@/lib/dates";
@@ -75,9 +75,10 @@ export default async function ExpiryReportPage({
 
   return (
     <div className="animate-rise space-y-6">
-      <PageHeading
+      <ReportSectionHead
+        size="page"
         title="Expiry warehouse report"
-        description="On-hand expired stock, customer returns, and vendor claims — by company."
+        subtitle="On-hand expired stock, customer returns, and vendor claims — by company."
         actions={
           <Link
             href="/inventory/expiry"

@@ -2,6 +2,7 @@ import { ChartCard } from "@/components/analytics/chart-card";
 import { CompareBarChart, DonutChart, TrendAreaChart } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { ProfitPeriodFilters } from "@/components/reports/profit-period-filters";
+import { ReportSectionHead } from "@/components/reports/report-section-head";
 import { ReportTable } from "@/components/reports/report-table";
 import { requireCompanyContext } from "@/lib/auth";
 import { buildProfitReport } from "@/lib/reports/profit-data";
@@ -95,20 +96,19 @@ export default async function ProfitReportPage({
 
   return (
     <div className="animate-rise space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-semibold text-[var(--ink)]">Profit summary</h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            {period.label} — {company.name}
-          </p>
-        </div>
-        <Link
-          href="/vouchers/expenses"
-          className="no-print rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium text-[var(--muted)] hover:text-[var(--ink)]"
-        >
-          Add expense
-        </Link>
-      </div>
+      <ReportSectionHead
+        size="page"
+        title="Profit summary"
+        subtitle={`${period.label} — ${company.name}`}
+        actions={
+          <Link
+            href="/vouchers/expenses"
+            className="no-print rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium text-[var(--muted)] hover:text-[var(--ink)]"
+          >
+            Add expense
+          </Link>
+        }
+      />
 
       <ProfitPeriodFilters preset={period.preset} from={period.from} to={period.to} />
 

@@ -1,6 +1,7 @@
 import { ChartCard } from "@/components/analytics/chart-card";
 import { CompareBarChart, DonutChart } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
+import { ReportSectionHead } from "@/components/reports/report-section-head";
 import { ReportTable } from "@/components/reports/report-table";
 import {
   FilterSubmitButton,
@@ -107,28 +108,25 @@ export default async function AgingReportPage({
 
   return (
     <div className="animate-rise space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold">
-            Receivable aging
-          </h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            Credit risk by age bucket — know who to chase first ({company.name})
-          </p>
-        </div>
-        <UrlFilterForm className="flex items-end gap-2">
-          <label className="text-sm">
-            <span className="mb-1 block text-xs text-[var(--muted)]">As of</span>
-            <input
-              type="date"
-              name="date"
-              defaultValue={asOf}
-              className="h-10 rounded-lg border border-[var(--border)] px-3"
-            />
-          </label>
-          <FilterSubmitButton className="h-10">Refresh</FilterSubmitButton>
-        </UrlFilterForm>
-      </div>
+      <ReportSectionHead
+        size="page"
+        title="Receivable aging"
+        subtitle={`Credit risk by age bucket — know who to chase first (${company.name})`}
+        actions={
+          <UrlFilterForm className="flex items-end gap-2">
+            <label className="text-sm">
+              <span className="mb-1 block text-xs text-[var(--muted)]">As of</span>
+              <input
+                type="date"
+                name="date"
+                defaultValue={asOf}
+                className="h-10 rounded-lg border border-[var(--border)] px-3"
+              />
+            </label>
+            <FilterSubmitButton className="h-10">Refresh</FilterSubmitButton>
+          </UrlFilterForm>
+        }
+      />
 
       <StatsGrid className="xl:grid-cols-3">
         <StatCard

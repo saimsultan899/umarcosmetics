@@ -3,6 +3,7 @@
 import { ChartCard } from "@/components/analytics/chart-card";
 import { DonutChart, RankBars } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
+import { ReportSectionHead } from "@/components/reports/report-section-head";
 import { ReportTable } from "@/components/reports/report-table";
 import { StockReportFilters } from "@/components/reports/stock-report-filters";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
@@ -434,14 +435,11 @@ export function OfflineStockReportsPage({
   if (loading) {
     return (
       <div className="animate-rise space-y-6">
-        <div>
-          <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold">
-            Stock Reports
-          </h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            Multi-company inventory balances, movements, and reorder alerts
-          </p>
-        </div>
+        <ReportSectionHead
+          size="page"
+          title="Stock Reports"
+          subtitle="Multi-company inventory balances, movements, and reorder alerts"
+        />
         <PageSkeleton />
       </div>
     );
@@ -457,14 +455,11 @@ export function OfflineStockReportsPage({
 
   return (
     <div className="animate-rise space-y-6">
-      <div>
-        <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold">
-          Stock Reports
-        </h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">
-          Multi-company inventory balances, movements, and reorder alerts
-        </p>
-      </div>
+      <ReportSectionHead
+        size="page"
+        title="Stock Reports"
+        subtitle="Multi-company inventory balances, movements, and reorder alerts"
+      />
 
       <div className="no-print flex flex-wrap gap-2">
         {[

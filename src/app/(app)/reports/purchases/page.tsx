@@ -1,4 +1,5 @@
 import { FilterMultiSelect, ReportFilters } from "@/components/reports/report-filters";
+import { ReportSectionHead } from "@/components/reports/report-section-head";
 import { ReportTable } from "@/components/reports/report-table";
 import { requireCompanyContext } from "@/lib/auth";
 import { parseReportList } from "@/lib/reports/filter-params";
@@ -106,14 +107,11 @@ export default async function PurchaseReportsPage({
 
   return (
     <div className="animate-rise space-y-6">
-      <div>
-        <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold">
-          Purchase Reports
-        </h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">
-          Vendor and item purchase analytics with export
-        </p>
-      </div>
+      <ReportSectionHead
+        size="page"
+        title="Purchase Reports"
+        subtitle="Vendor and item purchase analytics with export"
+      />
 
       <ReportFilters
         action="/reports/purchases"

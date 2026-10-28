@@ -4,6 +4,7 @@ import { ChartCard } from "@/components/analytics/chart-card";
 import { DonutChart, RankBars, TrendAreaChart } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { FilterMultiSelect, ReportFilters } from "@/components/reports/report-filters";
+import { ReportSectionHead } from "@/components/reports/report-section-head";
 import { ReportTable } from "@/components/reports/report-table";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
 import {
@@ -214,14 +215,11 @@ export function OfflineExpenseReportsPage({
   if (loading) {
     return (
       <div className="animate-rise space-y-6">
-        <div>
-          <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold">
-            Expense Reports
-          </h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            Operating expenses, salaries, fuel, bills, and other daily costs
-          </p>
-        </div>
+        <ReportSectionHead
+          size="page"
+          title="Expense Reports"
+          subtitle="Operating expenses, salaries, fuel, bills, and other daily costs"
+        />
         <PageSkeleton />
       </div>
     );
@@ -229,22 +227,19 @@ export function OfflineExpenseReportsPage({
 
   return (
     <div className="animate-rise space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold">
-            Expense Reports
-          </h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            Operating expenses, salaries, fuel, bills, and other daily costs
-          </p>
-        </div>
-        <Link
-          href="/vouchers/expenses"
-          className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white transition hover:opacity-95"
-        >
-          + Add expense
-        </Link>
-      </div>
+      <ReportSectionHead
+        size="page"
+        title="Expense Reports"
+        subtitle="Operating expenses, salaries, fuel, bills, and other daily costs"
+        actions={
+          <Link
+            href="/vouchers/expenses"
+            className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white transition hover:opacity-95"
+          >
+            + Add expense
+          </Link>
+        }
+      />
 
       <StatsGrid>
         <StatCard
