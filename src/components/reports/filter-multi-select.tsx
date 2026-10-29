@@ -217,7 +217,10 @@ export function FilterMultiSelect({
                     <button
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => setSelected([])}
+                      onClick={() => {
+                        setSelected([]);
+                        onChange?.([]);
+                      }}
                       className="shrink-0 text-xs font-medium text-[var(--muted)] hover:text-[var(--ink)]"
                     >
                       Clear

@@ -279,6 +279,10 @@ export function CompanyStatementClient({
     [warehouses, vendorIdParam],
   );
 
+  const vendorWarehouseKey = vendorWarehouses.map((w) => w.id).join(",");
+  const vendorPartyLabel =
+    suppliers.find((s) => s.value === vendorIdParam)?.label || "";
+
   useEffect(() => {
     const wantsVendor = view === "vendor";
     if (!wantsVendor && !warehouseId) {
@@ -299,14 +303,13 @@ export function CompanyStatementClient({
     setLoading(true);
     setError("");
     const ids = wantsVendor
-      ? vendorWarehouses.map((w) => w.id)
+      ? vendorWarehouseKey.split(",").filter(Boolean)
       : [warehouseId];
-    const vendorParty = suppliers.find((s) => s.value === vendorIdParam);
-    const vendor: CompanyStatementSupplier = vendorParty
+    const vendor: CompanyStatementSupplier = vendorPartyLabel
       ? {
-          id: vendorParty.value,
-          party_code: vendorParty.label.split(" — ")[0] || "",
-          name_en: vendorParty.label.split(" — ").slice(1).join(" — "),
+          id: vendorIdParam,
+          party_code: vendorPartyLabel.split(" — ")[0] || "",
+          name_en: vendorPartyLabel.split(" — ").slice(1).join(" — "),
         }
       : null;
     const title = vendor
@@ -362,8 +365,8 @@ export function CompanyStatementClient({
     warehouseId,
     view,
     vendorIdParam,
-    vendorWarehouses,
-    suppliers,
+    vendorWarehouseKey,
+    vendorPartyLabel,
     from,
     to,
     reloadKey,
@@ -657,7 +660,12 @@ export function CompanyStatementClient({
             ]}
           />
         </div>
-        <ReportFilterActions submitLabel="Run statement" nowrap className="shrink-0" />
+        <ReportFilterActions
+          submitLabel="Run statement"
+          pending={loading}
+          nowrap
+          className="shrink-0"
+        />
       </UrlFilterForm>
 
       {view === "company" && !warehouseId ? (
@@ -760,22 +768,22 @@ export function CompanyStatementClient({
 
           <StatsGrid>
             <StatCard
-              label="Opening stock"
-              value={statement.openingValue}
-              format="money"
-              icon={Boxes}
-              hint={`${statement.warehouseName} · qty ${statement.openingQty}`}
-            />
-            <StatCard
-              label="Purchases"
-              value={
-                statement.supplier
-                  ? statement.payableStats.purchases
-                  : statement.purchaseAmount
+              label={
+                statement.payableStats.outstanding < -0.005
+                  ? "Company credit"
+                  : "Outstanding balance"
               }
+              value={Math.abs(statement.payableStats.outstanding)}
               format="money"
-              icon={Truck}
-              hint={`Qty in ${statement.purchaseQty}`}
+              icon={Wallet}
+              tone={
+                statement.payableStats.outstanding > 0.005 ? "warn" : "ok"
+              }
+              hint={
+                statement.payableStats.outstanding < -0.005
+                  ? "Company owes this distributor (as of To date)"
+                  : "As of selected To date"
+              }
             />
             <StatCard
               label="Paid to vendor"
@@ -794,30 +802,26 @@ export function CompanyStatementClient({
               hint="Given by the company · off one bill, or the overall amount"
             />
             <StatCard
-              label={
-                statement.payableStats.outstanding < -0.005
-                  ? "Company credit"
-                  : "Outstanding"
-              }
-              value={Math.abs(statement.payableStats.outstanding)}
-              format="money"
-              icon={Wallet}
-              tone={
-                statement.payableStats.outstanding > 0.005 ? "warn" : "ok"
-              }
-              hint={
-                statement.payableStats.outstanding < -0.005
-                  ? "Company owes this distributor (as of To date)"
-                  : "As of selected To date"
-              }
-            />
-            <StatCard
               label="Sales"
               value={statement.saleAmount}
               format="money"
               icon={ShoppingCart}
               tone="ok"
               hint={`Qty out ${statement.saleQty}`}
+            />
+            <StatCard
+              label="Opening stock"
+              value={statement.openingValue}
+              format="money"
+              icon={Boxes}
+              hint={`${statement.warehouseName} · qty ${statement.openingQty}`}
+            />
+            <StatCard
+              label="Purchases"
+              value={statement.payableStats.purchases}
+              format="money"
+              icon={Truck}
+              hint={`Qty in ${statement.purchaseQty}`}
             />
             <StatCard
               label="Closing stock"

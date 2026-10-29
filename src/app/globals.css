@@ -337,6 +337,71 @@ label {
   }
 }
 
+/* Dashboard summary cards — show / hide with eye */
+.dashboard-stats-panel--open {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dashboard-stats-panel__toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.dashboard-stats-panel__eye {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid #e8cfc4;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #fff9f5 0%, #fdeee6 100%);
+  padding: 0.3rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #8f3d2e;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.dashboard-stats-panel__eye:hover {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+}
+
+.dashboard-stats-panel__eye-label {
+  line-height: 1;
+}
+
+.dashboard-stats-panel--hidden .dashboard-stats-panel__reveal {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.75rem;
+  border: 1px solid #e2c4b6;
+  border-radius: var(--radius);
+  background:
+    linear-gradient(125deg, rgba(214, 90, 66, 0.1) 0%, transparent 48%),
+    linear-gradient(180deg, #fff6f1 0%, #fae8e4 100%);
+  padding: 0.75rem 1rem;
+  text-align: left;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.dashboard-stats-panel--hidden .dashboard-stats-panel__reveal:hover {
+  border-color: var(--brand);
+  box-shadow: 0 2px 10px rgba(214, 90, 66, 0.08);
+}
+
+.dashboard-stats-panel--hidden .dashboard-stats-panel__reveal svg {
+  color: var(--brand-strong);
+}
+
 .action-link {
   display: inline-flex;
   align-items: center;
@@ -1705,12 +1770,35 @@ label {
   font-weight: 600;
 }
 
+.cash-flow-col-date {
+  width: 12%;
+}
+
+.cash-flow-col-inv {
+  width: 8%;
+}
+
+.cash-flow-col-product {
+  width: 22%;
+}
+
+.cash-flow-col-qty {
+  width: 7%;
+}
+
+.cash-flow-col-type {
+  width: 9%;
+}
+
+.cash-flow-date,
+.cash-flow-inv {
+  white-space: nowrap;
+}
+
 .cash-flow-report table thead th:nth-child(1),
 .cash-flow-report table thead th:nth-child(2),
-.cash-flow-report table thead th:nth-child(3),
 .cash-flow-report table tbody td:nth-child(1),
-.cash-flow-report table tbody td:nth-child(2),
-.cash-flow-report table tbody td:nth-child(3) {
+.cash-flow-report table tbody td:nth-child(2) {
   text-align: left;
 }
 

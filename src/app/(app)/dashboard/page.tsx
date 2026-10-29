@@ -6,6 +6,7 @@ import {
   TrendAreaChart,
 } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
+import { DashboardStatsPanel } from "@/components/dashboard/dashboard-stats-panel";
 import { OfflineDashboard } from "@/components/dashboard/offline-dashboard";
 import { QuickShortcuts } from "@/components/dashboard/quick-shortcuts";
 import { requireCompanyContext } from "@/lib/auth";
@@ -214,69 +215,71 @@ export default async function DashboardPage() {
         <QuickShortcuts className="min-w-0" />
       </div>
 
-      <StatsGrid fluid>
-        <StatCard
-          label="Today sales"
-          value={s.sales_today || 0}
-          format="money"
-          icon={ShoppingCart}
-          href="/sales/invoices"
-          hint={`Last 7 days: ${formatPkr(weekSalesTotal)}`}
-        />
-        <StatCard
-          label="Today recoveries"
-          value={s.recoveries_today || 0}
-          format="money"
-          icon={Wallet}
-          tone="ok"
-          href="/reports/recovery"
-          hint={`Last 7 days collected: ${formatPkr(weekRecoveryTotal)}`}
-        />
-        <StatCard
-          label="Receivable"
-          value={s.receivable || 0}
-          format="money"
-          icon={TrendingUp}
-          tone="warn"
-          href="/reports/accounts?view=receivable"
-          hint="Money customers still owe you"
-        />
-        <StatCard
-          label="Payable"
-          value={s.payable || 0}
-          format="money"
-          icon={Truck}
-          href="/reports/accounts?view=payable"
-          hint="Money you still owe vendors"
-        />
-        <StatCard
-          label="Today cash"
-          value={s.cash_sales_today || 0}
-          format="money"
-          icon={Banknote}
-          tone="ok"
-          href="/reports/sales?type=cash_sales"
-          hint="Paid at counter · walk-in & cash bills"
-        />
-        <StatCard
-          label="On-hand cash"
-          value={onHand}
-          format="money"
-          icon={Banknote}
-          tone={onHand < 0 ? "danger" : "ok"}
-          href="/vouchers/cash-management"
-          hint="Drawer after recoveries, paid bills, expenses, and cash payments"
-        />
-        <StatCard
-          label="Today expenses"
-          value={expenseToday}
-          format="money"
-          icon={Wallet}
-          tone={expenseToday > 0 ? "warn" : "neutral"}
-          href="/reports/expenses"
-          hint={`Last 7 days: ${formatPkr(weekExpenseTotal)}`}
-        />
-      </StatsGrid>
+      <DashboardStatsPanel>
+        <StatsGrid fluid>
+          <StatCard
+            label="Today sales"
+            value={s.sales_today || 0}
+            format="money"
+            icon={ShoppingCart}
+            href="/sales/invoices"
+            hint={`Last 7 days: ${formatPkr(weekSalesTotal)}`}
+          />
+          <StatCard
+            label="Today recoveries"
+            value={s.recoveries_today || 0}
+            format="money"
+            icon={Wallet}
+            tone="ok"
+            href="/reports/recovery"
+            hint={`Last 7 days collected: ${formatPkr(weekRecoveryTotal)}`}
+          />
+          <StatCard
+            label="Receivable"
+            value={s.receivable || 0}
+            format="money"
+            icon={TrendingUp}
+            tone="warn"
+            href="/reports/accounts?view=receivable"
+            hint="Money customers still owe you"
+          />
+          <StatCard
+            label="Payable"
+            value={s.payable || 0}
+            format="money"
+            icon={Truck}
+            href="/reports/accounts?view=payable"
+            hint="Money you still owe vendors"
+          />
+          <StatCard
+            label="Today cash"
+            value={s.cash_sales_today || 0}
+            format="money"
+            icon={Banknote}
+            tone="ok"
+            href="/reports/sales?type=cash_sales"
+            hint="Paid at counter · walk-in & cash bills"
+          />
+          <StatCard
+            label="On-hand cash"
+            value={onHand}
+            format="money"
+            icon={Banknote}
+            tone={onHand < 0 ? "danger" : "ok"}
+            href="/vouchers/cash-management"
+            hint="Drawer after recoveries, paid bills, expenses, and cash payments"
+          />
+          <StatCard
+            label="Today expenses"
+            value={expenseToday}
+            format="money"
+            icon={Wallet}
+            tone={expenseToday > 0 ? "warn" : "neutral"}
+            href="/reports/expenses"
+            hint={`Last 7 days: ${formatPkr(weekExpenseTotal)}`}
+          />
+        </StatsGrid>
+      </DashboardStatsPanel>
 
       <div className="grid gap-4 xl:grid-cols-3">
         <ChartCard

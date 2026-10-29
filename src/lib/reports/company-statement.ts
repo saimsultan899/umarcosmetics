@@ -1,4 +1,5 @@
 import { one } from "@/lib/reports/helpers";
+import { fetchAllPages } from "@/lib/supabase/fetch-all-pages";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const TZ = "Asia/Karachi";
@@ -403,7 +404,7 @@ export async function buildCompanyStatement(
 ): Promise<CompanyStatement> {
   const { companyId, warehouseId, from, to } = input;
 
-  const [{ data: warehouse, error: whError }, { data: balances, error: balError }, { data: movementRows, error: moveError }] =
+  const [{ data: warehouse, error: whError }, balances, movementRows] =
     await Promise.all([
       supabase
         .from("warehouses")
@@ -412,37 +413,65 @@ export async function buildCompanyStatement(
         )
         .eq("id", warehouseId)
         .maybeSingle(),
-      supabase
-        .from("stock_balances")
-        .select("product_id, qty")
-        .eq("company_id", companyId)
-        .eq("warehouse_id", warehouseId)
-        .limit(20000),
-      supabase
-        .from("stock_movements")
-        .select("product_id, move_type, qty, ref_table, ref_id, created_at")
-        .eq("company_id", companyId)
-        .eq("warehouse_id", warehouseId)
-        .order("created_at", { ascending: true })
-        .limit(20000),
+      fetchAllPages<{ product_id: string; qty: number | null }>((fromRow, toRow) =>
+        supabase
+          .from("stock_balances")
+          .select("product_id, qty")
+          .eq("company_id", companyId)
+          .eq("warehouse_id", warehouseId)
+          .order("product_id", { ascending: true })
+          .range(fromRow, toRow),
+      ),
+      fetchAllPages<{
+        id: string;
+        product_id: string;
+        move_type: string | null;
+        qty: number | null;
+        ref_table: string | null;
+        ref_id: string | null;
+        created_at: string | null;
+      }>((fromRow, toRow) =>
+        supabase
+          .from("stock_movements")
+          .select("id, product_id, move_type, qty, ref_table, ref_id, created_at")
+          .eq("company_id", companyId)
+          .eq("warehouse_id", warehouseId)
+          .order("created_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(fromRow, toRow),
+      ),
     ]);
 
   if (whError) throw new Error(whError.message);
-  if (balError) throw new Error(balError.message);
-  if (moveError) throw new Error(moveError.message);
 
-  const movements: Movement[] = (movementRows || []).map((row) => ({
-    product_id: String(row.product_id),
-    move_type: String(row.move_type || ""),
-    qty: Number(row.qty || 0),
-    ref_table: String(row.ref_table || ""),
-    ref_id: String(row.ref_id || ""),
-    created_at: String(row.created_at || ""),
-  }));
+  const movements: Movement[] = [];
+  const seenMoves = new Set<string>();
+  for (const row of movementRows) {
+    const move: Movement = {
+      product_id: String(row.product_id),
+      move_type: String(row.move_type || ""),
+      qty: Number(row.qty || 0),
+      ref_table: String(row.ref_table || ""),
+      ref_id: String(row.ref_id || ""),
+      created_at: String(row.created_at || ""),
+    };
+    const signature = [
+      move.product_id,
+      move.move_type,
+      move.qty,
+      move.ref_table,
+      move.ref_id,
+    ].join(":");
+    // Reposting a bill writes the same stock line again. Keep one copy so
+    // opening stock and purchase totals are not multiplied.
+    if (move.ref_id && seenMoves.has(signature)) continue;
+    if (move.ref_id) seenMoves.add(signature);
+    movements.push(move);
+  }
 
   const productIds = [
     ...new Set([
-      ...(balances || []).map((r) => String(r.product_id)),
+    ...(balances || []).map((r) => String(r.product_id)),
       ...movements.map((m) => m.product_id),
     ]),
   ].filter(Boolean);
@@ -595,6 +624,11 @@ export async function buildCompanyStatement(
   }
 
   function effectiveDate(move: Movement) {
+    // Opening qty is seeded as an adjustment on the product. created_at is the
+    // day it was saved, not a purchase in the selected month — keep it in opening.
+    if (move.move_type === "adjustment" && move.ref_table === "products") {
+      return "1970-01-01";
+    }
     const doc = docs.get(`${move.ref_table}:${move.ref_id}`);
     return dayKey(doc?.date || move.created_at);
   }
@@ -652,6 +686,7 @@ export async function buildCompanyStatement(
   }
 
   const covered = new Set<string>();
+  const countedLine = new Set<string>();
   const lines: Array<Record<string, unknown> & { _sort: string }> = [];
 
   for (const move of movements) {
@@ -662,6 +697,10 @@ export async function buildCompanyStatement(
     // Cancel leaves original moves + reverse adjustments on the same ref —
     // hide both from the period table (opening/closing still net them out).
     if (refKey && cancelledRefs.has(refKey)) continue;
+    const lineKey = `${move.ref_table}:${move.ref_id}:${move.product_id}:${move.qty}`;
+    // A repost writes the same document line again. Count that line once.
+    if (move.ref_id && countedLine.has(lineKey)) continue;
+    if (move.ref_id) countedLine.add(lineKey);
     const doc = docs.get(refKey);
     const rate = rateByProduct.get(move.product_id) || 0;
     const useBill =
@@ -669,11 +708,18 @@ export async function buildCompanyStatement(
       (move.move_type === "purchase" && move.ref_table === "purchase_invoices") ||
       (move.move_type === "sale_return" && move.ref_table === "sale_returns") ||
       (move.move_type === "purchase_return" && move.ref_table === "purchase_returns");
+    const billKey = `${move.ref_table}:${move.ref_id}:${move.product_id}`;
     const bill = useBill
       ? lineAmount.get(amountKey(move.ref_id, move.product_id))
       : undefined;
-    const amount = bill != null ? bill : Math.abs(move.qty) * rate;
-    const value = stockCostValue(move.qty, rate, bill);
+    const amountAlreadyUsed = bill != null && countedLine.has(`amt:${billKey}`);
+    const amount = bill != null ? (amountAlreadyUsed ? 0 : bill) : Math.abs(move.qty) * rate;
+    if (bill != null) countedLine.add(`amt:${billKey}`);
+    const value = stockCostValue(
+      move.qty,
+      rate,
+      bill != null ? (amountAlreadyUsed ? 0 : bill) : null,
+    );
     const label = typeLabel(move.move_type, move.ref_table);
     const slot = bucket(label);
     if (move.qty >= 0) slot.qtyIn += move.qty;

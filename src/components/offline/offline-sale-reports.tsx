@@ -360,13 +360,20 @@ export function OfflineSaleReportsPage({
         if (!partyIds.includes(String(inv.party_id))) return false;
       }
 
-      // Party details for route/city checks
+      // Party details for route/city checks (match invoice stamp OR party profile).
       const party = inv.party_id ? partyMap.get(String(inv.party_id)) : null;
-      const route = String(inv.route || party?.route || "");
-      const city = String(inv.city || party?.city || party?.head || "");
-
-      if (sectors.length && !sectors.includes(route)) return false;
-      if (cities.length && !cities.includes(city)) return false;
+      if (sectors.length) {
+        const routeValues = [inv.route, party?.route]
+          .map((v) => String(v || "").trim())
+          .filter(Boolean);
+        if (!routeValues.some((v) => sectors.includes(v))) return false;
+      }
+      if (cities.length) {
+        const cityValues = [inv.city, party?.city, party?.head]
+          .map((v) => String(v || "").trim())
+          .filter(Boolean);
+        if (!cityValues.some((v) => cities.includes(v))) return false;
+      }
 
       return true;
     });
@@ -522,11 +529,14 @@ export function OfflineSaleReportsPage({
       }
 
       if (type === "cash_flow") {
-        type InvBucket = {
+        type LineBucket = {
           invoiceId: string;
           date: string;
           invoiceNo: string;
           paymentType: string;
+          productCode: string;
+          productName: string;
+          qty: number;
           amount: number;
           cash: number;
           credit: number;
@@ -535,8 +545,9 @@ export function OfflineSaleReportsPage({
           partyId: string;
           partyCode: string;
           partyName: string;
-          invoices: Map<string, InvBucket>;
+          lines: Map<string, LineBucket>;
           amount: number;
+          qty: number;
         };
         type CompanyBucket = {
           warehouseId: string;
@@ -546,6 +557,40 @@ export function OfflineSaleReportsPage({
         };
 
         const companiesMap = new Map<string, CompanyBucket>();
+
+        function companyBucket(wid: string, compName: string) {
+          let bucket = companiesMap.get(wid);
+          if (!bucket) {
+            bucket = {
+              warehouseId: wid,
+              companyName: compName,
+              parties: new Map(),
+              amount: 0,
+            };
+            companiesMap.set(wid, bucket);
+          }
+          return bucket;
+        }
+
+        function partyBucket(
+          company: CompanyBucket,
+          partyId: string,
+          party: Record<string, unknown> | null | undefined,
+        ) {
+          let bucket = company.parties.get(partyId);
+          if (!bucket) {
+            bucket = {
+              partyId,
+              partyCode: String(party?.party_code || ""),
+              partyName: String(party?.name_en || "Unknown").toUpperCase(),
+              lines: new Map(),
+              amount: 0,
+              qty: 0,
+            };
+            company.parties.set(partyId, bucket);
+          }
+          return bucket;
+        }
 
         for (const inv of list) {
           const lines = getInvoiceLines(inv);
@@ -560,47 +605,23 @@ export function OfflineSaleReportsPage({
             if (warehouseIds.length && !warehouseIds.includes(wid)) continue;
 
             const wh = whMap.get(wid);
-            const compName = (String(wh?.name || "Unknown Company")).toUpperCase();
+            const compName = String(wh?.name || "Unknown Company").toUpperCase();
             const lineAmount = billTotal;
-            const cashShare = paid;
-            const creditShare = lineAmount - cashShare;
-
-            let cBucket = companiesMap.get(wid);
-            if (!cBucket) {
-              cBucket = { warehouseId: wid, companyName: compName, parties: new Map(), amount: 0 };
-              companiesMap.set(wid, cBucket);
-            }
-
-            let pBucket = cBucket.parties.get(partyId);
-            if (!pBucket) {
-              pBucket = {
-                partyId,
-                partyCode: String(party?.party_code || ""),
-                partyName: String(party?.name_en || "Unknown").toUpperCase(),
-                invoices: new Map(),
-                amount: 0,
-              };
-              cBucket.parties.set(partyId, pBucket);
-            }
-
+            const cBucket = companyBucket(wid, compName);
+            const pBucket = partyBucket(cBucket, partyId, party);
             const invKey = String(inv.id || "");
-            let iBucket = pBucket.invoices.get(invKey);
-            if (!iBucket) {
-              iBucket = {
-                invoiceId: invKey,
-                date: String(inv.invoice_date || ""),
-                invoiceNo: String(inv.invoice_no || ""),
-                paymentType: String(inv.payment_type || "credit"),
-                amount: 0,
-                cash: 0,
-                credit: 0,
-              };
-              pBucket.invoices.set(invKey, iBucket);
-            }
-
-            iBucket.amount += lineAmount;
-            iBucket.cash += cashShare;
-            iBucket.credit += creditShare;
+            pBucket.lines.set(invKey, {
+              invoiceId: invKey,
+              date: String(inv.invoice_date || ""),
+              invoiceNo: String(inv.invoice_no || ""),
+              paymentType: String(inv.payment_type || "credit"),
+              productCode: "",
+              productName: "",
+              qty: 0,
+              amount: lineAmount,
+              cash: paid,
+              credit: lineAmount - paid,
+            });
             pBucket.amount += lineAmount;
             cBucket.amount += lineAmount;
             continue;
@@ -613,47 +634,36 @@ export function OfflineSaleReportsPage({
             if (warehouseIds.length && !warehouseIds.includes(wid)) continue;
 
             const wh = whMap.get(wid);
-            const compName = (String(wh?.name || "Unknown Company")).toUpperCase();
+            const compName = String(wh?.name || "Unknown Company").toUpperCase();
             const lineAmount = Number(it.amount || 0);
+            const lineQty = Number(it.qty || 0);
             const cashShare = billTotal > 0 ? (lineAmount / billTotal) * paid : 0;
-            const creditShare = lineAmount - cashShare;
-
-            let cBucket = companiesMap.get(wid);
-            if (!cBucket) {
-              cBucket = { warehouseId: wid, companyName: compName, parties: new Map(), amount: 0 };
-              companiesMap.set(wid, cBucket);
-            }
-
-            let pBucket = cBucket.parties.get(partyId);
-            if (!pBucket) {
-              pBucket = {
-                partyId,
-                partyCode: String(party?.party_code || ""),
-                partyName: String(party?.name_en || "Unknown").toUpperCase(),
-                invoices: new Map(),
-                amount: 0,
-              };
-              cBucket.parties.set(partyId, pBucket);
-            }
-
-            const invKey = String(inv.id || "");
-            let iBucket = pBucket.invoices.get(invKey);
-            if (!iBucket) {
-              iBucket = {
-                invoiceId: invKey,
+            const productCode = String(it.product_code || prod?.code || "");
+            const productName = String(it.product_name || prod?.name_en || "").toUpperCase();
+            const cBucket = companyBucket(wid, compName);
+            const pBucket = partyBucket(cBucket, partyId, party);
+            const lineKey = `${String(inv.id || "")}:${String(it.product_id || productCode || "item")}`;
+            const existing = pBucket.lines.get(lineKey);
+            if (existing) {
+              existing.qty += lineQty;
+              existing.amount += lineAmount;
+              existing.cash += cashShare;
+              existing.credit += lineAmount - cashShare;
+            } else {
+              pBucket.lines.set(lineKey, {
+                invoiceId: String(inv.id || ""),
                 date: String(inv.invoice_date || ""),
                 invoiceNo: String(inv.invoice_no || ""),
                 paymentType: String(inv.payment_type || "credit"),
-                amount: 0,
-                cash: 0,
-                credit: 0,
-              };
-              pBucket.invoices.set(invKey, iBucket);
+                productCode,
+                productName,
+                qty: lineQty,
+                amount: lineAmount,
+                cash: cashShare,
+                credit: lineAmount - cashShare,
+              });
             }
-
-            iBucket.amount += lineAmount;
-            iBucket.cash += cashShare;
-            iBucket.credit += creditShare;
+            pBucket.qty += lineQty;
             pBucket.amount += lineAmount;
             cBucket.amount += lineAmount;
           }
@@ -666,28 +676,33 @@ export function OfflineSaleReportsPage({
         for (const comp of sortedCompanies) {
           const topParties = [...comp.parties.values()].sort((a, b) => b.amount - a.amount);
           topParties.forEach((p, rank) => {
-            const invs = [...p.invoices.values()].sort((a, b) => {
+            const lines = [...p.lines.values()].sort((a, b) => {
               const d = a.date.localeCompare(b.date);
               if (d) return d;
-              return a.invoiceNo.localeCompare(b.invoiceNo);
+              const invCmp = a.invoiceNo.localeCompare(b.invoiceNo);
+              if (invCmp) return invCmp;
+              return a.productName.localeCompare(b.productName);
             });
-            for (const inv of invs) {
+            for (const line of lines) {
               rows.push({
-                Date: formatReportDate(inv.date),
-                "Inv No.": formatReportInvNo(inv.invoiceNo),
-                Type: String(inv.paymentType || "").toUpperCase(),
-                "Sale amount": Math.round(inv.amount * 100) / 100,
-                "Cash received": Math.round(inv.cash * 100) / 100,
-                "Credit balance": Math.round(inv.credit * 100) / 100,
+                Date: formatReportDate(line.date),
+                "Inv No.": formatReportInvNo(line.invoiceNo),
+                Product: [line.productCode, line.productName].filter(Boolean).join(" — "),
+                Qty: line.qty,
+                Type: String(line.paymentType || "").toUpperCase(),
+                "Sale amount": Math.round(line.amount * 100) / 100,
+                "Cash received": Math.round(line.cash * 100) / 100,
+                "Credit balance": Math.round(line.credit * 100) / 100,
                 _company: comp.companyName,
                 _company_amount: comp.amount,
                 _party_id: p.partyId,
                 _party_code: p.partyCode,
                 _party_name: p.partyName,
                 _party_amount: p.amount,
+                _party_qty: p.qty,
                 _party_rank: rank + 1,
-                _href: `/sales/invoices/${inv.invoiceId}`,
-                _sort_date: inv.date,
+                _href: `/sales/invoices/${line.invoiceId}`,
+                _sort_date: line.date,
               });
             }
           });
@@ -695,7 +710,6 @@ export function OfflineSaleReportsPage({
         sections.push({ type, label, rows });
         continue;
       }
-
       if (type === "item_wise") {
         const rows: Record<string, unknown>[] = [];
         for (const inv of list) {
@@ -783,10 +797,18 @@ export function OfflineSaleReportsPage({
             continue;
           }
           const party = ret.party_id ? partyMap.get(String(ret.party_id)) : null;
-          const route = String(ret.route || party?.route || "");
-          const city = String(ret.city || party?.city || party?.head || "");
-          if (sectors.length && !sectors.includes(route)) continue;
-          if (cities.length && !cities.includes(city)) continue;
+          if (sectors.length) {
+            const routeValues = [ret.route, party?.route]
+              .map((v) => String(v || "").trim())
+              .filter(Boolean);
+            if (!routeValues.some((v) => sectors.includes(v))) continue;
+          }
+          if (cities.length) {
+            const cityValues = [ret.city, party?.city, party?.head]
+              .map((v) => String(v || "").trim())
+              .filter(Boolean);
+            if (!cityValues.some((v) => cities.includes(v))) continue;
+          }
 
           const lines = Array.isArray(ret.sale_return_items)
             ? (ret.sale_return_items as Record<string, unknown>[])

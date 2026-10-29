@@ -6,7 +6,6 @@ import { Select } from "@/components/ui/select";
 import { FilterMultiSelect } from "@/components/reports/filter-multi-select";
 import { ReportTypePills } from "@/components/reports/report-type-pills";
 import {
-  FilterSubmitButton,
   UrlFilterForm,
   useUrlFilterPending,
 } from "@/components/reports/url-filter-form";
@@ -26,11 +25,14 @@ export function ReportFilterActions({
   keepKeys = KEEP_FILTER_KEYS,
   className,
   nowrap = false,
+  pending = false,
 }: {
   submitLabel?: string;
   keepKeys?: string[];
   className?: string;
   nowrap?: boolean;
+  /** Extra busy state (for example the report query after the URL updates). */
+  pending?: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -101,11 +103,14 @@ export function ReportFilterActions({
         className,
       )}
     >
-      <FilterSubmitButton
+      <Button
+        type="submit"
+        loading={formPending || pending}
+        disabled={formPending || pending}
         className={nowrap ? "h-10 shrink-0 whitespace-nowrap px-4" : "h-10 min-w-0 flex-1"}
       >
         {submitLabel}
-      </FilterSubmitButton>
+      </Button>
       <Button
         type="button"
         variant="secondary"
