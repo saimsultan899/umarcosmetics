@@ -74,9 +74,10 @@ export async function buildExpiryReport(
     const { data: receipts, error } = await supabase
       .from("expiry_receipts")
       .select(
-        "id, receipt_no, receipt_date, grand_total, parties(party_code, name_en)",
+        "id, receipt_no, receipt_date, grand_total, status, parties(party_code, name_en)",
       )
       .eq("company_id", filters.companyId)
+      .eq("status", "posted")
       .gte("receipt_date", filters.from)
       .lte("receipt_date", filters.to)
       .order("receipt_date", { ascending: true })
@@ -118,6 +119,9 @@ export async function buildExpiryReport(
           Rate: Number(it.rate),
           Amount: Number(it.amount),
           _href: doc?.id ? `/inventory/expiry/receipts/${doc.id}` : "",
+          _doc_table: doc?.id ? "expiry_receipts" : "",
+          _doc_id: doc?.id || "",
+          _doc_title: doc?.receipt_no || "Expiry return",
         };
       })
       .filter((row): row is NonNullable<typeof row> => row != null);
@@ -126,9 +130,10 @@ export async function buildExpiryReport(
   const { data: claims, error } = await supabase
     .from("expiry_claims")
     .select(
-      "id, claim_no, claim_date, claim_status, grand_total, warehouse_id, parties(party_code, name_en), warehouses(name)",
+      "id, claim_no, claim_date, claim_status, grand_total, warehouse_id, status, parties(party_code, name_en), warehouses(name)",
     )
     .eq("company_id", filters.companyId)
+    .eq("status", "posted")
     .gte("claim_date", filters.from)
     .lte("claim_date", filters.to)
     .order("claim_date", { ascending: true })
@@ -171,6 +176,9 @@ export async function buildExpiryReport(
       Rate: Number(it.rate),
       Amount: Number(it.amount),
       _href: doc?.id ? `/inventory/expiry/claims/${doc.id}` : "",
+      _doc_table: doc?.id ? "expiry_claims" : "",
+      _doc_id: doc?.id || "",
+      _doc_title: doc?.claim_no || "Expiry claim",
     };
   });
 }

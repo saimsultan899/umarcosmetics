@@ -74,7 +74,7 @@ const CANCEL_RPC: Record<
     param: "p_receipt_id",
     title: "Delete this expiry return?",
     description:
-      "Customer credit is reversed and expiry on-hand goes back down.",
+      "This return is removed. The amount goes back onto the customer balance.",
   },
   expiry_claims: {
     rpc: "cancel_expiry_claim",

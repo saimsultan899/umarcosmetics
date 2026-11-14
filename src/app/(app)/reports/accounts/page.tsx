@@ -214,8 +214,14 @@ export default async function AccountsReportPage({
     const voucherIds = (ledger || [])
       .filter((e) => e.ref_table === "vouchers" && e.ref_id)
       .map((e) => String(e.ref_id));
+    const expiryReceiptIds = (ledger || [])
+      .filter((e) => e.ref_table === "expiry_receipts" && e.ref_id)
+      .map((e) => String(e.ref_id));
+    const expiryClaimIds = (ledger || [])
+      .filter((e) => e.ref_table === "expiry_claims" && e.ref_id)
+      .map((e) => String(e.ref_id));
 
-    const [saleDocs, purchaseDocs, saleReturnDocs, returnDocs, voucherDocs] =
+    const [saleDocs, purchaseDocs, saleReturnDocs, returnDocs, voucherDocs, expiryReceiptDocs, expiryClaimDocs] =
       await Promise.all([
         saleIds.length
           ? supabase
@@ -264,6 +270,18 @@ export default async function AccountsReportPage({
                 warehouses: { name?: string } | { name?: string }[] | null;
               }[],
             }),
+        expiryReceiptIds.length
+          ? supabase
+              .from("expiry_receipts")
+              .select("id, status")
+              .in("id", expiryReceiptIds)
+          : Promise.resolve({ data: [] as { id: string; status: string }[] }),
+        expiryClaimIds.length
+          ? supabase
+              .from("expiry_claims")
+              .select("id, status")
+              .in("id", expiryClaimIds)
+          : Promise.resolve({ data: [] as { id: string; status: string }[] }),
       ]);
 
     const cancelledLedgerRefs = new Set<string>();
@@ -282,6 +300,8 @@ export default async function AccountsReportPage({
     markCancelled("purchase_invoices", purchaseDocs.data);
     markCancelled("sale_returns", saleReturnDocs.data);
     markCancelled("purchase_returns", returnDocs.data);
+    markCancelled("expiry_receipts", expiryReceiptDocs.data);
+    markCancelled("expiry_claims", expiryClaimDocs.data);
 
     const visibleLedger = (ledger || []).filter((e) => {
       if (!e.ref_table || !e.ref_id) return true;

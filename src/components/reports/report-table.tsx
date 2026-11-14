@@ -64,6 +64,8 @@ const DOCUMENT_HREFS: Array<[RegExp, string]> = [
     /^\/vouchers\/(?:cash-receipt|cash-payment|journal|expenses)\/([^/?#]+)$/i,
     "vouchers",
   ],
+  [/^\/inventory\/expiry\/receipts\/([^/?#]+)$/i, "expiry_receipts"],
+  [/^\/inventory\/expiry\/claims\/([^/?#]+)$/i, "expiry_claims"],
 ];
 
 function documentFromRow(row: Record<string, unknown>, href?: string) {

@@ -46,6 +46,7 @@ export default async function ExpiryWarehousePage({
             .from("expiry_receipts")
             .select("grand_total")
             .eq("company_id", company.id)
+            .eq("status", "posted")
             .gte("receipt_date", monthFrom),
           supabase
             .from("expiry_claims")

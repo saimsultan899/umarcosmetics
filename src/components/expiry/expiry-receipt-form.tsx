@@ -276,7 +276,8 @@ export function ExpiryReceiptForm({
     if (e.key === "Enter") {
       e.preventDefault();
       e.stopPropagation();
-      commitDraft();
+      amountRef.current?.focus();
+      amountRef.current?.select();
     }
   }
 
@@ -549,7 +550,7 @@ export function ExpiryReceiptForm({
                   variant="secondary"
                   className="h-8 px-2.5 text-xs"
                   onClick={commitDraft}
-                  title="Add product (or press Enter on Return qty)"
+                  title="Add product (or press Enter on Recover amount)"
                 >
                   Add
                 </Button>
@@ -588,6 +589,18 @@ export function ExpiryReceiptForm({
                       placeholder=""
                       value={l.qty}
                       onChange={(e) => onReturnQtyChange(l, e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key !== "Enter") return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const amount = e.currentTarget
+                          .closest("tr")
+                          ?.querySelectorAll("input")[1];
+                        if (amount instanceof HTMLInputElement) {
+                          amount.focus();
+                          amount.select();
+                        }
+                      }}
                     />
                   </td>
                   <td className="px-2 py-1">

@@ -16,7 +16,7 @@ function norm(value: unknown) {
 /**
  * For spoke companies in a hub org, map main-company stock onto spoke
  * product + warehouse ids (matched by hub_product_id and warehouse name).
- * Local spoke balances for linked products are replaced by hub qty.
+ * Where warehouse names match, the main company's qty replaces the sister row.
  */
 export function mapHubStockOntoSpoke(opts: {
   products: Product[];
@@ -55,19 +55,30 @@ export function mapHubStockOntoSpoke(opts: {
 
   if (spokeByHubProduct.size === 0) return localStock;
 
-  const linkedSpokeIds = new Set(spokeByHubProduct.values());
-  const merged = localStock.filter((row) => !linkedSpokeIds.has(row.product_id));
+  const merged = localStock.map((row) => ({ ...row }));
+  const index = new Map<string, number>();
+  merged.forEach((row, i) => {
+    index.set(`${row.product_id}:${row.warehouse_id}`, i);
+  });
 
   for (const row of hubStock) {
     const spokeProductId = spokeByHubProduct.get(row.product_id);
     if (!spokeProductId) continue;
     const spokeWhId = spokeWhByHubWh.get(row.warehouse_id);
     if (!spokeWhId) continue;
-    merged.push({
+    const next: StockBalanceLite = {
       product_id: spokeProductId,
       warehouse_id: spokeWhId,
       qty: Number(row.qty) || 0,
-    });
+    };
+    const key = `${spokeProductId}:${spokeWhId}`;
+    const at = index.get(key);
+    if (at == null) {
+      index.set(key, merged.length);
+      merged.push(next);
+    } else {
+      merged[at] = next;
+    }
   }
 
   return merged;
@@ -113,18 +124,24 @@ export async function withHubStockOverlay(
     ...new Set(linked.map((p) => String(p.hub_product_id))),
   ];
 
-  const [{ data: hubStock }, { data: hubWarehouses }] = await Promise.all([
-    supabase
+  const hubStock: StockBalanceLite[] = [];
+  for (let i = 0; i < hubProductIds.length; i += 80) {
+    const chunk = hubProductIds.slice(i, i + 80);
+    const { data, error } = await supabase
       .from("stock_balances")
       .select("product_id, warehouse_id, qty")
       .eq("company_id", mainId)
-      .in("product_id", hubProductIds),
-    supabase
-      .from("warehouses")
-      .select("id, name")
-      .eq("company_id", mainId)
-      .eq("is_active", true),
-  ]);
+      .in("product_id", chunk);
+    if (error) return localStock;
+    hubStock.push(...((data || []) as StockBalanceLite[]));
+  }
+
+  const { data: hubWarehouses, error: whError } = await supabase
+    .from("warehouses")
+    .select("id, name")
+    .eq("company_id", mainId)
+    .eq("is_active", true);
+  if (whError) return localStock;
 
   return mapHubStockOntoSpoke({
     products,

@@ -405,17 +405,22 @@ export function OfflineSaleReportsPage({
       if (type === "expiry_credits") {
         const rows = expiryReceipts
           .filter((r) => {
+            if (String(r.status || "posted") === "cancelled") return false;
             const d = String(r.receipt_date || r.doc_date || "").slice(0, 10);
             return d >= from && d <= to;
           })
           .map((r) => {
             const party = r.party_id ? partyMap.get(String(r.party_id)) : null;
+            const no = formatReportInvNo(String(r.receipt_no || r.doc_no || ""));
             return {
               Date: formatReportDate(String(r.receipt_date || r.doc_date || "")),
-              "Receipt No.": formatReportInvNo(String(r.receipt_no || r.doc_no || "")),
+              "Receipt No.": no,
               Customer: party ? `${party.party_code} — ${party.name_en}` : "Unknown",
               Total: Number(r.grand_total ?? r.amount ?? 0),
-              _href: r.id ? `/expiry/receipts/${r.id}` : "",
+              _href: r.id ? `/inventory/expiry/receipts/${r.id}` : "",
+              _doc_table: r.id ? "expiry_receipts" : "",
+              _doc_id: r.id ? String(r.id) : "",
+              _doc_title: no || "Expiry return",
             };
           });
         sections.push({ type, label, rows });
