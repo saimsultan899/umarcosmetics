@@ -448,22 +448,25 @@ label {
 
 /* Dashboard quick shortcuts */
 .quick-shortcuts {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.5rem;
 }
 
 .quick-shortcut {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.4rem;
+  min-width: 0;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  padding: 0.45rem 0.8rem;
-  font-size: 0.8125rem;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.75rem;
   font-weight: 600;
   line-height: 1.2;
-  white-space: nowrap;
+  text-align: center;
   transition:
     transform 0.15s ease,
     box-shadow 0.15s ease,
@@ -480,6 +483,18 @@ label {
   width: 0.9375rem;
   height: 0.9375rem;
   flex-shrink: 0;
+}
+
+.quick-shortcut__label {
+  min-width: 0;
+}
+
+.quick-shortcut__label-full {
+  display: inline;
+}
+
+.quick-shortcut__label-short {
+  display: none;
 }
 
 .quick-shortcut--primary {
@@ -545,6 +560,36 @@ label {
   background: #fae8e4;
 }
 
+.quick-shortcut--slate {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  color: #334155;
+}
+
+.quick-shortcut--slate .quick-shortcut__icon {
+  color: #475569;
+}
+
+.quick-shortcut--slate:hover {
+  border-color: #94a3b8;
+  background: #f1f5f9;
+}
+
+.quick-shortcut--teal {
+  border-color: #99f6e4;
+  background: #f0fdfa;
+  color: #115e59;
+}
+
+.quick-shortcut--teal .quick-shortcut__icon {
+  color: #0f766e;
+}
+
+.quick-shortcut--teal:hover {
+  border-color: #5eead4;
+  background: #ccfbf1;
+}
+
 .quick-shortcut--purple {
   border-color: #e9d5ff;
   background: #faf5ff;
@@ -560,30 +605,37 @@ label {
   background: #f3e8ff;
 }
 
-@media (max-width: 640px) {
-  .quick-shortcuts {
-    width: 100%;
+@media (max-width: 767px) {
+  .quick-shortcut:has(.quick-shortcut__label-short) .quick-shortcut__label-full {
+    display: none;
   }
 
-  .quick-shortcut {
-    flex: 1 1 calc(50% - 0.25rem);
-    justify-content: center;
-    min-width: 0;
-    white-space: normal;
-    text-align: center;
+  .quick-shortcut__label-short {
+    display: inline;
   }
 }
 
-@media (min-width: 641px) and (max-width: 1279px) {
+@media (min-width: 480px) {
   .quick-shortcuts {
-    width: 100%;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+}
 
+@media (min-width: 768px) {
   .quick-shortcut {
-    flex: 1 1 auto;
-    min-width: 0;
-    padding: 0.4rem 0.65rem;
-    font-size: 0.75rem;
+    justify-content: flex-start;
+    padding: 0.45rem 0.8rem;
+    font-size: 0.8125rem;
+    text-align: left;
+    white-space: nowrap;
+  }
+}
+
+@media (min-width: 1280px) {
+  .quick-shortcuts {
+    width: auto;
+    grid-template-columns: repeat(4, max-content);
+    justify-content: end;
   }
 }
 
