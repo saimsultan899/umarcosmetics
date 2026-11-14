@@ -1,6 +1,7 @@
 "use client";
 
 import { PartyCodePicker } from "@/components/forms/party-code-picker";
+import { SalesmanSelect } from "@/components/forms/salesman-select";
 import { Button } from "@/components/ui/button";
 import { useCreateDialogClose } from "@/components/ui/create-dialog";
 import { useDialogInvoiceNo } from "@/lib/trading/preview-document-no";
@@ -15,6 +16,7 @@ import {
   fetchSectorLastReceived,
 } from "@/lib/reports/sector-last-received";
 import { createClient } from "@/lib/supabase/client";
+import type { SalesmanOption } from "@/lib/queries/salesmen";
 import type { Party } from "@/lib/types/database";
 import { AMOUNT_PLACEHOLDER, AMOUNT_STEP, formatNumber, formatPkr } from "@/lib/utils";
 import {
@@ -99,6 +101,7 @@ export type CashReceiptEdit = {
   /** Used so Last received ignores later same-day receipts while editing. */
   createdAt?: string;
   narration?: string;
+  salesmanId?: string | null;
   lines: Array<{
     partyId: string;
     partyCode: string;
@@ -112,12 +115,14 @@ export function CashReceiptForm({
   companyId,
   organizationId,
   parties,
+  salesmen = [],
   editing,
   onDone,
 }: {
   companyId: string;
   organizationId: string;
   parties: Party[];
+  salesmen?: SalesmanOption[];
   editing?: CashReceiptEdit;
   onDone?: () => void;
 }) {
@@ -132,6 +137,7 @@ export function CashReceiptForm({
   const [date, setDate] = useState(
     editing?.date || new Date().toISOString().slice(0, 10),
   );
+  const [salesmanId, setSalesmanId] = useState(editing?.salesmanId || "");
   const seedParty = editing?.lines[0]
     ? parties.find((p) => p.id === editing.lines[0].partyId)
     : null;
@@ -691,6 +697,7 @@ export function CashReceiptForm({
           voucher_date: date,
           voucher_type: "CR",
           total_amount: totalAmount,
+          salesman_id: salesmanId || null,
           narration,
           lines: linesPayload,
           voucher_lines: linesPayload,
@@ -753,7 +760,7 @@ export function CashReceiptForm({
       data-enter-root
       onKeyDown={(e) => handleEnterAsNext(e)}
     >
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <div>
           <Label>Date</Label>
           <Input
@@ -761,6 +768,14 @@ export function CashReceiptForm({
             value={date}
             onChange={(e) => setDate(e.target.value)}
             required
+          />
+        </div>
+        <div>
+          <SalesmanSelect
+            salesmen={salesmen}
+            value={salesmanId}
+            onChange={setSalesmanId}
+            hideHint
           />
         </div>
         <div>

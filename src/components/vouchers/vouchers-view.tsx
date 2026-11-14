@@ -77,7 +77,10 @@ export function VouchersView({
     initialParties,
     initialOffline,
   });
-  const catalog = useTradingCatalog(company.id, { enabled: !initialOffline });
+  const catalog = useTradingCatalog(company.id, {
+    enabled: !initialOffline,
+    salesmen: kind === "CR",
+  });
   const formParties = parties.length ? parties : catalog.parties;
 
   const meta = VOUCHER_META[kind];
@@ -145,6 +148,7 @@ export function VouchersView({
                     companyId={company.id}
                     organizationId={company.organization_id}
                     parties={formParties}
+                    salesmen={catalog.salesmen}
                     onDone={refetch}
                   />
                 ) : (
@@ -169,6 +173,7 @@ export function VouchersView({
         detailBasePath={meta.detailBasePath}
         showParty={kind === "CR"}
         sectors={sectors}
+        salesmen={kind === "CR" ? catalog.salesmen : []}
         companyId={company.id}
       />
     </div>

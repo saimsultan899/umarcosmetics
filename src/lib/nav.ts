@@ -56,8 +56,18 @@ export const mainNav: NavItem[] = [
       { label: "Sale invoice", href: "/sales/invoices" },
       { label: "Sale return", href: "/sales/returns" },
       { label: "Expiry warehouse", href: "/inventory/expiry" },
+    ],
+  },
+  {
+    label: "Salesman",
+    icon: Route,
+    children: [
       { label: "Salesmen", href: "/salesman" },
-      { label: "Salesmen performance", href: "/sales/salesmen" },
+      { label: "Recovery history", href: "/salesman/recoveries" },
+      { label: "Sector sheets", href: "/salesman/routes" },
+      { label: "Field dashboard", href: "/field" },
+      { label: "Salesman performance", href: "/sales/salesmen" },
+      { label: "Salesman ledger", href: "/reports/salesman-ledger" },
     ],
   },
   {
@@ -75,20 +85,10 @@ export const mainNav: NavItem[] = [
     icon: Wallet,
     children: [
       { label: "Cash receipt", href: "/vouchers/cash-receipt" },
-      { label: "Recovery history", href: "/salesman/recoveries" },
       { label: "Cash payment", href: "/vouchers/cash-payment" },
       { label: "Cash management", href: "/vouchers/cash-management" },
       { label: "Daily expenses & salary", href: "/vouchers/expenses" },
       { label: "Journal voucher", href: "/vouchers/journal" },
-    ],
-  },
-  {
-    label: "Field sales",
-    icon: Route,
-    children: [
-      { label: "Field dashboard", href: "/field" },
-      { label: "Recovery history", href: "/salesman/recoveries" },
-      { label: "Sector sheets", href: "/salesman/routes" },
     ],
   },
   {
@@ -105,10 +105,7 @@ export const mainNav: NavItem[] = [
       { label: "Customer balances", href: "/reports/accounts?view=receivable" },
       { label: "Customer ledger", href: "/reports/accounts?view=ledger" },
       { label: "Customer receivables", href: "/reports/recovery" },
-      { label: "Recovery history", href: "/salesman/recoveries" },
       { label: "Aging report", href: "/reports/aging" },
-      { label: "Salesman performance", href: "/sales/salesmen" },
-      { label: "Salesman ledger", href: "/reports/salesman-ledger" },
     ],
   },
   {

@@ -114,7 +114,10 @@ export function PostedDocumentEditor({
   const catalog = useTradingCatalog(companyId, {
     enabled: Boolean(companyId),
     stock: table === "sale_invoices",
-    salesmen: table === "sale_invoices" || table === "recoveries",
+    salesmen:
+      table === "sale_invoices" ||
+      table === "recoveries" ||
+      table === "vouchers",
   });
 
   if (error) {
@@ -377,12 +380,14 @@ export function PostedDocumentEditor({
           companyId={companyId}
           organizationId={organizationId}
           parties={catalog.parties}
+          salesmen={catalog.salesmen}
           editing={{
             id,
             voucherNo: String(doc.voucher_no || ""),
             date: asDate(doc.voucher_date),
             createdAt: doc.created_at ? String(doc.created_at) : undefined,
             narration: String(doc.narration || ""),
+            salesmanId: doc.salesman_id ? String(doc.salesman_id) : "",
             lines: [...mergedLines.values()],
           }}
           onDone={onDone}

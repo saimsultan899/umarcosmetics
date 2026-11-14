@@ -1,6 +1,7 @@
 "use client";
 
 import { PartyCodeCell } from "@/components/forms/party-code-cell";
+import { SalesmanSelect } from "@/components/forms/salesman-select";
 import { Button } from "@/components/ui/button";
 import { useCreateDialogClose } from "@/components/ui/create-dialog";
 import { Input } from "@/components/ui/input";
@@ -9,6 +10,7 @@ import { Select } from "@/components/ui/select";
 import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
 import { useSingleSubmit } from "@/lib/forms/single-submit";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
+import type { SalesmanOption } from "@/lib/queries/salesmen";
 import type { Party } from "@/lib/types/database";
 import { BankPaymentFields } from "@/components/vouchers/bank-payment-fields";
 import { AMOUNT_PLACEHOLDER, AMOUNT_STEP, formatPkr } from "@/lib/utils";
@@ -60,6 +62,7 @@ export function CashVoucherForm({
   companyId,
   organizationId,
   parties,
+  salesmen = [],
   editing,
   onDone,
 }: {
@@ -67,6 +70,7 @@ export function CashVoucherForm({
   companyId: string;
   organizationId: string;
   parties: Party[];
+  salesmen?: SalesmanOption[];
   editing?: CashVoucherEdit;
   onDone?: () => void;
 }) {
@@ -78,6 +82,7 @@ export function CashVoucherForm({
   const [date, setDate] = useState(
     editing?.date || new Date().toISOString().slice(0, 10),
   );
+  const [salesmanId, setSalesmanId] = useState("");
   const [narration, setNarration] = useState(editing?.narration || "");
   const [paymentMethod, setPaymentMethod] = useState(
     editing?.paymentMethod || "cash",
@@ -147,6 +152,7 @@ export function CashVoucherForm({
           company_id: companyId,
           voucher_date: date,
           narration,
+          ...(kind === "CR" ? { salesman_id: salesmanId || null } : {}),
           ...(kind === "CP"
             ? {
                 payment_method: paymentMethod || "cash",
@@ -203,6 +209,14 @@ export function CashVoucherForm({
           <Label>Date</Label>
           <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
         </div>
+        {kind === "CR" ? (
+          <SalesmanSelect
+            salesmen={salesmen}
+            value={salesmanId}
+            onChange={setSalesmanId}
+            hideHint
+          />
+        ) : null}
         {kind === "CP" ? (
           <div>
             <Label>

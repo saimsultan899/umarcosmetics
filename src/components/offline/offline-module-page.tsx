@@ -520,6 +520,7 @@ export function OfflineModulePage({
             companyId={companyId}
             organizationId={organizationId}
             parties={parties}
+            salesmen={salesmen}
             onDone={refetch}
           />
         );
@@ -879,9 +880,21 @@ export function OfflineModulePage({
       voucher_date: String(r.voucher_date || r.doc_date || ""),
       total_amount: Number(r.total_amount ?? r.amount ?? r.grand_total ?? 0),
       narration: r.narration == null ? null : String(r.narration),
+      salesmanId: r.salesman_id ? String(r.salesman_id) : null,
+      salesmanName: r.salesman_id
+        ? salesmen.find((s) => s.user_id === String(r.salesman_id))?.full_name ||
+          null
+        : null,
     }));
 
     const filteredVouchers = allVouchers.filter((v) => {
+      if (kind === "cash_receipt" && salesmanParam) {
+        if (salesmanParam === "unassigned") {
+          if (v.salesmanId) return false;
+        } else if (v.salesmanId !== salesmanParam) {
+          return false;
+        }
+      }
       if (q) {
         const text = `${v.voucher_no || ""} ${v.narration || ""} ${v.total_amount || ""}`.toLowerCase();
         if (!text.includes(q)) return false;
@@ -905,6 +918,7 @@ export function OfflineModulePage({
         emptyLabel="No vouchers in local ledger yet."
         detailBasePath={base}
         showParty={kind === "cash_receipt"}
+        salesmen={kind === "cash_receipt" ? salesmen : []}
         companyId={companyId}
       />
     );
@@ -938,7 +952,11 @@ export function OfflineModulePage({
     const filteredRecoveries = allRecoveries.filter((rec) => {
       if (cityParam && rec.city !== cityParam) return false;
       if (sectorParam && rec.route !== sectorParam) return false;
-      if (salesmanParam && rec.salesman?.full_name !== salesmanParam) return false;
+      if (salesmanParam === "unassigned") {
+        if (rec.salesman_id) return false;
+      } else if (salesmanParam && rec.salesman_id !== salesmanParam) {
+        return false;
+      }
       if (q) {
         const text = `${rec.parties?.party_code || ""} ${rec.parties?.name_en || ""} ${rec.city || ""} ${rec.route || ""} ${rec.salesman?.full_name || ""} ${rec.remarks || ""}`.toLowerCase();
         if (!text.includes(q)) return false;

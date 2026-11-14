@@ -7,6 +7,7 @@ import { TableToolbar } from "@/components/tables/table-toolbar";
 import { TableFilterSelect, stringOptions } from "@/components/tables/table-filter-select";
 import { CashReceiptView } from "@/components/vouchers/cash-receipt-view";
 import { useSearchInput, useUrlTableState } from "@/hooks/use-url-table-state";
+import type { SalesmanOption } from "@/lib/queries/salesmen";
 import type { VoucherRow } from "@/lib/queries/vouchers";
 import type { PaginationMeta } from "@/lib/pagination";
 import { formatPkr } from "@/lib/utils";
@@ -19,6 +20,7 @@ export function VouchersTable({
   detailBasePath,
   showParty = false,
   sectors = [],
+  salesmen = [],
   companyId,
 }: {
   vouchers: VoucherRow[];
@@ -28,17 +30,26 @@ export function VouchersTable({
   /** Customer and sector columns, plus sector filter (cash receipts). */
   showParty?: boolean;
   sectors?: string[];
+  salesmen?: SalesmanOption[];
   companyId?: string;
 }) {
   const filterKeys = [
     "fromDate",
     "toDate",
     ...(showParty && sectors.length ? ["sector"] : []),
+    ...(showParty ? ["salesman"] : []),
   ];
   const { q, filters, isPending, setPage, setPageSize, setQuery, setFilter } =
     useUrlTableState(filterKeys);
   const search = useSearchInput(q, setQuery);
-  const colSpan = showParty ? 7 : 5;
+  const colSpan = showParty ? 8 : 5;
+  const salesmanOptions = [
+    ...salesmen.map((s) => ({
+      value: s.user_id,
+      label: s.full_name || "Salesman",
+    })),
+    { value: "unassigned", label: "Unassigned" },
+  ];
 
   return (
     <div>
@@ -87,6 +98,15 @@ export function VouchersTable({
                 onChange={(value) => setFilter("sector", value)}
               />
             ) : null}
+            {showParty ? (
+              <TableFilterSelect
+                label="Salesman"
+                value={filters.salesman || ""}
+                options={salesmanOptions}
+                loading={isPending}
+                onChange={(value) => setFilter("salesman", value)}
+              />
+            ) : null}
           </div>
         }
       />
@@ -99,6 +119,7 @@ export function VouchersTable({
                 <th>Date</th>
                 {showParty ? <th>Customer</th> : null}
                 {showParty ? <th>Sector</th> : null}
+                {showParty ? <th>Salesman</th> : null}
                 <th>Total</th>
                 <th>Narration</th>
                 <th className="text-right">Actions</th>
@@ -133,6 +154,11 @@ export function VouchersTable({
                         {v.sectorLabel || "—"}
                       </td>
                     ) : null}
+                    {showParty ? (
+                      <td className="max-w-[10rem] truncate">
+                        {v.salesmanName || "Unassigned"}
+                      </td>
+                    ) : null}
                     <td>{formatPkr(v.total_amount)}</td>
                     <td className="text-[var(--muted)]">{v.narration || "—"}</td>
                     <td>
@@ -156,6 +182,10 @@ export function VouchersTable({
                                   label: "Sector",
                                   value: v.sectorDetail || v.sectorLabel || "—",
                                 },
+                                {
+                                  label: "Salesman",
+                                  value: v.salesmanName || "Unassigned",
+                                },
                               ]
                             : []),
                           { label: "Total", value: formatPkr(v.total_amount) },
@@ -174,6 +204,10 @@ export function VouchersTable({
                               fields={[
                                 { label: "Voucher #", value: v.voucher_no },
                                 { label: "Date", value: v.voucher_date },
+                                {
+                                  label: "Salesman",
+                                  value: v.salesmanName || "Unassigned",
+                                },
                                 {
                                   label: "Total",
                                   value: formatPkr(v.total_amount),

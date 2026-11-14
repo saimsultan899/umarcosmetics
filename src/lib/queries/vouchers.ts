@@ -22,6 +22,8 @@ export type VoucherRow = {
   sectorLabel?: string;
   /** Full sector list for hover / view. */
   sectorDetail?: string;
+  salesmanId?: string | null;
+  salesmanName?: string | null;
 };
 
 export type VoucherListResult = {
@@ -132,6 +134,7 @@ export async function fetchVoucherList(
   const sector = (spString(searchParams, "sector") || "").trim();
   const fromDate = isoDateParam(spString(searchParams, "fromDate"));
   const toDate = isoDateParam(spString(searchParams, "toDate"));
+  const salesman = (spString(searchParams, "salesman") || "").trim();
 
   const term = escapeIlike(q);
   let restrictIds: string[] | null = null;
@@ -212,7 +215,7 @@ export async function fetchVoucherList(
     .select(
       // Hint party_id FK — voucher_lines also has debit/credit_party_id → parties,
       // so bare `parties(...)` makes PostgREST reject the whole list as empty.
-      "id, voucher_no, voucher_date, total_amount, narration, voucher_lines(party_id, parties!voucher_lines_party_id_fkey(party_code, name_en, route))",
+      "id, voucher_no, voucher_date, total_amount, narration, salesman_id, salesman:salesmen!vouchers_salesman_id_fkey(full_name), voucher_lines(party_id, parties!voucher_lines_party_id_fkey(party_code, name_en, route))",
       { count: "exact" },
     )
     .eq("company_id", companyId)
@@ -220,6 +223,12 @@ export async function fetchVoucherList(
     .neq("status", "cancelled");
 
   query = applyVoucherDateRange(query, fromDate, toDate);
+
+  if (voucherType === "CR" && salesman === "unassigned") {
+    query = query.is("salesman_id", null);
+  } else if (voucherType === "CR" && salesman) {
+    query = query.eq("salesman_id", salesman);
+  }
 
   if (restrictIds) {
     if (restrictIds.length === 0) {
@@ -245,15 +254,22 @@ export async function fetchVoucherList(
       voucher_date: string;
       total_amount: number;
       narration: string | null;
+      salesman_id?: string | null;
+      salesman?: { full_name?: string | null } | { full_name?: string | null }[] | null;
       voucher_lines?: Array<{ parties?: LineParty | LineParty[] | null }>;
     };
     const labels = partyLabels(record.voucher_lines);
+    const salesmanRow = Array.isArray(record.salesman)
+      ? record.salesman[0]
+      : record.salesman;
     return {
       id: record.id,
       voucher_no: record.voucher_no,
       voucher_date: record.voucher_date,
       total_amount: Number(record.total_amount || 0),
       narration: record.narration,
+      salesmanId: record.salesman_id || null,
+      salesmanName: salesmanRow?.full_name || null,
       partyLabel: labels.partyLabel,
       partyDetail: labels.partyDetail,
       sectorLabel: labels.sectorLabel,

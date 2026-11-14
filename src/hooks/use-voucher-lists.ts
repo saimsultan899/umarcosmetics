@@ -274,18 +274,22 @@ export function useVoucherList({
 
         let voucherRows: Record<string, unknown>[] = [];
         let partyRows: Record<string, unknown>[] = [];
+        let salesmanRows: Record<string, unknown>[] = [];
 
         if (hasLocalSqlite()) {
-          const [vRes, pRes] = await Promise.all([
+          const [vRes, pRes, sRes] = await Promise.all([
             localListDocumentsByTypes(companyId, entityTypes),
             localListMaster("parties", companyId),
+            localListMaster("salesmen", companyId),
           ]);
           voucherRows = vRes.rows || [];
           partyRows = pRes.rows || [];
+          salesmanRows = sRes.rows || [];
         }
 
         if (!voucherRows.length) voucherRows = await getCachedRows("vouchers", companyId);
         if (!partyRows.length) partyRows = await getCachedRows("parties", companyId);
+        if (!salesmanRows.length) salesmanRows = await getCachedRows("salesmen", companyId);
 
         const pts = partyRows as unknown as Party[];
         setParties(pts);
@@ -305,6 +309,7 @@ export function useVoucherList({
 
         const q = (searchParams.get("q") || "").toLowerCase().trim();
         const sector = (searchParams.get("sector") || "").trim().toLowerCase();
+        const salesman = (searchParams.get("salesman") || "").trim();
         let fromDate = (searchParams.get("fromDate") || "").trim().slice(0, 10);
         let toDate = (searchParams.get("toDate") || "").trim().slice(0, 10);
         if (fromDate && toDate && fromDate > toDate) {
@@ -313,6 +318,12 @@ export function useVoucherList({
           toDate = swap;
         }
         const partyById = new Map(pts.map((p) => [p.id, p]));
+        const salesmanNameById = new Map(
+          salesmanRows.map((row) => [
+            String(row.id || ""),
+            String(row.full_name || row.name || ""),
+          ]),
+        );
 
         type OfflineVoucherRow = VoucherRow & { createdDate?: string };
 
@@ -348,6 +359,10 @@ export function useVoucherList({
                 ? sectorList[0]
                 : `${sectorList.length} sectors`,
             sectorDetail,
+            salesmanId: r.salesman_id ? String(r.salesman_id) : null,
+            salesmanName: r.salesman_id
+              ? salesmanNameById.get(String(r.salesman_id)) || null
+              : null,
             createdDate: String(r.created_at || "").slice(0, 10),
           };
         });
@@ -369,6 +384,13 @@ export function useVoucherList({
               .split(",")
               .map((part) => part.trim().toLowerCase());
             if (!routes.includes(sector)) return false;
+          }
+          if (kind === "CR" && salesman) {
+            if (salesman === "unassigned") {
+              if (v.salesmanId) return false;
+            } else if (v.salesmanId !== salesman) {
+              return false;
+            }
           }
           if (!q) return true;
           return `${v.voucher_no} ${v.narration || ""} ${v.partyLabel || ""} ${v.partyDetail || ""} ${v.sectorLabel || ""} ${v.sectorDetail || ""}`
