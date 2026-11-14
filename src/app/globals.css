@@ -634,7 +634,7 @@ label {
 @media (min-width: 1280px) {
   .quick-shortcuts {
     width: auto;
-    grid-template-columns: repeat(4, max-content);
+    grid-template-columns: repeat(8, max-content);
     justify-content: end;
   }
 }
