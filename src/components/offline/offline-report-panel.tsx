@@ -129,6 +129,7 @@ export function OfflineReportPanel({
   const [salesmen, setSalesmen] = useState<
     Array<{ id: string; user_id: string; full_name: string }>
   >([]);
+  const [entryType, setEntryType] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -461,51 +462,6 @@ export function OfflineReportPanel({
         </div>
       ) : null}
 
-      {kind === "salesman_ledger" ? (
-        <form
-          action="/reports/salesman-ledger"
-          className="no-print flex flex-wrap items-end gap-2 rounded-xl border border-[var(--border)] bg-white p-3"
-          onSubmit={() => setFilterBusy(true)}
-        >
-          <label className="text-xs text-[var(--muted)]">
-            From
-            <input
-              type="date"
-              name="from"
-              defaultValue={from || ""}
-              className="mt-1 block h-9 rounded-lg border border-[var(--border)] px-2"
-            />
-          </label>
-          <label className="text-xs text-[var(--muted)]">
-            To
-            <input
-              type="date"
-              name="to"
-              defaultValue={to || ""}
-              className="mt-1 block h-9 rounded-lg border border-[var(--border)] px-2"
-            />
-          </label>
-          <label className="text-xs text-[var(--muted)]">
-            Salesman
-            <select
-              name="salesman"
-              defaultValue={salesmanId || ""}
-              className="mt-1 block h-9 min-w-[14rem] rounded-lg border border-[var(--border)] px-2"
-            >
-              <option value="">Select salesman</option>
-              {salesmen.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.full_name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <Button type="submit" size="sm" loading={filterBusy}>
-            Open
-          </Button>
-        </form>
-      ) : null}
-
       {kind === "aging" ? (
         <form
           className="no-print flex flex-wrap items-end gap-2"
@@ -591,24 +547,81 @@ export function OfflineReportPanel({
         ) : null}
       </StatsGrid>
 
-      {!salesmanId && kind === "salesman_ledger" ? (
-        <p className="rounded-lg border border-dashed border-[var(--border)] bg-white px-4 py-6 text-sm text-[var(--muted)]">
-          Choose a salesman above to open his running ledger.
-        </p>
-      ) : (
-        <ReportTable
-          title={meta.title}
-          subtitle={
-            subtitle ||
-            (from || to
-              ? `Period ${from || "…"} → ${to || "…"}`
-              : "Report overview")
-          }
-          companyName={companyName}
-          rows={rows}
-          filename={`${kind}-report`}
-        />
-      )}
+      <ReportTable
+        title={meta.title}
+        subtitle={
+          !salesmanId && kind === "salesman_ledger"
+            ? "Choose a salesman in the filters to open his running ledger"
+            : subtitle ||
+              (from || to
+                ? `Period ${from || "…"} → ${to || "…"}`
+                : "Report overview")
+        }
+        companyName={companyName}
+        rows={
+          kind === "salesman_ledger" && entryType
+            ? rows.filter((row) => String(row.Type || "") === entryType)
+            : rows
+        }
+        filename={`${kind}-report`}
+        singleLineFilters={kind === "salesman_ledger"}
+        filters={
+          kind === "salesman_ledger" ? (
+            <form
+              action="/reports/salesman-ledger"
+              className="flex flex-nowrap items-center gap-2"
+              onSubmit={() => setFilterBusy(true)}
+            >
+              <label className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">
+                From
+                <input
+                  type="date"
+                  name="from"
+                  defaultValue={from || ""}
+                  className="h-10 rounded-lg border border-[var(--border)] bg-white px-2 text-sm"
+                />
+              </label>
+              <label className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">
+                To
+                <input
+                  type="date"
+                  name="to"
+                  defaultValue={to || ""}
+                  className="h-10 rounded-lg border border-[var(--border)] bg-white px-2 text-sm"
+                />
+              </label>
+              <select
+                name="salesman"
+                defaultValue={salesmanId || ""}
+                aria-label="Salesman"
+                className="h-10 min-w-[11rem] rounded-lg border border-[var(--border)] bg-white px-2 text-sm"
+              >
+                <option value="">Select salesman</option>
+                {salesmen.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.full_name}
+                  </option>
+                ))}
+              </select>
+              <select
+                aria-label="Type"
+                value={entryType}
+                onChange={(e) => setEntryType(e.target.value)}
+                className="h-10 min-w-[8.5rem] rounded-lg border border-[var(--border)] bg-white px-2 text-sm"
+              >
+                <option value="">All types</option>
+                <option value="Sale">Sale</option>
+                <option value="Recovery">Recovery</option>
+                <option value="Salary">Salary</option>
+                <option value="Expense">Expense</option>
+              </select>
+              <Button type="submit" className="h-10 shrink-0 px-4" loading={filterBusy}>
+                Run report
+              </Button>
+            </form>
+          ) : undefined
+        }
+      />
     </div>
   );
 }

@@ -1,14 +1,8 @@
-import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
-import { FilterSelect, ReportFilters } from "@/components/reports/report-filters";
-import { ReportSectionHead } from "@/components/reports/report-section-head";
-import { ReportTable } from "@/components/reports/report-table";
+import { SalesmanLedgerView } from "@/components/reports/salesman-ledger-view";
 import { requireCompanyContext } from "@/lib/auth";
 import { fetchCompanySalesmen } from "@/lib/queries/salesmen";
 import { buildSalesmanLedger } from "@/lib/reports/salesman-ledger";
 import { localDateIso, monthStartLocal } from "@/lib/dates";
-import { formatPkr } from "@/lib/utils";
-import { HandCoins, Receipt, ShoppingCart, Wallet } from "lucide-react";
-import Link from "next/link";
 
 function today() {
   return localDateIso();
@@ -59,128 +53,20 @@ export default async function SalesmanLedgerPage({
     }),
   ]);
 
-  const t = ledger.totals;
-
   return (
-    <div className="animate-rise space-y-6">
-      <ReportSectionHead
-        size="page"
-        title="Salesman ledger"
-        subtitle={`Running book of this salesman's sales, recoveries, salary, and tagged daily expenses — ${company.name}`}
-        actions={
-          <div className="no-print flex flex-wrap gap-2">
-            <Link
-              href="/vouchers/expenses"
-              className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium"
-            >
-              Add salary / expense
-            </Link>
-            <Link
-              href="/reports/accounts?view=ledger"
-              className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium"
-            >
-              Customer ledger
-            </Link>
-          </div>
-        }
-      />
-
-      <ReportFilters
-        action="/reports/salesman-ledger"
-        defaults={{ from, to }}
-        extras={
-          <FilterSelect
-            name="salesman"
-            label="Salesman"
-            value={salesmanId}
-            allLabel="Select salesman"
-            options={salesmen.map((s) => ({
-              value: s.user_id,
-              label: s.full_name || s.user_id.slice(0, 8),
-            }))}
-          />
-        }
-      />
-
-      {!salesmanId ? (
-        <p className="rounded-lg border border-dashed border-[var(--border)] bg-white px-4 py-6 text-sm text-[var(--muted)]">
-          Choose a salesman above to open his running ledger. Shop-wise balances
-          stay on{" "}
-          <Link href="/reports/accounts?view=ledger" className="font-semibold underline">
-            Customer ledger
-          </Link>
-          .
-        </p>
-      ) : (
-        <>
-          <StatsGrid>
-            <StatCard
-              label="Sales"
-              value={t.sales}
-              format="money"
-              icon={ShoppingCart}
-              hint="Bills tagged to this salesman"
-            />
-            <StatCard
-              label="Cash collected"
-              value={t.collected}
-              format="money"
-              icon={HandCoins}
-              tone="ok"
-              hint="Invoice cash + recoveries"
-            />
-            <StatCard
-              label="Salary + expenses"
-              value={t.expenses}
-              format="money"
-              icon={Receipt}
-              tone="warn"
-              hint={`${formatPkr(t.salary)} salary · ${formatPkr(t.otherExpenses)} other`}
-            />
-            <StatCard
-              label="Net cash"
-              value={t.netCash}
-              format="money"
-              icon={Wallet}
-              tone={t.netCash >= 0 ? "ok" : "danger"}
-              hint="Collected minus salary & expenses"
-            />
-          </StatsGrid>
-
-          {ledger.error ? (
-            <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
-              {ledger.error}
-            </p>
-          ) : null}
-
-          <ReportTable
-            title={`Salesman ledger — ${ledger.salesmanName}`}
-            companyName={company.name}
-            subtitle={`${from} to ${to} · ${ledger.lines.length} lines`}
-            rows={ledger.lines.map((l) => ({
-              Date: l.date,
-              Type: l.type,
-              Particulars: l.particulars,
-              "Sale amount": l.sales,
-              "Cash collected": l.collected,
-              "Expense paid": l.expense,
-              "Running cash": l.running,
-              ...(l.docTable && l.docId
-                ? {
-                    _doc_table: l.docTable,
-                    _doc_id: l.docId,
-                    _doc_title: l.docTitle || l.particulars,
-                    _href:
-                      l.docTable === "sale_invoices"
-                        ? `/sales/invoices/${l.docId}`
-                        : "",
-                  }
-                : {}),
-            }))}
-            filename={`salesman-ledger-${salesmanId}-${from}-${to}`}
-          />
-        </>
-      )}
-    </div>
+    <SalesmanLedgerView
+      companyName={company.name}
+      from={from}
+      to={to}
+      salesmanId={salesmanId}
+      salesmanName={ledger.salesmanName}
+      salesmen={salesmen.map((s) => ({
+        id: s.user_id,
+        name: s.full_name || s.user_id.slice(0, 8),
+      }))}
+      lines={ledger.lines}
+      totals={ledger.totals}
+      error={ledger.error}
+    />
   );
 }

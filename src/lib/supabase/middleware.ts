@@ -49,6 +49,7 @@ export async function updateSession(request: NextRequest) {
     isAuthRoute ||
     path.startsWith("/setup") ||
     path.startsWith("/join") ||
+    path.startsWith("/api/join/") ||
     // Version probe must work on the login screen and before a session exists
     // so an offline shop can detect a newer build the moment it reconnects.
     path === "/api/app-version" ||

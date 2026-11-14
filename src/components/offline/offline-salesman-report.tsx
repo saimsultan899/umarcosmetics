@@ -7,7 +7,11 @@ import {
   TrendAreaChart,
 } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
-import { FilterMultiSelect, ReportFilters } from "@/components/reports/report-filters";
+import {
+  FilterMultiSelect,
+  FilterSelect,
+  ReportFilters,
+} from "@/components/reports/report-filters";
 import { ReportSectionHead } from "@/components/reports/report-section-head";
 import { ReportTable } from "@/components/reports/report-table";
 import { OfflineBanner } from "@/components/offline/offline-banner";
@@ -33,6 +37,7 @@ type OfflineSalesmanReportProps = {
   to: string;
   salesman?: string;
   sector?: string;
+  section?: string;
 };
 
 export function OfflineSalesmanReportPage({
@@ -42,7 +47,11 @@ export function OfflineSalesmanReportPage({
   to,
   salesman: salesmanParam,
   sector: sectorParam,
+  section: sectionParam,
 }: OfflineSalesmanReportProps) {
+  const section = ["sales", "recovery", "expenses"].includes(sectionParam || "")
+    ? sectionParam || ""
+    : "";
   const salesmanFilterList = useMemo(() => parseReportList(salesmanParam), [salesmanParam]);
   const sectorFilterList = useMemo(() => parseReportList(sectorParam), [sectorParam]);
 
@@ -548,51 +557,68 @@ export function OfflineSalesmanReportPage({
               allLabel="All sectors"
               options={sectorOptions.map((s) => ({ value: s, label: s }))}
             />
+            <FilterSelect
+              name="section"
+              label="Show"
+              value={section}
+              allLabel="All sections"
+              options={[
+                { value: "sales", label: "Sales history" },
+                { value: "recovery", label: "Recovery history" },
+                { value: "expenses", label: "Salary & expenses" },
+              ]}
+            />
           </>
         }
       />
 
       {report.history ? (
-        <div className="grid gap-4 lg:grid-cols-3">
-          <ReportTable
-            title="Sales history"
-            companyName={companyName}
-            subtitle={`${report.history.sales.length} bills · ${from} to ${to}`}
-            rows={report.history.sales.map((s) => ({
-              Date: s.invoice_date,
-              "Invoice #": s.invoice_no,
-              Customer: s.party,
-              Sector: s.route || "—",
-              Amount: s.amount,
-            }))}
-            filename={`salesman-sales-${focusedSalesmanId}-${from}`}
-          />
-          <ReportTable
-            title="Recovery history"
-            companyName={companyName}
-            subtitle={`${report.history.recoveries.length} collections · ${from} to ${to}`}
-            rows={report.history.recoveries.map((r) => ({
-              Date: r.recovery_date,
-              Customer: r.party,
-              Sector: r.route || "—",
-              Amount: r.amount,
-              Remarks: r.remarks || "—",
-            }))}
-            filename={`salesman-recoveries-${focusedSalesmanId}-${from}`}
-          />
-          <ReportTable
-            title="Salary & expenses"
-            companyName={companyName}
-            subtitle={`${report.history.expenses.length} lines · ${from} to ${to}`}
-            rows={report.history.expenses.map((e) => ({
-              Date: e.expense_date,
-              "EXP #": e.expense_no,
-              Type: e.category,
-              "Amount paid": e.amount,
-              Remarks: e.remarks || "—",
-            }))}
-            filename={`salesman-expenses-${focusedSalesmanId}-${from}`}
-          />
+        <div className="space-y-6">
+          {section === "" || section === "sales" ? (
+            <ReportTable
+              title="Sales history"
+              companyName={companyName}
+              subtitle={`${report.history.sales.length} bills · ${from} to ${to}`}
+              rows={report.history.sales.map((s) => ({
+                Date: s.invoice_date,
+                "Invoice #": s.invoice_no,
+                Customer: s.party,
+                Sector: s.route || "—",
+                Amount: s.amount,
+              }))}
+              filename={`salesman-sales-${focusedSalesmanId}-${from}`}
+            />
+          ) : null}
+          {section === "" || section === "recovery" ? (
+            <ReportTable
+              title="Recovery history"
+              companyName={companyName}
+              subtitle={`${report.history.recoveries.length} collections · ${from} to ${to}`}
+              rows={report.history.recoveries.map((r) => ({
+                Date: r.recovery_date,
+                Customer: r.party,
+                Sector: r.route || "—",
+                Amount: r.amount,
+                Remarks: r.remarks || "—",
+              }))}
+              filename={`salesman-recoveries-${focusedSalesmanId}-${from}`}
+            />
+          ) : null}
+          {section === "" || section === "expenses" ? (
+            <ReportTable
+              title="Salary & expenses"
+              companyName={companyName}
+              subtitle={`${report.history.expenses.length} lines · ${from} to ${to}`}
+              rows={report.history.expenses.map((e) => ({
+                Date: e.expense_date,
+                "EXP #": e.expense_no,
+                Type: e.category,
+                "Amount paid": e.amount,
+                Remarks: e.remarks || "—",
+              }))}
+              filename={`salesman-expenses-${focusedSalesmanId}-${from}`}
+            />
+          ) : null}
         </div>
       ) : null}
 

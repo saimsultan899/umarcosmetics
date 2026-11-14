@@ -5,7 +5,11 @@ import {
   TrendAreaChart,
 } from "@/components/analytics/charts";
 import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
-import { FilterMultiSelect, ReportFilters } from "@/components/reports/report-filters";
+import {
+  FilterMultiSelect,
+  FilterSelect,
+  ReportFilters,
+} from "@/components/reports/report-filters";
 import { ReportTable } from "@/components/reports/report-table";
 import { requireCompanyContext } from "@/lib/auth";
 import { parseReportList } from "@/lib/reports/filter-params";
@@ -37,6 +41,7 @@ export default async function SalesmenPerformancePage({
     to?: string;
     salesman?: string;
     sector?: string;
+    section?: string;
   }>;
 }) {
   const sp = await searchParams;
@@ -56,12 +61,16 @@ export default async function SalesmenPerformancePage({
         to={to}
         salesman={sp.salesman}
         sector={sp.sector}
+        section={sp.section}
       />
     );
   }
 
   const salesmanIds = parseReportList(sp.salesman);
   const sectors = parseReportList(sp.sector);
+  const section = ["sales", "recovery", "expenses"].includes(sp.section || "")
+    ? sp.section || ""
+    : "";
 
   const report = await buildSalesmanReport(supabase, {
     companyId: company.id,
@@ -272,6 +281,17 @@ export default async function SalesmenPerformancePage({
               allLabel="All sectors"
               options={report.sectorOptions.map((s) => ({ value: s, label: s }))}
             />
+            <FilterSelect
+              name="section"
+              label="Show"
+              value={section}
+              allLabel="All sections"
+              options={[
+                { value: "sales", label: "Sales history" },
+                { value: "recovery", label: "Recovery history" },
+                { value: "expenses", label: "Salary & expenses" },
+              ]}
+            />
           </>
         }
       />
@@ -295,46 +315,52 @@ export default async function SalesmenPerformancePage({
       ) : null}
 
       {report.history ? (
-        <div className="grid gap-4 lg:grid-cols-3">
-          <ReportTable
-            title="Sales history"
-            companyName={company.name}
-            subtitle={`${report.history.sales.length} bills · ${from} to ${to}`}
-            rows={report.history.sales.map((s) => ({
-              Date: s.invoice_date,
-              "Invoice #": s.invoice_no,
-              Customer: s.party,
-              Sector: s.route || "—",
-              Amount: s.amount,
-            }))}
-            filename={`salesman-sales-${focusedSalesmanId}-${from}`}
-          />
-          <ReportTable
-            title="Recovery history"
-            companyName={company.name}
-            subtitle={`${report.history.recoveries.length} collections · ${from} to ${to}`}
-            rows={report.history.recoveries.map((r) => ({
-              Date: r.recovery_date,
-              Customer: r.party,
-              Sector: r.route || "—",
-              Amount: r.amount,
-              Remarks: r.remarks || "—",
-            }))}
-            filename={`salesman-recoveries-${focusedSalesmanId}-${from}`}
-          />
-          <ReportTable
-            title="Salary & expenses"
-            companyName={company.name}
-            subtitle={`${report.history.expenses.length} lines · ${from} to ${to}`}
-            rows={report.history.expenses.map((e) => ({
-              Date: e.expense_date,
-              "EXP #": e.expense_no,
-              Type: e.category,
-              "Amount paid": e.amount,
-              Remarks: e.remarks || "—",
-            }))}
-            filename={`salesman-expenses-${focusedSalesmanId}-${from}`}
-          />
+        <div className="space-y-6">
+          {section === "" || section === "sales" ? (
+            <ReportTable
+              title="Sales history"
+              companyName={company.name}
+              subtitle={`${report.history.sales.length} bills · ${from} to ${to}`}
+              rows={report.history.sales.map((s) => ({
+                Date: s.invoice_date,
+                "Invoice #": s.invoice_no,
+                Customer: s.party,
+                Sector: s.route || "—",
+                Amount: s.amount,
+              }))}
+              filename={`salesman-sales-${focusedSalesmanId}-${from}`}
+            />
+          ) : null}
+          {section === "" || section === "recovery" ? (
+            <ReportTable
+              title="Recovery history"
+              companyName={company.name}
+              subtitle={`${report.history.recoveries.length} collections · ${from} to ${to}`}
+              rows={report.history.recoveries.map((r) => ({
+                Date: r.recovery_date,
+                Customer: r.party,
+                Sector: r.route || "—",
+                Amount: r.amount,
+                Remarks: r.remarks || "—",
+              }))}
+              filename={`salesman-recoveries-${focusedSalesmanId}-${from}`}
+            />
+          ) : null}
+          {section === "" || section === "expenses" ? (
+            <ReportTable
+              title="Salary & expenses"
+              companyName={company.name}
+              subtitle={`${report.history.expenses.length} lines · ${from} to ${to}`}
+              rows={report.history.expenses.map((e) => ({
+                Date: e.expense_date,
+                "EXP #": e.expense_no,
+                Type: e.category,
+                "Amount paid": e.amount,
+                Remarks: e.remarks || "—",
+              }))}
+              filename={`salesman-expenses-${focusedSalesmanId}-${from}`}
+            />
+          ) : null}
         </div>
       ) : (
         <p className="no-print rounded-lg border border-dashed border-[var(--border)] bg-white px-4 py-3 text-sm text-[var(--muted)]">

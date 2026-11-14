@@ -13,6 +13,7 @@ export function TableToolbar({
   loading = false,
   onFocus,
   onBlur,
+  singleLine = false,
 }: {
   query: string;
   onQueryChange: (value: string) => void;
@@ -23,9 +24,17 @@ export function TableToolbar({
   loading?: boolean;
   onFocus?: () => void;
   onBlur?: () => void;
+  /** Keep search and filters on one row; scroll sideways if the row is wider than the screen. */
+  singleLine?: boolean;
 }) {
   return (
-    <div className="mb-3 flex flex-wrap items-end gap-x-3 gap-y-2">
+    <div
+      className={
+        singleLine
+          ? "mb-3 flex flex-nowrap items-center gap-2 overflow-x-auto"
+          : "mb-3 flex flex-wrap items-end gap-x-3 gap-y-2"
+      }
+    >
       <div className="relative min-w-[12rem] flex-1 basis-[14rem]">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
         <Input
@@ -39,7 +48,13 @@ export function TableToolbar({
         />
       </div>
       {filters ? (
-        <div className="flex min-w-0 flex-wrap items-end gap-x-3 gap-y-2">
+        <div
+          className={
+            singleLine
+              ? "flex shrink-0 flex-nowrap items-center gap-2"
+              : "flex min-w-0 flex-wrap items-end gap-x-3 gap-y-2"
+          }
+        >
           {filters}
         </div>
       ) : null}

@@ -65,14 +65,19 @@ export function SalesmenView({
               </Button>
             </Link>
             <CreateDialogButton
-              label="Invite login (optional)"
-              title="Invite salesman login"
-              description="Only if this person should use the field app"
-              size="md"
+              label="Salesman login"
+              title="Salesman login"
+              description="Create a login now, or copy an invite link. Mail is not sent."
+              size="lg"
             >
               <SalesmanInviteForm
                 companyId={company.id}
                 organizationId={company.organization_id}
+                salesmen={rows.map((row) => ({
+                  id: row.id,
+                  full_name: row.full_name,
+                  user_id: row.user_id,
+                }))}
               />
             </CreateDialogButton>
             <CreateDialogButton

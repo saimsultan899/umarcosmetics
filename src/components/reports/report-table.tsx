@@ -129,6 +129,7 @@ export function ReportTable({
   filename,
   filters,
   showFooter = true,
+  singleLineFilters = false,
 }: {
   title: string;
   subtitle?: string;
@@ -139,6 +140,8 @@ export function ReportTable({
   filters?: React.ReactNode;
   /** Opening and closing rows must not be added into a total. */
   showFooter?: boolean;
+  /** Search and filters stay on one row. */
+  singleLineFilters?: boolean;
 }) {
   const { page, pageSize, isPending, setPage, setPageSize } =
     useUrlTableState();
@@ -234,6 +237,7 @@ export function ReportTable({
         resultCount={filtered.length}
         totalCount={rows.length}
         filters={filters}
+        singleLine={singleLineFilters}
       />
 
       {/* Interactive, paginated table — screen only */}

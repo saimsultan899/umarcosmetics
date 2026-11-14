@@ -59,7 +59,7 @@ export function SalesmanInvitesTable({ rows }: { rows: SalesmanInviteRow[] }) {
           Login invites
         </h2>
         <p className="mt-1 text-sm text-[var(--muted)]">
-          Optional — only if a salesman needs field-app access.
+          Copy the link and send it yourself. Mail is not sent. They set a password on the link and can sign in immediately.
         </p>
       </div>
       {error ? (

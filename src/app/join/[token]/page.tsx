@@ -50,30 +50,32 @@ export default function JoinSalesmanPage() {
     setError(null);
     const supabase = createClient();
 
-    const { error: signError } = await supabase.auth.signUp({
-      email: invite.email,
-      password,
-      options: { data: { full_name: fullName || invite.full_name } },
-    });
-
-    if (signError) {
-      const { error: inError } = await supabase.auth.signInWithPassword({
-        email: invite.email,
+    const res = await fetch("/api/join/salesman", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token,
         password,
-      });
-      if (inError) {
-        setLoading(false);
-        setError(signError.message);
-        return;
-      }
+        fullName: fullName || invite.full_name,
+      }),
+    });
+    const data = (await res.json().catch(() => null)) as {
+      error?: string;
+      email?: string;
+    } | null;
+    if (!res.ok) {
+      setLoading(false);
+      setError(data?.error || "Could not accept the invite.");
+      return;
     }
 
-    const { error: claimError } = await supabase.rpc("claim_salesman_invite", {
-      p_token: token,
+    const { error: inError } = await supabase.auth.signInWithPassword({
+      email: data?.email || invite.email,
+      password,
     });
     setLoading(false);
-    if (claimError) {
-      setError(claimError.message);
+    if (inError) {
+      setError(inError.message);
       return;
     }
 
@@ -120,7 +122,7 @@ export default function JoinSalesmanPage() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                minLength={6}
+                minLength={8}
                 required
               />
             </div>

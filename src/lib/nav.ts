@@ -85,6 +85,7 @@ export const mainNav: NavItem[] = [
     icon: Wallet,
     children: [
       { label: "Cash receipt", href: "/vouchers/cash-receipt" },
+      { label: "Recovery history", href: "/salesman/recoveries" },
       { label: "Cash payment", href: "/vouchers/cash-payment" },
       { label: "Cash management", href: "/vouchers/cash-management" },
       { label: "Daily expenses & salary", href: "/vouchers/expenses" },
