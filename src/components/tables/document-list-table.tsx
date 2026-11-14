@@ -637,6 +637,18 @@ export function DocumentListTable({
                   </tr>
                 )}
               </tbody>
+              {rows.length ? (
+                <tfoot>
+                  <tr className="border-t-2 border-[var(--border)] bg-[var(--surface-2,var(--bg))] font-semibold">
+                    <td colSpan={colSpan - 2}>
+                      Total ({pagination.total}{" "}
+                      {pagination.total === 1 ? "entry" : "entries"})
+                    </td>
+                    <td>{formatPkr(summary.totalAmount)}</td>
+                    <td />
+                  </tr>
+                </tfoot>
+              ) : null}
             </table>
           </TableScroll>
           <TablePagination
