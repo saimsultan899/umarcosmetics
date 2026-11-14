@@ -60,7 +60,6 @@ export function SalesmanForm({
           organization_id: organizationId,
           company_id: companyId,
           full_name: name,
-          name,
           phone: phone.trim() || null,
           code: code.trim() || null,
           is_active: true,

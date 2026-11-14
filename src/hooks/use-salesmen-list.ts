@@ -137,36 +137,65 @@ export function useSalesmenList({
       return;
     }
 
-    // Online fetch
+    // Online fetch. Roster first so Add salesman does not sit on a spinner
+    // while every sale and recovery is counted.
     setLoading(true);
     try {
       const supabase = createClient();
-      const [{ data: roster }, { data: inviteRows }, salesAgg, recoveryAgg] =
-        await Promise.all([
-          supabase
-            .from("salesmen")
-            .select("id, full_name, phone, code, is_active, user_id, created_at")
-            .eq("company_id", companyId)
-            .eq("is_active", true)
-            .order("full_name"),
-          supabase
-            .from("salesman_invites")
-            .select("id, email, full_name, token, claimed_by, created_at")
-            .eq("company_id", companyId)
-            .order("created_at", { ascending: false })
-            .limit(50),
-          supabase
-            .from("sale_invoices")
-            .select("salesman_id, grand_total")
-            .eq("company_id", companyId)
-            .eq("status", "posted")
-            .not("salesman_id", "is", null),
-          supabase
-            .from("recoveries")
-            .select("salesman_id, amount")
-            .eq("company_id", companyId)
-            .not("salesman_id", "is", null),
-        ]);
+      const [{ data: roster }, { data: inviteRows }] = await Promise.all([
+        supabase
+          .from("salesmen")
+          .select("id, full_name, phone, code, is_active, user_id, created_at")
+          .eq("company_id", companyId)
+          .eq("is_active", true)
+          .order("full_name"),
+        supabase
+          .from("salesman_invites")
+          .select("id, email, full_name, token, claimed_by, created_at")
+          .eq("company_id", companyId)
+          .order("created_at", { ascending: false })
+          .limit(50),
+      ]);
+
+      const rosterRows: SalesmanListRow[] = (roster || []).map((m) => ({
+        id: m.id,
+        full_name: m.full_name,
+        phone: m.phone,
+        code: m.code,
+        is_active: m.is_active,
+        user_id: m.user_id,
+        created_at: m.created_at,
+        bills: 0,
+        sales: 0,
+        recoveries: 0,
+        recovered: 0,
+      }));
+      setRows(rosterRows);
+      setInvites(
+        (inviteRows || []).map((i) => ({
+          id: i.id,
+          email: i.email,
+          full_name: i.full_name,
+          token: i.token,
+          claimed_by: i.claimed_by,
+          created_at: i.created_at,
+        })),
+      );
+      setLoading(false);
+
+      const [salesAgg, recoveryAgg] = await Promise.all([
+        supabase
+          .from("sale_invoices")
+          .select("salesman_id, grand_total")
+          .eq("company_id", companyId)
+          .eq("status", "posted")
+          .not("salesman_id", "is", null),
+        supabase
+          .from("recoveries")
+          .select("salesman_id, amount")
+          .eq("company_id", companyId)
+          .not("salesman_id", "is", null),
+      ]);
 
       const salesById = new Map<string, { bills: number; sales: number }>();
       for (const row of salesAgg.data || []) {
@@ -188,34 +217,18 @@ export function useSalesmenList({
         recoveryById.set(id, cur);
       }
 
-      const computedRows: SalesmanListRow[] = (roster || []).map((m) => {
-        const s = salesById.get(m.id) || { bills: 0, sales: 0 };
-        const r = recoveryById.get(m.id) || { recoveries: 0, recovered: 0 };
-        return {
-          id: m.id,
-          full_name: m.full_name,
-          phone: m.phone,
-          code: m.code,
-          is_active: m.is_active,
-          user_id: m.user_id,
-          created_at: m.created_at,
-          bills: s.bills,
-          sales: s.sales,
-          recoveries: r.recoveries,
-          recovered: r.recovered,
-        };
-      });
-
-      setRows(computedRows);
-      setInvites(
-        (inviteRows || []).map((i) => ({
-          id: i.id,
-          email: i.email,
-          full_name: i.full_name,
-          token: i.token,
-          claimed_by: i.claimed_by,
-          created_at: i.created_at,
-        })),
+      setRows(
+        rosterRows.map((m) => {
+          const s = salesById.get(m.id) || { bills: 0, sales: 0 };
+          const r = recoveryById.get(m.id) || { recoveries: 0, recovered: 0 };
+          return {
+            ...m,
+            bills: s.bills,
+            sales: s.sales,
+            recoveries: r.recoveries,
+            recovered: r.recovered,
+          };
+        }),
       );
     } catch (err) {
       console.error("Failed to load online salesmen list:", err);
@@ -225,21 +238,12 @@ export function useSalesmenList({
   }, [companyId, isOnline]);
 
   useEffect(() => {
-    if (isOnline && initialRows.length) {
-      setRows(initialRows);
-      setInvites(initialInvites);
-      setLoading(false);
-      return;
-    }
     void load();
-  }, [load, initialRows, initialInvites, isOnline]);
+  }, [load]);
 
   const refetch = useCallback(async () => {
-    if (isOnline && serverBacked.current) {
-      router.refresh();
-      return;
-    }
     await load();
+    if (isOnline && serverBacked.current) router.refresh();
   }, [isOnline, load, router]);
 
   return {

@@ -91,8 +91,34 @@ export function isBusinessRuleError(message: string) {
     m.includes("enter the person") ||
     m.includes("enter an amount") ||
     m.includes("choose another company") ||
-    m.includes("both companies together")
+    m.includes("both companies together") ||
+    m.includes("schema cache") ||
+    m.includes("column of")
   );
+}
+
+/** Columns that exist on public.salesmen. Extra form fields must not be inserted. */
+const SALESMAN_WRITE_COLUMNS = [
+  "id",
+  "organization_id",
+  "company_id",
+  "full_name",
+  "phone",
+  "code",
+  "is_active",
+  "user_id",
+  "updated_at",
+] as const;
+
+export function salesmanWritePayload(payload: Record<string, unknown>) {
+  const row: Record<string, unknown> = {};
+  for (const key of SALESMAN_WRITE_COLUMNS) {
+    if (payload[key] !== undefined) row[key] = payload[key];
+  }
+  if (!row.full_name && typeof payload.name === "string" && payload.name.trim()) {
+    row.full_name = payload.name.trim();
+  }
+  return row;
 }
 
 function isNetworkishError(err: unknown) {
@@ -870,9 +896,10 @@ async function submitOnline(
   }
 
   if (mutationType === "salesman_create") {
+    const row = salesmanWritePayload(payload);
     const { data, error } = await supabase
       .from("salesmen")
-      .insert(payload)
+      .insert(row)
       .select("id")
       .single();
     if (error) throw new Error(error.message);
@@ -880,10 +907,10 @@ async function submitOnline(
   }
 
   if (mutationType === "salesman_update") {
-    const id = payload.id as string;
-    const rest = { ...payload };
-    delete rest.id;
-    const { error } = await supabase.from("salesmen").update(rest).eq("id", id);
+    const row = salesmanWritePayload(payload);
+    const id = row.id as string;
+    delete row.id;
+    const { error } = await supabase.from("salesmen").update(row).eq("id", id);
     if (error) throw new Error(error.message);
     return { id };
   }

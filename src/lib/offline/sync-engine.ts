@@ -12,6 +12,7 @@ import {
 import {
   applyWarehouseSupplierLink,
   isBusinessRuleError,
+  salesmanWritePayload,
 } from "@/lib/offline/offline-submit";
 
 // ── Types ───────────────────────────────────────────────────────────
@@ -254,9 +255,8 @@ async function pushOne(mutation: OfflineMutation): Promise<string | null> {
   }
 
   if (mutation.type === "salesman_create") {
-    const name = (
-      (mutation.payload.full_name || mutation.payload.name) as string | undefined
-    )?.trim();
+    const row = salesmanWritePayload(mutation.payload);
+    const name = (row.full_name as string | undefined)?.trim();
     if (name) {
       const { data: existing } = await supabase
         .from("salesmen")
@@ -268,7 +268,7 @@ async function pushOne(mutation: OfflineMutation): Promise<string | null> {
     }
     const { data, error } = await supabase
       .from("salesmen")
-      .insert(mutation.payload)
+      .insert(row)
       .select("id")
       .single();
     if (error) {
@@ -287,10 +287,10 @@ async function pushOne(mutation: OfflineMutation): Promise<string | null> {
   }
 
   if (mutation.type === "salesman_update") {
-    const id = mutation.payload.id as string;
-    const rest = { ...mutation.payload };
-    delete rest.id;
-    const { error } = await supabase.from("salesmen").update(rest).eq("id", id);
+    const row = salesmanWritePayload(mutation.payload);
+    const id = row.id as string;
+    delete row.id;
+    const { error } = await supabase.from("salesmen").update(row).eq("id", id);
     if (error) throw new Error(error.message);
     return id;
   }

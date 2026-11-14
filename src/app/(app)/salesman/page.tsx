@@ -14,73 +14,34 @@ export default async function SalesmanAdminPage() {
 
   if (!offline) {
     try {
-      const [{ data: roster }, { data: invites }, salesAgg, recoveryAgg] =
-        await Promise.all([
-          supabase
-            .from("salesmen")
-            .select("id, full_name, phone, code, is_active, user_id, created_at")
-            .eq("company_id", company.id)
-            .eq("is_active", true)
-            .order("full_name"),
-          supabase
-            .from("salesman_invites")
-            .select("id, email, full_name, token, claimed_by, created_at")
-            .eq("company_id", company.id)
-            .order("created_at", { ascending: false })
-            .limit(50),
-          supabase
-            .from("sale_invoices")
-            .select("salesman_id, grand_total")
-            .eq("company_id", company.id)
-            .eq("status", "posted")
-            .not("salesman_id", "is", null),
-          supabase
-            .from("recoveries")
-            .select("salesman_id, amount")
-            .eq("company_id", company.id)
-            .not("salesman_id", "is", null),
-        ]);
+      const [{ data: roster }, { data: invites }] = await Promise.all([
+        supabase
+          .from("salesmen")
+          .select("id, full_name, phone, code, is_active, user_id, created_at")
+          .eq("company_id", company.id)
+          .eq("is_active", true)
+          .order("full_name"),
+        supabase
+          .from("salesman_invites")
+          .select("id, email, full_name, token, claimed_by, created_at")
+          .eq("company_id", company.id)
+          .order("created_at", { ascending: false })
+          .limit(50),
+      ]);
 
-      const salesById = new Map<string, { bills: number; sales: number }>();
-      for (const row of salesAgg.data || []) {
-        const id = row.salesman_id as string;
-        if (!id) continue;
-        const cur = salesById.get(id) || { bills: 0, sales: 0 };
-        cur.bills += 1;
-        cur.sales += Number(row.grand_total || 0);
-        salesById.set(id, cur);
-      }
-
-      const recoveryById = new Map<
-        string,
-        { recoveries: number; recovered: number }
-      >();
-      for (const row of recoveryAgg.data || []) {
-        const id = row.salesman_id as string;
-        if (!id) continue;
-        const cur = recoveryById.get(id) || { recoveries: 0, recovered: 0 };
-        cur.recoveries += 1;
-        cur.recovered += Number(row.amount || 0);
-        recoveryById.set(id, cur);
-      }
-
-      initialRows = (roster || []).map((m) => {
-        const s = salesById.get(m.id) || { bills: 0, sales: 0 };
-        const r = recoveryById.get(m.id) || { recoveries: 0, recovered: 0 };
-        return {
-          id: m.id,
-          full_name: m.full_name,
-          phone: m.phone,
-          code: m.code,
-          is_active: m.is_active,
-          user_id: m.user_id,
-          created_at: m.created_at,
-          bills: s.bills,
-          sales: s.sales,
-          recoveries: r.recoveries,
-          recovered: r.recovered,
-        };
-      });
+      initialRows = (roster || []).map((m) => ({
+        id: m.id,
+        full_name: m.full_name,
+        phone: m.phone,
+        code: m.code,
+        is_active: m.is_active,
+        user_id: m.user_id,
+        created_at: m.created_at,
+        bills: 0,
+        sales: 0,
+        recoveries: 0,
+        recovered: 0,
+      }));
 
       initialInvites = (invites || []).map((i) => ({
         id: i.id,
