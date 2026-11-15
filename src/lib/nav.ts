@@ -54,6 +54,7 @@ export const mainNav: NavItem[] = [
     icon: ShoppingCart,
     children: [
       { label: "Sale invoice", href: "/sales/invoices" },
+      { label: "Salesman orders", href: "/sales/orders" },
       { label: "Sale return", href: "/sales/returns" },
       { label: "Expiry warehouse", href: "/inventory/expiry" },
     ],
@@ -121,13 +122,92 @@ export const mainNav: NavItem[] = [
   },
 ];
 
-export const salesmanNav: NavItem[] = [
-  { label: "Field Dashboard", href: "/field", icon: LayoutDashboard },
-  { label: "My Shops", href: "/field/shops", icon: Users },
-  { label: "Collect Recovery", href: "/field/recovery", icon: Wallet },
-  { label: "Quick Sale", href: "/field/sale", icon: ShoppingCart },
-  { label: "Sync / Closing", href: "/settings/sync", icon: Settings },
-];
+/** Screens a salesman may open. Office pages stay off this list. */
+export function salesmanNavFor(permissions: readonly string[]): NavItem[] {
+  const items: NavItem[] = [
+    { label: "Dashboard", href: "/field", icon: LayoutDashboard },
+    { label: "My shops", href: "/field/shops", icon: Users },
+    { label: "Take order", href: "/field/order", icon: ShoppingCart },
+  ];
+  if (permissions.includes("create_invoices")) {
+    items.push({ label: "Quick sale", href: "/field/sale", icon: ShoppingCart });
+  }
+  if (permissions.includes("create_vouchers")) {
+    items.push({ label: "Collect", href: "/field/recovery", icon: Wallet });
+  }
+  if (permissions.includes("edit_customers")) {
+    items.push({
+      label: "Customers",
+      href: "/field/customers",
+      icon: Users,
+    });
+  }
+  if (permissions.includes("edit_products")) {
+    items.push({ label: "Products", href: "/field/products", icon: Package });
+  }
+  if (permissions.includes("create_purchases")) {
+    items.push({
+      label: "Purchases",
+      href: "/field/purchases",
+      icon: Truck,
+    });
+  }
+  if (permissions.includes("view_reports")) {
+    items.push({
+      label: "Reports",
+      href: "/field/reports",
+      icon: FileBarChart2,
+    });
+  }
+  items.push(
+    { label: "Sync", href: "/settings/sync", icon: Settings },
+    { label: "My account", href: "/field/account", icon: Settings },
+  );
+  return items;
+}
+
+export function salesmanCanOpen(path: string, permissions: readonly string[]) {
+  if (path.startsWith("/field/sale") && !permissions.includes("create_invoices")) {
+    return false;
+  }
+  if (path.startsWith("/field/recovery") && !permissions.includes("create_vouchers")) {
+    return false;
+  }
+  if (path.startsWith("/field/customers") && !permissions.includes("edit_customers")) {
+    return false;
+  }
+  if (path.startsWith("/field/products") && !permissions.includes("edit_products")) {
+    return false;
+  }
+  if (path.startsWith("/field/purchases") && !permissions.includes("create_purchases")) {
+    return false;
+  }
+  if (path.startsWith("/field/reports") && !permissions.includes("view_reports")) {
+    return false;
+  }
+  if (path === "/field" || path.startsWith("/field/")) return true;
+  if (path === "/select-company" || path.startsWith("/select-company/")) return true;
+  if (path === "/settings/sync" || path.startsWith("/settings/sync/")) return true;
+  if (
+    (path === "/parties" || path.startsWith("/parties/")) &&
+    permissions.includes("edit_customers")
+  ) {
+    return true;
+  }
+  if (
+    (path === "/products" || path.startsWith("/products/")) &&
+    permissions.includes("edit_products")
+  ) {
+    return true;
+  }
+  if (path.startsWith("/purchases") && permissions.includes("create_purchases")) {
+    return true;
+  }
+  if (path.startsWith("/reports") && permissions.includes("view_reports")) {
+    return true;
+  }
+  return false;
+}
 
 export const adminNav: NavItem[] = [
   {

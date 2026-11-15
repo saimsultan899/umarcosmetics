@@ -10,6 +10,7 @@ import { DashboardStatsPanel } from "@/components/dashboard/dashboard-stats-pane
 import { OfflineDashboard } from "@/components/dashboard/offline-dashboard";
 import { QuickShortcuts } from "@/components/dashboard/quick-shortcuts";
 import { requireCompanyContext } from "@/lib/auth";
+import { mapSaleOrder, SALE_ORDER_SELECT, type SaleOrderQueryRow } from "@/lib/sales/sale-orders";
 import {
   compareByDay,
   groupSum,
@@ -47,6 +48,14 @@ export default async function DashboardPage() {
   const hour = new Date().getHours();
   const greeting =
     hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+
+  const openOrdersPromise = supabase
+    .from("sale_orders")
+    .select(SALE_ORDER_SELECT)
+    .eq("company_id", company.id)
+    .eq("status", "open")
+    .order("created_at", { ascending: false })
+    .limit(8);
 
   const cloud = await Promise.race([
     Promise.all([
@@ -206,6 +215,11 @@ export default async function DashboardPage() {
     .filter((r) => r.expense_date >= lastNDates(7)[0])
     .reduce((s, r) => s + Number(r.amount || 0), 0);
 
+  const { data: openOrderRows, error: openOrderError } = await openOrdersPromise;
+  const openOrders = openOrderError
+    ? []
+    : ((openOrderRows || []) as unknown as SaleOrderQueryRow[]).map(mapSaleOrder);
+
   return (
     <div className="animate-rise min-w-0 space-y-4">
       <div className="action-bar action-bar--split">
@@ -280,6 +294,45 @@ export default async function DashboardPage() {
           />
         </StatsGrid>
       </DashboardStatsPanel>
+
+      <section className="rounded-2xl border border-[var(--border)] bg-white">
+        <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-3">
+          <div>
+            <h2 className="text-sm font-semibold">Open salesman orders</h2>
+            <p className="text-xs text-[var(--muted)]">
+              Fulfil a company to post the sale and move stock
+            </p>
+          </div>
+          <Link href="/sales/orders" className="text-sm font-medium text-[var(--brand)]">
+            All orders
+          </Link>
+        </div>
+        {openOrders.length === 0 ? (
+          <p className="px-4 py-6 text-sm text-[var(--muted)]">No open orders.</p>
+        ) : (
+          <ul>
+            {openOrders.map((order) => (
+              <li key={order.id} className="border-b border-[var(--border)] last:border-0">
+                <Link
+                  href={`/sales/orders/${order.id}`}
+                  className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm hover:bg-[var(--surface-2)]"
+                >
+                  <span>
+                    <span className="font-medium">{order.orderNo}</span>
+                    <span className="text-[var(--muted)]">
+                      {" "}
+                      · {order.salesmanName} · {order.partyName}
+                    </span>
+                  </span>
+                  <span>
+                    {order.companies.join(", ") || "—"} · {formatPkr(order.amount)}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <div className="grid gap-4 xl:grid-cols-3">
         <ChartCard

@@ -23,13 +23,33 @@ import {
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+function canSwitchWithinGroup(memberships?: Record<string, unknown>[] | null) {
+  const counts = new Map<string, number>();
+  for (const row of memberships || []) {
+    const embedded = row.companies as
+      | { organization_id?: string }
+      | { organization_id?: string }[]
+      | null
+      | undefined;
+    const company = Array.isArray(embedded) ? embedded[0] : embedded;
+    const orgId = company?.organization_id;
+    if (!orgId) continue;
+    counts.set(orgId, (counts.get(orgId) || 0) + 1);
+  }
+  return [...counts.values()].some((count) => count > 1);
+}
+
 export function Topbar({
   company,
   userName,
+  salesman = false,
+  memberships,
   onMenuClick,
 }: {
   company?: Company | null;
   userName?: string | null;
+  salesman?: boolean;
+  memberships?: Record<string, unknown>[] | null;
   onMenuClick?: () => void;
 }) {
   const router = useRouter();
@@ -66,8 +86,8 @@ export function Topbar({
       </div>
 
       <div className="flex min-w-0 shrink-0 items-center gap-1 sm:gap-2 xl:gap-3">
-        <CommandPalette companyId={company?.id} />
-        <AlertsMenu companyId={company?.id} />
+        {salesman ? null : <CommandPalette companyId={company?.id} />}
+        {salesman ? null : <AlertsMenu companyId={company?.id} />}
 
         <button
           type="button"
@@ -95,32 +115,34 @@ export function Topbar({
               : "Offline"}
         </button>
 
-        <Button
-          variant="secondary"
-          size="sm"
-          loading={switching}
-          onClick={async () => {
-            setSwitching(true);
-            if (!online) {
-              const shell = readOfflineShellCookie();
-              if (shell) {
-                writeOfflineShellCookie({
-                  ...shell,
-                  activeCompanyId: null,
-                  company: null,
-                  savedAt: new Date().toISOString(),
-                });
+        {canSwitchWithinGroup(memberships) ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            loading={switching}
+            onClick={async () => {
+              setSwitching(true);
+              if (!online) {
+                const shell = readOfflineShellCookie();
+                if (shell) {
+                  writeOfflineShellCookie({
+                    ...shell,
+                    activeCompanyId: null,
+                    company: null,
+                    savedAt: new Date().toISOString(),
+                  });
+                }
+                setOfflineSessionCookie(true);
               }
-              setOfflineSessionCookie(true);
-            }
-            router.push("/select-company");
-            router.refresh();
-          }}
-          className="px-2 sm:px-3"
-        >
-          {switching ? null : <RefreshCw className="h-3.5 w-3.5" />}
-          <span className="hidden sm:inline">Switch company</span>
-        </Button>
+              router.push("/select-company");
+              router.refresh();
+            }}
+            className="px-2 sm:px-3"
+          >
+            {switching ? null : <RefreshCw className="h-3.5 w-3.5" />}
+            <span className="hidden sm:inline">Switch company</span>
+          </Button>
+        ) : null}
         <button
           type="button"
           title={userName || "User"}

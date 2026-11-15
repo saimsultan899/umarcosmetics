@@ -38,6 +38,7 @@ export default async function AppLayout({
         userName={profile?.full_name || user.email || "User"}
         isSuperAdmin={profile?.is_super_admin}
         permissions={permissions}
+        role={activeMembership?.role || null}
         profileData={(profile || { id: user.id }) as unknown as Record<string, unknown>}
         membershipsData={memberships as unknown as Record<string, unknown>[]}
       >

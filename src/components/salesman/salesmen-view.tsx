@@ -25,11 +25,15 @@ export function SalesmenView({
   initialRows = [],
   initialInvites = [],
   initialOffline = false,
+  sectorOptions = [],
+  cityOptions = [],
 }: {
   company: Company;
   initialRows?: SalesmanListRow[];
   initialInvites?: SalesmanInviteRow[];
   initialOffline?: boolean;
+  sectorOptions?: string[];
+  cityOptions?: string[];
 }) {
   const { rows, invites, loading, refetch } = useSalesmenList({
     companyId: company.id,
@@ -78,6 +82,8 @@ export function SalesmenView({
                   full_name: row.full_name,
                   user_id: row.user_id,
                 }))}
+                sectorOptions={sectorOptions}
+                cityOptions={cityOptions}
               />
             </CreateDialogButton>
             <CreateDialogButton

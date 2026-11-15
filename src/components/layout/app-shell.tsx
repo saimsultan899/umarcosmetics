@@ -13,6 +13,7 @@ import {
   readDeviceCompanyCookie,
   writeDeviceCompanyCookie,
 } from "@/lib/device-company";
+import { salesmanCanOpen, salesmanNavFor } from "@/lib/nav";
 import type { Company } from "@/lib/types/database";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -23,6 +24,7 @@ export function AppShell({
   userName,
   isSuperAdmin,
   permissions = [],
+  role = null,
   profileData,
   membershipsData,
 }: {
@@ -31,6 +33,7 @@ export function AppShell({
   userName?: string | null;
   isSuperAdmin?: boolean;
   permissions?: string[];
+  role?: string | null;
   profileData?: Record<string, unknown> | null;
   membershipsData?: Record<string, unknown>[] | null;
 }) {
@@ -64,6 +67,15 @@ export function AppShell({
       return next;
     });
   }
+
+  const salesman = role === "salesman";
+  const salesmanNav = salesman ? salesmanNavFor(permissions) : undefined;
+
+  useEffect(() => {
+    if (!salesman || !pathname) return;
+    if (salesmanCanOpen(pathname, permissions)) return;
+    router.replace("/field");
+  }, [salesman, pathname, permissions, router]);
 
   const selectShell =
     pathname === "/select-company" || pathname.startsWith("/select-company/");
@@ -142,6 +154,7 @@ export function AppShell({
           companyName={company?.name}
           isSuperAdmin={false}
           permissions={permissions}
+          nav={salesmanNav}
           mobileOpen={mobileNavOpen}
           collapsed={sidebarCollapsed}
           onMobileClose={() => setMobileNavOpen(false)}
@@ -152,13 +165,15 @@ export function AppShell({
           <Topbar
             company={company}
             userName={userName}
+            salesman={salesman}
+            memberships={membershipsData}
             onMenuClick={() => setMobileNavOpen(true)}
           />
           <OfflineBanner companyId={company?.id} />
           <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-[var(--background)] p-4 sm:p-6">
             <PageTransition>{children}</PageTransition>
           </main>
-          <QuickActionsFab permissions={permissions} />
+          {salesman ? null : <QuickActionsFab permissions={permissions} />}
         </div>
       </div>
     </SyncProvider>

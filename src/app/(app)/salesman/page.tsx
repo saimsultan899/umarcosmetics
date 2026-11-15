@@ -3,7 +3,22 @@ import type { SalesmanListRow } from "@/components/tables/salesmen-table";
 import type { SalesmanInviteRow } from "@/hooks/use-salesmen-list";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { requireCompanyContext } from "@/lib/auth";
+import { fetchAllPages } from "@/lib/supabase/fetch-all-pages";
 import { Suspense } from "react";
+
+function distinctSorted(values: Array<string | null | undefined>) {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of values) {
+    const value = String(raw || "").trim();
+    if (!value) continue;
+    const key = value.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+  }
+  return out.sort((a, b) => a.localeCompare(b));
+}
 
 export default async function SalesmanAdminPage() {
   const ctx = await requireCompanyContext();
@@ -11,6 +26,8 @@ export default async function SalesmanAdminPage() {
 
   let initialRows: SalesmanListRow[] = [];
   let initialInvites: SalesmanInviteRow[] = [];
+  let sectorOptions: string[] = [];
+  let cityOptions: string[] = [];
 
   if (!offline) {
     try {
@@ -51,6 +68,37 @@ export default async function SalesmanAdminPage() {
         claimed_by: i.claimed_by,
         created_at: i.created_at,
       }));
+
+      const { data: org } = await supabase
+        .from("organizations")
+        .select("main_company_id")
+        .eq("id", company.organization_id)
+        .maybeSingle();
+      const locationCompanyId =
+        (org?.main_company_id as string | null) || company.id;
+      const [locations, places] = await Promise.all([
+        supabase
+          .from("company_locations")
+          .select("kind, name")
+          .eq("company_id", locationCompanyId),
+        fetchAllPages<{ city: string | null; route: string | null }>((from, to) =>
+          supabase
+            .from("parties")
+            .select("city, route")
+            .eq("company_id", locationCompanyId)
+            .order("id", { ascending: true })
+            .range(from, to),
+        ).catch(() => [] as Array<{ city: string | null; route: string | null }>),
+      ]);
+      const saved = (locations.data || []) as Array<{ kind: string; name: string }>;
+      sectorOptions = distinctSorted([
+        ...saved.filter((row) => row.kind === "sector").map((row) => row.name),
+        ...places.map((row) => row.route),
+      ]);
+      cityOptions = distinctSorted([
+        ...saved.filter((row) => row.kind === "city").map((row) => row.name),
+        ...places.map((row) => row.city),
+      ]);
     } catch (err) {
       console.error("Failed to load initial salesmen data:", err);
     }
@@ -63,6 +111,8 @@ export default async function SalesmanAdminPage() {
         initialRows={initialRows}
         initialInvites={initialInvites}
         initialOffline={offline}
+        sectorOptions={sectorOptions}
+        cityOptions={cityOptions}
       />
     </Suspense>
   );

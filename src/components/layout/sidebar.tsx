@@ -298,6 +298,7 @@ export function Sidebar({
   companyName,
   isSuperAdmin,
   permissions = [],
+  nav,
   mobileOpen = false,
   collapsed = false,
   onMobileClose,
@@ -306,6 +307,8 @@ export function Sidebar({
   companyName?: string | null;
   isSuperAdmin?: boolean;
   permissions?: string[];
+  /** When set, this menu replaces the office navigation. */
+  nav?: NavItem[];
   mobileOpen?: boolean;
   collapsed?: boolean;
   onMobileClose?: () => void;
@@ -334,13 +337,13 @@ export function Sidebar({
   }, [pathname, searchParams]);
 
   const tenantNav = useMemo(
-    () => navForPermissions(mainNav, permissions),
-    [permissions],
+    () => nav ?? navForPermissions(mainNav, permissions),
+    [nav, permissions],
   );
 
   const allGroups = useMemo(
-    () => [...tenantNav, ...(isSuperAdmin ? [platformNav] : [])],
-    [isSuperAdmin, tenantNav],
+    () => [...tenantNav, ...(isSuperAdmin && !nav ? [platformNav] : [])],
+    [isSuperAdmin, nav, tenantNav],
   );
 
   const activeGroupLabel = useMemo(() => {
