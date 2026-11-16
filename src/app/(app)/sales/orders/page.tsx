@@ -33,7 +33,7 @@ export default async function SalesmanOrdersPage({
     <div className="animate-rise space-y-6">
       <PageHeading
         title="Salesman orders"
-        description="Each company on an order is a separate credit bill. View, edit waiting lines, or fulfil one company at a time."
+        description="One customer order is one bill. View the lines, then fulfil the order."
       />
       <SaleOrdersTable
         rows={list.rows}

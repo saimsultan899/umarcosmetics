@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useState } from "react";
 
 function newRequestId() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -61,59 +61,79 @@ async function fulfillOnce(
   return typeof data === "string" ? data : null;
 }
 
-export function FulfilCompanyButton({
+function storedRequestId(orderId: string, warehouseId: string) {
+  const key = `sale-order-fulfil:${orderId}:${warehouseId}`;
+  try {
+    const existing = sessionStorage.getItem(key);
+    if (existing) return existing;
+    const id = newRequestId();
+    sessionStorage.setItem(key, id);
+    return id;
+  } catch {
+    return newRequestId();
+  }
+}
+
+function clearRequestId(orderId: string, warehouseId: string) {
+  try {
+    sessionStorage.removeItem(`sale-order-fulfil:${orderId}:${warehouseId}`);
+  } catch {
+    // Ignore private-mode storage.
+  }
+}
+
+export function FulfilOrderButton({
   orderId,
-  warehouseId,
-  companyName,
+  warehouseIds,
+  customerName,
+  onDone,
 }: {
   orderId: string;
-  warehouseId: string;
-  companyName?: string;
+  warehouseIds: string[];
+  customerName?: string;
+  onDone?: (invoiceIds: string[]) => void;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const requestId = useRef(newRequestId());
 
   async function fulfil() {
-    const label = companyName || "this company";
+    const waiting = [...new Set(warehouseIds.filter(Boolean))];
+    if (!waiting.length) return;
+    const who = customerName ? ` for ${customerName}` : "";
     if (
       !window.confirm(
-        `Fulfil ${label} now?\n\nThis posts one credit sale for these lines only and moves stock. Other companies on the same order stay separate.`,
+        `Fulfil this order${who}?\n\nYou have already viewed the lines. This posts the credit sale and moves stock.`,
       )
     ) {
       return;
     }
     setBusy(true);
     setError(null);
+    const invoiceIds: string[] = [];
     try {
-      let invoiceId: string | null = null;
-      let lastError: unknown = null;
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        try {
-          invoiceId = await fulfillOnce(
-            orderId,
-            warehouseId,
-            requestId.current,
-          );
-          lastError = null;
-          break;
-        } catch (err) {
-          lastError = err;
-          if (!isTransientNetwork(err) || attempt === 2) break;
-          await sleep(700 * (attempt + 1));
+      for (const warehouseId of waiting) {
+        const requestId = storedRequestId(orderId, warehouseId);
+        let invoiceId: string | null = null;
+        let lastError: unknown = null;
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          try {
+            invoiceId = await fulfillOnce(orderId, warehouseId, requestId);
+            lastError = null;
+            break;
+          } catch (err) {
+            lastError = err;
+            if (!isTransientNetwork(err) || attempt === 2) break;
+            await sleep(700 * (attempt + 1));
+          }
         }
+        if (lastError) throw lastError;
+        clearRequestId(orderId, warehouseId);
+        if (invoiceId) invoiceIds.push(invoiceId);
       }
-      if (lastError) throw lastError;
-
-      // Fresh id only after a confirmed success so a later re-click is a new action.
-      requestId.current = newRequestId();
+      onDone?.(invoiceIds);
       router.refresh();
-      if (invoiceId) {
-        router.push(`/sales/invoices/${invoiceId}`);
-      }
     } catch (err) {
-      // Keep the same request id on failure so a manual retry stays idempotent.
       setError(networkMessage(err));
     } finally {
       setBusy(false);
@@ -124,11 +144,11 @@ export function FulfilCompanyButton({
     <div className="flex flex-col items-end gap-1">
       <button
         type="button"
-        disabled={busy}
+        disabled={busy || warehouseIds.length === 0}
         onClick={() => void fulfil()}
         className="inline-flex h-9 items-center rounded-[var(--radius-sm)] bg-[var(--brand)] px-3 text-sm font-semibold text-white disabled:opacity-50"
       >
-        {busy ? "Billing…" : `Fulfil ${companyName || ""}`.trim()}
+        {busy ? "Billing…" : "Fulfil order"}
       </button>
       {error ? <p className="max-w-xs text-right text-xs text-red-600">{error}</p> : null}
     </div>

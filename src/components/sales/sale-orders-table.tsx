@@ -170,7 +170,7 @@ export function SaleOrdersTable({
                   <th>Date</th>
                   <th>Salesman</th>
                   <th>Customer</th>
-                  <th>Company bills</th>
+                  <th>Companies</th>
                   <th className="text-right">Qty</th>
                   <th className="text-right">Amount</th>
                   <th>Status</th>
@@ -194,34 +194,7 @@ export function SaleOrdersTable({
                       <td>{shortDate(row.orderDate)}</td>
                       <td>{row.salesmanName}</td>
                       <td>{row.partyName}</td>
-                      <td>
-                        {row.companyBills.length ? (
-                          <ul className="space-y-1">
-                            {row.companyBills.map((bill) => (
-                              <li
-                                key={bill.warehouseId}
-                                className="flex flex-wrap items-center gap-1.5 text-xs"
-                              >
-                                <span className="font-medium text-[var(--ink)]">
-                                  {bill.name}
-                                </span>
-                                <span
-                                  className={cn(
-                                    "rounded-[var(--radius-sm)] px-1.5 py-0.5 text-[10px] font-semibold",
-                                    bill.status === "open"
-                                      ? "bg-amber-500/15 text-amber-800"
-                                      : "bg-emerald-500/15 text-emerald-800",
-                                  )}
-                                >
-                                  {bill.status === "open" ? "Waiting bill" : "Billed"}
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
+                      <td>{row.companies.join(", ") || "—"}</td>
                       <td className="text-right">{row.qty}</td>
                       <td className="text-right">{formatPkr(row.amount)}</td>
                       <td>

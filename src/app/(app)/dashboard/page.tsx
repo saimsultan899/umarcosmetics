@@ -297,7 +297,7 @@ export default async function DashboardPage() {
 
       <ChartCard
         title="Open salesman orders"
-        subtitle="Fulfil a company to post the sale and move stock"
+        subtitle="Open the order, review it, then fulfil"
         action={
           <Link href="/sales/orders" className="text-sm font-medium text-[var(--brand)]">
             All orders
@@ -309,9 +309,6 @@ export default async function DashboardPage() {
         ) : (
           <ul className="space-y-2">
             {openOrders.map((order) => {
-              const waiting = order.companyBills.filter(
-                (bill) => bill.status === "open" || bill.status === "mixed",
-              );
               return (
                 <li key={order.id}>
                   <Link
@@ -332,9 +329,7 @@ export default async function DashboardPage() {
                         </span>
                       </div>
                       <p className="text-xs text-[var(--muted)]">
-                        {waiting.length
-                          ? `${waiting.length} separate waiting bill${waiting.length === 1 ? "" : "s"}: ${waiting.map((bill) => bill.name).join(" · ")}`
-                          : order.companies.join(" · ") || "—"}
+                        {order.companies.join(" · ") || "—"}
                       </p>
                     </div>
                   </Link>
