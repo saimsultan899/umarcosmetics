@@ -56,12 +56,16 @@ export default async function ExpiryClaimDetailPage({
         companyName={company.name}
         companyAddress={[company.address, company.city].filter(Boolean).join(", ")}
         companyPhone={company.phone}
-        title="Expiry Warehouse — Vendor Claim"
+        title={
+          party
+            ? "Expiry Warehouse — Vendor Claim"
+            : "Expiry Warehouse — Company Claim"
+        }
         docNo={doc.claim_no}
         date={doc.claim_date}
         printedAt={doc.created_at}
         backHref="/inventory/expiry/claims"
-        partyName={party?.name_en}
+        partyName={party?.name_en || "Company claim (no vendor)"}
         partyCode={party?.party_code}
         partyPhone={party?.phone}
         partyMobile={party?.mobile}
@@ -91,7 +95,7 @@ export default async function ExpiryClaimDetailPage({
               ]
             : []),
           {
-            label: "Vendor debit",
+            label: party ? "Vendor debit" : "Claim total",
             value: formatPkr(doc.grand_total),
             strong: true,
           },

@@ -43,25 +43,6 @@ function claimAmount(qty: number, rate: number, discountPct: number) {
   return money(Math.max(0, gross - cut));
 }
 
-function vendorForWarehouse(
-  warehouseId: string,
-  warehouses: Warehouse[],
-  parties: Party[],
-): Party | null {
-  const w = warehouses.find((item) => item.id === warehouseId);
-  if (!w) return null;
-  if (w.default_supplier_id) {
-    return parties.find((p) => p.id === w.default_supplier_id) || null;
-  }
-  return (
-    parties.find(
-      (p) =>
-        (p.party_subtype === "supplier" || p.party_subtype === "both") &&
-        p.name_en.trim().toLowerCase() === w.name.trim().toLowerCase(),
-    ) || null
-  );
-}
-
 function resolveStockWarehouseId(
   row: ExpiryStockRow,
   products: Product[],
@@ -180,21 +161,6 @@ export function ExpiryClaimForm({
       ),
     [stock, warehouseIdSet, products, warehouses],
   );
-
-  const linkedVendors = useMemo(() => {
-    const seen = new Set<string>();
-    const list: Party[] = [];
-    for (const wid of warehouseIds) {
-      const vendor = vendorForWarehouse(wid, warehouses, parties);
-      if (vendor && !seen.has(vendor.id)) {
-        seen.add(vendor.id);
-        list.push(vendor);
-      }
-    }
-    return list;
-  }, [warehouseIds, warehouses, parties]);
-
-  const linkedVendor = linkedVendors.length === 1 ? linkedVendors[0] : null;
 
   const warehouseKey = warehouseIds.slice().sort().join(",");
 
@@ -473,23 +439,8 @@ export function ExpiryClaimForm({
       setError("Select a vendor.");
       return;
     }
-    if (claimTo === "company" && linkedVendors.length > 1) {
-      setError(
-        "Selected companies credit different vendors. Keep one vendor’s companies, or switch Claim to: Vendor.",
-      );
-      return;
-    }
-    const effectivePartyId =
-      claimTo === "company" ? linkedVendor?.id || "" : partyId;
-
-    if (!effectivePartyId) {
-      setError(
-        claimTo === "company"
-          ? "No vendor is linked to the selected company. Link one on the company, or choose Claim to: Vendor."
-          : "Select a vendor.",
-      );
-      return;
-    }
+    // Company claims are brand/warehouse scoped only — vendor is separate and optional.
+    const effectivePartyId = claimTo === "vendor" ? partyId : "";
     if (sendLines.length === 0) {
       setError("Enter qty to send from expiry stock.");
       return;
@@ -517,8 +468,9 @@ export function ExpiryClaimForm({
           organization_id: organizationId,
           company_id: companyId,
           claim_date: claimDate,
-          party_id: effectivePartyId,
+          party_id: effectivePartyId || null,
           parties: (() => {
+            if (!effectivePartyId) return null;
             const vendor = parties.find((p) => p.id === effectivePartyId);
             return vendor
               ? {
@@ -612,21 +564,10 @@ export function ExpiryClaimForm({
         </div>
         {claimTo === "company" ? (
           <div className="sm:col-span-2 lg:col-span-4">
-            {linkedVendor ? (
-              <p className="text-xs text-[var(--muted)]">
-                Credit goes to {linkedVendor.party_code} — {linkedVendor.name_en}
-              </p>
-            ) : linkedVendors.length > 1 ? (
-              <p className="text-xs text-amber-800">
-                These companies link to different vendors. Narrow the company
-                selection, or switch Claim to: Vendor.
-              </p>
-            ) : warehouseIds.length > 0 ? (
-              <p className="text-xs text-amber-800">
-                No vendor is linked to the selected company. Link one on the
-                company, or switch Claim to: Vendor.
-              </p>
-            ) : null}
+            <p className="text-xs text-[var(--muted)]">
+              Claim to company sends selected brand stock only. No vendor ledger
+              is cut. Use Claim to: Vendor when you also want a vendor debit.
+            </p>
           </div>
         ) : (
           <div className="sm:col-span-2 lg:col-span-2">
@@ -908,7 +849,11 @@ export function ExpiryClaimForm({
               − {formatPkr(gstAmount)}
             </span>
           </div>
-          <p className="font-semibold">Vendor debit {formatPkr(grandTotal)}</p>
+          <p className="font-semibold">
+            {claimTo === "vendor"
+              ? `Vendor debit ${formatPkr(grandTotal)}`
+              : `Claim ${formatPkr(grandTotal)}`}
+          </p>
         </div>
       </div>
 
