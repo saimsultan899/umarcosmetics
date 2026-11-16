@@ -23,6 +23,7 @@ export type SaleOrderCompanyBill = {
 
 export type SaleOrderListRow = {
   id: string;
+  companyId: string;
   orderNo: string;
   orderDate: string;
   status: string;
@@ -48,6 +49,7 @@ type WarehouseEmbed = { name: string } | { name: string }[] | null;
 
 export type SaleOrderQueryRow = {
   id: string;
+  company_id: string;
   order_no: string;
   order_date: string;
   status: string;
@@ -122,6 +124,7 @@ export function mapSaleOrder(row: SaleOrderQueryRow): SaleOrderDetail {
   }
   return {
     id: row.id,
+    companyId: row.company_id,
     orderNo: row.order_no,
     orderDate: row.order_date,
     status: row.status,
@@ -140,4 +143,4 @@ export function mapSaleOrder(row: SaleOrderQueryRow): SaleOrderDetail {
 }
 
 export const SALE_ORDER_SELECT =
-  "id, order_no, order_date, status, note, salesman_id, party_id, fulfilled_invoice_ids, parties!sale_orders_party_id_fkey(party_code, name_en), salesmen!sale_orders_salesman_id_fkey(full_name), sale_order_lines(id, product_id, product_code, product_name, qty, rate, amount, status, warehouse_id, sale_invoice_id, warehouses(name))";
+  "id, company_id, order_no, order_date, status, note, salesman_id, party_id, fulfilled_invoice_ids, parties!sale_orders_party_id_fkey(party_code, name_en), salesmen!sale_orders_salesman_id_fkey(full_name), sale_order_lines(id, product_id, product_code, product_name, qty, rate, amount, status, warehouse_id, sale_invoice_id, warehouses(name))";

@@ -28,20 +28,9 @@ function statusLabel(status: string) {
 
 function SaleOrderEditorLoader({
   orderId,
-  parties,
-  products,
   onDone,
 }: {
   orderId: string;
-  parties: Array<{ id: string; party_code: string; name_en: string }>;
-  products: Array<{
-    id: string;
-    code: string | null;
-    name_en: string;
-    sale_rate: number | null;
-    retail_rate: number | null;
-    default_warehouse_id: string | null;
-  }>;
   onDone: () => void;
 }) {
   const [detail, setDetail] = useState<SaleOrderDetail | null>(null);
@@ -76,31 +65,11 @@ function SaleOrderEditorLoader({
     return <p className="text-sm text-[var(--muted)]">Opening order editor…</p>;
   }
   return (
-    <SaleOrderEditForm
-      order={detail}
-      parties={parties}
-      products={products}
-      onDone={onDone}
-    />
+    <SaleOrderEditForm order={detail} onDone={onDone} />
   );
 }
 
-export function SaleOrderRowActions({
-  row,
-  parties,
-  products,
-}: {
-  row: SaleOrderListRow;
-  parties: Array<{ id: string; party_code: string; name_en: string }>;
-  products: Array<{
-    id: string;
-    code: string | null;
-    name_en: string;
-    sale_rate: number | null;
-    retail_rate: number | null;
-    default_warehouse_id: string | null;
-  }>;
-}) {
+export function SaleOrderRowActions({ row }: { row: SaleOrderListRow }) {
   const router = useRouter();
 
   async function deleteOrder() {
@@ -136,14 +105,12 @@ export function SaleOrderRowActions({
       ]}
       allowEdit={row.status === "open"}
       editTitle={`Edit ${row.orderNo}`}
-      editClassName="max-w-[96vw] sm:max-w-4xl"
+      editClassName="max-w-[96vw] sm:max-w-6xl lg:max-w-7xl xl:max-w-[1360px]"
       editContent={
         row.status === "open"
           ? (close) => (
               <SaleOrderEditorLoader
                 orderId={row.id}
-                parties={parties}
-                products={products}
                 onDone={() => {
                   close();
                   router.refresh();

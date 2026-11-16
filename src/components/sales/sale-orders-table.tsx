@@ -35,22 +35,11 @@ export function SaleOrdersTable({
   pagination,
   summary,
   salesmen,
-  parties,
-  products,
 }: {
   rows: SaleOrderListRow[];
   pagination: PaginationMeta;
   summary: SaleOrderListSummary;
   salesmen: Array<{ id: string; full_name: string }>;
-  parties: Array<{ id: string; party_code: string; name_en: string }>;
-  products: Array<{
-    id: string;
-    code: string | null;
-    name_en: string;
-    sale_rate: number | null;
-    retail_rate: number | null;
-    default_warehouse_id: string | null;
-  }>;
 }) {
   const { q, isPending, setPage, setPageSize, setQuery, setFilter, filters } =
     useUrlTableState(FILTER_KEYS);
@@ -250,11 +239,7 @@ export function SaleOrdersTable({
                         </span>
                       </td>
                       <td className="text-right">
-                        <SaleOrderRowActions
-                          row={row}
-                          parties={parties}
-                          products={products}
-                        />
+                        <SaleOrderRowActions row={row} />
                       </td>
                     </tr>
                   ))

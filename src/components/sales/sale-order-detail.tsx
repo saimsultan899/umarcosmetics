@@ -28,20 +28,9 @@ function statusTone(status: string) {
 export function SaleOrderDetailView({
   order,
   canManage,
-  parties,
-  products,
 }: {
   order: SaleOrderDetail;
   canManage: boolean;
-  parties: Array<{ id: string; party_code: string; name_en: string }>;
-  products: Array<{
-    id: string;
-    code: string | null;
-    name_en: string;
-    sale_rate: number | null;
-    retail_rate: number | null;
-    default_warehouse_id: string | null;
-  }>;
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const groups = useMemo(() => {
@@ -217,15 +206,9 @@ export function SaleOrderDetailView({
         open={editOpen}
         onClose={() => setEditOpen(false)}
         title={`Edit ${order.orderNo}`}
-        description="Change the waiting lines like a sale invoice. Billed companies stay locked."
-        className="max-w-[96vw] sm:max-w-4xl"
+        className="max-w-[96vw] sm:max-w-6xl lg:max-w-7xl xl:max-w-[1360px]"
       >
-        <SaleOrderEditForm
-          order={order}
-          parties={parties}
-          products={products}
-          onDone={() => setEditOpen(false)}
-        />
+        <SaleOrderEditForm order={order} onDone={() => setEditOpen(false)} />
       </Dialog>
     </div>
   );

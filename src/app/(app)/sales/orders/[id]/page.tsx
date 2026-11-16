@@ -1,6 +1,5 @@
 import { SaleOrderDetailView } from "@/components/sales/sale-order-detail";
 import { requireCompanyContext } from "@/lib/auth";
-import { fetchAllPages } from "@/lib/supabase/fetch-all-pages";
 import { mapSaleOrder, SALE_ORDER_SELECT, type SaleOrderQueryRow } from "@/lib/sales/sale-orders";
 import { notFound } from "next/navigation";
 
@@ -19,51 +18,12 @@ export default async function SalesmanOrderDetailPage({
     );
   }
 
-  const [{ data }, parties, products] = await Promise.all([
-    supabase
-      .from("sale_orders")
-      .select(SALE_ORDER_SELECT)
-      .eq("company_id", company.id)
-      .eq("id", id)
-      .maybeSingle(),
-    fetchAllPages<{ id: string; party_code: string; name_en: string }>((from, to) =>
-      supabase
-        .from("parties")
-        .select("id, party_code, name_en")
-        .eq("company_id", company.id)
-        .eq("party_type", "PARTY")
-        .in("party_subtype", ["customer", "both"])
-        .eq("is_active", true)
-        .order("party_code")
-        .range(from, to),
-    ).catch(() => [] as Array<{ id: string; party_code: string; name_en: string }>),
-    fetchAllPages<{
-      id: string;
-      code: string | null;
-      name_en: string;
-      sale_rate: number | null;
-      retail_rate: number | null;
-      default_warehouse_id: string | null;
-    }>((from, to) =>
-      supabase
-        .from("products")
-        .select("id, code, name_en, sale_rate, retail_rate, default_warehouse_id")
-        .eq("company_id", company.id)
-        .eq("is_active", true)
-        .order("name_en")
-        .range(from, to),
-    ).catch(
-      () =>
-        [] as Array<{
-          id: string;
-          code: string | null;
-          name_en: string;
-          sale_rate: number | null;
-          retail_rate: number | null;
-          default_warehouse_id: string | null;
-        }>,
-    ),
-  ]);
+  const { data } = await supabase
+    .from("sale_orders")
+    .select(SALE_ORDER_SELECT)
+    .eq("company_id", company.id)
+    .eq("id", id)
+    .maybeSingle();
 
   if (!data) notFound();
   const order = mapSaleOrder(data as unknown as SaleOrderQueryRow);
@@ -73,12 +33,5 @@ export default async function SalesmanOrderDetailPage({
       membership?.role || "",
     );
 
-  return (
-    <SaleOrderDetailView
-      order={order}
-      canManage={canManage}
-      parties={parties}
-      products={products}
-    />
-  );
+  return <SaleOrderDetailView order={order} canManage={canManage} />;
 }
