@@ -73,14 +73,16 @@ export default async function ExpiryReceiptDetailPage({
       companyAddress={[company.address, company.city].filter(Boolean).join(", ")}
       companyPhone={company.phone}
       title={
-        doc.balance_only
-          ? "Expiry Return — Balance Only (Old/Manual Sale)"
-          : "Expiry Warehouse — Customer Return"
+        !party
+          ? "Expiry Return — No party"
+          : doc.balance_only
+            ? "Expiry Return — Balance Only (Old/Manual Sale)"
+            : "Expiry Warehouse — Customer Return"
       }
       docNo={doc.receipt_no}
       date={doc.receipt_date}
       printedAt={doc.created_at}
-      partyName={party?.name_en}
+      partyName={party?.name_en || "No party"}
       partyCode={party?.party_code}
       partyPhone={party?.phone}
       partyMobile={party?.mobile}
@@ -108,10 +110,24 @@ export default async function ExpiryReceiptDetailPage({
         amount: Number(i.amount),
       }))}
       totals={[
+        { label: "Recover", value: formatPkr(doc.subtotal) },
+        ...(Number(doc.gst_amount || 0) > 0
+          ? [
+              {
+                label:
+                  doc.gst_mode === "percent"
+                    ? `GST ${Number(doc.gst_input || 0)}%`
+                    : "GST",
+                value: formatPkr(doc.gst_amount),
+              },
+            ]
+          : []),
         {
-          label: doc.balance_only
-            ? "Amount cut from customer balance"
-            : "Customer credit",
+          label: !party
+            ? "Bill (no customer ledger)"
+            : doc.balance_only
+              ? "Amount cut from customer balance"
+              : "Cut from customer ledger",
           value: formatPkr(doc.grand_total),
           strong: true,
         },

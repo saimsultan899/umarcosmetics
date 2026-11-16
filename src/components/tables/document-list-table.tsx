@@ -545,7 +545,15 @@ export function DocumentListTable({
                           ) : null}
                         </td>
                         <td>{inv.date}</td>
-                        <td>{inv.partyLabel}</td>
+                        <td>
+                          {inv.partyBadge ? (
+                            <span className="inline-flex rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-700">
+                              {inv.partyBadge}
+                            </span>
+                          ) : (
+                            inv.partyLabel
+                          )}
+                        </td>
                         {showSectorColumn ? (
                           <td>{inv.sectorLabel || "—"}</td>
                         ) : null}

@@ -39,6 +39,8 @@ export type DocumentListRow = {
   extraDiscount?: number;
   amountDifference?: number;
   narration?: string;
+  /** Short badge when a document has no party, such as a no-customer expiry return. */
+  partyBadge?: string;
 };
 
 export type DocumentListSummary = {
@@ -179,6 +181,8 @@ function mapDocumentRow(
     partyLabel: partyObj
       ? `${partyObj.party_code} — ${partyObj.name_en}`
       : "—",
+    partyBadge:
+      config.table === "expiry_receipts" && !partyObj ? "No party" : undefined,
     sectorLabel: sectorLabel || undefined,
     warehouseLabel: whObj?.name || "—",
     paymentType: config.paymentField

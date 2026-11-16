@@ -26,8 +26,20 @@ type Line = {
   history_qty: number;
   history_amount: number;
   qty: string;
+  rate: string;
+  discountPct: string;
   amount: string;
 };
+
+function money(value: number) {
+  return Math.round(Math.max(0, value) * 100) / 100;
+}
+
+function recoverAmount(qty: number, rate: number, discountPct: number) {
+  const gross = qty * rate;
+  const cut = Math.min(gross, (gross * Math.min(Math.max(discountPct, 0), 100)) / 100);
+  return money(Math.max(0, gross - cut));
+}
 
 function daysAgo(n: number) {
   const d = new Date();
@@ -62,7 +74,10 @@ export function ExpiryReceiptForm({
     [parties],
   );
 
+  const [customerMode, setCustomerMode] = useState<"customer" | "none">("customer");
   const [partyId, setPartyId] = useState("");
+  const [gstMode, setGstMode] = useState<"percent" | "amount">("amount");
+  const [gstInput, setGstInput] = useState("");
   const [receiptDate, setReceiptDate] = useState(new Date().toISOString().slice(0, 10));
   const [periodFrom, setPeriodFrom] = useState(daysAgo(90));
   const [periodTo, setPeriodTo] = useState(new Date().toISOString().slice(0, 10));
@@ -71,13 +86,14 @@ export function ExpiryReceiptForm({
   const [draftCode, setDraftCode] = useState("");
   const [draftProductId, setDraftProductId] = useState("");
   const [draftQty, setDraftQty] = useState("1");
-  const [draftAmount, setDraftAmount] = useState("");
+  const [draftRateText, setDraftRateText] = useState("");
+  const [draftDiscount, setDraftDiscount] = useState("");
   const [draftRate, setDraftRate] = useState<number>(0);
   const [hint, setHint] = useState<string | null>(null);
 
   const codeRef = useRef<HTMLInputElement>(null);
   const qtyRef = useRef<HTMLInputElement>(null);
-  const amountRef = useRef<HTMLInputElement>(null);
+  const discountRef = useRef<HTMLInputElement>(null);
   const productSelectRef = useRef<SelectHandle>(null);
 
   /** Old/manual sale: credit shop balance only — do not add to expiry stock for claim. */
@@ -88,8 +104,7 @@ export function ExpiryReceiptForm({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!partyId || !periodFrom || !periodTo) {
-      setLines([]);
+    if (customerMode !== "customer" || !partyId || !periodFrom || !periodTo) {
       return;
     }
     const handle = window.setTimeout(async () => {
@@ -124,40 +139,51 @@ export function ExpiryReceiptForm({
           history_qty: Number(row.qty || 0),
           history_amount: Number(row.amount || 0),
           qty: "",
+          rate:
+            Number(row.qty || 0) > 0
+              ? String(money(Number(row.amount || 0) / Number(row.qty || 0)))
+              : "",
+          discountPct: "",
           amount: "",
         })),
       );
     }, 250);
     return () => window.clearTimeout(handle);
-  }, [companyId, partyId, periodFrom, periodTo]);
+  }, [companyId, customerMode, partyId, periodFrom, periodTo]);
 
-  const grandTotal = lines.reduce((s, l) => s + (Number(l.amount) || 0), 0);
-  const enteredLines = lines.filter(
-    (l) => Number(l.qty) > 0 || Number(l.amount) > 0,
-  );
+  const enteredLines = lines.filter((l) => Number(l.qty) > 0);
   const enteredCount = enteredLines.length;
   const enteredQty = enteredLines.reduce(
     (sum, line) => sum + (Number(line.qty) || 0),
     0,
   );
+  const subtotal = enteredLines.reduce((sum, line) => {
+    return (
+      sum +
+      recoverAmount(Number(line.qty) || 0, Number(line.rate) || 0, Number(line.discountPct) || 0)
+    );
+  }, 0);
+  const gstValue = Math.max(0, Number(gstInput) || 0);
+  const gstAmount =
+    gstMode === "percent"
+      ? money(Math.min(subtotal, (subtotal * Math.min(gstValue, 100)) / 100))
+      : money(Math.min(subtotal, gstValue));
+  const netTotal = money(Math.max(0, subtotal - gstAmount));
+  const withCustomer = customerMode === "customer" && Boolean(partyId);
 
   function patchLine(productId: string, patch: Partial<Line>) {
     setLines((prev) =>
-      prev.map((l) => (l.product_id === productId ? { ...l, ...patch } : l)),
+      prev.map((l) => {
+        if (l.product_id !== productId) return l;
+        const next = { ...l, ...patch };
+        const amount = recoverAmount(
+          Number(next.qty) || 0,
+          Number(next.rate) || 0,
+          Number(next.discountPct) || 0,
+        );
+        return { ...next, amount: amount > 0 ? String(amount) : "" };
+      }),
     );
-  }
-
-  function onReturnQtyChange(line: Line, raw: string) {
-    const qty = Number(raw);
-    const rate =
-      line.history_qty > 0 ? line.history_amount / line.history_qty : 0;
-    const amount =
-      Number.isFinite(qty) && qty > 0 && rate > 0
-        ? String(Math.round(qty * rate * 100) / 100)
-        : qty > 0
-          ? line.amount
-          : "";
-    patchLine(line.product_id, { qty: raw, amount });
   }
 
   function applyProduct(p: Product | null) {
@@ -165,7 +191,8 @@ export function ExpiryReceiptForm({
       setDraftProductId("");
       setDraftCode("");
       setDraftRate(0);
-      setDraftAmount("");
+      setDraftRateText("");
+      setDraftDiscount("");
       setHint(null);
       return;
     }
@@ -179,8 +206,7 @@ export function ExpiryReceiptForm({
     setDraftProductId(p.id);
     setDraftCode(p.code);
     setDraftRate(rate);
-    const qty = Number(draftQty) > 0 ? Number(draftQty) : 1;
-    setDraftAmount(rate > 0 ? String(Math.round(qty * rate * 100) / 100) : "");
+    setDraftRateText(rate > 0 ? String(money(rate)) : "");
     setHint(null);
     requestAnimationFrame(() => {
       qtyRef.current?.focus();
@@ -188,15 +214,11 @@ export function ExpiryReceiptForm({
     });
   }
 
-  function onDraftQtyChange(raw: string) {
-    setDraftQty(raw);
-    const qty = Number(raw);
-    if (draftRate > 0 && Number.isFinite(qty) && qty > 0) {
-      setDraftAmount(String(Math.round(qty * draftRate * 100) / 100));
-    } else if (!raw) {
-      setDraftAmount("");
-    }
-  }
+  const draftRecover = recoverAmount(
+    Number(draftQty) || 0,
+    Number(draftRateText || draftRate) || 0,
+    Number(draftDiscount) || 0,
+  );
 
   function commitDraft() {
     const product =
@@ -214,42 +236,35 @@ export function ExpiryReceiptForm({
       qtyRef.current?.focus();
       return;
     }
-    const rate = draftRate > 0 ? draftRate : Number(product.sale_rate || 0);
-    const amount = draftAmount.trim()
-      ? draftAmount.trim()
-      : rate > 0
-        ? String(Math.round(numQty * rate * 100) / 100)
-        : "";
+    const rate = Number(draftRateText) > 0 ? Number(draftRateText) : draftRate || Number(product.sale_rate || 0);
+    const amount = recoverAmount(numQty, rate, Number(draftDiscount) || 0);
 
     setLines((prev) => {
       const idx = prev.findIndex((l) => l.product_id === product.id);
+      const row: Line = {
+        product_id: product.id,
+        product_code: product.code,
+        product_name: product.name_en,
+        history_qty: prev[idx]?.history_qty || 0,
+        history_amount: prev[idx]?.history_amount || 0,
+        qty,
+        rate: rate > 0 ? String(money(rate)) : "",
+        discountPct: draftDiscount,
+        amount: amount > 0 ? String(amount) : "",
+      };
       if (idx >= 0) {
         const next = [...prev];
-        next[idx] = {
-          ...next[idx],
-          qty,
-          amount,
-        };
+        next[idx] = row;
         return next;
       }
-      return [
-        {
-          product_id: product.id,
-          product_code: product.code,
-          product_name: product.name_en,
-          history_qty: 0,
-          history_amount: 0,
-          qty,
-          amount,
-        },
-        ...prev,
-      ];
+      return [row, ...prev];
     });
 
     setDraftCode("");
     setDraftProductId("");
     setDraftQty("1");
-    setDraftAmount("");
+    setDraftRateText("");
+    setDraftDiscount("");
     setDraftRate(0);
     setHint(null);
     requestAnimationFrame(() => {
@@ -276,12 +291,12 @@ export function ExpiryReceiptForm({
     if (e.key === "Enter") {
       e.preventDefault();
       e.stopPropagation();
-      amountRef.current?.focus();
-      amountRef.current?.select();
+      discountRef.current?.focus();
+      discountRef.current?.select();
     }
   }
 
-  function onDraftAmountKeyDown(e: ReactKeyboardEvent<HTMLInputElement>) {
+  function onDraftDiscountKeyDown(e: ReactKeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter") {
       e.preventDefault();
       e.stopPropagation();
@@ -300,11 +315,19 @@ export function ExpiryReceiptForm({
     const valid = lines.filter(
       (l) => l.product_id && (Number(l.qty) > 0 || Number(l.amount) > 0),
     );
-    if (!partyId || valid.length === 0) {
-      setError("Select a customer and at least one expired item (qty or amount).");
+    if (customerMode === "customer" && !partyId) {
+      setError("Select a customer, or switch to No customer.");
       return;
     }
-    if (balanceOnly && grandTotal <= 0.005) {
+    if (valid.length === 0) {
+      setError("Add at least one expired item with a quantity.");
+      return;
+    }
+    if (balanceOnly && customerMode === "none") {
+      setError("Old-sale balance return needs a customer.");
+      return;
+    }
+    if (balanceOnly && netTotal <= 0.005) {
       setError(
         "Balance-only return needs a recover amount. Enter the rupees to cut from this shop’s balance.",
       );
@@ -321,10 +344,12 @@ export function ExpiryReceiptForm({
           organization_id: organizationId,
           company_id: companyId,
           receipt_date: receiptDate,
-          party_id: partyId,
-          balance_only: balanceOnly,
+          party_id: withCustomer ? partyId : null,
+          balance_only: withCustomer && balanceOnly,
+          gst_mode: gstMode,
+          gst_input: gstValue,
           parties: (() => {
-            const customer = parties.find((p) => p.id === partyId);
+            const customer = withCustomer ? parties.find((p) => p.id === partyId) : null;
             return customer
               ? {
                   name_en: customer.name_en,
@@ -337,12 +362,13 @@ export function ExpiryReceiptForm({
           })(),
           period_from: periodFrom,
           period_to: periodTo,
-          subtotal: grandTotal,
-          grand_total: grandTotal,
+          subtotal: subtotal,
+          grand_total: netTotal,
           narration,
           items: valid.map((l) => {
             const qty = Number(l.qty) || 0;
-            const amount = Number(l.amount) || 0;
+            const rate = Number(l.rate) || 0;
+            const discount = Number(l.discountPct) || 0;
             return {
               product_id: l.product_id,
               product_code: l.product_code,
@@ -350,8 +376,9 @@ export function ExpiryReceiptForm({
               history_qty: l.history_qty,
               history_amount: l.history_amount,
               qty,
-              rate: qty > 0 ? Math.round((amount / qty) * 100) / 100 : 0,
-              amount,
+              rate,
+              discount_percent: discount,
+              amount: recoverAmount(qty, rate, discount),
             };
           }),
         },
@@ -391,16 +418,45 @@ export function ExpiryReceiptForm({
           />
         </div>
         <div className="sm:col-span-2 lg:col-span-3">
-          <PartyCodePicker
-            companyId={companyId}
-            parties={customers}
-            value={partyId}
-            required
-            label="Customer code"
-            emptyLabel="Select customer"
-            filterSubtype={["customer", "both"]}
-            onChange={(id) => setPartyId(id)}
-          />
+          <Label>Customer</Label>
+          <div className="mb-2 inline-flex rounded-md border border-[var(--border)] p-0.5 text-xs font-semibold">
+            <button
+              type="button"
+              className={`rounded px-2 py-1 ${customerMode === "customer" ? "bg-[var(--brand)] text-white" : "text-[var(--muted)]"}`}
+              onClick={() => setCustomerMode("customer")}
+            >
+              Select customer
+            </button>
+            <button
+              type="button"
+              className={`rounded px-2 py-1 ${customerMode === "none" ? "bg-[var(--brand)] text-white" : "text-[var(--muted)]"}`}
+              onClick={() => {
+                setCustomerMode("none");
+                setPartyId("");
+                setBalanceOnly(false);
+              }}
+            >
+              No customer
+            </button>
+          </div>
+          {customerMode === "customer" ? (
+            <PartyCodePicker
+              companyId={companyId}
+              parties={customers}
+              value={partyId}
+              label="Customer code"
+              emptyLabel="Select customer"
+              filterSubtype={["customer", "both"]}
+              onChange={(id) => setPartyId(id)}
+            />
+          ) : (
+            <p className="flex h-10 items-center gap-2 text-sm text-[var(--muted)]">
+              <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-700">
+                No party
+              </span>
+              Saved on expiry stock only. No customer ledger is cut.
+            </p>
+          )}
         </div>
         <div>
           <Label>Sold from</Label>
@@ -431,15 +487,18 @@ export function ExpiryReceiptForm({
       </div>
 
       <p className="text-sm text-[var(--muted)]">
-        {loadingHistory
-          ? "Loading this customer’s billed items for the selected dates…"
-          : partyId
-            ? balanceOnly
-              ? "Old/manual sale mode: recover amount cuts this shop’s balance (Cr on ledger). Qty is for record only — nothing is added to expiry stock, so it will not appear for company claim."
-              : "Search the billed list, then enter return qty. Recover amount credits this shop (reduces their balance). Qty also goes into expiry stock for company claim."
-            : "Pick a customer — billed items for these dates load automatically."}
+        {customerMode === "none"
+          ? "No customer: the return is recorded and qty goes to expiry stock for vendor claim. Nothing is cut from a shop ledger."
+          : loadingHistory
+            ? "Loading this customer’s billed items for the selected dates…"
+            : partyId
+              ? balanceOnly
+                ? "Old/manual sale: recover amount cuts this shop’s ledger. Qty is not added to expiry stock, so it cannot be claimed from a company."
+                : "Price minus discount % is the recover amount. That net, after GST, is cut from this customer’s ledger. Qty goes to expiry stock for vendor claim."
+              : "Choose a customer, or use No customer if this return should not touch a ledger."}
       </p>
 
+      {customerMode === "customer" ? (
       <label className="flex items-start gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-2,#f8f8f8)] px-3 py-2.5 text-sm">
         <input
           type="checkbox"
@@ -458,17 +517,18 @@ export function ExpiryReceiptForm({
           </span>
         </span>
       </label>
+      ) : null}
 
       <div className="table-grid table-grid--y-scroll">
-        <table className="w-full min-w-[760px] text-sm">
+        <table className="w-full min-w-[980px] text-sm">
           <thead>
             <tr>
-              <th className="w-32 min-w-[7.5rem]">Code</th>
-              <th className="min-w-[14rem]">Product</th>
-              <th className="w-24">Sold qty</th>
-              <th className="w-28">Sold amount</th>
-              <th className="w-28">Return qty</th>
-              <th className="w-32">Recover amount</th>
+              <th className="w-28 min-w-[6.5rem]">Code</th>
+              <th className="min-w-[12rem]">Product</th>
+              <th className="w-28">Price</th>
+              <th className="w-24">Disc %</th>
+              <th className="w-24">Qty</th>
+              <th className="w-32">Recover</th>
               <th className="w-12 text-center" />
             </tr>
           </thead>
@@ -511,11 +571,30 @@ export function ExpiryReceiptForm({
                   <p className="mt-0.5 text-[10px] text-rose-600">{hint}</p>
                 ) : null}
               </td>
-              <td className="px-3 py-2 text-center text-xs text-[var(--muted)] tabular-nums">
-                —
+              <td>
+                <Input
+                  type="number"
+                  min="0"
+                  step={AMOUNT_STEP}
+                  placeholder="Price"
+                  value={draftRateText}
+                  className="h-8 px-2 text-sm"
+                  onChange={(e) => setDraftRateText(e.target.value)}
+                />
               </td>
-              <td className="px-3 py-2 text-center text-xs text-[var(--muted)] tabular-nums">
-                —
+              <td>
+                <Input
+                  ref={discountRef}
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  placeholder="0"
+                  value={draftDiscount}
+                  className="h-8 px-2 text-sm"
+                  onChange={(e) => setDraftDiscount(e.target.value)}
+                  onKeyDown={onDraftDiscountKeyDown}
+                />
               </td>
               <td>
                 <Input
@@ -526,22 +605,12 @@ export function ExpiryReceiptForm({
                   placeholder="1"
                   value={draftQty}
                   className="h-8 px-2 text-sm"
-                  onChange={(e) => onDraftQtyChange(e.target.value)}
+                  onChange={(e) => setDraftQty(e.target.value)}
                   onKeyDown={onDraftQtyKeyDown}
                 />
               </td>
-              <td>
-                <Input
-                  ref={amountRef}
-                  type="number"
-                  min="0"
-                  step={AMOUNT_STEP}
-                  placeholder={AMOUNT_PLACEHOLDER}
-                  value={draftAmount}
-                  className="h-8 px-2 text-sm"
-                  onChange={(e) => setDraftAmount(e.target.value)}
-                  onKeyDown={onDraftAmountKeyDown}
-                />
+              <td className="px-3 py-2 text-right text-sm font-medium tabular-nums">
+                {draftRecover > 0 ? formatPkr(draftRecover) : "—"}
               </td>
               <td className="text-center">
                 <Button
@@ -575,45 +644,38 @@ export function ExpiryReceiptForm({
                   <td className="px-3 py-2 font-medium">
                     {l.product_name}
                   </td>
-                  <td className="px-3 py-2 tabular-nums text-[var(--muted)]">
-                    {l.history_qty}
+                  <td className="px-2 py-1">
+                    <Input
+                      type="number"
+                      min="0"
+                      step={AMOUNT_STEP}
+                      value={l.rate}
+                      onChange={(e) => patchLine(l.product_id, { rate: e.target.value })}
+                    />
                   </td>
-                  <td className="px-3 py-2 tabular-nums text-[var(--muted)]">
-                    {formatPkr(l.history_amount)}
+                  <td className="px-2 py-1">
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      value={l.discountPct}
+                      onChange={(e) =>
+                        patchLine(l.product_id, { discountPct: e.target.value })
+                      }
+                    />
                   </td>
                   <td className="px-2 py-1">
                     <Input
                       type="number"
                       min="0"
                       step="1"
-                      placeholder=""
                       value={l.qty}
-                      onChange={(e) => onReturnQtyChange(l, e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key !== "Enter") return;
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const amount = e.currentTarget
-                          .closest("tr")
-                          ?.querySelectorAll("input")[1];
-                        if (amount instanceof HTMLInputElement) {
-                          amount.focus();
-                          amount.select();
-                        }
-                      }}
+                      onChange={(e) => patchLine(l.product_id, { qty: e.target.value })}
                     />
                   </td>
-                  <td className="px-2 py-1">
-                    <Input
-                      type="number"
-                      min="0"
-                      step={AMOUNT_STEP}
-                      placeholder={AMOUNT_PLACEHOLDER}
-                      value={l.amount}
-                      onChange={(e) =>
-                        patchLine(l.product_id, { amount: e.target.value })
-                      }
-                    />
+                  <td className="px-3 py-2 text-right font-medium tabular-nums">
+                    {formatPkr(Number(l.amount) || 0)}
                   </td>
                   <td className="px-2 py-1 text-center">
                     <button
@@ -634,16 +696,48 @@ export function ExpiryReceiptForm({
         </table>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-        <span className="font-semibold">
-          {formatNumber(enteredCount, 0)} products
-        </span>
-        <span className="text-[var(--muted)]">
-          Total qty {formatNumber(enteredQty, 0)}
-        </span>
-        <span className="font-semibold">
-          Credit customer {formatPkr(grandTotal)}
-        </span>
+      <div className="flex flex-wrap items-end justify-between gap-4 text-sm">
+        <div className="space-y-1">
+          <p className="font-semibold">{formatNumber(enteredCount, 0)} products</p>
+          <p className="text-[var(--muted)]">Total qty {formatNumber(enteredQty, 0)}</p>
+          <p>Recover {formatPkr(subtotal)}</p>
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          <Label className="text-xs uppercase tracking-wide text-[var(--muted)]">GST</Label>
+          <div className="inline-flex rounded-md border border-[var(--border)] p-0.5 text-[10px] font-semibold uppercase">
+            <button
+              type="button"
+              className={`rounded px-1.5 py-0.5 ${gstMode === "percent" ? "bg-[var(--brand)] text-white" : "text-[var(--muted)]"}`}
+              onClick={() => setGstMode("percent")}
+            >
+              %
+            </button>
+            <button
+              type="button"
+              className={`rounded px-1.5 py-0.5 ${gstMode === "amount" ? "bg-[var(--brand)] text-white" : "text-[var(--muted)]"}`}
+              onClick={() => setGstMode("amount")}
+            >
+              Amount
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              min="0"
+              step={AMOUNT_STEP}
+              value={gstInput}
+              onChange={(e) => setGstInput(e.target.value)}
+              placeholder={gstMode === "percent" ? "0" : AMOUNT_PLACEHOLDER}
+              className="h-9 w-28 text-right tabular-nums"
+            />
+            <span className="min-w-[5rem] text-right text-[var(--muted)]">
+              − {formatPkr(gstAmount)}
+            </span>
+          </div>
+          <p className="font-semibold">
+            {withCustomer ? `Cut from ledger ${formatPkr(netTotal)}` : `Bill ${formatPkr(netTotal)} · No party`}
+          </p>
+        </div>
       </div>
 
       {error ? (
