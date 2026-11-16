@@ -388,6 +388,7 @@ export function OfflineDocumentDetail({
           docNo={view.docNo}
           date={view.date}
           printedAt={(doc.created_at as string) || null}
+          backHref={listHref}
           partyName={view.partyName || null}
           partyCode={view.partyCode || null}
           partyPhone={view.partyPhone || null}
@@ -475,6 +476,7 @@ export function OfflineDocumentDetail({
         companyPhone={companyPhone || (doc.company_phone as string) || null}
         docNo={view.docNo}
         date={view.date}
+        backHref={listHref}
         partyName={view.partyName || null}
         partyCode={view.partyCode || null}
         partyPhone={view.partyPhone || null}

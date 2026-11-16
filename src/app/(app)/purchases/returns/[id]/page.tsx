@@ -60,6 +60,7 @@ export default async function PurchaseReturnDetailPage({
         title="Purchase Return"
         docNo={doc.return_no}
         date={doc.return_date}
+        backHref="/purchases/returns"
         partyName={doc.parties?.name_en}
         partyCode={doc.parties?.party_code}
         partyPhone={doc.parties?.phone}

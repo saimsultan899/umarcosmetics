@@ -82,6 +82,7 @@ export default async function PurchaseInvoiceDetailPage({
         docNo={invoice.invoice_no}
         date={invoice.invoice_date}
         printedAt={invoice.created_at}
+        backHref="/purchases/invoices"
         partyName={party?.name_en}
         partyCode={party?.party_code}
         partyAddress={party?.address || null}

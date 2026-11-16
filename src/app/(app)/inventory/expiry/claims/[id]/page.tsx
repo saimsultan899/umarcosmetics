@@ -60,6 +60,7 @@ export default async function ExpiryClaimDetailPage({
         docNo={doc.claim_no}
         date={doc.claim_date}
         printedAt={doc.created_at}
+        backHref="/inventory/expiry/claims"
         partyName={party?.name_en}
         partyCode={party?.party_code}
         partyPhone={party?.phone}

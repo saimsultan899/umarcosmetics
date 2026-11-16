@@ -83,6 +83,7 @@ export default async function GatePassDetailPage({
         companyPhone={company.phone}
         passNo={pass.pass_no}
         date={pass.pass_date}
+        backHref="/purchases/gate-passes"
         supplierCode={party?.party_code}
         supplierName={party?.name_en}
         supplierAddress={[party?.address, party?.city].filter(Boolean).join(", ")}

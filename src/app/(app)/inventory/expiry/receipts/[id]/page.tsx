@@ -82,6 +82,7 @@ export default async function ExpiryReceiptDetailPage({
       docNo={doc.receipt_no}
       date={doc.receipt_date}
       printedAt={doc.created_at}
+      backHref="/inventory/expiry/receipts"
       partyName={party?.name_en || "No party"}
       partyCode={party?.party_code}
       partyPhone={party?.phone}

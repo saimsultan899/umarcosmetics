@@ -71,6 +71,7 @@ export default async function LoadSheetDetailPage({
         title="Van Load Sheet"
         docNo={sheet.sheet_no}
         date={sheet.sheet_date}
+        backHref="/inventory/load-sheets"
         warehouseName={wh?.name}
         extraMeta={[
           ...(sheet.vehicle_no

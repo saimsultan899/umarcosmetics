@@ -12,7 +12,8 @@ import {
 import { printWithAutoPaper } from "@/lib/print/paper-size";
 import { formatReportInvNo } from "@/lib/reports/helpers";
 import { cn, formatNumber } from "@/lib/utils";
-import { Printer } from "lucide-react";
+import { ArrowLeft, Printer } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 export type PrintLine = {
@@ -97,6 +98,8 @@ export function PrintDocument({
   size = "full",
   autoPrint = false,
   showLineSummary = true,
+  backHref,
+  backLabel = "Back",
 }: {
   companyName: string;
   companyAddress?: string | null;
@@ -128,7 +131,11 @@ export function PrintDocument({
   autoPrint?: boolean;
   /** Products / Total qty rows above money totals. Off for purchase invoices. */
   showLineSummary?: boolean;
+  /** Fallback list URL when browser history cannot go back. */
+  backHref?: string;
+  backLabel?: string;
 }) {
+  const router = useRouter();
   const headerPhones = distributorPhoneLines(companyPhone, organizationName);
   const [paperTouched, setPaperTouched] = useState(false);
   const [paper, setPaper] = useState<"a5" | "a4">(() => {
@@ -327,6 +334,20 @@ export function PrintDocument({
             A4
           </button>
         </div>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => {
+            if (typeof window !== "undefined" && window.history.length > 1) {
+              router.back();
+              return;
+            }
+            if (backHref) router.push(backHref);
+          }}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          {backLabel}
+        </Button>
         <Button type="button" onClick={printNow}>
           <Printer className="h-4 w-4" />
           Print

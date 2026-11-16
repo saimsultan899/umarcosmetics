@@ -60,6 +60,7 @@ export function ExpiryStockItemView({
         docNo={row.product_code}
         date={today}
         printedAt={new Date().toISOString()}
+        backHref="/inventory/expiry"
         extraMeta={[{ label: "Item", value: row.product_name }]}
         lines={[
           {

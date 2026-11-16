@@ -1,6 +1,7 @@
 "use client";
 
 import { PartyCodePicker } from "@/components/forms/party-code-picker";
+import { FilterMultiSelect } from "@/components/reports/filter-multi-select";
 import { Button } from "@/components/ui/button";
 import { useCreateDialogClose } from "@/components/ui/create-dialog";
 import { useDialogInvoiceNo } from "@/lib/trading/preview-document-no";
@@ -23,6 +24,8 @@ type ClaimLine = {
   product_id: string;
   product_code: string;
   product_name: string;
+  warehouse_id: string | null;
+  company_label: string;
   on_hand: number;
   rate: number;
   discountPct: string;
@@ -38,6 +41,60 @@ function claimAmount(qty: number, rate: number, discountPct: number) {
   const gross = qty * rate;
   const cut = Math.min(gross, (gross * Math.min(Math.max(discountPct, 0), 100)) / 100);
   return money(Math.max(0, gross - cut));
+}
+
+function vendorForWarehouse(
+  warehouseId: string,
+  warehouses: Warehouse[],
+  parties: Party[],
+): Party | null {
+  const w = warehouses.find((item) => item.id === warehouseId);
+  if (!w) return null;
+  if (w.default_supplier_id) {
+    return parties.find((p) => p.id === w.default_supplier_id) || null;
+  }
+  return (
+    parties.find(
+      (p) =>
+        (p.party_subtype === "supplier" || p.party_subtype === "both") &&
+        p.name_en.trim().toLowerCase() === w.name.trim().toLowerCase(),
+    ) || null
+  );
+}
+
+function resolveStockWarehouseId(
+  row: ExpiryStockRow,
+  products: Product[],
+  warehouses: Warehouse[],
+): string | null {
+  if (row.warehouse_id) return row.warehouse_id;
+  const p = products.find((x) => x.id === row.product_id);
+  if (!p) return null;
+  if (p.default_warehouse_id) return p.default_warehouse_id;
+  const mfg = (p.manufacturer || "").trim().toLowerCase();
+  if (!mfg) return null;
+  return (
+    warehouses.find((w) => w.name.trim().toLowerCase() === mfg)?.id || null
+  );
+}
+
+function stockBelongsToCompanies(
+  row: ExpiryStockRow,
+  warehouseIds: Set<string>,
+  products: Product[],
+  warehouses: Warehouse[],
+): boolean {
+  if (warehouseIds.size === 0) return false;
+  const wid = resolveStockWarehouseId(row, products, warehouses);
+  return Boolean(wid && warehouseIds.has(wid));
+}
+
+function companyName(
+  warehouseId: string | null,
+  warehouses: Warehouse[],
+): string {
+  if (!warehouseId) return "—";
+  return warehouses.find((w) => w.id === warehouseId)?.name || "—";
 }
 
 export function ExpiryClaimForm({
@@ -73,23 +130,15 @@ export function ExpiryClaimForm({
 
   const [claimTo, setClaimTo] = useState<"company" | "vendor">("company");
   const [partyId, setPartyId] = useState("");
-  const [warehouseId, setWarehouseId] = useState(warehouses[0]?.id || "");
+  const [warehouseIds, setWarehouseIds] = useState<string[]>(() =>
+    warehouses[0]?.id ? [warehouses[0].id] : [],
+  );
   const [claimDate, setClaimDate] = useState(new Date().toISOString().slice(0, 10));
   const [narration, setNarration] = useState("");
   const [gstMode, setGstMode] = useState<"percent" | "amount">("amount");
   const [gstInput, setGstInput] = useState("");
-  const [lines, setLines] = useState<ClaimLine[]>(() =>
-    stock.map((row) => ({
-      product_id: row.product_id,
-      product_code: row.product_code,
-      product_name: row.product_name,
-      on_hand: row.qty,
-      rate: row.rate,
-      discountPct: "",
-      send_qty: "",
-      send_amount: 0,
-    })),
-  );
+  const [lines, setLines] = useState<ClaimLine[]>([]);
+  const [omittedIds, setOmittedIds] = useState<string[]>([]);
   const [draftCode, setDraftCode] = useState("");
   const [draftProductId, setDraftProductId] = useState("");
   const [draftQty, setDraftQty] = useState("1");
@@ -105,61 +154,114 @@ export function ExpiryClaimForm({
   const rateRef = useRef<HTMLInputElement>(null);
   const productSelectRef = useRef<SelectHandle>(null);
 
-  const linkedVendor = useMemo(() => {
-    if (!warehouseId) return null;
-    const w = warehouses.find((item) => item.id === warehouseId);
-    if (!w) return null;
-    if (w.default_supplier_id) {
-      return parties.find((p) => p.id === w.default_supplier_id) || null;
-    }
-    const byName = parties.find(
-      (p) =>
-        (p.party_subtype === "supplier" || p.party_subtype === "both") &&
-        p.name_en.trim().toLowerCase() === w.name.trim().toLowerCase(),
+  const warehouseIdSet = useMemo(() => new Set(warehouseIds), [warehouseIds]);
+
+  const companyOptions = useMemo(() => {
+    const withStock = new Set(
+      stock
+        .map((row) => resolveStockWarehouseId(row, products, warehouses))
+        .filter(Boolean) as string[],
     );
-    return byName || null;
-  }, [warehouseId, warehouses, parties]);
+    const list = warehouses
+      .filter((w) => withStock.has(w.id) || warehouseIdSet.has(w.id))
+      .map((w) => ({ value: w.id, label: w.name }));
+    if (list.length > 0) {
+      return list.sort((a, b) => a.label.localeCompare(b.label));
+    }
+    return warehouses
+      .map((w) => ({ value: w.id, label: w.name }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [warehouses, stock, products, warehouseIdSet]);
+
+  const filteredStock = useMemo(
+    () =>
+      stock.filter((row) =>
+        stockBelongsToCompanies(row, warehouseIdSet, products, warehouses),
+      ),
+    [stock, warehouseIdSet, products, warehouses],
+  );
+
+  const linkedVendors = useMemo(() => {
+    const seen = new Set<string>();
+    const list: Party[] = [];
+    for (const wid of warehouseIds) {
+      const vendor = vendorForWarehouse(wid, warehouses, parties);
+      if (vendor && !seen.has(vendor.id)) {
+        seen.add(vendor.id);
+        list.push(vendor);
+      }
+    }
+    return list;
+  }, [warehouseIds, warehouses, parties]);
+
+  const linkedVendor = linkedVendors.length === 1 ? linkedVendors[0] : null;
+
+  const warehouseKey = warehouseIds.slice().sort().join(",");
 
   useEffect(() => {
-    if (stock.length > 0 && lines.length === 0) {
-      setLines(
-        stock.map((row) => ({
-          product_id: row.product_id,
-          product_code: row.product_code,
-          product_name: row.product_name,
-          on_hand: row.qty,
-          rate: row.rate,
-          discountPct: "",
-          send_qty: "",
-          send_amount: 0,
-        })),
-      );
-    }
-  }, [stock]);
+    const omitted = new Set(omittedIds);
+    setLines((prev) => {
+      const prevMap = new Map(prev.map((l) => [l.product_id, l]));
+      return filteredStock
+        .filter((row) => !omitted.has(row.product_id))
+        .map((row) => {
+          const wid = resolveStockWarehouseId(row, products, warehouses);
+          const existing = prevMap.get(row.product_id);
+          if (existing) {
+            return {
+              ...existing,
+              warehouse_id: wid,
+              company_label: companyName(wid, warehouses),
+              on_hand: row.qty,
+              rate: existing.rate > 0 ? existing.rate : row.rate,
+              send_amount: claimAmount(
+                Number(existing.send_qty) || 0,
+                existing.rate > 0 ? existing.rate : row.rate,
+                Number(existing.discountPct) || 0,
+              ),
+            };
+          }
+          return {
+            product_id: row.product_id,
+            product_code: row.product_code,
+            product_name: row.product_name,
+            warehouse_id: wid,
+            company_label: companyName(wid, warehouses),
+            on_hand: row.qty,
+            rate: row.rate,
+            discountPct: "",
+            send_qty: "",
+            send_amount: 0,
+          };
+        });
+    });
+  }, [filteredStock, products, warehouses, omittedIds]);
+
+  useEffect(() => {
+    setOmittedIds([]);
+    setDraftCode("");
+    setDraftProductId("");
+    setDraftQty("1");
+    setDraftDiscount("");
+    setDraftRate(0);
+    setDraftRateText("");
+    setDraftOnHand(0);
+    setHint(null);
+  }, [warehouseKey]);
 
   const selectableProducts = useMemo(() => {
-    let pool = products;
-    if (warehouseId) {
-      const selectedWh = warehouses.find((w) => w.id === warehouseId);
-      const byWh = products.filter(
-        (p) =>
-          p.default_warehouse_id === warehouseId ||
-          (selectedWh &&
-            p.manufacturer &&
-            p.manufacturer.trim().toLowerCase() ===
-              selectedWh.name.trim().toLowerCase()),
-      );
-      if (byWh.length > 0) pool = byWh;
-    }
-    if (pool.length > 0) return pool;
-    return stock.map((s) => ({
+    const allowed = new Set(filteredStock.map((s) => s.product_id));
+    const fromCatalog = products.filter((p) => allowed.has(p.id));
+    if (fromCatalog.length > 0) return fromCatalog;
+    return filteredStock.map((s) => ({
       id: s.product_id,
       code: s.product_code,
       name_en: s.product_name,
       purchase_rate: s.rate,
       sale_rate: s.rate,
+      default_warehouse_id: s.warehouse_id,
     })) as Product[];
-  }, [products, stock, warehouseId, warehouses]);
+  }, [products, filteredStock]);
 
   function patchLine(
     productId: string,
@@ -190,7 +292,7 @@ export function ExpiryClaimForm({
       setHint(null);
       return;
     }
-    const inStock = stock.find((s) => s.product_id === p.id);
+    const inStock = filteredStock.find((s) => s.product_id === p.id);
     const existing = lines.find((l) => l.product_id === p.id);
     const onHand = inStock ? inStock.qty : existing ? existing.on_hand : 0;
     const rate = inStock
@@ -198,6 +300,11 @@ export function ExpiryClaimForm({
       : existing
         ? existing.rate
         : Number(p.purchase_rate || p.sale_rate || 0);
+
+    if (!inStock) {
+      setHint("This product is not in expiry stock for the selected companies");
+      return;
+    }
 
     setDraftProductId(p.id);
     setDraftCode(p.code);
@@ -235,17 +342,20 @@ export function ExpiryClaimForm({
       qtyRef.current?.focus();
       return;
     }
-    const inStock = stock.find((s) => s.product_id === product.id);
+    const inStock = filteredStock.find((s) => s.product_id === product.id);
+    if (!inStock) {
+      setHint("This product is not in expiry stock for the selected companies");
+      return;
+    }
     const existing = lines.find((l) => l.product_id === product.id);
-    const onHand = inStock ? inStock.qty : existing ? existing.on_hand : 0;
+    const onHand = inStock.qty;
+    const wid = resolveStockWarehouseId(inStock, products, warehouses);
     const rate =
       Number(draftRateText) > 0
         ? Number(draftRateText)
         : draftRate > 0
           ? draftRate
-          : inStock
-            ? inStock.rate
-            : Number(product.purchase_rate || product.sale_rate || 0);
+          : inStock.rate;
     const send_amount = claimAmount(numQty, rate, Number(draftDiscount) || 0);
 
     setLines((prev) => {
@@ -254,6 +364,8 @@ export function ExpiryClaimForm({
         product_id: product.id,
         product_code: product.code,
         product_name: product.name_en,
+        warehouse_id: wid,
+        company_label: companyName(wid, warehouses),
         on_hand: onHand,
         rate,
         discountPct: draftDiscount,
@@ -320,6 +432,9 @@ export function ExpiryClaimForm({
   }
 
   function removeLine(productId: string) {
+    setOmittedIds((prev) =>
+      prev.includes(productId) ? prev : [...prev, productId],
+    );
     setLines((prev) => prev.filter((l) => l.product_id !== productId));
   }
 
@@ -350,27 +465,27 @@ export function ExpiryClaimForm({
     e.preventDefault();
     await singleSubmit(async () => {
     setError(null);
-    if (claimTo === "company" && !warehouseId) {
-      setError("Select a company.");
+    if (warehouseIds.length === 0) {
+      setError("Select at least one company.");
       return;
     }
     if (claimTo === "vendor" && !partyId) {
       setError("Select a vendor.");
       return;
     }
+    if (claimTo === "company" && linkedVendors.length > 1) {
+      setError(
+        "Selected companies credit different vendors. Keep one vendor’s companies, or switch Claim to: Vendor.",
+      );
+      return;
+    }
     const effectivePartyId =
-      claimTo === "company"
-        ? linkedVendor?.id ||
-          warehouses.find((w) => w.id === warehouseId)?.default_supplier_id ||
-          partyId ||
-          vendors[0]?.id ||
-          ""
-        : partyId;
+      claimTo === "company" ? linkedVendor?.id || "" : partyId;
 
     if (!effectivePartyId) {
       setError(
         claimTo === "company"
-          ? "No vendor is linked to this company. Link one on the company, or choose Claim to: Vendor."
+          ? "No vendor is linked to the selected company. Link one on the company, or choose Claim to: Vendor."
           : "Select a vendor.",
       );
       return;
@@ -379,6 +494,19 @@ export function ExpiryClaimForm({
       setError("Enter qty to send from expiry stock.");
       return;
     }
+    const selectedCompanyNames = warehouseIds
+      .map((id) => companyName(id, warehouses))
+      .filter((name) => name !== "—");
+    const companyNote =
+      selectedCompanyNames.length > 1
+        ? `Companies: ${selectedCompanyNames.join(", ")}`
+        : selectedCompanyNames[0]
+          ? `Company: ${selectedCompanyNames[0]}`
+          : "";
+    const finalNarration = [narration.trim(), companyNote]
+      .filter(Boolean)
+      .join(" — ");
+
     setLoading(true);
     try {
       const res = await offlineAwareSubmit({
@@ -402,13 +530,14 @@ export function ExpiryClaimForm({
                 }
               : null;
           })(),
-          warehouse_id: warehouseId || null,
+          warehouse_id: warehouseIds[0] || null,
+          warehouse_ids: warehouseIds,
           subtotal,
           gst_mode: gstMode,
           gst_input: Number(gstInput) || 0,
           gst_amount: gstAmount,
           grand_total: grandTotal,
-          narration,
+          narration: finalNarration,
           items: sendLines.map((l) => ({
             product_id: l.product_id,
             product_code: l.product_code,
@@ -459,40 +588,48 @@ export function ExpiryClaimForm({
           <Select
             value={claimTo}
             onChange={(e) => {
-              const val = e.target.value as "company" | "vendor";
-              setClaimTo(val);
-              if (val === "company" && !warehouseId && warehouses[0]?.id) {
-                setWarehouseId(warehouses[0].id);
-              }
+              setClaimTo(e.target.value as "company" | "vendor");
             }}
           >
             <option value="company">Company</option>
             <option value="vendor">Vendor</option>
           </Select>
         </div>
+        <div className="sm:col-span-2">
+          <FilterMultiSelect
+            name="claim_companies"
+            label="Companies"
+            value={warehouseIds.join(",")}
+            options={companyOptions}
+            allLabel="Select companies"
+            placeholder="Select one or more companies"
+            searchPlaceholder="Search companies..."
+            onChange={(ids) => setWarehouseIds(ids)}
+          />
+          <p className="mt-1 text-xs text-[var(--muted)]">
+            Only expiry stock for the selected companies is listed.
+          </p>
+        </div>
         {claimTo === "company" ? (
-          <div className="sm:col-span-2">
-            <Label>Company</Label>
-            <Select
-              value={warehouseId}
-              onChange={(e) => setWarehouseId(e.target.value)}
-              required
-            >
-              <option value="">Select company</option>
-              {warehouses.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.name}
-                </option>
-              ))}
-            </Select>
+          <div className="sm:col-span-2 lg:col-span-4">
             {linkedVendor ? (
-              <p className="mt-1 text-xs text-[var(--muted)]">
+              <p className="text-xs text-[var(--muted)]">
                 Credit goes to {linkedVendor.party_code} — {linkedVendor.name_en}
+              </p>
+            ) : linkedVendors.length > 1 ? (
+              <p className="text-xs text-amber-800">
+                These companies link to different vendors. Narrow the company
+                selection, or switch Claim to: Vendor.
+              </p>
+            ) : warehouseIds.length > 0 ? (
+              <p className="text-xs text-amber-800">
+                No vendor is linked to the selected company. Link one on the
+                company, or switch Claim to: Vendor.
               </p>
             ) : null}
           </div>
         ) : (
-          <div className="sm:col-span-2">
+          <div className="sm:col-span-2 lg:col-span-2">
             <PartyCodePicker
               companyId={companyId}
               parties={vendors}
@@ -516,11 +653,12 @@ export function ExpiryClaimForm({
       </div>
 
       <div className="table-grid table-grid--y-scroll">
-        <table className="w-full min-w-[980px] text-sm">
+        <table className="w-full min-w-[1080px] text-sm">
           <thead>
             <tr>
               <th className="w-28 min-w-[6.5rem]">Code</th>
               <th className="min-w-[12rem]">Product</th>
+              <th className="w-32">Company</th>
               <th className="w-24">On hand</th>
               <th className="w-24">Qty</th>
               <th className="w-24">Disc %</th>
@@ -543,6 +681,7 @@ export function ExpiryClaimForm({
                     if (hint) setHint(null);
                   }}
                   onKeyDown={onDraftCodeKeyDown}
+                  disabled={warehouseIds.length === 0}
                 />
               </td>
               <td>
@@ -557,7 +696,13 @@ export function ExpiryClaimForm({
                     applyProduct(p || null);
                   }}
                   options={[
-                    { value: "", label: "Select product" },
+                    {
+                      value: "",
+                      label:
+                        warehouseIds.length === 0
+                          ? "Select companies first"
+                          : "Select product",
+                    },
                     ...selectableProducts.map((p) => ({
                       value: p.id,
                       label: `${p.code} — ${p.name_en}`,
@@ -569,6 +714,7 @@ export function ExpiryClaimForm({
                   <p className="mt-0.5 text-[10px] text-rose-600">{hint}</p>
                 ) : null}
               </td>
+              <td className="px-3 py-2 text-xs text-[var(--muted)]">—</td>
               <td className="px-3 py-2 tabular-nums text-xs text-[var(--muted)]">
                 {draftOnHand > 0 ? formatNumber(draftOnHand, 2) : "—"}
               </td>
@@ -629,13 +775,23 @@ export function ExpiryClaimForm({
               </td>
             </tr>
 
-            {lines.length === 0 ? (
+            {warehouseIds.length === 0 ? (
               <tr>
                 <td
-                  colSpan={8}
+                  colSpan={9}
                   className="py-4 text-center text-sm text-[var(--muted)]"
                 >
-                  Added products appear here. Keep using the top row to add more.
+                  Select one or more companies to load their expiry stock.
+                </td>
+              </tr>
+            ) : lines.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={9}
+                  className="py-4 text-center text-sm text-[var(--muted)]"
+                >
+                  No expiry stock for the selected companies. Add a return first,
+                  or pick other companies.
                 </td>
               </tr>
             ) : (
@@ -646,6 +802,9 @@ export function ExpiryClaimForm({
                   </td>
                   <td className="px-3 py-2 font-medium">
                     {line.product_name}
+                  </td>
+                  <td className="px-3 py-2 text-xs text-[var(--muted)]">
+                    {line.company_label}
                   </td>
                   <td className="px-3 py-2 tabular-nums">
                     {formatNumber(line.on_hand, 2)}

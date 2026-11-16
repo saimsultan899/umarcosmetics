@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { installDesktopPrint } from "@/lib/desktop-print";
 import { printWithAutoPaper } from "@/lib/print/paper-size";
 import { formatNumber } from "@/lib/utils";
-import { Printer } from "lucide-react";
+import { ArrowLeft, Printer } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 function formatCartonQty(qty: number, packing: number) {
@@ -43,6 +44,8 @@ export function GatePassPrint({
   lines,
   preparedBy,
   autoPrint = false,
+  backHref = "/purchases/gate-passes",
+  backLabel = "Back",
 }: {
   companyName: string;
   companyAddress?: string | null;
@@ -65,7 +68,10 @@ export function GatePassPrint({
   lines: GatePassPrintLine[];
   preparedBy?: string | null;
   autoPrint?: boolean;
+  backHref?: string;
+  backLabel?: string;
 }) {
+  const router = useRouter();
   const totalQty = lines.reduce((s, l) => s + Number(l.qty || 0), 0);
 
   useEffect(() => {
@@ -83,10 +89,24 @@ export function GatePassPrint({
 
   return (
     <div className="space-y-4">
-      <div className="no-print flex items-center justify-end gap-2">
+      <div className="no-print flex flex-wrap items-center justify-end gap-2">
         <p className="mr-auto text-sm text-[var(--muted)]">
           Incoming load sheet · does not update inventory
         </p>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => {
+            if (typeof window !== "undefined" && window.history.length > 1) {
+              router.back();
+              return;
+            }
+            router.push(backHref);
+          }}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          {backLabel}
+        </Button>
         <Button type="button" onClick={printNow}>
           <Printer className="h-4 w-4" />
           Print

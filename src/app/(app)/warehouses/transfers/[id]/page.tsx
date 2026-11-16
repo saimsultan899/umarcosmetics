@@ -51,6 +51,7 @@ export default async function StockTransferDetailPage({
       title="Company Transfer Note"
       docNo={doc.transfer_no}
       date={doc.transfer_date}
+      backHref="/warehouses/transfers"
       warehouseName={`${doc.from_warehouse?.name || "?"} → ${doc.to_warehouse?.name || "?"}`}
       lines={(items || []).map((i) => ({
         product_code: i.product_code,

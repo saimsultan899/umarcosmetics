@@ -86,6 +86,13 @@ export async function VoucherDetail({
           };
         });
 
+  const listHref =
+    expectedType === "CR"
+      ? "/vouchers/cash-receipt"
+      : expectedType === "CP"
+        ? "/vouchers/cash-payment"
+        : "/vouchers/journal";
+
   return (
     <PrintDocument
       companyName={company.name}
@@ -93,6 +100,7 @@ export async function VoucherDetail({
       title={title}
       docNo={voucher.voucher_no}
       date={voucher.voucher_date}
+      backHref={listHref}
       extraMeta={[
         ...(expectedType === "CP" && paymentMethodLabel
           ? [{ label: "Payment method", value: paymentMethodLabel }]

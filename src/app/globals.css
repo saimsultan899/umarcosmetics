@@ -450,6 +450,8 @@ label {
 .quick-shortcuts {
   display: grid;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.5rem;
 }
@@ -460,6 +462,8 @@ label {
   justify-content: center;
   gap: 0.4rem;
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   padding: 0.5rem 0.65rem;
@@ -487,6 +491,9 @@ label {
 
 .quick-shortcut__label {
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .quick-shortcut__label-full {
@@ -605,7 +612,8 @@ label {
   background: #f3e8ff;
 }
 
-@media (max-width: 767px) {
+/* Short labels until there is room beside the sidebar on laptop widths. */
+@media (max-width: 1599px) {
   .quick-shortcut:has(.quick-shortcut__label-short) .quick-shortcut__label-full {
     display: none;
   }
@@ -627,14 +635,25 @@ label {
     padding: 0.45rem 0.8rem;
     font-size: 0.8125rem;
     text-align: left;
-    white-space: nowrap;
   }
 }
 
 @media (min-width: 1280px) {
+  .action-bar--split .quick-shortcuts {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .quick-shortcuts {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1600px) {
   .quick-shortcuts {
     width: auto;
-    grid-template-columns: repeat(8, max-content);
+    max-width: min(100%, 58rem);
+    grid-template-columns: repeat(8, minmax(0, max-content));
     justify-content: end;
   }
 }

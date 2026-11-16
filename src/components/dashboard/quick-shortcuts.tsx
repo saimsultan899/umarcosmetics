@@ -29,8 +29,20 @@ const shortcuts: {
   icon: LucideIcon;
   tone: ShortcutTone;
 }[] = [
-  { href: "/sales/invoices", label: "New sale", icon: ShoppingCart, tone: "primary" },
-  { href: "/purchases/invoices", label: "Purchase", icon: Truck, tone: "accent" },
+  {
+    href: "/sales/invoices",
+    label: "New sale",
+    shortLabel: "Sale",
+    icon: ShoppingCart,
+    tone: "primary",
+  },
+  {
+    href: "/purchases/invoices",
+    label: "Purchase",
+    shortLabel: "Purchase",
+    icon: Truck,
+    tone: "accent",
+  },
   {
     href: "/vouchers/cash-management",
     label: "Cash management",
@@ -41,11 +53,17 @@ const shortcuts: {
   {
     href: "/reports/company",
     label: "Company statement",
-    shortLabel: "Company stmt",
+    shortLabel: "Company",
     icon: Building2,
     tone: "slate",
   },
-  { href: "/inventory/expiry", label: "Expiry", icon: Archive, tone: "blue" },
+  {
+    href: "/inventory/expiry",
+    label: "Expiry",
+    shortLabel: "Expiry",
+    icon: Archive,
+    tone: "blue",
+  },
   {
     href: "/reports/recovery",
     label: "Customer receivables",
@@ -53,8 +71,20 @@ const shortcuts: {
     icon: Wallet,
     tone: "mint",
   },
-  { href: "/vouchers/expenses", label: "Daily expense", shortLabel: "Expense", icon: Banknote, tone: "peach" },
-  { href: "/reports/profit", label: "Profit", icon: BarChart3, tone: "purple" },
+  {
+    href: "/vouchers/expenses",
+    label: "Daily expense",
+    shortLabel: "Expense",
+    icon: Banknote,
+    tone: "peach",
+  },
+  {
+    href: "/reports/profit",
+    label: "Profit",
+    shortLabel: "Profit",
+    icon: BarChart3,
+    tone: "purple",
+  },
 ];
 
 export function QuickShortcuts({ className }: { className?: string }) {

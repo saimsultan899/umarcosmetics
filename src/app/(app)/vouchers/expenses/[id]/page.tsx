@@ -60,6 +60,7 @@ export default async function ExpenseDetailPage({
       title="Expense / Salary voucher"
       docNo={expense.expense_no}
       date={expense.expense_date}
+      backHref="/vouchers/expenses"
       extraMeta={[
         { label: "Type", value: typeLabel },
         { label: "Salesman", value: salesmanName || "—" },
