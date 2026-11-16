@@ -94,6 +94,7 @@ export function ExpiryReceiptForm({
   const codeRef = useRef<HTMLInputElement>(null);
   const qtyRef = useRef<HTMLInputElement>(null);
   const discountRef = useRef<HTMLInputElement>(null);
+  const rateRef = useRef<HTMLInputElement>(null);
   const productSelectRef = useRef<SelectHandle>(null);
 
   /** Old/manual sale: credit shop balance only — do not add to expiry stock for claim. */
@@ -288,20 +289,26 @@ export function ExpiryReceiptForm({
   }
 
   function onDraftQtyKeyDown(e: ReactKeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      e.stopPropagation();
-      discountRef.current?.focus();
-      discountRef.current?.select();
-    }
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    e.stopPropagation();
+    discountRef.current?.focus();
+    discountRef.current?.select();
   }
 
   function onDraftDiscountKeyDown(e: ReactKeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      e.stopPropagation();
-      commitDraft();
-    }
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    e.stopPropagation();
+    rateRef.current?.focus();
+    rateRef.current?.select();
+  }
+
+  function onDraftRateKeyDown(e: ReactKeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    e.stopPropagation();
+    commitDraft();
   }
 
   function removeLine(productId: string) {
@@ -525,15 +532,15 @@ export function ExpiryReceiptForm({
             <tr>
               <th className="w-28 min-w-[6.5rem]">Code</th>
               <th className="min-w-[12rem]">Product</th>
-              <th className="w-28">Price</th>
-              <th className="w-24">Disc %</th>
               <th className="w-24">Qty</th>
+              <th className="w-24">Disc %</th>
+              <th className="w-28">Price</th>
               <th className="w-32">Recover</th>
               <th className="w-12 text-center" />
             </tr>
           </thead>
           <tbody>
-            {/* In-row quick entry row */}
+            {/* In-row quick entry row: Code → Product → Qty → Disc → Price → Add */}
             <tr className="bg-[var(--brand-soft)]/25">
               <td>
                 <Input
@@ -573,13 +580,15 @@ export function ExpiryReceiptForm({
               </td>
               <td>
                 <Input
+                  ref={qtyRef}
                   type="number"
                   min="0"
-                  step={AMOUNT_STEP}
-                  placeholder="Price"
-                  value={draftRateText}
+                  step="1"
+                  placeholder="1"
+                  value={draftQty}
                   className="h-8 px-2 text-sm"
-                  onChange={(e) => setDraftRateText(e.target.value)}
+                  onChange={(e) => setDraftQty(e.target.value)}
+                  onKeyDown={onDraftQtyKeyDown}
                 />
               </td>
               <td>
@@ -598,15 +607,15 @@ export function ExpiryReceiptForm({
               </td>
               <td>
                 <Input
-                  ref={qtyRef}
+                  ref={rateRef}
                   type="number"
                   min="0"
-                  step="1"
-                  placeholder="1"
-                  value={draftQty}
+                  step={AMOUNT_STEP}
+                  placeholder="Price"
+                  value={draftRateText}
                   className="h-8 px-2 text-sm"
-                  onChange={(e) => setDraftQty(e.target.value)}
-                  onKeyDown={onDraftQtyKeyDown}
+                  onChange={(e) => setDraftRateText(e.target.value)}
+                  onKeyDown={onDraftRateKeyDown}
                 />
               </td>
               <td className="px-3 py-2 text-right text-sm font-medium tabular-nums">
@@ -619,7 +628,7 @@ export function ExpiryReceiptForm({
                   variant="secondary"
                   className="h-8 px-2.5 text-xs"
                   onClick={commitDraft}
-                  title="Add product (or press Enter on Recover amount)"
+                  title="Add product (or press Enter on Price)"
                 >
                   Add
                 </Button>
@@ -648,9 +657,9 @@ export function ExpiryReceiptForm({
                     <Input
                       type="number"
                       min="0"
-                      step={AMOUNT_STEP}
-                      value={l.rate}
-                      onChange={(e) => patchLine(l.product_id, { rate: e.target.value })}
+                      step="1"
+                      value={l.qty}
+                      onChange={(e) => patchLine(l.product_id, { qty: e.target.value })}
                     />
                   </td>
                   <td className="px-2 py-1">
@@ -669,9 +678,9 @@ export function ExpiryReceiptForm({
                     <Input
                       type="number"
                       min="0"
-                      step="1"
-                      value={l.qty}
-                      onChange={(e) => patchLine(l.product_id, { qty: e.target.value })}
+                      step={AMOUNT_STEP}
+                      value={l.rate}
+                      onChange={(e) => patchLine(l.product_id, { rate: e.target.value })}
                     />
                   </td>
                   <td className="px-3 py-2 text-right font-medium tabular-nums">
