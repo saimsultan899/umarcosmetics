@@ -161,9 +161,6 @@ export function useExpiryWarehouse({
 
         for (const r of receiptRows) {
           const payload = (r.payload as Record<string, unknown> | undefined) || r;
-          if (Boolean(r.balance_only) || Boolean(payload.balance_only)) {
-            continue;
-          }
           const rawLines =
             (Array.isArray(payload.items) && payload.items) ||
             (Array.isArray(payload.lines) && payload.lines) ||
@@ -218,6 +215,8 @@ export function useExpiryWarehouse({
 
         const allReceiptRows: DocumentListRow[] = receiptRows.map((r) => {
           const party = pts.find((p) => p.id === String(r.party_id));
+          const payload = (r.payload as Record<string, unknown> | undefined) || r;
+          const balanceOnly = Boolean(r.balance_only || payload.balance_only);
           return {
             id: String(r.id),
             docNo: String(r.receipt_no || r.doc_no || r.id),
@@ -225,13 +224,15 @@ export function useExpiryWarehouse({
             partyLabel: party
               ? `${party.party_code} — ${party.name_en}`
               : String(r.party_name || "—"),
+            partyBadge: !party && !r.party_id ? "No party" : undefined,
+            typeBadge: balanceOnly ? "Old bill" : undefined,
             warehouseLabel: "—",
             total: Number(r.grand_total ?? r.amount ?? 0),
             href: `/inventory/expiry/receipts/${r.id}`,
             table: "expiry_receipts",
             linesTable: "expiry_receipt_items",
             linesFk: "receipt_id",
-            extra: [
+            extraFields: [
               ...(r.period_from && r.period_to
                 ? [
                     {
@@ -240,11 +241,11 @@ export function useExpiryWarehouse({
                     },
                   ]
                 : []),
-              ...(r.balance_only
+              ...(balanceOnly
                 ? [
                     {
                       label: "Type",
-                      value: "Balance only (old/manual sale — no expiry stock)",
+                      value: "Old bill (manual sale)",
                     },
                   ]
                 : []),

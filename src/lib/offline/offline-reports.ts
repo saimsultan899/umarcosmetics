@@ -618,7 +618,7 @@ export async function offlinePartyLedger(
       String(r.receipt_no || r.id);
     const balanceOnly = Boolean(r.balance_only);
     const label = balanceOnly
-      ? `Expiry return (balance only — old/manual sale) ${no}`
+      ? `Expiry return (old/manual sale) ${no}`
       : `Expiry return ${no}`;
     push(r.receipt_date || r.doc_date, "EXR", label, 0, num(r.grand_total), {
       table: "expiry_receipts",

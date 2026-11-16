@@ -76,7 +76,7 @@ export default async function ExpiryReceiptDetailPage({
         !party
           ? "Expiry Return — No party"
           : doc.balance_only
-            ? "Expiry Return — Balance Only (Old/Manual Sale)"
+            ? "Expiry Return — Old bill"
             : "Expiry Warehouse — Customer Return"
       }
       docNo={doc.receipt_no}
@@ -98,7 +98,7 @@ export default async function ExpiryReceiptDetailPage({
         {
           label: "Stock treatment",
           value: doc.balance_only
-            ? "Balance only — not added to expiry stock (no company claim from this receipt)"
+            ? "Old bill — ledger cut and added to expiry stock for claim"
             : "Added to expiry stock (available for company claim)",
         },
       ]}

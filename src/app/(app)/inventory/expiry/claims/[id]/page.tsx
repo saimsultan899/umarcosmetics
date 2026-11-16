@@ -74,7 +74,26 @@ export default async function ExpiryClaimDetailPage({
           amount: Number(i.amount),
         }))}
         totals={[
-          { label: "Claim amount", value: formatPkr(doc.grand_total), strong: true },
+          {
+            label: "Claim",
+            value: formatPkr(Number(doc.subtotal ?? doc.grand_total)),
+          },
+          ...(Number(doc.gst_amount || 0) > 0
+            ? [
+                {
+                  label:
+                    doc.gst_mode === "percent"
+                      ? `GST ${Number(doc.gst_input || 0)}%`
+                      : "GST",
+                  value: formatPkr(doc.gst_amount),
+                },
+              ]
+            : []),
+          {
+            label: "Vendor debit",
+            value: formatPkr(doc.grand_total),
+            strong: true,
+          },
           ...(isOpen
             ? []
             : [

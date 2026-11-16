@@ -97,7 +97,7 @@ export function ExpiryReceiptForm({
   const rateRef = useRef<HTMLInputElement>(null);
   const productSelectRef = useRef<SelectHandle>(null);
 
-  /** Old/manual sale: credit shop balance only — do not add to expiry stock for claim. */
+  /** Old/manual sale: still credits shop ledger and still adds expiry stock for claim. */
   const [balanceOnly, setBalanceOnly] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -500,7 +500,7 @@ export function ExpiryReceiptForm({
             ? "Loading this customer’s billed items for the selected dates…"
             : partyId
               ? balanceOnly
-                ? "Old/manual sale: recover amount cuts this shop’s ledger. Qty is not added to expiry stock, so it cannot be claimed from a company."
+                ? "Old/manual sale: recover amount (after disc % and GST) cuts this shop’s ledger. Qty also goes to expiry on-hand for vendor claim."
                 : "Price minus discount % is the recover amount. That net, after GST, is cut from this customer’s ledger. Qty goes to expiry stock for vendor claim."
               : "Choose a customer, or use No customer if this return should not touch a ledger."}
       </p>
@@ -514,13 +514,18 @@ export function ExpiryReceiptForm({
           className="mt-0.5 rounded border-[var(--border)]"
         />
         <span>
-          <span className="font-medium text-[var(--ink)]">
-            Old sale (no software invoice) — balance only
+          <span className="flex flex-wrap items-center gap-2 font-medium text-[var(--ink)]">
+            Old sale (no software invoice)
+            {balanceOnly ? (
+              <span className="inline-flex items-center rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900">
+                Old bill
+              </span>
+            ) : null}
           </span>
           <span className="mt-0.5 block text-[var(--muted)]">
-            Cut customer balance by the recover amount. Do not put these items into
-            expiry stock. Use normal mode (unchecked) when goods should go to expiry
-            stock for company claim.
+            Use when the shop bought outside software invoices. Still cuts the
+            customer ledger and still puts qty into expiry on-hand for vendor claim.
+            Saved returns show an Old bill badge on the list.
           </span>
         </span>
       </label>

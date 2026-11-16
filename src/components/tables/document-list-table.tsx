@@ -527,6 +527,14 @@ export function DocumentListTable({
                               Pending sync
                             </span>
                           ) : null}
+                          {inv.typeBadge ? (
+                            <span
+                              className="ml-2 inline-flex items-center rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900 dark:text-amber-200"
+                              title="Old/manual sale — no software invoice"
+                            >
+                              {inv.typeBadge}
+                            </span>
+                          ) : null}
                           {inv.edited ? (
                             <span
                               className="ml-2 inline-flex items-center rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-800 dark:text-sky-200"

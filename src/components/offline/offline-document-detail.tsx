@@ -382,7 +382,7 @@ export function OfflineDocumentDetail({
           companyPhone={companyPhone || (doc.company_phone as string) || null}
           title={
             balanceOnly
-              ? "Expiry Return — Balance Only (Old/Manual Sale)"
+              ? "Expiry Return — Old bill"
               : "Expiry Warehouse — Customer Return"
           }
           docNo={view.docNo}
@@ -399,7 +399,7 @@ export function OfflineDocumentDetail({
             {
               label: "Stock treatment",
               value: balanceOnly
-                ? "Balance only — not added to expiry stock (no company claim from this receipt)"
+                ? "Old bill — ledger cut and added to expiry stock for claim"
                 : "Added to expiry stock (available for company claim)",
             },
           ]}

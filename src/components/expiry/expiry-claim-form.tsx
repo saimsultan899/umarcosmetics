@@ -12,10 +12,9 @@ import { handleEnterAsNext } from "@/lib/keyboard/enter-nav";
 import { useSingleSubmit } from "@/lib/forms/single-submit";
 import { offlineAwareSubmit } from "@/lib/offline/offline-submit";
 import { productPieceRateMeta } from "@/lib/product-rate";
-import { createClient } from "@/lib/supabase/client";
 import type { Party, Product, Warehouse } from "@/lib/types/database";
 import type { ExpiryStockRow } from "@/lib/queries/expiry";
-import { formatNumber, formatPkr } from "@/lib/utils";
+import { AMOUNT_PLACEHOLDER, AMOUNT_STEP, formatNumber, formatPkr } from "@/lib/utils";
 import { Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
@@ -26,9 +25,20 @@ type ClaimLine = {
   product_name: string;
   on_hand: number;
   rate: number;
+  discountPct: string;
   send_qty: string;
   send_amount: number;
 };
+
+function money(value: number) {
+  return Math.round(Math.max(0, value) * 100) / 100;
+}
+
+function claimAmount(qty: number, rate: number, discountPct: number) {
+  const gross = qty * rate;
+  const cut = Math.min(gross, (gross * Math.min(Math.max(discountPct, 0), 100)) / 100);
+  return money(Math.max(0, gross - cut));
+}
 
 export function ExpiryClaimForm({
   companyId,
@@ -66,6 +76,8 @@ export function ExpiryClaimForm({
   const [warehouseId, setWarehouseId] = useState(warehouses[0]?.id || "");
   const [claimDate, setClaimDate] = useState(new Date().toISOString().slice(0, 10));
   const [narration, setNarration] = useState("");
+  const [gstMode, setGstMode] = useState<"percent" | "amount">("amount");
+  const [gstInput, setGstInput] = useState("");
   const [lines, setLines] = useState<ClaimLine[]>(() =>
     stock.map((row) => ({
       product_id: row.product_id,
@@ -73,6 +85,7 @@ export function ExpiryClaimForm({
       product_name: row.product_name,
       on_hand: row.qty,
       rate: row.rate,
+      discountPct: "",
       send_qty: "",
       send_amount: 0,
     })),
@@ -80,12 +93,16 @@ export function ExpiryClaimForm({
   const [draftCode, setDraftCode] = useState("");
   const [draftProductId, setDraftProductId] = useState("");
   const [draftQty, setDraftQty] = useState("1");
+  const [draftDiscount, setDraftDiscount] = useState("");
   const [draftRate, setDraftRate] = useState<number>(0);
+  const [draftRateText, setDraftRateText] = useState("");
   const [draftOnHand, setDraftOnHand] = useState<number>(0);
   const [hint, setHint] = useState<string | null>(null);
 
   const codeRef = useRef<HTMLInputElement>(null);
   const qtyRef = useRef<HTMLInputElement>(null);
+  const discountRef = useRef<HTMLInputElement>(null);
+  const rateRef = useRef<HTMLInputElement>(null);
   const productSelectRef = useRef<SelectHandle>(null);
 
   const linkedVendor = useMemo(() => {
@@ -112,6 +129,7 @@ export function ExpiryClaimForm({
           product_name: row.product_name,
           on_hand: row.qty,
           rate: row.rate,
+          discountPct: "",
           send_qty: "",
           send_amount: 0,
         })),
@@ -143,18 +161,20 @@ export function ExpiryClaimForm({
     })) as Product[];
   }, [products, stock, warehouseId, warehouses]);
 
-  function onSendQtyChange(productId: string, raw: string) {
+  function patchLine(
+    productId: string,
+    patch: Partial<Pick<ClaimLine, "send_qty" | "rate" | "discountPct">>,
+  ) {
     setLines((prev) =>
       prev.map((l) => {
         if (l.product_id !== productId) return l;
-        const numQty = Number(raw);
-        const qty = Number.isFinite(numQty) && numQty > 0 ? numQty : 0;
-        const send_amount = Math.round(qty * l.rate * 100) / 100;
-        return {
-          ...l,
-          send_qty: raw,
-          send_amount,
-        };
+        const next = { ...l, ...patch };
+        const amount = claimAmount(
+          Number(next.send_qty) || 0,
+          Number(next.rate) || 0,
+          Number(next.discountPct) || 0,
+        );
+        return { ...next, send_amount: amount };
       }),
     );
   }
@@ -164,20 +184,25 @@ export function ExpiryClaimForm({
       setDraftProductId("");
       setDraftCode("");
       setDraftRate(0);
+      setDraftRateText("");
+      setDraftDiscount("");
       setDraftOnHand(0);
       setHint(null);
       return;
     }
     const inStock = stock.find((s) => s.product_id === p.id);
     const existing = lines.find((l) => l.product_id === p.id);
-    const onHand = inStock ? inStock.qty : (existing ? existing.on_hand : 0);
+    const onHand = inStock ? inStock.qty : existing ? existing.on_hand : 0;
     const rate = inStock
       ? inStock.rate
-      : (existing ? existing.rate : Number(p.purchase_rate || p.sale_rate || 0));
+      : existing
+        ? existing.rate
+        : Number(p.purchase_rate || p.sale_rate || 0);
 
     setDraftProductId(p.id);
     setDraftCode(p.code);
     setDraftRate(rate);
+    setDraftRateText(rate > 0 ? String(money(rate)) : "");
     setDraftOnHand(onHand);
     setHint(null);
     requestAnimationFrame(() => {
@@ -185,6 +210,12 @@ export function ExpiryClaimForm({
       qtyRef.current?.select();
     });
   }
+
+  const draftRecover = claimAmount(
+    Number(draftQty) || 0,
+    Number(draftRateText || draftRate) || 0,
+    Number(draftDiscount) || 0,
+  );
 
   function commitDraft() {
     const product =
@@ -206,44 +237,43 @@ export function ExpiryClaimForm({
     }
     const inStock = stock.find((s) => s.product_id === product.id);
     const existing = lines.find((l) => l.product_id === product.id);
-    const onHand = inStock ? inStock.qty : (existing ? existing.on_hand : 0);
+    const onHand = inStock ? inStock.qty : existing ? existing.on_hand : 0;
     const rate =
-      draftRate > 0
-        ? draftRate
-        : inStock
-          ? inStock.rate
-          : Number(product.purchase_rate || product.sale_rate || 0);
-    const send_amount = Math.round(numQty * rate * 100) / 100;
+      Number(draftRateText) > 0
+        ? Number(draftRateText)
+        : draftRate > 0
+          ? draftRate
+          : inStock
+            ? inStock.rate
+            : Number(product.purchase_rate || product.sale_rate || 0);
+    const send_amount = claimAmount(numQty, rate, Number(draftDiscount) || 0);
 
     setLines((prev) => {
       const idx = prev.findIndex((l) => l.product_id === product.id);
+      const row: ClaimLine = {
+        product_id: product.id,
+        product_code: product.code,
+        product_name: product.name_en,
+        on_hand: onHand,
+        rate,
+        discountPct: draftDiscount,
+        send_qty: qty,
+        send_amount,
+      };
       if (idx >= 0) {
         const next = [...prev];
-        next[idx] = {
-          ...next[idx],
-          send_qty: qty,
-          send_amount,
-        };
+        next[idx] = row;
         return next;
       }
-      return [
-        {
-          product_id: product.id,
-          product_code: product.code,
-          product_name: product.name_en,
-          on_hand: onHand,
-          rate,
-          send_qty: qty,
-          send_amount,
-        },
-        ...prev,
-      ];
+      return [row, ...prev];
     });
 
     setDraftCode("");
     setDraftProductId("");
     setDraftQty("1");
+    setDraftDiscount("");
     setDraftRate(0);
+    setDraftRateText("");
     setDraftOnHand(0);
     setHint(null);
     requestAnimationFrame(() => {
@@ -267,11 +297,26 @@ export function ExpiryClaimForm({
   }
 
   function onDraftQtyKeyDown(e: ReactKeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      e.stopPropagation();
-      commitDraft();
-    }
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    e.stopPropagation();
+    discountRef.current?.focus();
+    discountRef.current?.select();
+  }
+
+  function onDraftDiscountKeyDown(e: ReactKeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    e.stopPropagation();
+    rateRef.current?.focus();
+    rateRef.current?.select();
+  }
+
+  function onDraftRateKeyDown(e: ReactKeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    e.stopPropagation();
+    commitDraft();
   }
 
   function removeLine(productId: string) {
@@ -288,12 +333,17 @@ export function ExpiryClaimForm({
       return {
         ...row,
         sendQty: qty,
-        sendAmount: Math.round(qty * row.rate * 100) / 100,
+        sendAmount: claimAmount(qty, row.rate, Number(row.discountPct) || 0),
       };
     })
     .filter((row) => row.sendQty > 0);
 
-  const grandTotal = sendLines.reduce((s, l) => s + l.sendAmount, 0);
+  const subtotal = sendLines.reduce((s, l) => s + l.sendAmount, 0);
+  const gstAmount =
+    gstMode === "percent"
+      ? money(Math.min(subtotal, (subtotal * Math.min(Number(gstInput) || 0, 100)) / 100))
+      : money(Math.min(subtotal, Number(gstInput) || 0));
+  const grandTotal = money(Math.max(0, subtotal - gstAmount));
   const sendQty = sendLines.reduce((s, l) => s + l.sendQty, 0);
 
   async function onSubmit(e: FormEvent) {
@@ -353,6 +403,10 @@ export function ExpiryClaimForm({
               : null;
           })(),
           warehouse_id: warehouseId || null,
+          subtotal,
+          gst_mode: gstMode,
+          gst_input: Number(gstInput) || 0,
+          gst_amount: gstAmount,
           grand_total: grandTotal,
           narration,
           items: sendLines.map((l) => ({
@@ -361,6 +415,7 @@ export function ExpiryClaimForm({
             product_name: l.product_name,
             qty: l.sendQty,
             rate: l.rate,
+            discount_percent: Number(l.discountPct) || 0,
             amount: l.sendAmount,
           })),
         },
@@ -461,20 +516,20 @@ export function ExpiryClaimForm({
       </div>
 
       <div className="table-grid table-grid--y-scroll">
-        <table className="w-full min-w-[760px] text-sm">
+        <table className="w-full min-w-[980px] text-sm">
           <thead>
             <tr>
-              <th className="w-32 min-w-[7.5rem]">Code</th>
-              <th className="min-w-[14rem]">Product</th>
+              <th className="w-28 min-w-[6.5rem]">Code</th>
+              <th className="min-w-[12rem]">Product</th>
               <th className="w-24">On hand</th>
+              <th className="w-24">Qty</th>
+              <th className="w-24">Disc %</th>
               <th className="w-28">Rate</th>
-              <th className="w-28">Send qty</th>
               <th className="w-32">Amount</th>
               <th className="w-12 text-center" />
             </tr>
           </thead>
           <tbody>
-            {/* In-row quick entry row */}
             <tr className="bg-[var(--brand-soft)]/25">
               <td>
                 <Input
@@ -517,9 +572,6 @@ export function ExpiryClaimForm({
               <td className="px-3 py-2 tabular-nums text-xs text-[var(--muted)]">
                 {draftOnHand > 0 ? formatNumber(draftOnHand, 2) : "—"}
               </td>
-              <td className="px-3 py-2 tabular-nums text-xs text-[var(--muted)]">
-                {draftRate > 0 ? formatNumber(draftRate, 2) : "—"}
-              </td>
               <td>
                 <Input
                   ref={qtyRef}
@@ -533,12 +585,35 @@ export function ExpiryClaimForm({
                   onKeyDown={onDraftQtyKeyDown}
                 />
               </td>
+              <td>
+                <Input
+                  ref={discountRef}
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  placeholder="0"
+                  value={draftDiscount}
+                  className="h-8 px-2 text-sm"
+                  onChange={(e) => setDraftDiscount(e.target.value)}
+                  onKeyDown={onDraftDiscountKeyDown}
+                />
+              </td>
+              <td>
+                <Input
+                  ref={rateRef}
+                  type="number"
+                  min="0"
+                  step={AMOUNT_STEP}
+                  placeholder="Rate"
+                  value={draftRateText}
+                  className="h-8 px-2 text-sm"
+                  onChange={(e) => setDraftRateText(e.target.value)}
+                  onKeyDown={onDraftRateKeyDown}
+                />
+              </td>
               <td className="px-3 py-2 tabular-nums text-xs font-medium">
-                {draftRate > 0 && Number(draftQty) > 0
-                  ? formatPkr(
-                      Math.round(Number(draftQty) * draftRate * 100) / 100,
-                    )
-                  : "Rs 0.00"}
+                {draftRecover > 0 ? formatPkr(draftRecover) : "Rs 0.00"}
               </td>
               <td className="text-center">
                 <Button
@@ -547,7 +622,7 @@ export function ExpiryClaimForm({
                   variant="secondary"
                   className="h-8 px-2.5 text-xs"
                   onClick={commitDraft}
-                  title="Add product (or press Enter on Send qty)"
+                  title="Add product (or press Enter on Rate)"
                 >
                   Add
                 </Button>
@@ -557,7 +632,7 @@ export function ExpiryClaimForm({
             {lines.length === 0 ? (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   className="py-4 text-center text-sm text-[var(--muted)]"
                 >
                   Added products appear here. Keep using the top row to add more.
@@ -575,9 +650,6 @@ export function ExpiryClaimForm({
                   <td className="px-3 py-2 tabular-nums">
                     {formatNumber(line.on_hand, 2)}
                   </td>
-                  <td className="px-3 py-2 tabular-nums">
-                    {formatNumber(line.rate, 2)}
-                  </td>
                   <td className="px-2 py-1">
                     <Input
                       type="number"
@@ -586,11 +658,40 @@ export function ExpiryClaimForm({
                       step="1"
                       value={line.send_qty}
                       onChange={(e) =>
-                        onSendQtyChange(line.product_id, e.target.value)
+                        patchLine(line.product_id, { send_qty: e.target.value })
                       }
                     />
                   </td>
-                  <td className="px-3 py-2 tabular-nums">{formatPkr(line.send_amount)}</td>
+                  <td className="px-2 py-1">
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      value={line.discountPct}
+                      onChange={(e) =>
+                        patchLine(line.product_id, {
+                          discountPct: e.target.value,
+                        })
+                      }
+                    />
+                  </td>
+                  <td className="px-2 py-1">
+                    <Input
+                      type="number"
+                      min="0"
+                      step={AMOUNT_STEP}
+                      value={line.rate}
+                      onChange={(e) =>
+                        patchLine(line.product_id, {
+                          rate: Number(e.target.value) || 0,
+                        })
+                      }
+                    />
+                  </td>
+                  <td className="px-3 py-2 tabular-nums">
+                    {formatPkr(line.send_amount)}
+                  </td>
                   <td className="px-2 py-1 text-center">
                     <button
                       type="button"
@@ -610,16 +711,46 @@ export function ExpiryClaimForm({
         </table>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-        <span className="font-semibold">
-          {formatNumber(sendLines.length, 0)} products
-        </span>
-        <span className="text-[var(--muted)]">
-          Total qty {formatNumber(sendQty, 0)}
-        </span>
-        <span className="font-semibold">
-          Claim amount {formatPkr(grandTotal)}
-        </span>
+      <div className="flex flex-wrap items-end justify-between gap-4 text-sm">
+        <div className="space-y-1">
+          <p className="font-semibold">{formatNumber(sendLines.length, 0)} products</p>
+          <p className="text-[var(--muted)]">Total qty {formatNumber(sendQty, 0)}</p>
+          <p>Claim {formatPkr(subtotal)}</p>
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          <Label className="text-xs uppercase tracking-wide text-[var(--muted)]">GST</Label>
+          <div className="inline-flex rounded-md border border-[var(--border)] p-0.5 text-[10px] font-semibold uppercase">
+            <button
+              type="button"
+              className={`rounded px-1.5 py-0.5 ${gstMode === "percent" ? "bg-[var(--brand)] text-white" : "text-[var(--muted)]"}`}
+              onClick={() => setGstMode("percent")}
+            >
+              %
+            </button>
+            <button
+              type="button"
+              className={`rounded px-1.5 py-0.5 ${gstMode === "amount" ? "bg-[var(--brand)] text-white" : "text-[var(--muted)]"}`}
+              onClick={() => setGstMode("amount")}
+            >
+              Amount
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              min="0"
+              step={AMOUNT_STEP}
+              value={gstInput}
+              onChange={(e) => setGstInput(e.target.value)}
+              placeholder={gstMode === "percent" ? "0" : AMOUNT_PLACEHOLDER}
+              className="h-9 w-28 text-right tabular-nums"
+            />
+            <span className="min-w-[5rem] text-right text-[var(--muted)]">
+              − {formatPkr(gstAmount)}
+            </span>
+          </div>
+          <p className="font-semibold">Vendor debit {formatPkr(grandTotal)}</p>
+        </div>
       </div>
 
       {error ? (

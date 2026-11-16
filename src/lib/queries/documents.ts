@@ -41,6 +41,8 @@ export type DocumentListRow = {
   narration?: string;
   /** Short badge when a document has no party, such as a no-customer expiry return. */
   partyBadge?: string;
+  /** Doc-type chip next to the number (e.g. Old bill on expiry returns). */
+  typeBadge?: string;
 };
 
 export type DocumentListSummary = {
@@ -183,6 +185,10 @@ function mapDocumentRow(
       : "—",
     partyBadge:
       config.table === "expiry_receipts" && !partyObj ? "No party" : undefined,
+    typeBadge:
+      config.table === "expiry_receipts" && Boolean(inv.balance_only)
+        ? "Old bill"
+        : undefined,
     sectorLabel: sectorLabel || undefined,
     warehouseLabel: whObj?.name || "—",
     paymentType: config.paymentField
@@ -529,7 +535,7 @@ const EXPIRY_RECEIPT_CONFIG: DocumentTableConfig = {
       ? [
           {
             label: "Type",
-            value: "Balance only (old/manual sale — no expiry stock)",
+            value: "Old bill (manual sale)",
           },
         ]
       : []),
