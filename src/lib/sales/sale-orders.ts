@@ -1,5 +1,6 @@
 export type SaleOrderLine = {
   id: string;
+  product_id: string;
   product_code: string | null;
   product_name: string | null;
   qty: number;
@@ -9,6 +10,15 @@ export type SaleOrderLine = {
   warehouse_id: string;
   warehouse_name: string;
   sale_invoice_id: string | null;
+};
+
+export type SaleOrderCompanyBill = {
+  warehouseId: string;
+  name: string;
+  amount: number;
+  qty: number;
+  status: "open" | "fulfilled" | "mixed";
+  invoiceId: string | null;
 };
 
 export type SaleOrderListRow = {
@@ -24,6 +34,7 @@ export type SaleOrderListRow = {
   qty: number;
   amount: number;
   companies: string[];
+  companyBills: SaleOrderCompanyBill[];
 };
 
 export type SaleOrderDetail = SaleOrderListRow & {
@@ -48,6 +59,7 @@ export type SaleOrderQueryRow = {
   salesmen: SalesmanEmbed;
   sale_order_lines: Array<{
     id: string;
+    product_id: string;
     product_code: string | null;
     product_name: string | null;
     qty: number | string;
@@ -70,6 +82,7 @@ export function mapSaleOrder(row: SaleOrderQueryRow): SaleOrderDetail {
   const salesman = one(row.salesmen);
   const lines = (row.sale_order_lines || []).map((line) => ({
     id: line.id,
+    product_id: line.product_id,
     product_code: line.product_code,
     product_name: line.product_name,
     qty: Number(line.qty || 0),
@@ -81,6 +94,32 @@ export function mapSaleOrder(row: SaleOrderQueryRow): SaleOrderDetail {
     sale_invoice_id: line.sale_invoice_id,
   }));
   const companies = [...new Set(lines.map((line) => line.warehouse_name))];
+  const billMap = new Map<string, SaleOrderCompanyBill>();
+  for (const line of lines) {
+    const current = billMap.get(line.warehouse_id);
+    if (!current) {
+      billMap.set(line.warehouse_id, {
+        warehouseId: line.warehouse_id,
+        name: line.warehouse_name,
+        amount: line.amount,
+        qty: line.qty,
+        status: line.status === "fulfilled" ? "fulfilled" : "open",
+        invoiceId: line.sale_invoice_id,
+      });
+      continue;
+    }
+    current.amount += line.amount;
+    current.qty += line.qty;
+    if (!current.invoiceId && line.sale_invoice_id) {
+      current.invoiceId = line.sale_invoice_id;
+    }
+    if (
+      (current.status === "open" && line.status === "fulfilled") ||
+      (current.status === "fulfilled" && line.status === "open")
+    ) {
+      current.status = "mixed";
+    }
+  }
   return {
     id: row.id,
     orderNo: row.order_no,
@@ -94,10 +133,11 @@ export function mapSaleOrder(row: SaleOrderQueryRow): SaleOrderDetail {
     qty: lines.reduce((sum, line) => sum + line.qty, 0),
     amount: lines.reduce((sum, line) => sum + line.amount, 0),
     companies,
+    companyBills: [...billMap.values()],
     lines,
     invoiceIds: row.fulfilled_invoice_ids || [],
   };
 }
 
 export const SALE_ORDER_SELECT =
-  "id, order_no, order_date, status, note, salesman_id, party_id, fulfilled_invoice_ids, parties!sale_orders_party_id_fkey(party_code, name_en), salesmen!sale_orders_salesman_id_fkey(full_name), sale_order_lines(id, product_code, product_name, qty, rate, amount, status, warehouse_id, sale_invoice_id, warehouses(name))";
+  "id, order_no, order_date, status, note, salesman_id, party_id, fulfilled_invoice_ids, parties!sale_orders_party_id_fkey(party_code, name_en), salesmen!sale_orders_salesman_id_fkey(full_name), sale_order_lines(id, product_id, product_code, product_name, qty, rate, amount, status, warehouse_id, sale_invoice_id, warehouses(name))";

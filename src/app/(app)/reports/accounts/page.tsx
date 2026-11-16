@@ -9,13 +9,16 @@ import { UrlFilterForm } from "@/components/reports/url-filter-form";
 import { Select } from "@/components/ui/select";
 import { requireCompanyContext } from "@/lib/auth";
 import { effectivePermissions } from "@/lib/access/permissions";
-import { localDateIso } from "@/lib/dates";
+import { normalizeReportDateRange } from "@/lib/dates";
 import { LIST_STATS_COOKIE, rememberStats } from "@/lib/list-stats-revision";
 import { fetchAllPages } from "@/lib/supabase/fetch-all-pages";
 import { cookies } from "next/headers";
 import { formatCompactPkr, formatPkr} from "@/lib/utils";
 import { ArrowDownLeft, ArrowUpRight, Scale } from "lucide-react";
 import Link from "next/link";
+
+const dateInputClass =
+  "h-10 w-full rounded-lg border border-[var(--border)] bg-white px-3 text-sm";
 
 function distinctSectors(values: Array<string | null | undefined>) {
   const seen = new Set<string>();
@@ -70,7 +73,13 @@ function ledgerDocHref(table: string, id: string) {
 export default async function AccountsReportPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; party?: string; sector?: string }>;
+  searchParams: Promise<{
+    view?: string;
+    party?: string;
+    sector?: string;
+    from?: string;
+    to?: string;
+  }>;
 }) {
   const sp = await searchParams;
   const { supabase, company, offline, membership, profile } =
@@ -83,6 +92,9 @@ export default async function AccountsReportPage({
   const canInactivate = permissions.includes("inactivate_records");
   const view = sp.view || "receivable";
   const sector = (sp.sector || "").trim();
+  const { from, to } = normalizeReportDateRange(sp.from, sp.to);
+  const dateQs = `&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+  const periodLabel = `${from} to ${to}`;
 
   if (offline) {
     const { OfflineAccountsReportsPage } = await import(
@@ -95,14 +107,14 @@ export default async function AccountsReportPage({
         organizationId={company.organization_id}
         canEditParty={canEditParty}
         canInactivate={canInactivate}
-        searchParams={sp}
+        searchParams={{ ...sp, from, to }}
       />
     );
   }
 
   const { data: sheet } = await supabase.rpc("get_recovery_sheet", {
     p_company_id: company.id,
-    p_as_of: localDateIso(),
+    p_as_of: to,
     p_city: null,
     p_route: null,
   });
@@ -162,21 +174,24 @@ export default async function AccountsReportPage({
 
   if (view === "ledger" && selectedParty) {
     const partyId = selectedParty.id;
-    const [{ data: opening }, { data: ledger }, { data: partyRecoveries }, { data: linkedWh }] =
+    const [{ data: openingRow }, { data: ledger }, { data: partyRecoveries }, { data: linkedWh }] =
       await Promise.all([
         supabase
           .from("parties")
           .select("opening_balance")
           .eq("id", partyId)
           .maybeSingle(),
+        // Load through To date so opening (before From) excludes cancelled docs
+        // the same way the period lines do.
         supabase
           .from("ledger_entries")
           .select("entry_date, debit, credit, narration, voucher_type, ref_table, ref_id")
           .eq("company_id", company.id)
           .eq("party_id", partyId)
+          .lte("entry_date", to)
           .order("entry_date", { ascending: true })
           .order("created_at", { ascending: true })
-          .limit(500),
+          .limit(5000),
         supabase
           .from("recoveries")
           .select("id, voucher_id")
@@ -303,11 +318,23 @@ export default async function AccountsReportPage({
     markCancelled("expiry_receipts", expiryReceiptDocs.data);
     markCancelled("expiry_claims", expiryClaimDocs.data);
 
-    const visibleLedger = (ledger || []).filter((e) => {
+    const visibleAll = (ledger || []).filter((e) => {
       if (!e.ref_table || !e.ref_id) return true;
       const key = `${e.ref_table}:${e.ref_id}`;
       return !cancelledLedgerRefs.has(key);
     });
+
+    let running = Number(openingRow?.opening_balance || 0);
+    const periodLedger: typeof visibleAll = [];
+    for (const e of visibleAll) {
+      const entryDate = String(e.entry_date || "").slice(0, 10);
+      if (entryDate && entryDate < from) {
+        running += Number(e.debit) - Number(e.credit);
+        continue;
+      }
+      if (entryDate && entryDate > to) continue;
+      periodLedger.push(e);
+    }
 
     const companyByRef = new Map<string, string>();
     const remember = (
@@ -333,18 +360,17 @@ export default async function AccountsReportPage({
       ? `${selectedParty.party_code} — ${selectedParty.name_en}`
       : "Customer";
 
-    let running = Number(opening?.opening_balance || 0);
     ledgerRows = [
       {
-        Date: "",
+        Date: from,
         Type: "OP",
         ...(showCompany ? { Company: "—" } : {}),
-        Narration: "Opening balance",
+        Narration: `Opening balance (${from})`,
         Debit: running > 0 ? running : 0,
         Credit: running < 0 ? Math.abs(running) : 0,
         Balance: signedText(running),
       },
-      ...visibleLedger.map((e) => {
+      ...periodLedger.map((e) => {
         running += Number(e.debit) - Number(e.credit);
         const recoveryId =
           e.ref_id && (e.voucher_type === "CR" || e.narration === "Recovery")
@@ -451,10 +477,10 @@ export default async function AccountsReportPage({
             key={key}
             href={
               key === "ledger"
-                ? `/reports/accounts?view=ledger${sp.party ? `&party=${sp.party}` : ""}${sectorQs}`
+                ? `/reports/accounts?view=ledger${sp.party ? `&party=${sp.party}` : ""}${sectorQs}${dateQs}`
                 : key === "salesman"
-                  ? "/reports/salesman-ledger"
-                  : `/reports/accounts?view=${key}${sectorQs}`
+                  ? `/reports/salesman-ledger?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+                  : `/reports/accounts?view=${key}${sectorQs}${dateQs}`
             }
             className={`rounded-full px-3 py-1.5 text-sm font-medium ${
               view === key
@@ -523,13 +549,36 @@ export default async function AccountsReportPage({
 
       {view === "ledger" ? (
         <div className="space-y-4">
-          <UrlFilterForm className="panel no-print flex flex-wrap items-end gap-3 p-4">
+          <UrlFilterForm className="panel no-print grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
+                From date
+              </label>
+              <input
+                type="date"
+                name="from"
+                defaultValue={from}
+                className={dateInputClass}
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
+                To date
+              </label>
+              <input
+                type="date"
+                name="to"
+                defaultValue={to}
+                className={dateInputClass}
+              />
+            </div>
             <AccountsSectorFilter
               options={sectorOptions.length ? sectorOptions : distinctSectors((parties || []).map((p) => p.route))}
-              keepKeys={["view"]}
+              keepKeys={["view", "from", "to"]}
               clearPartyOnChange
+              className="min-w-0"
             />
-            <div className="min-w-[200px] flex-1 basis-[16rem] sm:max-w-md">
+            <div className="min-w-0 sm:col-span-2 lg:col-span-1 xl:col-span-2">
               <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
                 Customer / vendor
               </label>
@@ -554,8 +603,8 @@ export default async function AccountsReportPage({
             <ReportFilterActions
               submitLabel="Load ledger"
               nowrap
-              keepKeys={["view", "sector"]}
-              className="shrink-0"
+              keepKeys={["view", "sector", "from", "to"]}
+              className="shrink-0 sm:col-span-2 lg:col-span-3 xl:col-span-1"
             />
           </UrlFilterForm>
 
@@ -564,40 +613,78 @@ export default async function AccountsReportPage({
             companyName={company.name}
             subtitle={
               selectedParty
-                ? `${ledgerRows.length} lines · closing = total debit − total credit${
+                ? `${periodLabel} · ${ledgerRows.length} lines · closing = total debit − total credit${
                     linkedCompanyNames.length
                       ? ` · Companies: ${linkedCompanyNames.join(", ")}`
                       : ""
                   }${sector ? ` · Sector: ${sector}` : ""}`
                 : sector
-                  ? `Select a customer / vendor in ${sector}`
-                  : "Select a customer / vendor"
+                  ? `Select a customer / vendor in ${sector} · ${periodLabel}`
+                  : `Select a customer / vendor · ${periodLabel}`
             }
             rows={selectedParty ? ledgerRows : []}
-            filename={`party-ledger-${sp.party || "none"}`}
+            filename={`party-ledger-${sp.party || "none"}-${from}-${to}`}
           />
         </div>
       ) : (
-        <ReportTable
-          title={
-            view === "payable"
-              ? "Vendor payables"
-              : view === "all"
-                ? "All party balances"
-                : "Customer balances"
-          }
-          companyName={company.name}
-          subtitle={`${balanceRows.length} parties${sector ? ` · Sector: ${sector}` : ""}`}
-          rows={balanceRows}
-          filename={`accounts-${view}`}
-          filters={
-            <AccountsSectorFilter
-              options={sectorOptions}
-              keepKeys={["view"]}
-              compact
+        <div className="space-y-4">
+          <UrlFilterForm className="panel no-print grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
+                From date
+              </label>
+              <input
+                type="date"
+                name="from"
+                defaultValue={from}
+                className={dateInputClass}
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
+                To date
+              </label>
+              <input
+                type="date"
+                name="to"
+                defaultValue={to}
+                className={dateInputClass}
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
+                Sector
+              </label>
+              <Select
+                name="sector"
+                defaultValue={sector}
+                options={[
+                  { value: "", label: "All sectors" },
+                  ...sectorOptions.map((s) => ({ value: s, label: s })),
+                ]}
+              />
+            </div>
+            <input type="hidden" name="view" value={view} />
+            <ReportFilterActions
+              submitLabel="Run report"
+              keepKeys={["view", "from", "to"]}
             />
-          }
-        />
+          </UrlFilterForm>
+
+          <ReportTable
+            title={
+              view === "payable"
+                ? "Vendor payables"
+                : view === "all"
+                  ? "All party balances"
+                  : "Customer balances"
+            }
+            companyName={company.name}
+            subtitle={`${periodLabel} · balances as of ${to} · ${balanceRows.length} parties${sector ? ` · Sector: ${sector}` : ""}`}
+            rows={balanceRows}
+            filename={`accounts-${view}-${from}-${to}`}
+          />
+        </div>
       )}
     </div>
   );

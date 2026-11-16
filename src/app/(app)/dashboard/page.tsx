@@ -295,44 +295,55 @@ export default async function DashboardPage() {
         </StatsGrid>
       </DashboardStatsPanel>
 
-      <section className="rounded-2xl border border-[var(--border)] bg-white">
-        <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-3">
-          <div>
-            <h2 className="text-sm font-semibold">Open salesman orders</h2>
-            <p className="text-xs text-[var(--muted)]">
-              Fulfil a company to post the sale and move stock
-            </p>
-          </div>
+      <ChartCard
+        title="Open salesman orders"
+        subtitle="Fulfil a company to post the sale and move stock"
+        action={
           <Link href="/sales/orders" className="text-sm font-medium text-[var(--brand)]">
             All orders
           </Link>
-        </div>
+        }
+      >
         {openOrders.length === 0 ? (
-          <p className="px-4 py-6 text-sm text-[var(--muted)]">No open orders.</p>
+          <p className="py-2 text-sm text-[var(--muted)]">No open orders.</p>
         ) : (
-          <ul>
-            {openOrders.map((order) => (
-              <li key={order.id} className="border-b border-[var(--border)] last:border-0">
-                <Link
-                  href={`/sales/orders/${order.id}`}
-                  className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm hover:bg-[var(--surface-2)]"
-                >
-                  <span>
-                    <span className="font-medium">{order.orderNo}</span>
-                    <span className="text-[var(--muted)]">
-                      {" "}
-                      · {order.salesmanName} · {order.partyName}
-                    </span>
-                  </span>
-                  <span>
-                    {order.companies.join(", ") || "—"} · {formatPkr(order.amount)}
-                  </span>
-                </Link>
-              </li>
-            ))}
+          <ul className="space-y-2">
+            {openOrders.map((order) => {
+              const waiting = order.companyBills.filter(
+                (bill) => bill.status === "open" || bill.status === "mixed",
+              );
+              return (
+                <li key={order.id}>
+                  <Link
+                    href={`/sales/orders/${order.id}`}
+                    className="panel-list-item block no-underline text-[var(--ink)]"
+                  >
+                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="min-w-0 truncate">
+                          <span className="font-semibold">{order.orderNo}</span>
+                          <span className="text-[var(--muted)]">
+                            {" "}
+                            · {order.salesmanName} · {order.partyName}
+                          </span>
+                        </span>
+                        <span className="shrink-0 font-semibold tabular-nums">
+                          {formatPkr(order.amount)}
+                        </span>
+                      </div>
+                      <p className="text-xs text-[var(--muted)]">
+                        {waiting.length
+                          ? `${waiting.length} separate waiting bill${waiting.length === 1 ? "" : "s"}: ${waiting.map((bill) => bill.name).join(" · ")}`
+                          : order.companies.join(" · ") || "—"}
+                      </p>
+                    </div>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         )}
-      </section>
+      </ChartCard>
 
       <div className="grid gap-4 xl:grid-cols-3">
         <ChartCard

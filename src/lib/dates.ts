@@ -17,3 +17,15 @@ export function monthStartLocal(d = new Date()): string {
 export function monthEndLocal(d = new Date()): string {
   return localDateIso(new Date(d.getFullYear(), d.getMonth() + 1, 0));
 }
+
+/** Normalize from/to; swap if inverted. Defaults to month start → today. */
+export function normalizeReportDateRange(fromRaw?: string | null, toRaw?: string | null) {
+  let from = (fromRaw || "").trim() || monthStartLocal();
+  let to = (toRaw || "").trim() || localDateIso();
+  if (from > to) {
+    const swap = from;
+    from = to;
+    to = swap;
+  }
+  return { from, to };
+}

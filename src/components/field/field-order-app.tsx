@@ -266,10 +266,11 @@ export function FieldOrderApp({
   }, [shop, companyId]);
 
   function changeQty(productId: string, next: number) {
+    const cleaned = Number.isFinite(next) ? Math.max(0, next) : 0;
     setQty((current) => {
       const copy = { ...current };
-      if (next <= 0) delete copy[productId];
-      else copy[productId] = next;
+      if (cleaned <= 0) delete copy[productId];
+      else copy[productId] = cleaned;
       return copy;
     });
   }
@@ -902,15 +903,37 @@ function ProductPicker({
                               <button
                                 type="button"
                                 onClick={() => onQty(row.id, count - 1)}
-                                className="h-8 w-8 rounded-[var(--radius-sm)] border border-[var(--field-border)] bg-white text-lg"
+                                className="h-8 w-8 shrink-0 rounded-[var(--radius-sm)] border border-[var(--field-border)] bg-white text-lg"
+                                aria-label={`Decrease qty for ${row.name_en}`}
                               >
                                 −
                               </button>
-                              <span className="w-7 text-center text-sm font-semibold">{count}</span>
+                              <input
+                                type="number"
+                                min={0}
+                                step="any"
+                                inputMode="decimal"
+                                value={count || ""}
+                                placeholder="0"
+                                aria-label={`Qty for ${row.name_en}`}
+                                onFocus={(e) => e.currentTarget.select()}
+                                onChange={(e) => {
+                                  const raw = e.target.value.trim();
+                                  if (raw === "") {
+                                    onQty(row.id, 0);
+                                    return;
+                                  }
+                                  const n = Number(raw);
+                                  if (!Number.isFinite(n)) return;
+                                  onQty(row.id, Math.max(0, n));
+                                }}
+                                className="h-8 w-14 rounded-[var(--radius-sm)] border border-[var(--field-border)] bg-white px-1 text-center text-sm font-semibold tabular-nums outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-soft)]"
+                              />
                               <button
                                 type="button"
                                 onClick={() => onQty(row.id, count + 1)}
-                                className="h-8 w-8 rounded-[var(--radius-sm)] bg-[var(--brand)] text-lg text-white"
+                                className="h-8 w-8 shrink-0 rounded-[var(--radius-sm)] bg-[var(--brand)] text-lg text-white"
+                                aria-label={`Increase qty for ${row.name_en}`}
                               >
                                 +
                               </button>

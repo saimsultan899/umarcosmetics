@@ -10,6 +10,7 @@ import { ReportFilterActions } from "@/components/reports/report-filters";
 import { UrlFilterForm } from "@/components/reports/url-filter-form";
 import { Select } from "@/components/ui/select";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
+import { normalizeReportDateRange } from "@/lib/dates";
 import { offlineAccountsBalances, offlinePartyLedger } from "@/lib/offline/offline-reports";
 import { getCachedRows } from "@/lib/offline/local-db";
 import { formatCompactPkr, formatPkr} from "@/lib/utils";
@@ -17,6 +18,9 @@ import { ArrowDownLeft, ArrowUpRight, Scale } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+
+const dateInputClass =
+  "h-10 w-full rounded-lg border border-[var(--border)] bg-white px-3 text-sm";
 
 function signedText(balance: number) {
   if (Math.abs(balance) < 0.005) return "Nil";
@@ -51,21 +55,37 @@ export function OfflineAccountsReportsPage({
   organizationId: string;
   canEditParty?: boolean;
   canInactivate?: boolean;
-  searchParams?: { view?: string; party?: string; sector?: string };
+  searchParams?: {
+    view?: string;
+    party?: string;
+    sector?: string;
+    from?: string;
+    to?: string;
+  };
 }) {
   const urlSp = useSearchParams();
 
   const sp = useMemo(() => {
+    const { from, to } = normalizeReportDateRange(
+      urlSp.get("from") ?? initialSp?.from,
+      urlSp.get("to") ?? initialSp?.to,
+    );
     return {
       view: urlSp.get("view") ?? initialSp?.view ?? "receivable",
       party: urlSp.get("party") ?? initialSp?.party ?? undefined,
       sector: urlSp.get("sector") ?? initialSp?.sector ?? undefined,
+      from,
+      to,
     };
   }, [urlSp, initialSp]);
 
   const view = sp.view || "receivable";
   const sector = (sp.sector || "").trim();
+  const from = sp.from;
+  const to = sp.to;
   const sectorQs = sector ? `&sector=${encodeURIComponent(sector)}` : "";
+  const dateQs = `&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+  const periodLabel = `${from} to ${to}`;
 
   const [loading, setLoading] = useState(true);
   const [allBalances, setAllBalances] = useState<
@@ -93,7 +113,7 @@ export function OfflineAccountsReportsPage({
       setLoading(true);
       try {
         const [bals, partyRows] = await Promise.all([
-          offlineAccountsBalances(companyId),
+          offlineAccountsBalances(companyId, to),
           getCachedRows("parties", companyId),
         ]);
 
@@ -109,7 +129,7 @@ export function OfflineAccountsReportsPage({
         );
 
         if (view === "ledger" && sp.party) {
-          const l = await offlinePartyLedger(companyId, sp.party);
+          const l = await offlinePartyLedger(companyId, sp.party, from, to);
           if (!cancelled) setLedgerData(l);
         }
       } catch (err) {
@@ -123,7 +143,7 @@ export function OfflineAccountsReportsPage({
     return () => {
       cancelled = true;
     };
-  }, [companyId, view, sp.party]);
+  }, [companyId, view, sp.party, from, to]);
 
   const sectorOptions = useMemo(
     () =>
@@ -242,10 +262,10 @@ export function OfflineAccountsReportsPage({
             key={key}
             href={
               key === "ledger"
-                ? `/reports/accounts?view=ledger${sp.party ? `&party=${sp.party}` : ""}${sectorQs}`
+                ? `/reports/accounts?view=ledger${sp.party ? `&party=${sp.party}` : ""}${sectorQs}${dateQs}`
                 : key === "salesman"
-                  ? "/reports/salesman-ledger"
-                  : `/reports/accounts?view=${key}${sectorQs}`
+                  ? `/reports/salesman-ledger?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+                  : `/reports/accounts?view=${key}${sectorQs}${dateQs}`
             }
             className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
               view === key
@@ -306,16 +326,39 @@ export function OfflineAccountsReportsPage({
         <>
           <UrlFilterForm
             action="/reports/accounts"
-            className="panel no-print flex flex-wrap items-end gap-3 p-4"
+            className="panel no-print grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
           >
             <input type="hidden" name="view" value="ledger" />
             {sector ? <input type="hidden" name="sector" value={sector} /> : null}
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
+                From date
+              </label>
+              <input
+                type="date"
+                name="from"
+                defaultValue={from}
+                className={dateInputClass}
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
+                To date
+              </label>
+              <input
+                type="date"
+                name="to"
+                defaultValue={to}
+                className={dateInputClass}
+              />
+            </div>
             <AccountsSectorFilter
               options={sectorOptions}
-              keepKeys={["view"]}
+              keepKeys={["view", "from", "to"]}
               clearPartyOnChange
+              className="min-w-0"
             />
-            <div className="min-w-[200px] flex-1 basis-[16rem] sm:max-w-md">
+            <div className="min-w-0 sm:col-span-2 lg:col-span-1 xl:col-span-2">
               <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
                 Select customer / vendor
               </label>
@@ -338,8 +381,8 @@ export function OfflineAccountsReportsPage({
             <ReportFilterActions
               submitLabel="Load ledger"
               nowrap
-              keepKeys={["view", "sector"]}
-              className="shrink-0"
+              keepKeys={["view", "sector", "from", "to"]}
+              className="shrink-0 sm:col-span-2 lg:col-span-3 xl:col-span-1"
             />
           </UrlFilterForm>
 
@@ -347,39 +390,80 @@ export function OfflineAccountsReportsPage({
             <ReportTable
               title={`Ledger — ${ledgerData.partyName || "Party"}`}
               companyName={companyName}
-              subtitle={`Running ledger with opening balance and running totals${sector ? ` · Sector: ${sector}` : ""}`}
+              subtitle={`${periodLabel} · running ledger with opening balance${sector ? ` · Sector: ${sector}` : ""}`}
               rows={ledgerData.rows}
-              filename={`ledger-${sp.party}`}
+              filename={`ledger-${sp.party}-${from}-${to}`}
             />
           ) : (
             <p className="rounded-lg border border-dashed border-[var(--border)] p-6 text-center text-sm text-[var(--muted)]">
               {sector
-                ? `Select a customer or vendor in ${sector} to load their running account ledger.`
-                : "Select a customer or vendor above to load their running account ledger."}
+                ? `Select a customer or vendor in ${sector} to load their running account ledger (${periodLabel}).`
+                : `Select a customer or vendor above to load their running account ledger (${periodLabel}).`}
             </p>
           )}
         </>
       ) : (
-        <ReportTable
-          title={
-            view === "payable"
-              ? "Vendor payables (Credit balances)"
-              : view === "all"
-                ? "All party balances"
-                : "Customer receivables (Debit balances)"
-          }
-          companyName={companyName}
-          subtitle={`${filtered.length} parties · Receivables ${formatPkr(receivableTotal)} · Payables ${formatPkr(payableTotal)}${sector ? ` · Sector: ${sector}` : ""}`}
-          rows={balanceRows}
-          filename={`accounts-${view}`}
-          filters={
-            <AccountsSectorFilter
-              options={sectorOptions}
-              keepKeys={["view"]}
-              compact
+        <div className="space-y-4">
+          <UrlFilterForm
+            action="/reports/accounts"
+            className="panel no-print grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4"
+          >
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
+                From date
+              </label>
+              <input
+                type="date"
+                name="from"
+                defaultValue={from}
+                className={dateInputClass}
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
+                To date
+              </label>
+              <input
+                type="date"
+                name="to"
+                defaultValue={to}
+                className={dateInputClass}
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase text-[var(--muted)]">
+                Sector
+              </label>
+              <Select
+                name="sector"
+                defaultValue={sector}
+                options={[
+                  { value: "", label: "All sectors" },
+                  ...sectorOptions.map((s) => ({ value: s, label: s })),
+                ]}
+              />
+            </div>
+            <input type="hidden" name="view" value={view} />
+            <ReportFilterActions
+              submitLabel="Run report"
+              keepKeys={["view", "from", "to"]}
             />
-          }
-        />
+          </UrlFilterForm>
+
+          <ReportTable
+            title={
+              view === "payable"
+                ? "Vendor payables (Credit balances)"
+                : view === "all"
+                  ? "All party balances"
+                  : "Customer receivables (Debit balances)"
+            }
+            companyName={companyName}
+            subtitle={`${periodLabel} · balances as of ${to} · ${filtered.length} parties · Receivables ${formatPkr(receivableTotal)} · Payables ${formatPkr(payableTotal)}${sector ? ` · Sector: ${sector}` : ""}`}
+            rows={balanceRows}
+            filename={`accounts-${view}-${from}-${to}`}
+          />
+        </div>
       )}
     </div>
   );

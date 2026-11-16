@@ -236,14 +236,18 @@ export function OfflineReportPanel({
           setParties(opts);
           const activeView = view || "receivable";
           if (activeView === "ledger" && partyId) {
-            const ledger = await offlinePartyLedger(companyId, partyId);
+            const ledger = await offlinePartyLedger(companyId, partyId, from, to);
             if (cancelled) return;
             setCount(ledger.rows.length);
             setTotal(0);
             setRows(ledger.rows);
-            setSubtitle(`Ledger · ${ledger.partyName}`);
+            setSubtitle(
+              from && to
+                ? `Ledger · ${ledger.partyName} · ${from} to ${to}`
+                : `Ledger · ${ledger.partyName}`,
+            );
           } else {
-            const all = await offlineAccountsBalances(companyId);
+            const all = await offlineAccountsBalances(companyId, to || null);
             if (cancelled) return;
             const filtered = all.filter((r) => {
               if (activeView === "receivable") return r.balance > 0.005;
@@ -260,12 +264,14 @@ export function OfflineReportPanel({
             setTotal(recv);
             setSecondTotal(pay);
             setSecondLabel("Payable");
+            const period =
+              from && to ? `${from} to ${to} · balances as of ${to} · ` : "";
             setSubtitle(
               activeView === "payable"
-                ? "Vendors with credit balance"
+                ? `${period}Vendors with credit balance`
                 : activeView === "all"
-                  ? "All party balances"
-                  : "Customers with debit balance",
+                  ? `${period}All party balances`
+                  : `${period}Customers with debit balance`,
             );
             setRows(
               filtered.map((r) => ({

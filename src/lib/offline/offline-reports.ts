@@ -364,7 +364,18 @@ function daysBetween(fromIso: string, toIso: string) {
 }
 
 /** Approximate party balances from local sales/purchases/receipts/payments. */
-export async function offlineAccountsBalances(companyId: string) {
+export async function offlineAccountsBalances(
+  companyId: string,
+  asOf?: string | null,
+) {
+  const asOfDate = (asOf || "").trim().slice(0, 10) || null;
+  const onOrBeforeAsOf = (dateStr: unknown) => {
+    if (!asOfDate) return true;
+    const d = String(dateStr || "").slice(0, 10);
+    if (!d) return false;
+    return d <= asOfDate;
+  };
+
   const [
     parties,
     sales,
@@ -423,34 +434,41 @@ export async function offlineAccountsBalances(companyId: string) {
 
   for (const r of sales) {
     if (r.status && r.status !== "posted") continue;
+    if (!onOrBeforeAsOf(r.invoice_date)) continue;
     bump(r.party_id, num(r.grand_total) - num(r.amount_paid));
   }
   for (const r of saleReturns) {
     if (r.status && r.status !== "posted") continue;
+    if (!onOrBeforeAsOf(r.return_date || r.doc_date)) continue;
     bump(r.party_id, -num(r.grand_total));
   }
   for (const r of expiryReceipts) {
     if (r.status && r.status !== "posted") continue;
+    if (!onOrBeforeAsOf(r.receipt_date || r.doc_date)) continue;
     // Customer credit (incl. balance-only old/manual expiry returns).
     bump(r.party_id, -num(r.grand_total));
   }
   for (const r of purchases) {
     if (r.status && r.status !== "posted") continue;
+    if (!onOrBeforeAsOf(r.invoice_date)) continue;
     // Vendor payable is negative (Cr) in recovery-sheet convention
     bump(r.party_id, -num(r.grand_total));
   }
   for (const r of purchaseReturns) {
     if (r.status && r.status !== "posted") continue;
+    if (!onOrBeforeAsOf(r.return_date || r.doc_date)) continue;
     bump(r.party_id, num(r.grand_total));
   }
   for (const r of expiryClaims) {
     if (r.status && r.status !== "posted") continue;
+    if (!onOrBeforeAsOf(r.claim_date || r.doc_date)) continue;
     // Vendor claim increases what the company owes / reduces vendor payable.
     bump(r.party_id, num(r.grand_total));
   }
 
   for (const r of vouchers) {
     if (String(r.status || "posted") === "cancelled") continue;
+    if (!onOrBeforeAsOf(r.voucher_date || r.doc_date)) continue;
     const type = String(r.voucher_type || r.type || r.entity_type || "");
     const amount = num(r.amount ?? r.total_amount ?? r.grand_total);
     const lines = voucherLinesOf(r);
@@ -510,7 +528,12 @@ function ledgerHref(table: string, id: string) {
 export async function offlinePartyLedger(
   companyId: string,
   partyId: string,
+  from?: string | null,
+  to?: string | null,
 ) {
+  const fromDate = (from || "").trim().slice(0, 10) || null;
+  const toDate = (to || "").trim().slice(0, 10) || null;
+
   const [
     parties,
     sales,
@@ -535,7 +558,6 @@ export async function offlinePartyLedger(
     );
 
   const party = parties.find((p) => String(p.id) === partyId);
-  let running = num(party?.opening_balance);
   type Draft = {
     date: string;
     type: string;
@@ -546,15 +568,7 @@ export async function offlinePartyLedger(
     docId?: string;
     docTitle?: string;
   };
-  const drafts: Draft[] = [
-    {
-      date: "",
-      type: "OP",
-      narration: "Opening balance",
-      debit: running > 0 ? running : 0,
-      credit: running < 0 ? Math.abs(running) : 0,
-    },
-  ];
+  const drafts: Draft[] = [];
 
   const push = (
     date: unknown,
@@ -697,18 +711,40 @@ export async function offlinePartyLedger(
     return a.date.localeCompare(b.date);
   });
 
-  running = num(party?.opening_balance);
+  let running = num(party?.opening_balance);
   const signed = (n: number) => {
     if (Math.abs(n) < 0.005) return "Nil";
     if (n > 0) return `${n.toFixed(2)} Dr`;
     return `${Math.abs(n).toFixed(2)} Cr`;
   };
 
+  // Bring forward activity before the From date into opening.
+  const periodDrafts: Draft[] = [];
+  for (const e of drafts) {
+    if (fromDate && e.date && e.date < fromDate) {
+      running += e.debit - e.credit;
+      continue;
+    }
+    if (toDate && e.date && e.date > toDate) continue;
+    if (fromDate && !e.date) continue;
+    periodDrafts.push(e);
+  }
+
+  const opening: Draft = {
+    date: fromDate || "",
+    type: "OP",
+    narration: fromDate ? `Opening balance (${fromDate})` : "Opening balance",
+    debit: running > 0 ? running : 0,
+    credit: running < 0 ? Math.abs(running) : 0,
+  };
+
+  const lines = [opening, ...periodDrafts];
+
   return {
     partyName: party
       ? `${party.party_code || ""} ${party.name_en || ""}`.trim()
       : partyId,
-    rows: drafts.map((e, idx) => {
+    rows: lines.map((e, idx) => {
       if (idx > 0) running += e.debit - e.credit;
       return {
         Date: e.date,

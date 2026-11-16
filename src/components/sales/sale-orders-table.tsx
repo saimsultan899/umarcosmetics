@@ -6,6 +6,7 @@ import { StatCard, StatsGrid } from "@/components/analytics/stat-card";
 import { TableFilterSelect } from "@/components/tables/table-filter-select";
 import { TablePagination } from "@/components/tables/table-pagination";
 import { TableScroll } from "@/components/tables/table-scroll";
+import { SaleOrderRowActions } from "@/components/sales/sale-order-row-actions";
 import { TableToolbar } from "@/components/tables/table-toolbar";
 import { useSearchInput, useUrlTableState } from "@/hooks/use-url-table-state";
 import type { PaginationMeta } from "@/lib/pagination";
@@ -34,11 +35,22 @@ export function SaleOrdersTable({
   pagination,
   summary,
   salesmen,
+  parties,
+  products,
 }: {
   rows: SaleOrderListRow[];
   pagination: PaginationMeta;
   summary: SaleOrderListSummary;
   salesmen: Array<{ id: string; full_name: string }>;
+  parties: Array<{ id: string; party_code: string; name_en: string }>;
+  products: Array<{
+    id: string;
+    code: string | null;
+    name_en: string;
+    sale_rate: number | null;
+    retail_rate: number | null;
+    default_warehouse_id: string | null;
+  }>;
 }) {
   const { q, isPending, setPage, setPageSize, setQuery, setFilter, filters } =
     useUrlTableState(FILTER_KEYS);
@@ -169,10 +181,11 @@ export function SaleOrdersTable({
                   <th>Date</th>
                   <th>Salesman</th>
                   <th>Customer</th>
-                  <th>Companies</th>
+                  <th>Company bills</th>
                   <th className="text-right">Qty</th>
                   <th className="text-right">Amount</th>
                   <th>Status</th>
+                  <th className="text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -192,13 +205,40 @@ export function SaleOrdersTable({
                       <td>{shortDate(row.orderDate)}</td>
                       <td>{row.salesmanName}</td>
                       <td>{row.partyName}</td>
-                      <td>{row.companies.join(", ") || "—"}</td>
+                      <td>
+                        {row.companyBills.length ? (
+                          <ul className="space-y-1">
+                            {row.companyBills.map((bill) => (
+                              <li
+                                key={bill.warehouseId}
+                                className="flex flex-wrap items-center gap-1.5 text-xs"
+                              >
+                                <span className="font-medium text-[var(--ink)]">
+                                  {bill.name}
+                                </span>
+                                <span
+                                  className={cn(
+                                    "rounded-[var(--radius-sm)] px-1.5 py-0.5 text-[10px] font-semibold",
+                                    bill.status === "open"
+                                      ? "bg-amber-500/15 text-amber-800"
+                                      : "bg-emerald-500/15 text-emerald-800",
+                                  )}
+                                >
+                                  {bill.status === "open" ? "Waiting bill" : "Billed"}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
                       <td className="text-right">{row.qty}</td>
                       <td className="text-right">{formatPkr(row.amount)}</td>
                       <td>
                         <span
                           className={cn(
-                            "rounded-full px-2 py-0.5 text-xs font-medium",
+                            "rounded-[var(--radius-sm)] px-2 py-0.5 text-xs font-medium",
                             row.status === "open"
                               ? "bg-amber-500/15 text-amber-800"
                               : row.status === "fulfilled"
@@ -209,11 +249,18 @@ export function SaleOrdersTable({
                           {statusLabel(row.status)}
                         </span>
                       </td>
+                      <td className="text-right">
+                        <SaleOrderRowActions
+                          row={row}
+                          parties={parties}
+                          products={products}
+                        />
+                      </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={8} className="py-8 text-center text-[var(--muted)]">
+                    <td colSpan={9} className="py-8 text-center text-[var(--muted)]">
                       No orders match this filter.
                     </td>
                   </tr>
@@ -228,6 +275,7 @@ export function SaleOrdersTable({
                     </td>
                     <td className="text-right">{summary.filteredQty}</td>
                     <td className="text-right">{formatPkr(summary.filteredAmount)}</td>
+                    <td />
                     <td />
                   </tr>
                 </tfoot>
