@@ -146,6 +146,7 @@ export function SaleInvoicePrint({
   companyId = "",
   embedded = false,
   forceStandard = false,
+  narration: _narration = null,
   /** Controlled paper size when embedded in batch print. */
   paperSize: paperSizeProp,
 }: {
@@ -186,6 +187,8 @@ export function SaleInvoicePrint({
   embedded?: boolean;
   /** Always use standard sheet (no thermal) — safest for batch print. */
   forceStandard?: boolean;
+  /** Optional narration / remarks shown at the bottom of the invoice. */
+  narration?: string | null;
   /** a5 (default half slip) or a4 (full page when many lines). */
   paperSize?: "a5" | "a4";
 }) {
@@ -208,6 +211,7 @@ export function SaleInvoicePrint({
     .join(" ");
   const headerPhones = distributorPhoneLines(_companyPhone, organizationName);
   const preparedByLabel = String(preparedBy || "").trim();
+  const remarksText = _narration?.trim() || null;
 
   const savedTitle = useRef("");
   const clientReady = useClientReady();
@@ -525,6 +529,9 @@ export function SaleInvoicePrint({
             </div>
           ) : null}
           <div className="th-eq">{THERMAL_EQ}</div>
+          {remarksText ? (
+            <div className="th-remarks">Remarks: {remarksText}</div>
+          ) : null}
           <div className="th-thanks">Thank you</div>
           <div className="th-credit">
             <div className="th-credit-line">
@@ -754,6 +761,12 @@ export function SaleInvoicePrint({
                       <span className="si-sign-line" />
                     </div>
                   </div>
+                  {remarksText ? (
+                    <div className="si-remarks">
+                      <span className="si-k">Remarks:</span>{" "}
+                      <span className="si-v">{remarksText}</span>
+                    </div>
+                  ) : null}
                   <div className="si-developed">
                     Developed by Umar Distributor (0308-4882425, 03006031380)
                   </div>

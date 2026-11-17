@@ -82,6 +82,7 @@ export default async function SaleInvoiceDetailPage({
         autoPrint={autoPrint}
         isWalkIn={invoice.isWalkIn}
         companyId={invoice.companyId}
+        narration={invoice.narration}
       />
     </div>
   );

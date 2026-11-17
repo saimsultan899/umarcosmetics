@@ -140,6 +140,7 @@ export function SaleInvoicesBatchPrint({
             previousBalance={inv.previousBalance}
             preparedBy={inv.preparedBy}
             isWalkIn={inv.isWalkIn}
+            narration={inv.narration}
             embedded
             forceStandard
             paperSize={paperSize}

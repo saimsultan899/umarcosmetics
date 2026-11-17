@@ -451,6 +451,7 @@ export function OfflineDocumentDetail({
           autoPrint={autoPrint}
           isWalkIn={String(view.partyCode || "").toUpperCase() === "WALKIN"}
           companyId={companyId}
+          narration={(doc.narration as string) || null}
         />
       </div>
     );

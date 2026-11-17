@@ -29,6 +29,7 @@ export type SaleInvoicePrintData = {
   preparedBy: string | null;
   isWalkIn: boolean;
   status: string | null;
+  narration: string | null;
 };
 
 type PartyRow = {
@@ -183,6 +184,7 @@ export async function loadSaleInvoicePrintData(
     preparedBy: opts.preparedByFallback || salesmanObj?.full_name || null,
     isWalkIn,
     status: invoice.status ?? null,
+    narration: invoice.narration ? String(invoice.narration).trim() || null : null,
   };
 }
 
